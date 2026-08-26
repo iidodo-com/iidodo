@@ -1,0 +1,50 @@
+[
+  {
+    "id": "R-001",
+    "category": "安全",
+    "title": "保護メガネの未着用",
+    "description": "作業エリア内で保護メガネを着用していない作業者を確認した場合は是正指導する。",
+    "severity": "high",
+    "evidence": { "page": 42, "chapter": "第2章", "section": "第3節" }
+  },
+  {
+    "id": "R-002",
+    "category": "安全",
+    "title": "始業前点検の未実施",
+    "description": "フォークリフト等の始業前点検表への記入漏れがないか確認する。",
+    "severity": "high",
+    "evidence": { "page": 35, "chapter": "第2章", "section": "第2節" }
+  },
+  {
+    "id": "R-003",
+    "category": "服装",
+    "title": "規定外の服装",
+    "description": "袖口の緩い服や指定外の履物を着用していないか確認する。",
+    "severity": "medium",
+    "evidence": { "page": 28, "chapter": "第2章", "section": "第1節" }
+  },
+  {
+    "id": "R-004",
+    "category": "品質",
+    "title": "検査記録の未記入",
+    "description": "出荷前検査の結果が検査記録簿に記入されているか確認する。",
+    "severity": "medium",
+    "evidence": { "page": 61, "chapter": "第3章", "section": "第2節" }
+  },
+  {
+    "id": "R-005",
+    "category": "品質",
+    "title": "検査基準の逸脱",
+    "description": "抜取検査のロットサイズが基準どおりか確認する。",
+    "severity": "low",
+    "evidence": { "page": 56, "chapter": "第3章", "section": "第1節" }
+  },
+  {
+    "id": "R-006",
+    "category": "緊急対応",
+    "title": "消火器点検表の未更新",
+    "description": "各エリアの消火器点検表が直近1か月以内に更新されているか確認する。",
+    "severity": "medium",
+    "evidence": { "page": 74, "chapter": "第4章", "section": "第1節" }
+  }
+]

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手引参照ツール</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="app-header">
+    <h1>手引参照ツール</h1>
+    <p class="subtitle">指摘事項と作業手引きの本文を紐づけて確認できます</p>
+  </header>
+
+  <section class="search-bar">
+    <label class="field-label" for="tebiki-search-input">手引を全文検索</label>
+    <div class="search-row">
+      <input id="tebiki-search-input" type="text" placeholder="例：保護メガネ、点検、消火器 など" autocomplete="off">
+      <button id="tebiki-search-clear" class="secondary-btn">クリア</button>
+    </div>
+    <div id="search-results" class="search-results hidden"></div>
+  </section>
+
+  <main class="main-grid">
+    <section class="panel findings-panel">
+      <div class="panel-header">
+        <h2>指摘一覧</h2>
+        <div class="panel-actions">
+          <button id="add-rule-btn" class="secondary-btn">＋ 新規追加</button>
+          <button id="export-rules-btn" class="secondary-btn">rules.json をエクスポート</button>
+        </div>
+      </div>
+
+      <form id="rule-form" class="rule-form hidden">
+        <input type="hidden" id="rule-form-id">
+        <label class="field-label" for="rule-form-category">カテゴリ</label>
+        <input id="rule-form-category" type="text" placeholder="例：安全">
+
+        <label class="field-label" for="rule-form-title">指摘タイトル</label>
+        <input id="rule-form-title" type="text" placeholder="例：保護メガネの未着用">
+
+        <label class="field-label" for="rule-form-description">指摘内容</label>
+        <textarea id="rule-form-description" rows="2" placeholder="指摘の詳細を入力"></textarea>
+
+        <label class="field-label" for="rule-form-severity">重要度</label>
+        <select id="rule-form-severity">
+          <option value="high">高</option>
+          <option value="medium" selected>中</option>
+          <option value="low">低</option>
+        </select>
+
+        <div class="evidence-fields">
+          <div>
+            <label class="field-label" for="rule-form-page">根拠ページ</label>
+            <input id="rule-form-page" type="number" min="1" placeholder="例：42">
+          </div>
+          <div>
+            <label class="field-label" for="rule-form-chapter">章</label>
+            <input id="rule-form-chapter" type="text" placeholder="例：第2章">
+          </div>
+          <div>
+            <label class="field-label" for="rule-form-section">節</label>
+            <input id="rule-form-section" type="text" placeholder="例：第3節">
+          </div>
+        </div>
+
+        <p id="rule-form-error" class="error-text hidden"></p>
+
+        <div class="btn-row">
+          <button type="submit" id="rule-form-save" class="primary-btn">保存</button>
+          <button type="button" id="rule-form-cancel" class="secondary-btn">キャンセル</button>
+        </div>
+      </form>
+
+      <div id="rules-list" class="rules-list"></div>
+      <p id="rules-empty-msg" class="empty-msg hidden">指摘がまだ登録されていません。</p>
+    </section>
+
+    <section class="panel manual-panel">
+      <div class="panel-header">
+        <h2>手引ビューア</h2>
+      </div>
+      <div id="manual-placeholder" class="manual-placeholder">
+        左の指摘の「根拠」をクリックするか、上の検索結果からページを選択すると、該当する手引の本文がここに表示されます。
+      </div>
+      <div id="manual-detail" class="manual-detail hidden">
+        <div class="manual-detail-meta">
+          <span id="manual-page-badge" class="badge"></span>
+          <span id="manual-chapter-section" class="manual-chapter-section"></span>
+        </div>
+        <h3 id="manual-heading"></h3>
+        <p id="manual-text"></p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!--
+  前工程（手引きOCR/構造化パイプライン）が生成した rules.json と tebiki_text.json を
+  そのままこの中に埋め込んでいます。外部ファイルの fetch は行いません。
+  同内容のソースファイルを rules.json / tebiki_text.json としてこのフォルダに置いてあるので、
+  前工程を再実行した場合はここも同じ内容に差し替えてください。
+-->
+<script type="application/json" id="rules-data">
+[
+  {
+    "id": "R-001",
+    "category": "安全",
+    "title": "保護メガネの未着用",
+    "description": "作業エリア内で保護メガネを着用していない作業者を確認した場合は是正指導する。",
+    "severity": "high",
+    "evidence": { "page": 42, "chapter": "第2章", "section": "第3節" }
+  },
+  {
+    "id": "R-002",
+    "category": "安全",
+    "title": "始業前点検の未実施",
+    "description": "フォークリフト等の始業前点検表への記入漏れがないか確認する。",
+    "severity": "high",
+    "evidence": { "page": 35, "chapter": "第2章", "section": "第2節" }
+  },
+  {
+    "id": "R-003",
+    "category": "服装",
+    "title": "規定外の服装",
+    "description": "袖口の緩い服や指定外の履物を着用していないか確認する。",
+    "severity": "medium",
+    "evidence": { "page": 28, "chapter": "第2章", "section": "第1節" }
+  },
+  {
+    "id": "R-004",
+    "category": "品質",
+    "title": "検査記録の未記入",
+    "description": "出荷前検査の結果が検査記録簿に記入されているか確認する。",
+    "severity": "medium",
+    "evidence": { "page": 61, "chapter": "第3章", "section": "第2節" }
+  },
+  {
+    "id": "R-005",
+    "category": "品質",
+    "title": "検査基準の逸脱",
+    "description": "抜取検査のロットサイズが基準どおりか確認する。",
+    "severity": "low",
+    "evidence": { "page": 56, "chapter": "第3章", "section": "第1節" }
+  },
+  {
+    "id": "R-006",
+    "category": "緊急対応",
+    "title": "消火器点検表の未更新",
+    "description": "各エリアの消火器点検表が直近1か月以内に更新されているか確認する。",
+    "severity": "medium",
+    "evidence": { "page": 74, "chapter": "第4章", "section": "第1節" }
+  }
+]
+</script>
+<script type="application/json" id="tebiki-text-data">
+[
+  {
+    "page": 3,
+    "chapter": "第1章 総則",
+    "section": "第1節 目的",
+    "heading": "目的",
+    "text": "本手引きは、倉庫内作業に従事するすべての作業者が安全かつ正確に業務を遂行できるようにするための基本事項を定めることを目的とする。作業者は本手引きの内容を十分に理解し、日々の業務に活用しなければならない。"
+  },
+  {
+    "page": 5,
+    "chapter": "第1章 総則",
+    "section": "第2節 適用範囲",
+    "heading": "適用範囲",
+    "text": "本手引きは、当社が運営するすべての物流センターおよび倉庫における入出庫作業、検品作業、保管作業、および付随する一切の作業に適用する。委託先の作業者に対しても同様の基準を求めるものとする。"
+  },
+  {
+    "page": 28,
+    "chapter": "第2章 安全作業の基本",
+    "section": "第1節 作業服装の基準",
+    "heading": "作業服装の基準",
+    "text": "作業者は、動きやすく安全性の高い指定の作業服を着用しなければならない。袖口や裾がゆるい服装、装飾品の着用は禁止とする。履物は指定の安全靴とし、サンダルやスリッパでの作業は認めない。"
+  },
+  {
+    "page": 35,
+    "chapter": "第2章 安全作業の基本",
+    "section": "第2節 始業前点検",
+    "heading": "始業前点検の実施",
+    "text": "フォークリフトその他の運搬機器を使用する作業者は、始業前に必ず点検を行い、始業前点検表に結果を記入しなければならない。異常を発見した場合は直ちに使用を中止し、責任者へ報告すること。"
+  },
+  {
+    "page": 42,
+    "chapter": "第2章 安全作業の基本",
+    "section": "第3節 保護具の使用基準",
+    "heading": "保護具の使用基準",
+    "text": "作業エリア内では、指定された保護具（保護メガネ、安全靴、耳栓、防塵マスク等）を必ず着用しなければならない。保護メガネは飛散物のある作業区域では常時着用が義務付けられる。保護具に破損が見られる場合は速やかに交換すること。"
+  },
+  {
+    "page": 56,
+    "chapter": "第3章 品質管理",
+    "section": "第1節 検査基準",
+    "heading": "検査基準",
+    "text": "出荷前の製品は、定められた抜取検査基準に基づき検査を行う。ロットサイズに応じたサンプル数を確認し、不良品が基準を超えて検出された場合は当該ロット全体を再検査の対象とする。"
+  },
+  {
+    "page": 61,
+    "chapter": "第3章 品質管理",
+    "section": "第2節 記録の残し方",
+    "heading": "検査記録の残し方",
+    "text": "検査を実施した結果は、検査記録簿に検査日時、担当者名、検査結果を漏れなく記入し、所定の保管期間（3年間）保存しなければならない。記録の改ざんは固く禁止する。"
+  },
+  {
+    "page": 74,
+    "chapter": "第4章 緊急時対応",
+    "section": "第1節 火災発生時の対応",
+    "heading": "火災発生時の対応",
+    "text": "火災を発見した場合は、まず大声で周囲に知らせるとともに、初期消火が可能であれば消火器を使用して消火にあたる。消火が困難と判断した場合は直ちに避難し、消防への通報を最優先する。各エリアの消火器は月次で点検し、点検表を更新すること。"
+  },
+  {
+    "page": 78,
+    "chapter": "第4章 緊急時対応",
+    "section": "第2節 負傷者発生時の対応",
+    "heading": "負傷者発生時の対応",
+    "text": "作業中に負傷者が発生した場合は、直ちに作業を中止し、応急手当を行うとともに責任者へ報告する。負傷の程度に応じて救急車の要請を判断し、事故発生状況を事故報告書に記録する。"
+  },
+  {
+    "page": 81,
+    "chapter": "第4章 緊急時対応",
+    "section": "第3節 緊急連絡先",
+    "heading": "緊急連絡先",
+    "text": "火災・事故・急病等の緊急事態が発生した場合の連絡先は以下のとおりとする。施設責任者、消防（119）、警察（110）、産業医。連絡先一覧は各作業エリアに掲示すること。"
+  }
+]
+</script>
+
+<script src="app.js"></script>
+</body>
+</html>
