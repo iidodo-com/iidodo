@@ -20,12 +20,13 @@
   python3 generate_sample.py
   python3 generate_sample.py --out-dir sample_data --days 30 --avg-visits 80
 
-生成されるCSVの列レイアウト（index.html の設定パネルにそのまま入力してください）:
-  列5  : 発券時刻（HHMMSS, 6桁）
-  列40 : 一線呼出時刻（HHMMSS）
-  列41 : 一線終了時刻（HHMMSS）
-  列53 : 呼出テラーアドレス（窓口番号）
-  列10 : 業務区分（50/51/52=係員呼出, 60=来店カウント）※このスクリプト独自の仮の列番号です
+生成されるCSVの列レイアウト（テーブル定義書に基づく実際の列番号。index.html の
+設定パネルの既定値と一致するため、通常は設定を変更する必要はありません）:
+  列2  : 発行業種（大区分）＝業務区分（1〜32,50,51,52,60。50/51/52=係員呼出, 60=来店カウント）
+  列5  : 発券時刻（HH:MM:SS, 例 09:05:12）
+  列40 : 一線呼出時刻（HH:MM:SS）
+  列41 : 一線終了時刻（HH:MM:SS）
+  列53 : 呼出テラーアドレス（窓口番号, 10進数）
   列15 : （ダミー）ステータスコード 1〜3（列プロファイラの動作確認用）
   列20 : （ダミー）予約フラグ 0/1（列プロファイラの動作確認用）
 """
@@ -42,7 +43,7 @@ COL_ISSUE = 5
 COL_CALL = 40
 COL_END = 41
 COL_COUNTER = 53
-COL_TASK = 10
+COL_TASK = 2
 COL_STATUS = 15
 COL_RESV = 20
 
@@ -72,10 +73,11 @@ def era_label(year, month):
 
 
 def min_to_hhmmss(total_minutes, second=0):
+    """テーブル定義書の時刻形式（文字列 HH:MM:SS、注1参照）で出力する。"""
     total_minutes = max(0, min(23 * 60 + 59, total_minutes))
     h = total_minutes // 60
     m = total_minutes % 60
-    return f"{h:02d}{m:02d}{second:02d}"
+    return f"{h:02d}:{m:02d}:{second:02d}"
 
 
 def sample_arrival_minute(rng):
@@ -193,7 +195,7 @@ def generate(out_dir, start_date, days, avg_visits, staff_rate, seed):
             "column_hints": {
                 "colIssue": COL_ISSUE, "colCall": COL_CALL, "colEnd": COL_END,
                 "colCounter": COL_COUNTER, "colTask": COL_TASK, "colTotal": COL_TOTAL,
-                "timeFormat": "HHMMSS",
+                "timeFormat": "HHCOLON",
                 "taskStaffCodes": STAFF_CODES, "taskVisitCodes": [VISIT_CODE]
             },
             "seed": seed, "days_requested": days, "avg_visits_per_ward_per_day": avg_visits
@@ -224,7 +226,7 @@ def main():
     print(json.dumps(expected, ensure_ascii=False, indent=2))
     print(f"\nexpected.json を {os.path.join(args.out_dir, 'expected.json')} に出力しました。")
     print("index.html の「検証モード」タブから expected.json を読み込むと、このダミーデータに対する検証ができます。")
-    print(f"設定パネルには 業務区分列={COL_TASK} / 時刻書式=HHMMSS（または自動判定）を入力してください。")
+    print(f"設定パネルの既定値（業務区分列={COL_TASK} / 時刻書式=HH:MM:SS）のままで読み込めます。")
 
 
 if __name__ == "__main__":
