@@ -171,9 +171,9 @@
     </div>
     <div class="grid grid-cols-2" style="margin-top:8px;">
       <div>
-        <label class="field-label">業務区分列（1始まり）※未確定のため必須入力</label>
-        <input type="number" id="colTask" min="1" placeholder="列番号を入力してください">
-        <div class="field-note">列番号が分からない場合は下の「列プロファイラ」で 50,51,52,60 が集中する列を探してください。</div>
+        <label class="field-label">業務区分列（1始まり、既定 2）</label>
+        <input type="number" id="colTask" min="1" value="2" placeholder="列番号を入力してください">
+        <div class="field-note">既定値2はテーブル定義書3-4「発行業種（大区分）」列に基づきます。端末や機種が異なる場合は下の「列プロファイラ」で 50,51,52,60 が集中する列を確認してください。</div>
       </div>
       <div>
         <label class="field-label">総列数（固定長チェック用、既定 65）</label>
@@ -192,10 +192,10 @@
       <div>
         <label class="field-label">時刻の書式</label>
         <select id="timeFormat">
-          <option value="auto" selected>自動判定（桁数で判定）</option>
+          <option value="HHCOLON" selected>HH:MM:SS（コロン区切り, 例 14:34:56）※テーブル定義書の既定形式</option>
+          <option value="auto">自動判定（コロンの有無・桁数で判定）</option>
           <option value="HHMM">HHMM（4桁, 例 0905）</option>
           <option value="HHMMSS">HHMMSS（6桁, 例 090512）</option>
-          <option value="HHCOLON">HH:MM[:SS]（コロン区切り）</option>
         </select>
       </div>
       <div>
@@ -396,9 +396,9 @@
    1. 設定（CONFIG）
    --------------------------------------------------------------------- */
 const DEFAULT_CONFIG = {
-  colIssue:5, colCall:40, colEnd:41, colCounter:53, colTask:null, colTotal:65,
+  colIssue:5, colCall:40, colEnd:41, colCounter:53, colTask:2, colTotal:65,
   taskStaffCodes:[50,51,52], taskVisitCodes:[60],
-  timeFormat:'auto',
+  timeFormat:'HHCOLON',
   filenameDatePattern:'^CD(?<yy>\\d{2})(?<mm>\\d{2})(?<dd>\\d{2})\\d{5}',
   folderWardPattern:'^\\d{2}(?<ward>.+区)$',
   curStart:'08:30', curEnd:'17:15',
@@ -544,7 +544,9 @@ function parseTimeToken(raw, format){
   if(raw==null) return -1;
   const s = String(raw).trim();
   if(s==='') return -1;
-  if(format === 'HHCOLON'){
+  let fmt = format;
+  if(fmt === 'auto') fmt = s.indexOf(':') >= 0 ? 'HHCOLON' : (s.length<=4 ? 'HHMM' : 'HHMMSS');
+  if(fmt === 'HHCOLON'){
     const m = s.match(/^(\\d{1,2}):(\\d{2})(?::(\\d{2}))?$/);
     if(!m) return -1;
     const hh=+m[1], mm=+m[2], ss=m[3]?+m[3]:0;
@@ -552,8 +554,6 @@ function parseTimeToken(raw, format){
     return hh*3600+mm*60+ss;
   }
   if(!/^\\d+$/.test(s)) return -1;
-  let fmt = format;
-  if(fmt === 'auto') fmt = (s.length<=4) ? 'HHMM' : 'HHMMSS';
   if(fmt === 'HHMM'){
     const p = s.padStart(4,'0');
     const hh=+p.slice(0,2), mm=+p.slice(2,4);
@@ -593,7 +593,7 @@ async function* iterLines(file){
 
 async function runProfile(files, limit, colTotal){
   const cols = [];
-  for(let c=0;c<colTotal;c++) cols.push({counts:new Map(), nonEmpty:0, numeric:0, timeLike4:0, timeLike6:0});
+  for(let c=0;c<colTotal;c++) cols.push({counts:new Map(), nonEmpty:0, numeric:0, timeLike4:0, timeLike6:0, timeLikeColon:0});
   let lineCount = 0;
   outer:
   for(const f of files){
@@ -617,6 +617,11 @@ async function runProfile(files, limit, colTotal){
           const hh=+v.slice(0,2), mm=+v.slice(2,4), ss=+v.slice(4,6);
           if(hh<24 && mm<60 && ss<60) col.timeLike6++;
         }
+        const colonMatch = v.match(/^(\\d{1,2}):(\\d{2})(?::(\\d{2}))?$/);
+        if(colonMatch){
+          const hh=+colonMatch[1], mm=+colonMatch[2], ss=colonMatch[3]?+colonMatch[3]:0;
+          if(hh<24 && mm<60 && ss<60) col.timeLikeColon++;
+        }
       }
       lineCount++;
       if(lineCount % 500 === 0) self.postMessage({type:'profile-progress', lineCount});
@@ -629,6 +634,7 @@ async function runProfile(files, limit, colTotal){
     if(col.nonEmpty>0 && col.numeric/col.nonEmpty > 0.9) type = '数値';
     if(col.nonEmpty>0 && col.timeLike6/col.nonEmpty > 0.7) type = '時刻候補(6桁)';
     else if(col.nonEmpty>0 && col.timeLike4/col.nonEmpty > 0.7) type = '時刻候補(4桁)';
+    else if(col.nonEmpty>0 && col.timeLikeColon/col.nonEmpty > 0.7) type = '時刻候補(HH:MM:SS)';
     let taskScore = 0;
     for(const code of ['50','51','52','60']){
       if(col.counts.has(code)) taskScore += col.counts.get(code);
