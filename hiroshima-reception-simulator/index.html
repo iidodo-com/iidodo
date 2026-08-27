@@ -748,11 +748,21 @@ function updateFileSummary(){
   byId('parseBtn').disabled = loadedFiles.length===0;
 }
 
+function yieldToBrowser(){
+  // ブラウザに描画・入力処理の機会を返す（マクロタスク境界）。
+  // これを挟まずに大量のファイルをPromiseチェーンだけで処理すると、
+  // Chromeの「ページが応答していません」検知が誤って発動することがあるため。
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
 async function walkEntry(entry, pathPrefix, out){
   if(entry.isFile){
     await new Promise((resolve)=>{
       entry.file((file)=>{ out.push({fileObj:file, name:file.name, relPath: pathPrefix + file.name}); resolve(); }, ()=>resolve());
     });
+    if(out.length % 30 === 0){
+      logLoad(`  フォルダ走査中... ${out.length}件検出`);
+      await yieldToBrowser();
+    }
   } else if(entry.isDirectory){
     const reader = entry.createReader();
     const readAll = () => new Promise((resolve)=>{
@@ -762,7 +772,7 @@ async function walkEntry(entry, pathPrefix, out){
           if(batch.length===0){ resolve(entries); return; }
           entries.push(...batch);
           readBatch();
-        }, ()=>resolve(entries));
+        }, (err)=>{ logLoad(`  警告: フォルダ読み取りに失敗しました（${pathPrefix + entry.name}）: ${err && err.message ? err.message : err}`); resolve(entries); });
       };
       readBatch();
     });
