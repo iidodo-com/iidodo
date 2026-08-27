@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>窓口受付時間シミュレーター</title>
+<style>
+:root{
+  --bg:#f4f5f6; --surface:#ffffff; --border:#d5d9dc; --border-strong:#aeb4b9;
+  --text:#1f2a30; --text-muted:#5b6770; --accent:#1a5276; --accent-bg:#eaf1f6;
+  --warn:#8a5a00; --warn-bg:#fff6e6; --bad:#a4302a; --bad-bg:#fdecea; --good:#1e7a34; --good-bg:#eaf6ec;
+  --cat-visit:#1a5276; --cat-staff:#7d8f99;
+  --ward-colors: #1a5276,#2e86ab,#43aa8b,#90be6d,#f9c74f,#f3722c,#f94144,#9d4edd,#577590,#277da1;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"游ゴシック体","Yu Gothic","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;font-size:14px;line-height:1.6;}
+header.app-header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 20px;}
+header.app-header h1{margin:0 0 4px;font-size:20px;}
+header.app-header p.lead{margin:0;color:var(--text-muted);font-size:12.5px;}
+.privacy-banner{background:var(--good-bg);color:var(--good);border-bottom:1px solid #bfe3c6;padding:6px 20px;font-size:12.5px;font-weight:bold;}
+main{max-width:1200px;margin:0 auto;padding:16px 20px 60px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px;margin-bottom:16px;}
+.card h2{margin:0 0 10px;font-size:15px;border-left:4px solid var(--accent);padding-left:8px;}
+.card h3{margin:14px 0 6px;font-size:13px;color:var(--text-muted);}
+.grid{display:grid;gap:12px;}
+.grid.cols-2{grid-template-columns:1fr 1fr;}
+.grid.cols-3{grid-template-columns:repeat(3,1fr);}
+.grid.cols-4{grid-template-columns:repeat(4,1fr);}
+@media (max-width:800px){.grid.cols-2,.grid.cols-3,.grid.cols-4{grid-template-columns:1fr;}}
+label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:2px;}
+input[type=number],input[type=text],input[type=time],input[type=date],select{
+  width:100%;padding:5px 6px;border:1px solid var(--border-strong);border-radius:3px;font-size:13px;background:#fff;color:var(--text);
+}
+input[type=range]{width:100%;}
+button{background:var(--surface);border:1px solid var(--border-strong);border-radius:3px;padding:6px 12px;font-size:13px;cursor:pointer;color:var(--text);}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+button.small{padding:3px 8px;font-size:12px;}
+button:disabled{opacity:.5;cursor:not-allowed;}
+.field{margin-bottom:8px;}
+.warn-badge{display:inline-block;background:var(--warn-bg);color:var(--warn);border:1px solid #e8c98a;border-radius:3px;padding:1px 6px;font-size:11px;margin-left:6px;}
+.note{font-size:11.5px;color:var(--text-muted);}
+#drop-zone{border:2px dashed var(--border-strong);border-radius:6px;padding:26px;text-align:center;color:var(--text-muted);background:#fafbfc;}
+#drop-zone.drag-over{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+.progress-wrap{margin-top:10px;height:16px;background:#e8eaec;border-radius:8px;overflow:hidden;border:1px solid var(--border);}
+.progress-bar{height:100%;background:var(--accent);width:0%;transition:width .15s;}
+.progress-text{font-size:12px;color:var(--text-muted);margin-top:4px;}
+table.data-table{border-collapse:collapse;width:100%;font-size:12.5px;}
+table.data-table th,table.data-table td{border:1px solid var(--border);padding:5px 7px;text-align:right;}
+table.data-table th{background:#f0f2f3;text-align:center;}
+table.data-table td:first-child,table.data-table th:first-child{text-align:left;}
+.tabs{display:flex;gap:4px;margin:16px 0 0;border-bottom:2px solid var(--border-strong);flex-wrap:wrap;}
+.tab-btn{background:none;border:1px solid transparent;border-bottom:none;padding:8px 14px;font-size:13px;color:var(--text-muted);border-radius:4px 4px 0 0;}
+.tab-btn.active{color:var(--accent);border-color:var(--border-strong);background:var(--surface);font-weight:bold;}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+.stat-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+@media (max-width:800px){.stat-cards{grid-template-columns:repeat(2,1fr);}}
+.stat-card{border:1px solid var(--border);border-radius:4px;padding:10px;background:#fafbfc;}
+.stat-card .label{font-size:11.5px;color:var(--text-muted);}
+.stat-card .value{font-size:20px;font-weight:bold;margin-top:2px;}
+.stat-card .sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+.formula-box{background:#f7f8f9;border:1px solid var(--border);border-radius:4px;padding:10px 12px;font-size:12.5px;font-family:"Courier New",monospace;white-space:pre-wrap;}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;margin-top:6px;}
+.legend .sw{display:inline-block;width:11px;height:11px;margin-right:4px;vertical-align:-1px;border:1px solid rgba(0,0,0,.2);}
+.check-list{list-style:none;padding:0;margin:8px 0 0;font-size:12.5px;}
+.check-list li{padding:4px 0;border-top:1px solid var(--border);}
+.check-list li:first-child{border-top:none;}
+.pass{color:var(--good);font-weight:bold;}
+.fail{color:var(--bad);font-weight:bold;}
+.export-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+canvas.chart-canvas{width:100%;height:340px;background:#fff;border:1px solid var(--border);}
+.warn-inline{color:var(--warn);}
+.summary-line{font-size:12.5px;margin:4px 0;}
+details>summary{cursor:pointer;font-size:13px;color:var(--accent);}
+.ward-check-list{max-height:140px;overflow-y:auto;border:1px solid var(--border);border-radius:3px;padding:6px;background:#fff;}
+.ward-check-list label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text);margin-bottom:2px;}
+.ward-check-list input{width:auto;}
+@media print{
+  .privacy-banner,#file-input-section,.tabs,.export-row,#settings-panel,#settings-toggle,button{display:none !important;}
+  .tab-panel{display:block !important;}
+  body{background:#fff;}
+  .card{border:1px solid #999;break-inside:avoid;}
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>窓口受付時間シミュレーター</h1>
+  <p class="lead">広島市区役所 発券機データによる受付時間短縮の影響度・時間外勤務削減効果の試算ツール</p>
+</header>
+<div class="privacy-banner">🔒 読み込んだCSVデータはこの端末内(ブラウザ)のみで処理され、外部へ一切送信されません。サーバー通信・外部ライブラリ読込は行いません。</div>
+
+<main>
+
+  <section class="card" id="file-input-section">
+    <h2>1. データ読み込み</h2>
+    <div id="drop-zone">
+      フォルダごとドラッグ&amp;ドロップ<br>
+      <span class="note">(令和○年 / ○月 / 01中区 ... の構成のまま、フォルダを丸ごとドロップしてください)</span>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <button id="btn-pick-dir" class="primary">フォルダを選択</button>
+        <button id="btn-pick-files">個別ファイルを選択(区名が取得できない場合あり)</button>
+      </div>
+      <input type="file" id="dir-input" webkitdirectory multiple style="display:none;">
+      <input type="file" id="file-input" multiple accept=".csv,.txt" style="display:none;">
+    </div>
+    <div class="progress-wrap" id="progress-wrap" style="display:none;">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+    <div class="progress-text" id="progress-text"></div>
+    <div id="load-summary"></div>
+  </section>
+
+  <section class="card" id="settings-panel-section">
+    <h2>2. 設定パネル <button class="small" id="settings-toggle" type="button">開く/閉じる</button></h2>
+    <div id="settings-panel" style="display:none;">
+      <p class="note">端末更改等で列位置がずれる可能性があるため、列番号・区分コードはすべてここで変更できます。<b>列番号/区分コード/時刻書式/文字コードの変更は「設定を適用して再読込」を押すと生データの再集計を行います</b>(他の項目は即時反映)。</p>
+      <div class="grid cols-4">
+        <div class="field"><label>発券時刻(列番号)</label><input type="number" id="cfg-col-issue" value="5" min="1" max="65"></div>
+        <div class="field"><label>一線呼出時刻(列番号)</label><input type="number" id="cfg-col-call" value="40" min="1" max="65"></div>
+        <div class="field"><label>一線終了時刻(列番号)</label><input type="number" id="cfg-col-end" value="41" min="1" max="65"></div>
+        <div class="field"><label>呼出テラーアドレス(列番号)</label><input type="number" id="cfg-col-teller" value="53" min="1" max="65"></div>
+      </div>
+      <div class="grid cols-4">
+        <div class="field">
+          <label>業務大区分(列番号) <span class="warn-badge">要確認：依頼資料に列番号の指定なし。暫定値</span></label>
+          <input type="number" id="cfg-col-category" value="54" min="1" max="65">
+        </div>
+        <div class="field"><label>来店カウント(母数)の区分コード</label><input type="text" id="cfg-cat-visit" value="60"></div>
+        <div class="field"><label>係員呼出の区分コード</label><input type="text" id="cfg-cat-staff" value="50,51,52"></div>
+        <div class="field"><label>文字コード</label>
+          <select id="cfg-encoding"><option value="shift_jis" selected>Shift_JIS</option><option value="utf-8">UTF-8</option></select>
+        </div>
+      </div>
+      <div class="grid cols-4">
+        <div class="field"><label>時刻の書式</label>
+          <select id="cfg-time-format">
+            <option value="auto" selected>自動判定</option>
+            <option value="HHMMSS">HHMMSS (例 083012)</option>
+            <option value="HHMM">HHMM (例 0830)</option>
+            <option value="HH:MM:SS">HH:MM:SS</option>
+            <option value="HH:MM">HH:MM</option>
+          </select>
+        </div>
+        <div class="field"><label>現行受付開始時刻</label><input type="time" id="cfg-cur-start" value="08:30"></div>
+        <div class="field"><label>現行受付終了時刻</label><input type="time" id="cfg-cur-end" value="17:15"></div>
+        <div class="field"><label>時間帯の境界条件</label>
+          <select id="cfg-boundary">
+            <option value="ge_lt" selected>開始時刻 以上 〜 終了時刻 未満</option>
+            <option value="ge_le">開始時刻 以上 〜 終了時刻 以下</option>
+            <option value="gt_lt">開始時刻 より後 〜 終了時刻 未満</option>
+            <option value="gt_le">開始時刻 より後 〜 終了時刻 以下</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid cols-4">
+        <div class="field"><label>時間外試算の基準時刻</label><input type="time" id="cfg-overtime-basis" value="16:30"></div>
+        <div class="field"><label>処理時間の異常値閾値(分)</label><input type="number" id="cfg-proc-max" value="180" min="1"></div>
+        <div class="field"><label>時間単価(円/時)</label><input type="number" id="cfg-rate" value="3000" min="0"></div>
+        <div class="field"><label>対象職員数(人)</label><input type="number" id="cfg-staff-count" value="1" min="1"></div>
+      </div>
+      <div class="grid cols-4">
+        <div class="field"><label>年間営業日数(年間換算用)</label><input type="number" id="cfg-annual-days" value="245" min="1"></div>
+      </div>
+      <div class="export-row">
+        <button class="primary" id="apply-settings-btn">設定を適用して再読込</button>
+        <button id="apply-settings-cheap-btn">設定を適用(再読込なし)</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="meta-summary-section" style="display:none;">
+    <h2>読み込み結果サマリー</h2>
+    <div id="meta-summary"></div>
+  </section>
+
+  <nav class="tabs" id="tabs" style="display:none;">
+    <button class="tab-btn active" data-tab="dist">来庁分布</button>
+    <button class="tab-btn" data-tab="sim">受付時間シミュレーション</button>
+    <button class="tab-btn" data-tab="overtime">時間外勤務削減試算</button>
+    <button class="tab-btn" data-tab="test">検証モード</button>
+  </nav>
+
+  <section class="tab-panel active card" id="tab-dist" style="display:none;">
+    <h2>来庁分布</h2>
+    <div class="grid cols-4">
+      <div class="field"><label>期間(from)</label><input type="date" id="dist-date-from"></div>
+      <div class="field"><label>期間(to)</label><input type="date" id="dist-date-to"></div>
+      <div class="field"><label>時刻の基準</label>
+        <select id="dist-basis"><option value="issue" selected>発券時刻</option><option value="call">呼出時刻</option><option value="end">終了時刻</option></select>
+      </div>
+      <div class="field"><label>色分け</label>
+        <select id="dist-colorby"><option value="ward" selected>区別</option><option value="category">業務区分別</option></select>
+      </div>
+    </div>
+    <div class="grid cols-4">
+      <div class="field"><label>業務区分</label>
+        <select id="dist-category-filter">
+          <option value="both" selected>来店カウント＋係員呼出</option>
+          <option value="visit">来店カウントのみ(母数)</option>
+          <option value="staff">係員呼出のみ</option>
+        </select>
+      </div>
+      <div class="field"><label>表示時間帯(開始)</label><input type="time" id="dist-window-start" value="07:00"></div>
+      <div class="field"><label>表示時間帯(終了)</label><input type="time" id="dist-window-end" value="17:00"></div>
+      <div class="field"><label>区</label><div class="ward-check-list" id="dist-ward-list"></div></div>
+    </div>
+    <canvas class="chart-canvas" id="dist-chart"></canvas>
+    <div class="legend" id="dist-legend"></div>
+    <div class="export-row">
+      <button id="dist-export-csv">CSVで出力(Shift_JIS)</button>
+      <button id="dist-export-tsv">TSVをクリップボードにコピー</button>
+      <button id="dist-export-png">グラフをPNG保存</button>
+    </div>
+    <div style="overflow-x:auto;margin-top:10px;"><table class="data-table" id="dist-table"></table></div>
+  </section>
+
+  <section class="tab-panel card" id="tab-sim" style="display:none;">
+    <h2>受付時間シミュレーション</h2>
+    <p class="note">母数は「現行受付時間内に来庁(来店カウント区分)した件数」です。時刻の基準は発券時刻に固定しています(受付を受け付けた瞬間を「受付」とみなすため)。</p>
+    <div class="grid cols-2">
+      <div class="field"><label>対象区</label><div class="ward-check-list" id="sim-ward-list"></div></div>
+      <div class="field"><label>対象期間</label>
+        <div class="grid cols-2">
+          <input type="date" id="sim-date-from">
+          <input type="date" id="sim-date-to">
+        </div>
+      </div>
+    </div>
+    <div class="grid cols-2">
+      <div class="field">
+        <label>変更後 受付開始時刻: <b id="sim-start-label">09:00</b></label>
+        <input type="range" id="sim-start-range" min="0" max="1439" step="5" value="540">
+        <input type="time" id="sim-start-time" value="09:00">
+      </div>
+      <div class="field">
+        <label>変更後 受付終了時刻: <b id="sim-end-label">16:30</b></label>
+        <input type="range" id="sim-end-range" min="0" max="1439" step="5" value="990">
+        <input type="time" id="sim-end-time" value="16:30">
+      </div>
+    </div>
+
+    <div class="stat-cards">
+      <div class="stat-card"><div class="label">① 変更後時間内 来庁者数</div><div class="value" id="sim-stat-in">-</div><div class="sub" id="sim-stat-in-sub"></div></div>
+      <div class="stat-card"><div class="label">② 短縮される前側 件数</div><div class="value" id="sim-stat-front">-</div><div class="sub" id="sim-stat-front-sub"></div></div>
+      <div class="stat-card"><div class="label">③ 短縮される後側 件数</div><div class="value" id="sim-stat-back">-</div><div class="sub" id="sim-stat-back-sub"></div></div>
+      <div class="stat-card"><div class="label">母数(現行時間内 来庁者数)</div><div class="value" id="sim-stat-denom">-</div><div class="sub">①+②+③ で検算</div></div>
+    </div>
+    <div class="summary-line" id="sim-identity-check"></div>
+
+    <h3>④ 区別・業務別 影響度ランキング(短縮により時間外となる件数の多い順)</h3>
+    <div class="export-row">
+      <button id="sim-export-csv">CSVで出力(Shift_JIS)</button>
+      <button id="sim-export-tsv">TSVをクリップボードにコピー</button>
+    </div>
+    <div style="overflow-x:auto;margin-top:8px;"><table class="data-table" id="sim-rank-table"></table></div>
+  </section>
+
+  <section class="tab-panel card" id="tab-overtime" style="display:none;">
+    <h2>時間外勤務削減効果の試算</h2>
+    <p class="note">「時間外試算の基準時刻」(設定パネル、既定16:30)以降に発券された行のうち、係員呼出の処理時間(一線終了時刻－一線呼出時刻)を削減対象とみなします。処理時間が負値、または設定した閾値を超える行は異常値として除外します。</p>
+    <div class="grid cols-2">
+      <div class="field"><label>対象区</label><div class="ward-check-list" id="ot-ward-list"></div></div>
+      <div class="field"><label>対象期間</label>
+        <div class="grid cols-2">
+          <input type="date" id="ot-date-from">
+          <input type="date" id="ot-date-to">
+        </div>
+      </div>
+    </div>
+    <div class="stat-cards">
+      <div class="stat-card"><div class="label">対象件数</div><div class="value" id="ot-count">-</div><div class="sub" id="ot-excluded-sub"></div></div>
+      <div class="stat-card"><div class="label">平均処理時間</div><div class="value" id="ot-avg">-</div></div>
+      <div class="stat-card"><div class="label">合計処理時間(実績期間)</div><div class="value" id="ot-sum">-</div></div>
+      <div class="stat-card"><div class="label">実績日数</div><div class="value" id="ot-days">-</div></div>
+    </div>
+    <h3>算出式</h3>
+    <div class="formula-box" id="ot-formula"></div>
+    <div class="stat-cards" style="margin-top:12px;">
+      <div class="stat-card"><div class="label">年間削減時間(全体)</div><div class="value" id="ot-annual-hours">-</div></div>
+      <div class="stat-card"><div class="label">年間削減額</div><div class="value" id="ot-annual-amount">-</div></div>
+    </div>
+    <div class="export-row">
+      <button id="ot-export-csv">CSVで出力(Shift_JIS)</button>
+      <button id="ot-export-tsv">TSVをクリップボードにコピー</button>
+    </div>
+  </section>
+
+  <section class="tab-panel card" id="tab-test" style="display:none;">
+    <h2>検証モード</h2>
+    <p class="note">実データでの既知の結果(9:00〜16:30に変更した場合)と、このツールの計算結果を突き合わせます。母数=来店カウント区分・時刻基準=発券時刻・全区・全期間で判定します。</p>
+    <div class="export-row">
+      <button class="primary" id="test-run-btn">9:00〜16:30 で検証を実行</button>
+    </div>
+    <div style="overflow-x:auto;margin-top:10px;"><table class="data-table" id="test-table"></table></div>
+    <div id="test-result"></div>
+    <h3>不一致の場合の原因候補</h3>
+    <ul class="check-list" id="test-causes"></ul>
+  </section>
+
+</main>
+
+<script type="text/plain" id="lib-src">
+/* ReceptionLib: メインスレッド・Workerの両方から同一ソースを読み込んで使う純粋関数群。
+   type="text/plain" にしてブラウザの自動実行を止め、new Function() で明示的に評価する。 */
+var ReceptionLib = (function () {
+  function parseFilenameDate(filename) {
+    var m = /CD(\d{2})(\d{2})(\d{2})(\d{5})/.exec(filename);
+    if (!m) return null;
+    var yy = parseInt(m[1], 10);
+    var year = 2000 + yy;
+    var month = parseInt(m[2], 10);
+    var day = parseInt(m[3], 10);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    var dateStr = String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    return { year: year, month: month, day: day, branch: m[4], dateStr: dateStr };
+  }
+
+  function parseWardFromPath(relPath) {
+    if (!relPath) return null;
+    var parts = relPath.split('/').filter(Boolean);
+    var dirParts = parts.slice(0, -1);
+    for (var i = dirParts.length - 1; i >= 0; i--) {
+      var seg = dirParts[i];
+      if (/^令和\d+年$/.test(seg)) continue;
+      if (/^\d+月$/.test(seg)) continue;
+      var m = /^\d+(.+)$/.exec(seg);
+      if (m && m[1]) return m[1];
+      return seg;
+    }
+    return null;
+  }
+
+  function detectTimeFormat(sample) {
+    if (/^\d{2}:\d{2}:\d{2}$/.test(sample)) return 'HH:MM:SS';
+    if (/^\d{2}:\d{2}$/.test(sample)) return 'HH:MM';
+    if (/^\d{6}$/.test(sample)) return 'HHMMSS';
+    if (/^\d{4}$/.test(sample)) return 'HHMM';
+    return null;
+  }
+
+  function parseTimeToMinutes(value, format) {
+    if (value == null) return null;
+    var v = String(value).trim();
+    if (v === '' || /^0+$/.test(v)) return null;
+    var fmt = format;
+    if (!fmt || fmt === 'auto') fmt = detectTimeFormat(v);
+    if (!fmt) return null;
+    var h, m, s = 0;
+    if (fmt === 'HHMMSS') {
+      if (!/^\d{6}$/.test(v)) return null;
+      h = parseInt(v.slice(0, 2), 10); m = parseInt(v.slice(2, 4), 10); s = parseInt(v.slice(4, 6), 10);
+    } else if (fmt === 'HHMM') {
+      if (!/^\d{4}$/.test(v)) return null;
+      h = parseInt(v.slice(0, 2), 10); m = parseInt(v.slice(2, 4), 10);
+    } else if (fmt === 'HH:MM:SS') {
+      var p3 = v.split(':'); if (p3.length !== 3) return null;
+      h = parseInt(p3[0], 10); m = parseInt(p3[1], 10); s = parseInt(p3[2], 10);
+    } else if (fmt === 'HH:MM') {
+      var p2 = v.split(':'); if (p2.length !== 2) return null;
+      h = parseInt(p2[0], 10); m = parseInt(p2[1], 10);
+    } else {
+      return null;
+    }
+    if (isNaN(h) || isNaN(m) || isNaN(s)) return null;
+    if (m < 0 || m > 59 || s < 0 || s > 59) return null;
+    return h * 60 + m + s / 60;
+  }
+
+  function timeStrToMinutes(hhmm) {
+    var p = hhmm.split(':');
+    return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
+  }
+
+  function minutesToTimeStr(min) {
+    min = Math.round(min);
+    min = ((min % 1440) + 1440) % 1440;
+    var h = Math.floor(min / 60), m = min % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
+
+  function boundaryFromCode(code) {
+    switch (code) {
+      case 'ge_lt': return { startInclusive: true, endInclusive: false };
+      case 'ge_le': return { startInclusive: true, endInclusive: true };
+      case 'gt_lt': return { startInclusive: false, endInclusive: false };
+      case 'gt_le': return { startInclusive: false, endInclusive: true };
+      default: return { startInclusive: true, endInclusive: false };
+    }
+  }
+
+  function prefixSum(arr) {
+    var out = new Float64Array(arr.length + 1);
+    for (var i = 0; i < arr.length; i++) out[i + 1] = out[i] + arr[i];
+    return out;
+  }
+
+  function rangeCountFromPrefix(prefix, startMin, endMin, boundary) {
+    var n = prefix.length - 1;
+    var si = boundary.startInclusive ? startMin : startMin + 1;
+    var ei = boundary.endInclusive ? endMin + 1 : endMin;
+    si = Math.max(0, Math.min(n, Math.round(si)));
+    ei = Math.max(0, Math.min(n, Math.round(ei)));
+    if (ei < si) return 0;
+    return prefix[ei] - prefix[si];
+  }
+
+  return {
+    parseFilenameDate: parseFilenameDate,
+    parseWardFromPath: parseWardFromPath,
+    detectTimeFormat: detectTimeFormat,
+    parseTimeToMinutes: parseTimeToMinutes,
+    timeStrToMinutes: timeStrToMinutes,
+    minutesToTimeStr: minutesToTimeStr,
+    boundaryFromCode: boundaryFromCode,
+    prefixSum: prefixSum,
+    rangeCountFromPrefix: rangeCountFromPrefix
+  };
+})();
+if (typeof module !== 'undefined') { module.exports = ReceptionLib; }
+</script>
+
+<script type="text/plain" id="worker-src">
+/* Web Worker本体。lib-src の内容がこの直前に連結されて実行される。 */
+self.onmessage = function (ev) {
+  var msg = ev.data;
+  if (msg.type !== 'parse') return;
+  runParse(msg.files, msg.config).catch(function (err) {
+    self.postMessage({ type: 'error', message: String(err && err.stack || err) });
+  });
+};
+
+async function runParse(files, config) {
+  var wantedCols = [config.columns.issue, config.columns.call, config.columns.end, config.columns.teller, config.columns.category]
+    .filter(function (c) { return c != null; });
+  var wantedSet = {};
+  wantedCols.forEach(function (c) { wantedSet[c] = true; });
+
+  var binsIssue = new Map(), binsCall = new Map(), binsEnd = new Map();
+  var overtime = new Map();
+  var wards = new Set();
+  var categoriesSeen = new Set();
+  var warnings = [];
+  var totalLines = 0, parsedRows = 0, skippedRows = 0, filesSkipped = 0;
+  var dateMin = null, dateMax = null;
+
+  var totalBytes = 0;
+  for (var fi0 = 0; fi0 < files.length; fi0++) totalBytes += files[fi0].file.size;
+  var processedBytes = 0;
+  var lastReportTime = 0;
+
+  function addWarning(reason) {
+    if (warnings.length < 200) warnings.push(reason);
+  }
+
+  function getOrCreateArr(map, key) {
+    var a = map.get(key);
+    if (!a) { a = new Int32Array(1440); map.set(key, a); }
+    return a;
+  }
+
+  var visitCodes = {}; config.categoryCodes.visit.forEach(function (c) { visitCodes[String(c).trim()] = true; });
+  var staffCodes = {}; config.categoryCodes.staff.forEach(function (c) { staffCodes[String(c).trim()] = true; });
+  var overtimeBasisMin = ReceptionLib.timeStrToMinutes(config.overtimeBasis);
+
+  function reportProgress(fi, fileName) {
+    var now = (self.performance && self.performance.now) ? self.performance.now() : Date.now();
+    if (now - lastReportTime > 150) {
+      lastReportTime = now;
+      self.postMessage({ type: 'progress', processedBytes: processedBytes, totalBytes: totalBytes, fileIndex: fi, filesTotal: files.length, fileName: fileName });
+    }
+  }
+
+  for (var fi = 0; fi < files.length; fi++) {
+    var entry = files[fi];
+    var file = entry.file;
+    var relPath = entry.relPath || file.name;
+    var dateInfo = ReceptionLib.parseFilenameDate(file.name);
+    var ward = ReceptionLib.parseWardFromPath(relPath);
+    if (!dateInfo || !ward) {
+      filesSkipped++;
+      addWarning('ファイル名/フォルダ名から日付または区名を取得できずスキップ: ' + relPath);
+      processedBytes += file.size;
+      reportProgress(fi, file.name);
+      continue;
+    }
+    wards.add(ward);
+    if (dateMin === null || dateInfo.dateStr < dateMin) dateMin = dateInfo.dateStr;
+    if (dateMax === null || dateInfo.dateStr > dateMax) dateMax = dateInfo.dateStr;
+
+    var buf;
+    try {
+      buf = await file.arrayBuffer();
+    } catch (e) {
+      filesSkipped++;
+      addWarning('ファイルの読み込みに失敗したためスキップ: ' + relPath + ' (' + e.message + ')');
+      processedBytes += file.size;
+      reportProgress(fi, file.name);
+      continue;
+    }
+    var text;
+    try {
+      text = new TextDecoder(config.encoding || 'shift_jis').decode(buf);
+    } catch (e) {
+      filesSkipped++;
+      addWarning('文字コードのデコードに失敗: ' + relPath + ' (' + e.message + ')');
+      processedBytes += file.size;
+      continue;
+    }
+    var lines = text.split(/\r\n|\n|\r/);
+
+    for (var li = 0; li < lines.length; li++) {
+      var line = lines[li];
+      if (line.length === 0) continue;
+      totalLines++;
+
+      var col = 1, start = 0;
+      var wanted = {};
+      var len = line.length;
+      for (var i = 0; i <= len; i++) {
+        var isSep = (i === len) || (line.charCodeAt(i) === 44);
+        if (isSep) {
+          if (wantedSet[col]) wanted[col] = line.slice(start, i);
+          col++; start = i + 1;
+        }
+      }
+      var totalCols = col - 1;
+      if (totalCols < 65) {
+        skippedRows++;
+        addWarning('列数不足(' + totalCols + '列): ' + relPath + ' (行' + (li + 1) + ')');
+        continue;
+      }
+
+      var rawCat = wanted[config.columns.category];
+      var catGroup = null;
+      if (rawCat != null) {
+        var c = String(rawCat).trim();
+        if (visitCodes[c]) catGroup = 'visit';
+        else if (staffCodes[c]) catGroup = 'staff';
+      }
+      if (!catGroup) { skippedRows++; continue; }
+      categoriesSeen.add(rawCat);
+
+      var issueVal = ReceptionLib.parseTimeToMinutes(wanted[config.columns.issue], config.timeFormat);
+      var callVal = ReceptionLib.parseTimeToMinutes(wanted[config.columns.call], config.timeFormat);
+      var endVal = ReceptionLib.parseTimeToMinutes(wanted[config.columns.end], config.timeFormat);
+
+      var any = false;
+      var key = dateInfo.dateStr + '|' + ward + '|' + catGroup;
+      if (issueVal != null) { var idx1 = Math.max(0, Math.min(1439, Math.floor(issueVal))); getOrCreateArr(binsIssue, key)[idx1]++; any = true; }
+      if (callVal != null) { var idx2 = Math.max(0, Math.min(1439, Math.floor(callVal))); getOrCreateArr(binsCall, key)[idx2]++; any = true; }
+      if (endVal != null) { var idx3 = Math.max(0, Math.min(1439, Math.floor(endVal))); getOrCreateArr(binsEnd, key)[idx3]++; any = true; }
+      if (any) parsedRows++; else { skippedRows++; continue; }
+
+      if (catGroup === 'staff' && issueVal != null && callVal != null && endVal != null) {
+        if (issueVal >= overtimeBasisMin) {
+          var okey = dateInfo.dateStr + '|' + ward;
+          var o = overtime.get(okey);
+          if (!o) { o = { count: 0, sumMinutes: 0, excluded: 0 }; overtime.set(okey, o); }
+          var proc = endVal - callVal;
+          if (proc < 0 || proc > config.processingTimeMax) { o.excluded++; }
+          else { o.count++; o.sumMinutes += proc; }
+        }
+      }
+    }
+
+    processedBytes += file.size;
+    reportProgress(fi, file.name);
+  }
+
+  self.postMessage({
+    type: 'done',
+    result: {
+      bins: { issue: binsIssue, call: binsCall, end: binsEnd },
+      overtime: overtime,
+      meta: {
+        totalLines: totalLines, parsedRows: parsedRows, skippedRows: skippedRows,
+        filesTotal: files.length, filesSkipped: filesSkipped,
+        dateMin: dateMin, dateMax: dateMax,
+        wards: Array.from(wards), categoriesSeen: Array.from(categoriesSeen)
+      },
+      warnings: warnings
+    }
+  });
+}
+</script>
+
+<script>
+'use strict';
+/* ===== 共通ライブラリのロード(メインスレッド用) ===== */
+var ReceptionLib = (new Function(document.getElementById('lib-src').textContent + '\n;return ReceptionLib;'))();
+
+/* ===== アプリ状態 ===== */
+var state = {
+  aggregate: null,      // worker が返した集計結果
+  config: null,          // 直近に適用した config
+  loadedFiles: [],        // [{file, relPath}]
+  wardColorMap: {},
+  worker: null,
+  sjisEncoder: null
+};
+
+var WARD_COLOR_LIST = ['#1a5276', '#2e86ab', '#43aa8b', '#90be6d', '#f9c74f', '#f3722c', '#f94144', '#9d4edd', '#577590', '#277da1', '#4d908e', '#f8961e'];
+var CATEGORY_COLORS = { visit: '#1a5276', staff: '#9aa7ad' };
+var CATEGORY_LABELS = { visit: '来店カウント', staff: '係員呼出' };
+
+/* ===== 互換性チェック ===== */
+function checkCompat() {
+  var missing = [];
+  if (typeof Worker === 'undefined') missing.push('Web Worker');
+  if (typeof TextDecoder === 'undefined') missing.push('TextDecoder');
+  if (!(window.Blob && window.URL && URL.createObjectURL)) missing.push('Blob URL');
+  if (missing.length) {
+    var el = document.createElement('div');
+    el.className = 'card';
+    el.style.borderColor = '#a4302a';
+    el.innerHTML = '<h2 style="color:#a4302a;">⚠ この端末のブラウザでは動作しません</h2><p>不足している機能: ' + missing.join(', ') + '。最新版の Chrome / Edge でお試しください。</p>';
+    document.querySelector('main').prepend(el);
+    return false;
+  }
+  return true;
+}
+
+/* ===== 設定読み取り ===== */
+function readConfig() {
+  return {
+    columns: {
+      issue: parseInt(document.getElementById('cfg-col-issue').value, 10),
+      call: parseInt(document.getElementById('cfg-col-call').value, 10),
+      end: parseInt(document.getElementById('cfg-col-end').value, 10),
+      teller: parseInt(document.getElementById('cfg-col-teller').value, 10),
+      category: parseInt(document.getElementById('cfg-col-category').value, 10)
+    },
+    categoryCodes: {
+      visit: document.getElementById('cfg-cat-visit').value.split(',').map(function (s) { return s.trim(); }).filter(Boolean),
+      staff: document.getElementById('cfg-cat-staff').value.split(',').map(function (s) { return s.trim(); }).filter(Boolean)
+    },
+    encoding: document.getElementById('cfg-encoding').value,
+    timeFormat: document.getElementById('cfg-time-format').value,
+    currentHours: {
+      start: document.getElementById('cfg-cur-start').value || '08:30',
+      end: document.getElementById('cfg-cur-end').value || '17:15'
+    },
+    boundaryCode: document.getElementById('cfg-boundary').value,
+    overtimeBasis: document.getElementById('cfg-overtime-basis').value || '16:30',
+    processingTimeMax: parseInt(document.getElementById('cfg-proc-max').value, 10) || 180,
+    rate: parseFloat(document.getElementById('cfg-rate').value) || 0,
+    staffCount: parseInt(document.getElementById('cfg-staff-count').value, 10) || 1,
+    annualDays: parseInt(document.getElementById('cfg-annual-days').value, 10) || 245
+  };
+}
+function reparseRelevant(c) {
+  return { columns: c.columns, categoryCodes: c.categoryCodes, encoding: c.encoding, timeFormat: c.timeFormat, overtimeBasis: c.overtimeBasis, processingTimeMax: c.processingTimeMax };
+}
+
+/* ===== ファイル収集 ===== */
+function filesFromDirInput(fileList) {
+  return Array.from(fileList).map(function (f) { return { file: f, relPath: f.webkitRelativePath || f.name }; });
+}
+function filesFromPlainInput(fileList) {
+  return Array.from(fileList).map(function (f) { return { file: f, relPath: f.name }; });
+}
+function walkEntry(entry, basePath, out) {
+  return new Promise(function (resolve) {
+    if (entry.isFile) {
+      entry.file(function (file) {
+        out.push({ file: file, relPath: basePath + entry.name });
+        resolve();
+      }, function () { resolve(); });
+    } else if (entry.isDirectory) {
+      var reader = entry.createReader();
+      var readBatch = function () {
+        reader.readEntries(function (entries) {
+          if (!entries.length) { resolve(); return; }
+          Promise.all(entries.map(function (e) { return walkEntry(e, basePath + entry.name + '/', out); }))
+            .then(readBatch);
+        }, function () { resolve(); });
+      };
+      readBatch();
+    } else {
+      resolve();
+    }
+  });
+}
+async function filesFromDataTransfer(dt) {
+  var out = [];
+  var entries = [];
+  for (var i = 0; i < dt.items.length; i++) {
+    var item = dt.items[i];
+    var entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
+    if (entry) entries.push(entry);
+  }
+  for (var j = 0; j < entries.length; j++) await walkEntry(entries[j], '', out);
+  return out;
+}
+
+/* ===== Worker 起動 ===== */
+function getWorker() {
+  if (state.worker) return state.worker;
+  var src = document.getElementById('lib-src').textContent + '\n' + document.getElementById('worker-src').textContent;
+  var blob = new Blob([src], { type: 'text/javascript' });
+  var url = URL.createObjectURL(blob);
+  state.worker = new Worker(url);
+  return state.worker;
+}
+
+function startParse(files, config) {
+  if (!files.length) { alert('CSVファイルが見つかりませんでした。フォルダ構成をご確認ください。'); return; }
+  document.getElementById('progress-wrap').style.display = 'block';
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('progress-text').textContent = '読み込み準備中...';
+  var w = getWorker();
+  w.onmessage = function (ev) {
+    var msg = ev.data;
+    if (msg.type === 'progress') {
+      var pct = msg.totalBytes ? Math.min(100, Math.round(msg.processedBytes / msg.totalBytes * 100)) : 0;
+      document.getElementById('progress-bar').style.width = pct + '%';
+      document.getElementById('progress-text').textContent =
+        pct + '% (' + (msg.fileIndex + 1) + '/' + msg.filesTotal + ' ファイル: ' + msg.fileName + ')';
+    } else if (msg.type === 'done') {
+      document.getElementById('progress-bar').style.width = '100%';
+      document.getElementById('progress-text').textContent = '完了';
+      onParseDone(msg.result, config);
+    } else if (msg.type === 'error') {
+      document.getElementById('progress-text').textContent = 'エラー: ' + msg.message;
+      alert('読み込み中にエラーが発生しました: ' + msg.message);
+    }
+  };
+  w.postMessage({ type: 'parse', files: files, config: config });
+}
+
+/* ===== 読み込み完了処理 ===== */
+function onParseDone(result, config) {
+  state.aggregate = result;
+  state.config = config;
+  simCache.filtersKey = null; // 新しい集計結果なのでシミュレーションのキャッシュを破棄
+  renderMetaSummary(result, config);
+  var wards = result.meta.wards.slice().sort();
+  wards.forEach(function (w, i) { state.wardColorMap[w] = WARD_COLOR_LIST[i % WARD_COLOR_LIST.length]; });
+  populateWardLists(wards);
+  var dateFrom = result.meta.dateMin, dateTo = result.meta.dateMax;
+  ['dist-date-from', 'sim-date-from', 'ot-date-from'].forEach(function (id) { document.getElementById(id).value = dateFrom || ''; });
+  ['dist-date-to', 'sim-date-to', 'ot-date-to'].forEach(function (id) { document.getElementById(id).value = dateTo || ''; });
+  document.getElementById('tabs').style.display = 'flex';
+  document.getElementById('tab-dist').style.display = 'block';
+  document.getElementById('meta-summary-section').style.display = 'block';
+  renderDistribution();
+  renderSimulation();
+  renderOvertime();
+}
+
+function populateWardLists(wards) {
+  ['dist-ward-list', 'sim-ward-list', 'ot-ward-list'].forEach(function (id) {
+    var el = document.getElementById(id);
+    el.innerHTML = '';
+    wards.forEach(function (w) {
+      var lab = document.createElement('label');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = w; cb.checked = true; cb.className = 'ward-cb';
+      var swatch = document.createElement('span');
+      swatch.className = 'sw'; swatch.style.background = state.wardColorMap[w];
+      lab.appendChild(cb); lab.appendChild(swatch); lab.appendChild(document.createTextNode(w));
+      el.appendChild(lab);
+      cb.addEventListener('change', debouncedRerenderFor(id));
+    });
+  });
+}
+function selectedWards(listId) {
+  return Array.from(document.querySelectorAll('#' + listId + ' input:checked')).map(function (c) { return c.value; });
+}
+function debouncedRerenderFor(listId) {
+  return function () {
+    if (listId === 'dist-ward-list') renderDistribution();
+    else if (listId === 'sim-ward-list') renderSimulation();
+    else if (listId === 'ot-ward-list') renderOvertime();
+  };
+}
+
+function renderMetaSummary(result, config) {
+  var m = result.meta;
+  var unknown = m.categoriesSeen.filter(function (c) {
+    return config.categoryCodes.visit.indexOf(String(c)) < 0 && config.categoryCodes.staff.indexOf(String(c)) < 0;
+  });
+  var html = '';
+  html += '<div class="stat-cards">';
+  html += statCard('読み込み行数', m.totalLines.toLocaleString());
+  html += statCard('集計対象行数', m.parsedRows.toLocaleString(), (m.totalLines ? (m.parsedRows / m.totalLines * 100).toFixed(1) : '0') + '%');
+  html += statCard('除外行数', m.skippedRows.toLocaleString(), '列数不足・区分コード未一致・時刻未設定など');
+  html += statCard('対象ファイル数', (m.filesTotal - m.filesSkipped).toLocaleString() + ' / ' + m.filesTotal.toLocaleString(), m.filesSkipped ? m.filesSkipped + '件は日付/区名を取得できずスキップ' : '');
+  html += '</div>';
+  html += '<div class="summary-line">期間: ' + (m.dateMin || '-') + ' 〜 ' + (m.dateMax || '-') + ' / 区: ' + m.wards.join('、') + '</div>';
+  if (unknown.length) {
+    html += '<div class="summary-line warn-inline">⚠ 設定した区分コード(母数/係員呼出)に含まれない値が見つかりました: ' + unknown.join(', ') + '　→ 列番号・区分コードの設定を確認してください。</div>';
+  }
+  if (result.warnings.length) {
+    html += '<details><summary>警告一覧を表示 (' + result.warnings.length + (result.warnings.length >= 200 ? '件以上' : '件') + ')</summary><ul class="check-list">' +
+      result.warnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul></details>';
+  }
+  document.getElementById('meta-summary').innerHTML = html;
+}
+function statCard(label, value, sub) {
+  return '<div class="stat-card"><div class="label">' + label + '</div><div class="value">' + value + '</div>' + (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+}
+
+/* ===== 集計ヘルパ ===== */
+function sumRangeArray(basisMap, opts) {
+  // opts: {wards:[...], category: 'visit'|'staff'|null(=両方), dateFrom, dateTo}
+  var out = new Int32Array(1440);
+  basisMap.forEach(function (arr, key) {
+    var parts = key.split('|');
+    var date = parts[0], ward = parts[1], cat = parts[2];
+    if (opts.category && cat !== opts.category) return;
+    if (opts.wards && opts.wards.indexOf(ward) < 0) return;
+    if (opts.dateFrom && date < opts.dateFrom) return;
+    if (opts.dateTo && date > opts.dateTo) return;
+    for (var i = 0; i < 1440; i++) out[i] += arr[i];
+  });
+  return out;
+}
+function currentBoundary() {
+  return ReceptionLib.boundaryFromCode(state.config.boundaryCode);
+}
+
+/* ===== 来庁分布タブ ===== */
+function distFilters() {
+  return {
+    dateFrom: document.getElementById('dist-date-from').value || null,
+    dateTo: document.getElementById('dist-date-to').value || null,
+    basis: document.getElementById('dist-basis').value,
+    colorBy: document.getElementById('dist-colorby').value,
+    categoryFilter: document.getElementById('dist-category-filter').value,
+    windowStart: document.getElementById('dist-window-start').value || '07:00',
+    windowEnd: document.getElementById('dist-window-end').value || '17:00',
+    wards: selectedWards('dist-ward-list')
+  };
+}
+var distLastData = null;
+function renderDistribution() {
+  if (!state.aggregate) return;
+  var f = distFilters();
+  var basisMap = state.aggregate.bins[f.basis];
+  var groups, colorFn, labelFn;
+  if (f.colorBy === 'ward') {
+    groups = f.wards.length ? f.wards.slice() : state.aggregate.meta.wards.slice();
+    colorFn = function (g) { return state.wardColorMap[g] || '#999'; };
+    labelFn = function (g) { return g; };
+  } else {
+    groups = f.categoryFilter === 'both' ? ['visit', 'staff'] : [f.categoryFilter];
+    colorFn = function (g) { return CATEGORY_COLORS[g]; };
+    labelFn = function (g) { return CATEGORY_LABELS[g]; };
+  }
+  var catForSum = f.colorBy === 'ward' ? (f.categoryFilter === 'both' ? null : f.categoryFilter) : null;
+
+  var series = groups.map(function (g) {
+    var opts = { dateFrom: f.dateFrom, dateTo: f.dateTo };
+    if (f.colorBy === 'ward') { opts.wards = [g]; opts.category = catForSum; }
+    else { opts.wards = f.wards.length ? f.wards : null; opts.category = g; }
+    return { key: g, arr: sumRangeArray(basisMap, opts) };
+  });
+
+  var winStartMin = ReceptionLib.timeStrToMinutes(f.windowStart);
+  var winEndMin = ReceptionLib.timeStrToMinutes(f.windowEnd);
+  var binCount = Math.max(1, Math.round((winEndMin - winStartMin) / 15));
+  var bins15 = series.map(function (s) {
+    var out = new Array(binCount).fill(0);
+    for (var b = 0; b < binCount; b++) {
+      var from = winStartMin + b * 15, to = from + 15;
+      var sum = 0;
+      for (var m = from; m < to && m < 1440; m++) if (m >= 0) sum += s.arr[m];
+      out[b] = sum;
+    }
+    return out;
+  });
+
+  distLastData = { groups: groups, labelFn: labelFn, colorFn: colorFn, bins15: bins15, winStartMin: winStartMin, binCount: binCount };
+  drawStackedBarChart(document.getElementById('dist-chart'), bins15, groups.map(labelFn), groups.map(colorFn), function (i) {
+    var m = winStartMin + i * 15;
+    return m % 60 === 0 ? ReceptionLib.minutesToTimeStr(m) : '';
+  });
+  renderLegend('dist-legend', groups.map(labelFn), groups.map(colorFn));
+  renderDistTable(groups, labelFn, bins15, winStartMin);
+}
+function renderDistTable(groups, labelFn, bins15, winStartMin) {
+  var el = document.getElementById('dist-table');
+  var head = '<tr><th>時間帯</th>' + groups.map(function (g) { return '<th>' + escapeHtml(labelFn(g)) + '</th>'; }).join('') + '<th>合計</th></tr>';
+  var binCount = bins15[0] ? bins15[0].length : 0;
+  var rows = '';
+  for (var b = 0; b < binCount; b++) {
+    var from = winStartMin + b * 15, to = from + 15;
+    var total = 0;
+    var cells = groups.map(function (g, gi) { total += bins15[gi][b]; return '<td>' + bins15[gi][b].toLocaleString() + '</td>'; }).join('');
+    rows += '<tr><td>' + ReceptionLib.minutesToTimeStr(from) + '〜' + ReceptionLib.minutesToTimeStr(to) + '</td>' + cells + '<td>' + total.toLocaleString() + '</td></tr>';
+  }
+  el.innerHTML = head + rows;
+}
+function renderLegend(id, labels, colors) {
+  var el = document.getElementById(id);
+  el.innerHTML = labels.map(function (l, i) { return '<span><span class="sw" style="background:' + colors[i] + '"></span>' + escapeHtml(l) + '</span>'; }).join('');
+}
+
+/* ===== Canvas 積み上げ棒グラフ(外部ライブラリ不使用) ===== */
+function drawStackedBarChart(canvas, bins15, labels, colors, xLabelFn) {
+  var dpr = window.devicePixelRatio || 1;
+  var cssW = canvas.clientWidth || 800, cssH = canvas.clientHeight || 340;
+  canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+  var ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+  var padL = 50, padB = 26, padT = 10, padR = 10;
+  var plotW = cssW - padL - padR, plotH = cssH - padT - padB;
+  var n = bins15[0] ? bins15[0].length : 0;
+  var maxVal = 1;
+  for (var b = 0; b < n; b++) {
+    var tot = 0;
+    for (var g = 0; g < bins15.length; g++) tot += bins15[g][b];
+    if (tot > maxVal) maxVal = tot;
+  }
+  ctx.strokeStyle = '#d5d9dc'; ctx.fillStyle = '#5b6770'; ctx.font = '11px sans-serif';
+  ctx.beginPath();
+  var gridSteps = 4;
+  for (var gI = 0; gI <= gridSteps; gI++) {
+    var y = padT + plotH - (plotH * gI / gridSteps);
+    ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y);
+    var val = Math.round(maxVal * gI / gridSteps);
+    ctx.fillText(val.toLocaleString(), 4, y + 3);
+  }
+  ctx.stroke();
+  var barW = plotW / n * 0.8;
+  var gap = plotW / n * 0.2;
+  for (b = 0; b < n; b++) {
+    var x = padL + b * (plotW / n) + gap / 2;
+    var yCursor = padT + plotH;
+    for (g = 0; g < bins15.length; g++) {
+      var v = bins15[g][b];
+      var h = maxVal > 0 ? (v / maxVal) * plotH : 0;
+      ctx.fillStyle = colors[g];
+      ctx.fillRect(x, yCursor - h, barW, h);
+      yCursor -= h;
+    }
+    var lab = xLabelFn(b);
+    if (lab) {
+      ctx.fillStyle = '#5b6770';
+      ctx.save();
+      ctx.translate(x + barW / 2, padT + plotH + 14);
+      ctx.textAlign = 'center';
+      ctx.fillText(lab, 0, 0);
+      ctx.restore();
+    }
+  }
+  ctx.strokeStyle = '#aeb4b9';
+  ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH); ctx.stroke();
+}
+
+/* ===== 受付時間シミュレーションタブ ===== */
+var simCache = { prefix: null, denomArr: null, filtersKey: null };
+function simFilters() {
+  return {
+    wards: selectedWards('sim-ward-list'),
+    dateFrom: document.getElementById('sim-date-from').value || null,
+    dateTo: document.getElementById('sim-date-to').value || null
+  };
+}
+function ensureSimPrefix() {
+  var f = simFilters();
+  var key = JSON.stringify(f);
+  if (simCache.filtersKey === key && simCache.prefix) return simCache.prefix;
+  var arr = sumRangeArray(state.aggregate.bins.issue, { wards: f.wards.length ? f.wards : null, category: 'visit', dateFrom: f.dateFrom, dateTo: f.dateTo });
+  simCache.denomArr = arr;
+  simCache.prefix = ReceptionLib.prefixSum(arr);
+  simCache.filtersKey = key;
+  return simCache.prefix;
+}
+function renderSimulation() {
+  if (!state.aggregate) return;
+  var prefix = ensureSimPrefix();
+  var boundary = currentBoundary();
+  var cur = state.config.currentHours;
+  var curStart = ReceptionLib.timeStrToMinutes(cur.start), curEnd = ReceptionLib.timeStrToMinutes(cur.end);
+  var newStart = parseInt(document.getElementById('sim-start-range').value, 10);
+  var newEnd = parseInt(document.getElementById('sim-end-range').value, 10);
+  document.getElementById('sim-start-label').textContent = ReceptionLib.minutesToTimeStr(newStart);
+  document.getElementById('sim-end-label').textContent = ReceptionLib.minutesToTimeStr(newEnd);
+  document.getElementById('sim-start-time').value = ReceptionLib.minutesToTimeStr(newStart);
+  document.getElementById('sim-end-time').value = ReceptionLib.minutesToTimeStr(newEnd);
+
+  var denom = ReceptionLib.rangeCountFromPrefix(prefix, curStart, curEnd, boundary);
+  var within = ReceptionLib.rangeCountFromPrefix(prefix, Math.max(curStart, newStart), Math.min(curEnd, newEnd), boundary);
+  var frontDelta, backDelta;
+  if (newStart >= curStart) frontDelta = ReceptionLib.rangeCountFromPrefix(prefix, curStart, newStart, boundary);
+  else frontDelta = -ReceptionLib.rangeCountFromPrefix(prefix, newStart, curStart, boundary);
+  if (newEnd <= curEnd) backDelta = ReceptionLib.rangeCountFromPrefix(prefix, newEnd, curEnd, boundary);
+  else backDelta = -ReceptionLib.rangeCountFromPrefix(prefix, curEnd, newEnd, boundary);
+
+  var ratio = denom ? (within / denom * 100) : 0;
+  document.getElementById('sim-stat-denom').textContent = denom.toLocaleString();
+  document.getElementById('sim-stat-in').textContent = within.toLocaleString();
+  document.getElementById('sim-stat-in-sub').textContent = '現行時間内来庁者の ' + ratio.toFixed(1) + '%';
+  document.getElementById('sim-stat-front').textContent = Math.abs(frontDelta).toLocaleString();
+  document.getElementById('sim-stat-front-sub').textContent = frontDelta >= 0 ? '短縮(開始が遅くなる)' : '延長(開始が早まる)';
+  document.getElementById('sim-stat-back').textContent = Math.abs(backDelta).toLocaleString();
+  document.getElementById('sim-stat-back-sub').textContent = backDelta >= 0 ? '短縮(終了が早まる)' : '延長(終了が遅くなる)';
+
+  var identityOk = (within + frontDelta + backDelta) === denom;
+  document.getElementById('sim-identity-check').innerHTML =
+    '検算: ①(' + within.toLocaleString() + ') + ②(' + frontDelta.toLocaleString() + ') + ③(' + backDelta.toLocaleString() + ') = ' +
+    (within + frontDelta + backDelta).toLocaleString() + ' / 母数 ' + denom.toLocaleString() +
+    ' <span class="' + (identityOk ? 'pass">✓ 一致' : 'fail">✗ 不一致') + '</span>';
+
+  renderSimRanking(newStart, newEnd, boundary);
+}
+function renderSimRanking(newStart, newEnd, boundary) {
+  var f = simFilters();
+  var wardList = f.wards.length ? f.wards : state.aggregate.meta.wards.slice();
+  var cur = state.config.currentHours;
+  var curStart = ReceptionLib.timeStrToMinutes(cur.start), curEnd = ReceptionLib.timeStrToMinutes(cur.end);
+  var rows = [];
+  wardList.forEach(function (ward) {
+    var arr = sumRangeArray(state.aggregate.bins.issue, { wards: [ward], category: 'visit', dateFrom: f.dateFrom, dateTo: f.dateTo });
+    var prefix = ReceptionLib.prefixSum(arr);
+    var denom = ReceptionLib.rangeCountFromPrefix(prefix, curStart, curEnd, boundary);
+    if (!denom) return;
+    var front = newStart >= curStart ? ReceptionLib.rangeCountFromPrefix(prefix, curStart, newStart, boundary) : -ReceptionLib.rangeCountFromPrefix(prefix, newStart, curStart, boundary);
+    var back = newEnd <= curEnd ? ReceptionLib.rangeCountFromPrefix(prefix, newEnd, curEnd, boundary) : -ReceptionLib.rangeCountFromPrefix(prefix, curEnd, newEnd, boundary);
+    var affected = front + back;
+    rows.push({ ward: ward, denom: denom, front: front, back: back, affected: affected, ratio: denom ? affected / denom * 100 : 0 });
+  });
+  rows.sort(function (a, b) { return b.affected - a.affected; });
+  var el = document.getElementById('sim-rank-table');
+  var head = '<tr><th>区</th><th>母数(現行時間内)</th><th>短縮前側</th><th>短縮後側</th><th>影響合計</th><th>影響割合</th></tr>';
+  var body = rows.map(function (r) {
+    return '<tr><td>' + escapeHtml(r.ward) + '</td><td>' + r.denom.toLocaleString() + '</td><td>' + r.front.toLocaleString() + '</td><td>' + r.back.toLocaleString() + '</td><td>' + r.affected.toLocaleString() + '</td><td>' + r.ratio.toFixed(1) + '%</td></tr>';
+  }).join('');
+  el.innerHTML = head + body;
+  el.dataset.rows = JSON.stringify(rows);
+}
+
+/* ===== 時間外勤務削減試算タブ ===== */
+function renderOvertime() {
+  if (!state.aggregate) return;
+  var wards = selectedWards('ot-ward-list');
+  var wardSet = wards.length ? wards : null;
+  var dateFrom = document.getElementById('ot-date-from').value || null;
+  var dateTo = document.getElementById('ot-date-to').value || null;
+  var count = 0, sumMinutes = 0, excluded = 0;
+  var dateSet = new Set();
+  state.aggregate.overtime.forEach(function (o, key) {
+    var parts = key.split('|');
+    var date = parts[0], ward = parts[1];
+    if (wardSet && wardSet.indexOf(ward) < 0) return;
+    if (dateFrom && date < dateFrom) return;
+    if (dateTo && date > dateTo) return;
+    count += o.count; sumMinutes += o.sumMinutes; excluded += o.excluded;
+    if (o.count || o.excluded) dateSet.add(date);
+  });
+  var avg = count ? sumMinutes / count : 0;
+  var days = dateSet.size || 1;
+  var cfg = state.config;
+  var annualMinutes = sumMinutes / days * cfg.annualDays;
+  var annualHours = annualMinutes / 60;
+  var annualAmount = annualHours * cfg.rate;
+
+  document.getElementById('ot-count').textContent = count.toLocaleString();
+  document.getElementById('ot-excluded-sub').textContent = '異常値除外: ' + excluded.toLocaleString() + '件';
+  document.getElementById('ot-avg').textContent = avg.toFixed(1) + ' 分';
+  document.getElementById('ot-sum').textContent = (sumMinutes / 60).toFixed(1) + ' 時間 (' + sumMinutes.toFixed(0) + ' 分)';
+  document.getElementById('ot-days').textContent = days.toLocaleString() + ' 日';
+  document.getElementById('ot-annual-hours').textContent = annualHours.toFixed(1) + ' 時間';
+  document.getElementById('ot-annual-amount').textContent = Math.round(annualAmount).toLocaleString() + ' 円';
+
+  document.getElementById('ot-formula').textContent =
+    '対象: 発券時刻 ≥ ' + cfg.overtimeBasis + ' の係員呼出行 (異常値=処理時間<0 または >' + cfg.processingTimeMax + '分 は除外)\n' +
+    '対象件数 = ' + count.toLocaleString() + ' 件 (除外 ' + excluded.toLocaleString() + ' 件)\n' +
+    '合計処理時間 = Σ(一線終了時刻 − 一線呼出時刻) = ' + sumMinutes.toFixed(1) + ' 分\n' +
+    '平均処理時間 = 合計処理時間 ÷ 対象件数 = ' + avg.toFixed(2) + ' 分\n' +
+    '実績日数 = ' + days + ' 日 (対象期間内に時間外該当行が存在した日数)\n' +
+    '年間削減時間 = 合計処理時間 ÷ 実績日数 × 年間営業日数(' + cfg.annualDays + ') = ' + annualMinutes.toFixed(1) + ' 分 = ' + annualHours.toFixed(1) + ' 時間\n' +
+    '年間削減額 = 年間削減時間 × 時間単価(' + cfg.rate.toLocaleString() + '円/時) = ' + Math.round(annualAmount).toLocaleString() + ' 円\n' +
+    '(参考) 職員1人あたり年間削減時間 = 年間削減時間 ÷ 対象職員数(' + cfg.staffCount + '人) = ' + (annualHours / cfg.staffCount).toFixed(1) + ' 時間';
+
+  window._otLastTable = {
+    headers: ['対象件数', '異常値除外件数', '平均処理時間(分)', '合計処理時間(分)', '実績日数', '年間削減時間(時間)', '年間削減額(円)'],
+    rows: [[count, excluded, avg.toFixed(2), sumMinutes.toFixed(1), days, annualHours.toFixed(1), Math.round(annualAmount)]]
+  };
+}
+
+/* ===== 検証モード ===== */
+var EXPECTED = { ratio: 90.4, numerator: 678389, front: 31793, back: 39988 };
+function runTestMode() {
+  if (!state.aggregate) { alert('先にCSVを読み込んでください。'); return; }
+  var boundary = currentBoundary();
+  var cur = state.config.currentHours;
+  var curStart = ReceptionLib.timeStrToMinutes(cur.start), curEnd = ReceptionLib.timeStrToMinutes(cur.end);
+  var newStart = ReceptionLib.timeStrToMinutes('09:00'), newEnd = ReceptionLib.timeStrToMinutes('16:30');
+  var arr = sumRangeArray(state.aggregate.bins.issue, { wards: null, category: 'visit', dateFrom: null, dateTo: null });
+  var prefix = ReceptionLib.prefixSum(arr);
+  var denom = ReceptionLib.rangeCountFromPrefix(prefix, curStart, curEnd, boundary);
+  var within = ReceptionLib.rangeCountFromPrefix(prefix, Math.max(curStart, newStart), Math.min(curEnd, newEnd), boundary);
+  var front = ReceptionLib.rangeCountFromPrefix(prefix, curStart, newStart, boundary);
+  var back = ReceptionLib.rangeCountFromPrefix(prefix, newEnd, curEnd, boundary);
+  var ratio = denom ? within / denom * 100 : 0;
+
+  var rows = [
+    { label: '現行時間内に占める新時間内割合', expected: EXPECTED.ratio + '%', actual: ratio.toFixed(1) + '%', ok: Math.abs(ratio - EXPECTED.ratio) < 0.05 },
+    { label: '変更後時間内 件数', expected: EXPECTED.numerator.toLocaleString(), actual: within.toLocaleString(), ok: within === EXPECTED.numerator },
+    { label: '短縮前30分 該当件数', expected: EXPECTED.front.toLocaleString(), actual: front.toLocaleString(), ok: front === EXPECTED.front },
+    { label: '短縮後45分 該当件数', expected: EXPECTED.back.toLocaleString(), actual: back.toLocaleString(), ok: back === EXPECTED.back }
+  ];
+  var el = document.getElementById('test-table');
+  el.innerHTML = '<tr><th>指標</th><th>期待値</th><th>実測値</th><th>判定</th></tr>' + rows.map(function (r) {
+    return '<tr><td>' + r.label + '</td><td>' + r.expected + '</td><td>' + r.actual + '</td><td class="' + (r.ok ? 'pass">✓' : 'fail">✗') + '</td></tr>';
+  }).join('');
+
+  var allOk = rows.every(function (r) { return r.ok; });
+  document.getElementById('test-result').innerHTML = '<p class="summary-line ' + (allOk ? 'pass' : 'fail') + '">' +
+    (allOk ? '✓ すべて一致しました。' : '✗ 一致しない項目があります。下記の原因候補を確認してください。') + '</p>' +
+    '<p class="note">母数(現行時間内 来庁者数, 全区・全期間) = ' + denom.toLocaleString() + ' 件</p>';
+
+  var causes = [
+    '時刻基準: 現在「発券時刻」で判定しています(列' + state.config.columns.issue + ')。呼出・終了時刻基準であるべき場合は結果が変わります。',
+    '母数の区分コード: 現在「' + state.config.categoryCodes.visit.join(',') + '」を来店カウントとして扱っています(列' + state.config.columns.category + ')。実データの区分コード・列番号を確認してください。',
+    '境界条件: 現在「' + document.getElementById('cfg-boundary').selectedOptions[0].textContent + '」です。以上/以下の境界を変えると1分単位で件数が変動します。',
+    '時刻フォーマット: 現在「' + (state.config.timeFormat === 'auto' ? '自動判定' : state.config.timeFormat) + '」です。桁ズレがあると誤集計になります。',
+    '対象期間: 現在フィルタなし(全期間: ' + state.aggregate.meta.dateMin + '〜' + state.aggregate.meta.dateMax + ')で判定しています。期待値の集計期間と一致しているか確認してください。',
+    '異常値の扱い: 発券時刻が未設定(空値・0)の行は集計対象から除外しています。'
+  ];
+  document.getElementById('test-causes').innerHTML = causes.map(function (c) { return '<li>' + c + '</li>'; }).join('');
+
+  window._testLastTable = { headers: ['指標', '期待値', '実測値', '判定'], rows: rows.map(function (r) { return [r.label, r.expected, r.actual, r.ok ? '一致' : '不一致']; }) };
+}
+
+/* ===== Shift_JIS エンコーダ(ネイティブTextDecoderを逆引きして構築、外部テーブル埋め込み不要) ===== */
+function getSjisEncoder() {
+  if (state.sjisEncoder) return state.sjisEncoder;
+  var map = new Map();
+  var decoder = new TextDecoder('shift_jis');
+  var b;
+  for (b = 0x00; b <= 0xFF; b++) {
+    if (b >= 0x81 && b <= 0x9F) continue;
+    if (b >= 0xE0 && b <= 0xFC) continue;
+    var s1 = decoder.decode(new Uint8Array([b]));
+    if (s1.length === 1 && s1.charCodeAt(0) !== 0xFFFD) {
+      var cp1 = s1.codePointAt(0);
+      if (!map.has(cp1)) map.set(cp1, new Uint8Array([b]));
+    }
+  }
+  for (var lead = 0x81; lead <= 0xFC; lead++) {
+    if (lead >= 0xA0 && lead <= 0xDF) continue;
+    for (var trail = 0x40; trail <= 0xFC; trail++) {
+      if (trail === 0x7F) continue;
+      var s2 = decoder.decode(new Uint8Array([lead, trail]));
+      if (s2.length === 1 && s2.charCodeAt(0) !== 0xFFFD) {
+        var cp2 = s2.codePointAt(0);
+        if (!map.has(cp2)) map.set(cp2, new Uint8Array([lead, trail]));
+      }
+    }
+  }
+  // CP932は「〜」(U+301C)と「～」(U+FF5E)のように複数のUnicode文字が同じバイト列に
+  // 丸められる組が存在し、上のTextDecoder逆引きだけでは一方しか登録されない。
+  // 両方から同じバイト列を引けるようエイリアスを補完する。
+  function alias(a, b) {
+    if (map.has(a) && !map.has(b)) map.set(b, map.get(a));
+    else if (map.has(b) && !map.has(a)) map.set(a, map.get(b));
+  }
+  alias(0x301C, 0xFF5E); // 〜 WAVE DASH / ～ FULLWIDTH TILDE
+  alias(0x2016, 0x2225); // ‖ DOUBLE VERTICAL LINE / ∥ PARALLEL TO
+  alias(0x2212, 0xFF0D); // − MINUS SIGN / － FULLWIDTH HYPHEN-MINUS
+  alias(0x00A5, 0xFFE5); // ¥ YEN SIGN / ￥ FULLWIDTH YEN SIGN
+  alias(0x2014, 0x2015); // — EM DASH / ― HORIZONTAL BAR
+
+  state.sjisEncoder = function (str) {
+    var out = [];
+    var unmapped = 0;
+    for (var ch of str) {
+      var cp = ch.codePointAt(0);
+      var bytes = map.get(cp);
+      if (bytes) { for (var i = 0; i < bytes.length; i++) out.push(bytes[i]); }
+      else { out.push(0x3F); unmapped++; }
+    }
+    return { bytes: new Uint8Array(out), unmapped: unmapped };
+  };
+  return state.sjisEncoder;
+}
+
+/* ===== エクスポート共通処理 ===== */
+function toCsvString(headers, rows) {
+  function esc(v) {
+    var s = String(v);
+    if (/[",\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  var lines = [headers.map(esc).join(',')].concat(rows.map(function (r) { return r.map(esc).join(','); }));
+  return lines.join('\r\n');
+}
+function downloadBlob(blob, filename) {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 1000);
+}
+function exportCsvSjis(headers, rows, filename) {
+  var csv = toCsvString(headers, rows);
+  var enc = getSjisEncoder();
+  var res = enc(csv);
+  if (res.unmapped > 0) {
+    console.warn('SJIS変換できなかった文字が ' + res.unmapped + ' 件あり、"?"に置換しました。');
+  }
+  downloadBlob(new Blob([res.bytes], { type: 'text/csv' }), filename);
+}
+function exportTsvToClipboard(headers, rows) {
+  var tsv = [headers.join('\t')].concat(rows.map(function (r) { return r.join('\t'); })).join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(tsv).then(function () { alert('クリップボードにコピーしました。'); }, function () { fallbackCopy(tsv); });
+  } else {
+    fallbackCopy(tsv);
+  }
+}
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text; document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); alert('クリップボードにコピーしました。'); } catch (e) { alert('コピーに失敗しました。'); }
+  document.body.removeChild(ta);
+}
+function tableToData(tableEl) {
+  var rows = Array.from(tableEl.querySelectorAll('tr')).map(function (tr) {
+    return Array.from(tr.children).map(function (td) { return td.textContent; });
+  });
+  return { headers: rows[0] || [], rows: rows.slice(1) };
+}
+function exportCanvasPng(canvas, filename) {
+  canvas.toBlob(function (blob) { downloadBlob(blob, filename); }, 'image/png');
+}
+
+/* ===== イベント配線 ===== */
+function wireEvents() {
+  document.getElementById('settings-toggle').addEventListener('click', function () {
+    var p = document.getElementById('settings-panel');
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  });
+
+  var dropZone = document.getElementById('drop-zone');
+  dropZone.addEventListener('dragover', function (e) { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', function () { dropZone.classList.remove('drag-over'); });
+  dropZone.addEventListener('drop', async function (e) {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    var files = await filesFromDataTransfer(e.dataTransfer);
+    state.loadedFiles = files;
+    startParse(files, readConfig());
+  });
+
+  document.getElementById('btn-pick-dir').addEventListener('click', function () { document.getElementById('dir-input').click(); });
+  document.getElementById('dir-input').addEventListener('change', function (e) {
+    var files = filesFromDirInput(e.target.files);
+    state.loadedFiles = files;
+    startParse(files, readConfig());
+  });
+  document.getElementById('btn-pick-files').addEventListener('click', function () { document.getElementById('file-input').click(); });
+  document.getElementById('file-input').addEventListener('change', function (e) {
+    var files = filesFromPlainInput(e.target.files);
+    state.loadedFiles = files;
+    startParse(files, readConfig());
+  });
+
+  document.getElementById('apply-settings-btn').addEventListener('click', function () {
+    var cfg = readConfig();
+    if (!state.loadedFiles.length) { alert('先にCSVを読み込んでください。'); return; }
+    startParse(state.loadedFiles, cfg);
+  });
+  document.getElementById('apply-settings-cheap-btn').addEventListener('click', function () {
+    if (!state.aggregate) { alert('先にCSVを読み込んでください。'); return; }
+    state.config = readConfig();
+    simCache.filtersKey = null;
+    renderDistribution(); renderSimulation(); renderOvertime();
+  });
+
+  Array.from(document.querySelectorAll('.tab-btn')).forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      Array.from(document.querySelectorAll('.tab-btn')).forEach(function (b) { b.classList.remove('active'); });
+      Array.from(document.querySelectorAll('.tab-panel')).forEach(function (p) { p.style.display = 'none'; });
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).style.display = 'block';
+      if (btn.dataset.tab === 'dist') renderDistribution();
+      if (btn.dataset.tab === 'sim') renderSimulation();
+      if (btn.dataset.tab === 'overtime') renderOvertime();
+    });
+  });
+
+  ['dist-date-from', 'dist-date-to', 'dist-basis', 'dist-colorby', 'dist-category-filter', 'dist-window-start', 'dist-window-end'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', renderDistribution);
+  });
+  document.getElementById('dist-export-csv').addEventListener('click', function () {
+    var d = tableToData(document.getElementById('dist-table'));
+    exportCsvSjis(d.headers, d.rows, 'distribution.csv');
+  });
+  document.getElementById('dist-export-tsv').addEventListener('click', function () {
+    var d = tableToData(document.getElementById('dist-table'));
+    exportTsvToClipboard(d.headers, d.rows);
+  });
+  document.getElementById('dist-export-png').addEventListener('click', function () {
+    exportCanvasPng(document.getElementById('dist-chart'), 'distribution.png');
+  });
+
+  ['sim-date-from', 'sim-date-to'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', function () { simCache.filtersKey = null; renderSimulation(); });
+  });
+  function syncRangeFromTime(rangeId, timeId) {
+    document.getElementById(timeId).addEventListener('change', function (e) {
+      document.getElementById(rangeId).value = ReceptionLib.timeStrToMinutes(e.target.value);
+      renderSimulation();
+    });
+  }
+  document.getElementById('sim-start-range').addEventListener('input', renderSimulation);
+  document.getElementById('sim-end-range').addEventListener('input', renderSimulation);
+  syncRangeFromTime('sim-start-range', 'sim-start-time');
+  syncRangeFromTime('sim-end-range', 'sim-end-time');
+  document.getElementById('sim-export-csv').addEventListener('click', function () {
+    var d = tableToData(document.getElementById('sim-rank-table'));
+    exportCsvSjis(d.headers, d.rows, 'simulation_ranking.csv');
+  });
+  document.getElementById('sim-export-tsv').addEventListener('click', function () {
+    var d = tableToData(document.getElementById('sim-rank-table'));
+    exportTsvToClipboard(d.headers, d.rows);
+  });
+
+  ['ot-date-from', 'ot-date-to'].forEach(function (id) { document.getElementById(id).addEventListener('change', renderOvertime); });
+  document.getElementById('ot-export-csv').addEventListener('click', function () {
+    exportCsvSjis(window._otLastTable.headers, window._otLastTable.rows, 'overtime.csv');
+  });
+  document.getElementById('ot-export-tsv').addEventListener('click', function () {
+    exportTsvToClipboard(window._otLastTable.headers, window._otLastTable.rows);
+  });
+
+  document.getElementById('test-run-btn').addEventListener('click', runTestMode);
+}
+
+if (checkCompat()) wireEvents();
+</script>
+
+</body>
+</html>
