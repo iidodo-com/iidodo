@@ -636,11 +636,12 @@ async function runProfile(files, limit, colTotal){
     else if(col.nonEmpty>0 && col.timeLike4/col.nonEmpty > 0.7) type = '時刻候補(4桁)';
     else if(col.nonEmpty>0 && col.timeLikeColon/col.nonEmpty > 0.7) type = '時刻候補(HH:MM:SS)';
     let taskScore = 0;
-    for(const code of ['50','51','52','60']){
-      if(col.counts.has(code)) taskScore += col.counts.get(code);
+    for(const [v, cnt] of col.counts.entries()){
+      if(/^0*(50|51|52|60)$/.test(v.trim())) taskScore += cnt;
     }
     taskScore = col.nonEmpty>0 ? taskScore/col.nonEmpty : 0;
-    return { col: idx+1, type, unique: col.counts.size, nonEmpty: col.nonEmpty, top, taskScore };
+    const looksCategorical = col.nonEmpty>0 && col.numeric/col.nonEmpty > 0.9 && col.counts.size>=2 && col.counts.size<=40;
+    return { col: idx+1, type, unique: col.counts.size, nonEmpty: col.nonEmpty, top, taskScore, looksCategorical };
   });
   self.postMessage({type:'profile-done', result, lineCount});
 }
@@ -847,21 +848,31 @@ function renderProfile(result){
   const sorted = result.slice().sort((a,b)=>b.taskScore-a.taskScore);
   const candidates = sorted.filter(r=>r.taskScore>0.2).slice(0,5);
   const candDiv = byId('profileCandidates');
+  let fallbackCandidates = [];
   if(candidates.length){
     candDiv.innerHTML = '<div class="formula-box"><b>業務区分の候補列（50,51,52,60が値の集中している列）:</b><br>' +
       candidates.map(c=>`列${c.col}（該当率 ${(c.taskScore*100).toFixed(1)}%）`).join(' / ') + '</div>';
   } else {
-    candDiv.innerHTML = '<div class="hint">業務区分コード(50,51,52,60)が明確に集中している列は見つかりませんでした。下の一覧を目視で確認してください。</div>';
+    fallbackCandidates = result.filter(r=>r.looksCategorical && r.type.indexOf('時刻候補')!==0)
+      .sort((a,b)=>a.unique-b.unique).slice(0,8);
+    candDiv.innerHTML = '<div class="hint">業務区分コード(50,51,52,60)が明確に集中している列は見つかりませんでした。'
+      + 'この発券機ではコード体系が異なっている可能性があります。'
+      + (fallbackCandidates.length
+        ? '代わりに「ユニーク値が少ない数値列」を候補として表示します。値の並び（1〜32程度の範囲＋少数の大きい値など）を目視で確認し、業務区分列らしいものを探してください：<br>'
+          + fallbackCandidates.map(c=>`列${c.col}（ユニーク数${c.unique}）`).join(' / ')
+        : '数値列の候補も見つかりませんでした。下の一覧を先頭から目視で確認してください。')
+      + '</div>';
   }
   const timeCandidates = result.filter(r=>r.type.indexOf('時刻候補')===0);
   if(timeCandidates.length){
     candDiv.innerHTML += '<div class="hint" style="margin-top:6px;">時刻らしき列の候補：' + timeCandidates.map(c=>`列${c.col}(${c.type})`).join(', ') + '</div>';
   }
+  const fallbackCols = new Set(fallbackCandidates.map(c=>c.col));
   const tbody = document.querySelector('#profileTable tbody');
   tbody.innerHTML = '';
   for(const r of result){
     const tr = document.createElement('tr');
-    if(r.taskScore>0.2) tr.className='highlight-row';
+    if(r.taskScore>0.2 || fallbackCols.has(r.col)) tr.className='highlight-row';
     const topStr = r.top.map(([v,c])=>`${v}:${c}`).join(', ');
     tr.innerHTML = `<td>${r.col}</td><td class="label">${r.type}</td><td>${r.unique}</td><td>${r.nonEmpty}</td><td class="label">${topStr}</td>`;
     tbody.appendChild(tr);
