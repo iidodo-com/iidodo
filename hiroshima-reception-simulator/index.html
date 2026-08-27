@@ -182,9 +182,13 @@
     </div>
 
     <h3 class="sub-title">業務区分コード</h3>
+    <div class="field-note">既定値（50,51,52 / 60）はテーブル定義書の「係員呼出」「来店カウント」区分に基づきますが、これらの区分を使わず全ての発行コードが通常のチケット発行（各業種の受付処理そのもの）として記録されている発券機もあります。その場合は下のコード欄を実際の値（例: 1,2,3,4,5,6）に書き換えてください。列プロファイラを実行済みなら、ボタンで自動入力できます。</div>
     <div class="grid grid-cols-2">
-      <div><label class="field-label">係員呼出とみなすコード（カンマ区切り）</label><input type="text" id="taskStaffCodes" value="50,51,52"></div>
+      <div><label class="field-label">係員呼出（処理時間・時間外試算の対象）とみなすコード（カンマ区切り）</label><input type="text" id="taskStaffCodes" value="50,51,52"></div>
       <div><label class="field-label">来店カウント（来庁実績の母数）とみなすコード</label><input type="text" id="taskVisitCodes" value="60"></div>
+    </div>
+    <div class="btn-row">
+      <button id="autofillCodesBtn" class="small">列プロファイラの検出結果から両方の欄に自動入力</button>
     </div>
 
     <h3 class="sub-title">時刻の形式・抽出ルール</h3>
@@ -742,6 +746,7 @@ function getWorker(){
    4. ファイル読み込みUI（ドラッグ&ドロップ / webkitdirectory）
    --------------------------------------------------------------------- */
 let loadedFiles = []; // {fileObj, name, relPath}
+let lastProfileResult = null; // 列プロファイラの直近の実行結果（業務区分コードの自動入力に使用）
 
 function logLoad(msg){
   const el = byId('loadLog');
@@ -837,6 +842,7 @@ byId('profileBtn').addEventListener('click', ()=>{
       logLoad(`  ${msg.lineCount} 行処理...`);
     } else if(msg.type==='profile-done'){
       byId('progressBar').style.display='none';
+      lastProfileResult = msg.result;
       renderProfile(msg.result);
       logLoad(`列プロファイラ完了（${msg.lineCount}行）。`);
     }
@@ -916,6 +922,26 @@ byId('parseBtn').addEventListener('click', ()=>{
     }
   };
   w.postMessage({cmd:'parse', files, config: CONFIG});
+});
+
+byId('autofillCodesBtn').addEventListener('click', ()=>{
+  if(!lastProfileResult){ alert('先に「①列プロファイラで先頭1万行を解析」を実行してください。'); return; }
+  readConfigFromForm();
+  const colInfo = lastProfileResult[CONFIG.colTask-1];
+  if(!colInfo){ alert('業務区分列の番号が不正です。'); return; }
+  const codes = Array.from(new Set(colInfo.top.map(([v])=>parseInt(v,10)).filter(n=>!isNaN(n)))).sort((a,b)=>a-b);
+  if(codes.length===0){ alert('この列からは数値コードを検出できませんでした。列番号を見直してください。'); return; }
+  const codeStr = codes.join(',');
+  byId('taskStaffCodes').value = codeStr;
+  byId('taskVisitCodes').value = codeStr;
+  readConfigFromForm();
+  refreshSettingsHash();
+  if(DATA){ buildWardTaskFilters(); recomputeAll(); }
+  let msg = `列${CONFIG.colTask}で検出されたコード（${codeStr}）を「係員呼出」「来店カウント」の両方の欄に入力しました。`;
+  if(colInfo.unique>10) msg += `\n注意：この列には10種類を超える値があり、プロファイラは上位10件までしか集計していません。まれにしか出現しないコードが漏れている可能性があるため、上位10件の内訳を確認してください。`;
+  else msg += '\n実際の運用（係員呼出と来店カウントを区別しない発券機）に合わせて、両方を同じコード一覧にしています。区別が必要な場合は個別に編集してください。';
+  logLoad(msg.replace(/\n/g, '\n  '));
+  alert(msg);
 });
 
 /* ---------------------------------------------------------------------
