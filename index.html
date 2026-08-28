@@ -3,111 +3,103 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>私だったらどう答えるか</title>
+<title>バックグラウンド文字起こし</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="app">
   <header class="app-header">
-    <h1>私だったら、どう答えるか</h1>
-    <p class="subtitle">自分の価値観・口調・過去の判断を登録して、新しい質問に「自分らしい答え」を作るアプリ</p>
+    <h1>バックグラウンド文字起こし</h1>
+    <p class="subtitle">録音を開始したら、このタブを開いたまま他の作業をしてもOK。音声を拾って自動で文字起こしします。</p>
   </header>
 
   <nav class="tabs">
-    <button class="tab-btn active" data-tab="ask">質問する</button>
-    <button class="tab-btn" data-tab="profile">プロフィール</button>
+    <button class="tab-btn active" data-tab="record">文字起こし</button>
     <button class="tab-btn" data-tab="history">履歴</button>
     <button class="tab-btn" data-tab="settings">設定</button>
   </nav>
 
   <main>
-    <!-- 質問する -->
-    <section id="tab-ask" class="tab-panel active">
-      <label class="field-label" for="question-input">質問・お題を入力してください</label>
-      <textarea id="question-input" rows="3" placeholder="例：転職するべきか迷っています。どう考えますか？"></textarea>
-      <div class="btn-row">
-        <button id="ask-btn" class="primary-btn">私ならどう答える？</button>
+    <!-- 文字起こし -->
+    <section id="tab-record" class="tab-panel active">
+      <p id="unsupported-msg" class="error-text hidden">
+        お使いのブラウザは音声認識(Web Speech API)に対応していません。PCのGoogle ChromeまたはMicrosoft Edgeでの利用を推奨します。
+      </p>
+
+      <div class="status-row">
+        <span id="status-dot" class="status-dot idle"></span>
+        <span id="status-text" class="status-text">停止中</span>
+        <span id="elapsed-time" class="elapsed-time hidden">00:00</span>
       </div>
-
-      <div id="answer-box" class="answer-box hidden">
-        <div class="answer-meta">
-          <span id="answer-source-badge" class="badge"></span>
-        </div>
-        <p id="answer-text"></p>
-        <div class="btn-row">
-          <button id="regenerate-btn" class="secondary-btn">もう一度生成</button>
-          <button id="save-history-btn" class="secondary-btn">履歴に保存</button>
-        </div>
-      </div>
-      <p id="ask-error" class="error-text hidden"></p>
-    </section>
-
-    <!-- プロフィール -->
-    <section id="tab-profile" class="tab-panel">
-      <p class="section-desc">ここに登録した内容をもとに「自分ならどう答えるか」を組み立てます。詳しく書くほど精度が上がります。</p>
-
-      <label class="field-label" for="profile-name">呼び名（任意）</label>
-      <input id="profile-name" type="text" placeholder="例：たかし">
-
-      <label class="field-label" for="profile-personality">性格・考え方の特徴</label>
-      <textarea id="profile-personality" rows="3" placeholder="例：慎重派だが一度決めたら行動が早い。人の感情を優先しがち。"></textarea>
-
-      <label class="field-label" for="profile-tone">話し方・口癖</label>
-      <textarea id="profile-tone" rows="2" placeholder="例：「正直に言うと〜」「結論から言うと〜」とよく言う。断定より提案口調。"></textarea>
-
-      <label class="field-label" for="profile-values-input">大切にしている価値観（1つずつ追加）</label>
-      <div class="chip-input-row">
-        <input id="profile-values-input" type="text" placeholder="例：家族との時間">
-        <button id="add-value-btn" class="secondary-btn">追加</button>
-      </div>
-      <div id="values-list" class="chip-list"></div>
-
-      <label class="field-label">過去に自分が答えた質問と回答（参考例）</label>
-      <div class="qa-form">
-        <input id="qa-question-input" type="text" placeholder="過去の質問（例：副業を始めるべき？）">
-        <textarea id="qa-answer-input" rows="2" placeholder="その時の自分の回答"></textarea>
-        <button id="add-qa-btn" class="secondary-btn">この例を追加</button>
-      </div>
-      <div id="qa-examples-list" class="qa-list"></div>
 
       <div class="btn-row">
-        <button id="save-profile-btn" class="primary-btn">プロフィールを保存</button>
+        <button id="toggle-btn" class="primary-btn big-btn">録音・文字起こしを開始</button>
       </div>
-      <p id="profile-saved-msg" class="saved-msg hidden">保存しました</p>
+
+      <p class="bg-hint">
+        ヒント：開始後はタブを切り替えたり最小化しても認識は続きます。ただしブラウザ自体を閉じたり、PC/スマホがスリープすると停止します。
+        スマホでは特に画面消灯で止まりやすいので、可能なら画面ロックしない設定を推奨します。
+      </p>
+
+      <div class="transcript-box">
+        <div id="live-transcript" class="live-transcript">
+          <span class="placeholder">ここに文字起こし結果が表示されます。</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button id="copy-current-btn" class="secondary-btn">現在の文字起こしをコピー</button>
+        <button id="download-audio-btn" class="secondary-btn hidden">直前の録音をダウンロード</button>
+      </div>
+      <p id="record-error" class="error-text hidden"></p>
     </section>
 
     <!-- 履歴 -->
     <section id="tab-history" class="tab-panel">
-      <p class="section-desc">保存した「私ならこう答える」の記録です。</p>
+      <p class="section-desc">これまでの録音・文字起こしの記録です。音声ファイルはこの端末のブラウザ内(IndexedDB)に保存されます。</p>
       <div id="history-list" class="history-list"></div>
       <p id="history-empty-msg" class="empty-msg hidden">まだ履歴がありません。</p>
     </section>
 
     <!-- 設定 -->
     <section id="tab-settings" class="tab-panel">
-      <p class="section-desc">
-        Anthropic APIキーを設定すると、Claudeがプロフィール・過去の回答例をもとに、より自然な「自分ならこう答える」を生成します。
-        設定しない場合は、登録した価値観・過去回答から簡易的に回答を組み立てます。
+      <label class="field-label" for="lang-select">認識言語</label>
+      <select id="lang-select">
+        <option value="ja-JP">日本語</option>
+        <option value="en-US">English (US)</option>
+        <option value="zh-CN">中文（简体）</option>
+        <option value="ko-KR">한국어</option>
+      </select>
+
+      <label class="toggle-row">
+        <input type="checkbox" id="notify-toggle">
+        <span>認識が途切れて再接続できなかったときに通知でお知らせする</span>
+      </label>
+
+      <label class="toggle-row">
+        <input type="checkbox" id="wakelock-toggle" checked>
+        <span>録音中は画面がスリープしないようにする（このタブを表示している間のみ有効）</span>
+      </label>
+
+      <label class="toggle-row">
+        <input type="checkbox" id="keepalive-toggle" checked>
+        <span>バックグラウンド継続を助けるため、無音を再生し続ける（推奨）</span>
+      </label>
+
+      <p class="section-desc small">
+        ブラウザの制約上、タブやアプリを完全に終了したり端末をスリープさせると録音・認識は止まります。
+        これはWebアプリの技術的な限界であり、常に確実に動作を保証するものではありません。
       </p>
-      <label class="field-label" for="api-key-input">Anthropic APIキー（任意）</label>
-      <input id="api-key-input" type="password" placeholder="sk-ant-...">
-      <p class="warn-text">
-        ⚠ このキーはブラウザのlocalStorageにのみ保存され、入力時に直接Anthropic APIへ送信されます。
-        共有端末や公開環境では入力しないでください。
-      </p>
-      <div class="btn-row">
-        <button id="save-key-btn" class="primary-btn">キーを保存</button>
-        <button id="clear-key-btn" class="secondary-btn">キーを削除</button>
-      </div>
-      <p id="key-saved-msg" class="saved-msg hidden"></p>
 
       <hr>
       <div class="btn-row">
-        <button id="clear-all-btn" class="danger-btn">全データを削除（プロフィール・履歴・キー）</button>
+        <button id="clear-all-btn" class="danger-btn">全データを削除（履歴・設定）</button>
       </div>
     </section>
   </main>
 </div>
+
+<audio id="keepalive-audio" loop></audio>
 
 <script src="app.js"></script>
 </body>

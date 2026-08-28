@@ -1,51 +1,101 @@
 (() => {
   const STORAGE_KEYS = {
-    profile: "watashinara.profile.v1",
-    history: "watashinara.history.v1",
-    apiKey: "watashinara.apiKey.v1",
+    sessions: "bgtranscribe.sessions.v1",
+    settings: "bgtranscribe.settings.v1",
   };
 
-  const ANTHROPIC_MODEL = "claude-sonnet-5";
-  const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+  const DB_NAME = "bgtranscribe-audio";
+  const DB_STORE = "audio";
+
+  const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
 
   const state = {
-    profile: loadProfile(),
-    history: loadHistory(),
-    apiKey: localStorage.getItem(STORAGE_KEYS.apiKey) || "",
+    settings: loadSettings(),
+    sessions: loadSessions(),
+    recording: false,
+    manualStop: false,
+    recognition: null,
+    mediaStream: null,
+    mediaRecorder: null,
+    audioChunks: [],
+    currentSession: null,
+    restartTimestamps: [],
+    consecutiveFailures: 0,
+    timerInterval: null,
+    lastAudioBlobUrl: null,
+    wakeLockSentinel: null,
   };
 
   // ---------- storage helpers ----------
 
-  function loadProfile() {
+  function loadSettings() {
+    const defaults = { lang: "ja-JP", notify: false, wakeLock: true, keepalive: true };
     try {
-      const raw = localStorage.getItem(STORAGE_KEYS.profile);
-      if (!raw) return emptyProfile();
-      const parsed = JSON.parse(raw);
-      return { ...emptyProfile(), ...parsed };
+      const raw = localStorage.getItem(STORAGE_KEYS.settings);
+      return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
     } catch {
-      return emptyProfile();
+      return defaults;
     }
   }
 
-  function emptyProfile() {
-    return { name: "", personality: "", tone: "", values: [], qaExamples: [] };
+  function saveSettings() {
+    localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(state.settings));
   }
 
-  function saveProfile() {
-    localStorage.setItem(STORAGE_KEYS.profile, JSON.stringify(state.profile));
-  }
-
-  function loadHistory() {
+  function loadSessions() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEYS.history);
+      const raw = localStorage.getItem(STORAGE_KEYS.sessions);
       return raw ? JSON.parse(raw) : [];
     } catch {
       return [];
     }
   }
 
-  function saveHistory() {
-    localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(state.history));
+  function saveSessions() {
+    localStorage.setItem(STORAGE_KEYS.sessions, JSON.stringify(state.sessions));
+  }
+
+  // ---------- IndexedDB (audio blobs) ----------
+
+  function openDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore(DB_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function saveAudioBlob(id, blob) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readwrite");
+      tx.objectStore(DB_STORE).put(blob, id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function loadAudioBlob(id) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readonly");
+      const req = tx.objectStore(DB_STORE).get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function deleteAudioBlob(id) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readwrite");
+      tx.objectStore(DB_STORE).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
   }
 
   // ---------- tabs ----------
@@ -56,380 +106,505 @@
       document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
       btn.classList.add("active");
       document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
+      if (btn.dataset.tab === "history") renderHistory();
     });
   });
 
-  // ---------- profile tab ----------
+  // ---------- elements ----------
 
-  const nameInput = document.getElementById("profile-name");
-  const personalityInput = document.getElementById("profile-personality");
-  const toneInput = document.getElementById("profile-tone");
-  const valuesInput = document.getElementById("profile-values-input");
-  const valuesListEl = document.getElementById("values-list");
-  const qaQuestionInput = document.getElementById("qa-question-input");
-  const qaAnswerInput = document.getElementById("qa-answer-input");
-  const qaExamplesListEl = document.getElementById("qa-examples-list");
+  const unsupportedMsg = document.getElementById("unsupported-msg");
+  const statusDot = document.getElementById("status-dot");
+  const statusText = document.getElementById("status-text");
+  const elapsedTimeEl = document.getElementById("elapsed-time");
+  const toggleBtn = document.getElementById("toggle-btn");
+  const liveTranscript = document.getElementById("live-transcript");
+  const copyCurrentBtn = document.getElementById("copy-current-btn");
+  const downloadAudioBtn = document.getElementById("download-audio-btn");
+  const recordError = document.getElementById("record-error");
+  const keepaliveAudio = document.getElementById("keepalive-audio");
 
-  function fillProfileForm() {
-    nameInput.value = state.profile.name;
-    personalityInput.value = state.profile.personality;
-    toneInput.value = state.profile.tone;
-    renderValues();
-    renderQaExamples();
-  }
+  const langSelect = document.getElementById("lang-select");
+  const notifyToggle = document.getElementById("notify-toggle");
+  const wakelockToggle = document.getElementById("wakelock-toggle");
+  const keepaliveToggle = document.getElementById("keepalive-toggle");
 
-  function renderValues() {
-    valuesListEl.innerHTML = "";
-    state.profile.values.forEach((v, i) => {
-      const chip = document.createElement("span");
-      chip.className = "chip";
-      chip.innerHTML = `<span></span><button aria-label="削除">×</button>`;
-      chip.querySelector("span").textContent = v;
-      chip.querySelector("button").addEventListener("click", () => {
-        state.profile.values.splice(i, 1);
-        renderValues();
-      });
-      valuesListEl.appendChild(chip);
-    });
-  }
+  langSelect.value = state.settings.lang;
+  notifyToggle.checked = state.settings.notify;
+  wakelockToggle.checked = state.settings.wakeLock;
+  keepaliveToggle.checked = state.settings.keepalive;
 
-  function renderQaExamples() {
-    qaExamplesListEl.innerHTML = "";
-    state.profile.qaExamples.forEach((qa, i) => {
-      const item = document.createElement("div");
-      item.className = "qa-item";
-      const q = document.createElement("p");
-      q.className = "qa-q";
-      q.textContent = "Q: " + qa.q;
-      const a = document.createElement("p");
-      a.className = "qa-a";
-      a.textContent = "A: " + qa.a;
-      const del = document.createElement("button");
-      del.className = "item-delete-btn";
-      del.textContent = "削除";
-      del.addEventListener("click", () => {
-        state.profile.qaExamples.splice(i, 1);
-        renderQaExamples();
-      });
-      item.append(q, a, del);
-      qaExamplesListEl.appendChild(item);
-    });
-  }
-
-  document.getElementById("add-value-btn").addEventListener("click", () => {
-    const v = valuesInput.value.trim();
-    if (!v) return;
-    state.profile.values.push(v);
-    valuesInput.value = "";
-    renderValues();
+  langSelect.addEventListener("change", () => {
+    state.settings.lang = langSelect.value;
+    saveSettings();
   });
 
-  valuesInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      document.getElementById("add-value-btn").click();
+  wakelockToggle.addEventListener("change", () => {
+    state.settings.wakeLock = wakelockToggle.checked;
+    saveSettings();
+  });
+
+  keepaliveToggle.addEventListener("change", () => {
+    state.settings.keepalive = keepaliveToggle.checked;
+    saveSettings();
+  });
+
+  notifyToggle.addEventListener("change", async () => {
+    if (notifyToggle.checked && "Notification" in window) {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        notifyToggle.checked = false;
+      }
     }
+    state.settings.notify = notifyToggle.checked;
+    saveSettings();
   });
 
-  document.getElementById("add-qa-btn").addEventListener("click", () => {
-    const q = qaQuestionInput.value.trim();
-    const a = qaAnswerInput.value.trim();
-    if (!q || !a) return;
-    state.profile.qaExamples.push({ q, a });
-    qaQuestionInput.value = "";
-    qaAnswerInput.value = "";
-    renderQaExamples();
-  });
-
-  document.getElementById("save-profile-btn").addEventListener("click", () => {
-    state.profile.name = nameInput.value.trim();
-    state.profile.personality = personalityInput.value.trim();
-    state.profile.tone = toneInput.value.trim();
-    saveProfile();
-    const msg = document.getElementById("profile-saved-msg");
-    msg.classList.remove("hidden");
-    setTimeout(() => msg.classList.add("hidden"), 2000);
-  });
-
-  // ---------- settings tab ----------
-
-  const apiKeyInput = document.getElementById("api-key-input");
-  apiKeyInput.value = state.apiKey;
-
-  document.getElementById("save-key-btn").addEventListener("click", () => {
-    state.apiKey = apiKeyInput.value.trim();
-    if (state.apiKey) {
-      localStorage.setItem(STORAGE_KEYS.apiKey, state.apiKey);
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.apiKey);
+  document.getElementById("clear-all-btn").addEventListener("click", async () => {
+    if (!confirm("履歴と設定をすべて削除します。よろしいですか？")) return;
+    for (const s of state.sessions) {
+      if (s.hasAudio) await deleteAudioBlob(s.id).catch(() => {});
     }
-    showKeyMsg(state.apiKey ? "保存しました" : "キーが空のため未設定です");
-  });
-
-  document.getElementById("clear-key-btn").addEventListener("click", () => {
-    state.apiKey = "";
-    apiKeyInput.value = "";
-    localStorage.removeItem(STORAGE_KEYS.apiKey);
-    showKeyMsg("削除しました");
-  });
-
-  function showKeyMsg(text) {
-    const msg = document.getElementById("key-saved-msg");
-    msg.textContent = text;
-    msg.classList.remove("hidden");
-    setTimeout(() => msg.classList.add("hidden"), 2000);
-  }
-
-  document.getElementById("clear-all-btn").addEventListener("click", () => {
-    if (!confirm("プロフィール・履歴・APIキーをすべて削除します。よろしいですか？")) return;
-    localStorage.removeItem(STORAGE_KEYS.profile);
-    localStorage.removeItem(STORAGE_KEYS.history);
-    localStorage.removeItem(STORAGE_KEYS.apiKey);
-    state.profile = emptyProfile();
-    state.history = [];
-    state.apiKey = "";
-    apiKeyInput.value = "";
-    fillProfileForm();
+    localStorage.removeItem(STORAGE_KEYS.sessions);
+    localStorage.removeItem(STORAGE_KEYS.settings);
+    state.sessions = [];
+    state.settings = loadSettings();
     renderHistory();
   });
 
-  // ---------- history tab ----------
+  // ---------- silent keep-alive audio ----------
+  // Some mobile browsers only exempt a background tab from throttling while it
+  // is actively playing audio, so a near-silent looped clip helps recognition
+  // survive being backgrounded (no guarantee, but a real-world workaround).
+  function createSilentAudioUrl(durationSeconds = 1, sampleRate = 8000) {
+    const numSamples = sampleRate * durationSeconds;
+    const buffer = new ArrayBuffer(44 + numSamples * 2);
+    const view = new DataView(buffer);
+    const writeStr = (offset, str) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    writeStr(0, "RIFF");
+    view.setUint32(4, 36 + numSamples * 2, true);
+    writeStr(8, "WAVE");
+    writeStr(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, "data");
+    view.setUint32(40, numSamples * 2, true);
+    return URL.createObjectURL(new Blob([view], { type: "audio/wav" }));
+  }
+
+  function startKeepalive() {
+    if (!state.settings.keepalive) return;
+    if (!keepaliveAudio.src) keepaliveAudio.src = createSilentAudioUrl();
+    keepaliveAudio.volume = 0.01;
+    keepaliveAudio.play().catch(() => {});
+  }
+
+  function stopKeepalive() {
+    keepaliveAudio.pause();
+  }
+
+  // ---------- wake lock ----------
+
+  async function requestWakeLock() {
+    if (!state.settings.wakeLock || !("wakeLock" in navigator)) return;
+    try {
+      state.wakeLockSentinel = await navigator.wakeLock.request("screen");
+    } catch {
+      state.wakeLockSentinel = null;
+    }
+  }
+
+  function releaseWakeLock() {
+    if (state.wakeLockSentinel) {
+      state.wakeLockSentinel.release().catch(() => {});
+      state.wakeLockSentinel = null;
+    }
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && state.recording) {
+      requestWakeLock();
+    }
+  });
+
+  // ---------- status UI ----------
+
+  function setStatus(mode, text) {
+    statusDot.className = `status-dot ${mode}`;
+    statusText.textContent = text;
+  }
+
+  function updateElapsed() {
+    if (!state.currentSession) return;
+    const secs = Math.floor((Date.now() - state.currentSession.startedAt) / 1000);
+    const mm = String(Math.floor(secs / 60)).padStart(2, "0");
+    const ss = String(secs % 60).padStart(2, "0");
+    elapsedTimeEl.textContent = `${mm}:${ss}`;
+  }
+
+  // ---------- transcript rendering ----------
+
+  function renderLiveTranscript(interimText) {
+    liveTranscript.innerHTML = "";
+    const finalText = state.currentSession ? state.currentSession.transcript : "";
+    if (!finalText && !interimText) {
+      const span = document.createElement("span");
+      span.className = "placeholder";
+      span.textContent = "ここに文字起こし結果が表示されます。";
+      liveTranscript.appendChild(span);
+      return;
+    }
+    if (finalText) {
+      const finalSpan = document.createElement("span");
+      finalSpan.className = "final-text";
+      finalSpan.textContent = finalText;
+      liveTranscript.appendChild(finalSpan);
+    }
+    if (interimText) {
+      const interimSpan = document.createElement("span");
+      interimSpan.className = "interim-text";
+      interimSpan.textContent = interimText;
+      liveTranscript.appendChild(interimSpan);
+    }
+    liveTranscript.scrollTop = liveTranscript.scrollHeight;
+  }
+
+  // ---------- recognition control ----------
+
+  function createRecognition() {
+    const recognition = new SpeechRecognitionImpl();
+    recognition.lang = state.settings.lang;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event) => {
+      state.consecutiveFailures = 0;
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          state.currentSession.transcript += result[0].transcript;
+          saveSessions();
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+      renderLiveTranscript(interim);
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error === "not-allowed" || event.error === "audio-capture") {
+        recordError.textContent =
+          event.error === "not-allowed"
+            ? "マイクの使用が許可されていません。ブラウザの設定を確認してください。"
+            : "マイクにアクセスできませんでした。デバイスを確認してください。";
+        recordError.classList.remove("hidden");
+        stopRecording(true);
+      }
+      // other errors (no-speech, network, aborted) are handled via onend + auto-restart
+    };
+
+    recognition.onend = () => {
+      if (!state.recording || state.manualStop) return;
+
+      const now = Date.now();
+      state.restartTimestamps.push(now);
+      state.restartTimestamps = state.restartTimestamps.filter((t) => now - t < 15000);
+
+      if (state.restartTimestamps.length > 8) {
+        state.consecutiveFailures += 1;
+        if (state.consecutiveFailures >= 3) {
+          notifyProblem();
+        }
+        setTimeout(() => restartRecognition(), 5000);
+      } else {
+        setTimeout(() => restartRecognition(), 250);
+      }
+    };
+
+    return recognition;
+  }
+
+  function restartRecognition() {
+    if (!state.recording || state.manualStop) return;
+    try {
+      state.recognition = createRecognition();
+      state.recognition.start();
+      setStatus("live", "文字起こし中");
+    } catch {
+      setTimeout(() => restartRecognition(), 1000);
+    }
+  }
+
+  function notifyProblem() {
+    if (state.settings.notify && "Notification" in window && Notification.permission === "granted") {
+      new Notification("文字起こしが不安定です", {
+        body: "認識の再接続を繰り返しています。タブを確認してください。",
+      });
+    }
+    setStatus("warn", "再接続中...（不安定）");
+  }
+
+  // ---------- start / stop ----------
+
+  async function startRecording() {
+    recordError.classList.add("hidden");
+    try {
+      state.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      recordError.textContent = "マイクへのアクセスが拒否されました：" + err.message;
+      recordError.classList.remove("hidden");
+      return;
+    }
+
+    state.currentSession = {
+      id: `s_${Date.now()}`,
+      startedAt: Date.now(),
+      endedAt: null,
+      transcript: "",
+      lang: state.settings.lang,
+      hasAudio: false,
+    };
+    state.sessions.push(state.currentSession);
+    saveSessions();
+
+    state.recording = true;
+    state.manualStop = false;
+    state.restartTimestamps = [];
+    state.consecutiveFailures = 0;
+    state.audioChunks = [];
+
+    const mimeCandidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
+    const mimeType = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || "";
+    state.mediaRecorder = new MediaRecorder(state.mediaStream, mimeType ? { mimeType } : undefined);
+    state.mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) state.audioChunks.push(e.data);
+    };
+    state.mediaRecorder.start(1000);
+
+    state.recognition = createRecognition();
+    state.recognition.start();
+
+    startKeepalive();
+    requestWakeLock();
+
+    state.timerInterval = setInterval(updateElapsed, 1000);
+    elapsedTimeEl.classList.remove("hidden");
+    downloadAudioBtn.classList.add("hidden");
+
+    setStatus("live", "文字起こし中");
+    toggleBtn.textContent = "録音・文字起こしを停止";
+    toggleBtn.classList.add("recording");
+    renderLiveTranscript("");
+  }
+
+  async function stopRecording(dueToError = false) {
+    state.recording = false;
+    state.manualStop = true;
+
+    if (state.recognition) {
+      try {
+        state.recognition.onend = null;
+        state.recognition.stop();
+      } catch {}
+      state.recognition = null;
+    }
+
+    if (state.mediaRecorder && state.mediaRecorder.state !== "inactive") {
+      await new Promise((resolve) => {
+        state.mediaRecorder.onstop = resolve;
+        state.mediaRecorder.stop();
+      });
+    }
+
+    if (state.mediaStream) {
+      state.mediaStream.getTracks().forEach((t) => t.stop());
+      state.mediaStream = null;
+    }
+
+    stopKeepalive();
+    releaseWakeLock();
+    clearInterval(state.timerInterval);
+    elapsedTimeEl.classList.add("hidden");
+
+    if (state.currentSession) {
+      state.currentSession.endedAt = Date.now();
+
+      if (state.audioChunks.length > 0) {
+        const blob = new Blob(state.audioChunks, { type: state.mediaRecorder.mimeType || "audio/webm" });
+        try {
+          await saveAudioBlob(state.currentSession.id, blob);
+          state.currentSession.hasAudio = true;
+          state.currentSession.mimeType = blob.type;
+          if (state.lastAudioBlobUrl) URL.revokeObjectURL(state.lastAudioBlobUrl);
+          state.lastAudioBlobUrl = URL.createObjectURL(blob);
+          downloadAudioBtn.classList.remove("hidden");
+        } catch {
+          // audio storage failed; transcript is still preserved
+        }
+      }
+      saveSessions();
+    }
+
+    setStatus(dueToError ? "error" : "idle", dueToError ? "エラーで停止しました" : "停止中");
+    toggleBtn.textContent = "録音・文字起こしを開始";
+    toggleBtn.classList.remove("recording");
+    state.currentSession = null;
+  }
+
+  toggleBtn.addEventListener("click", () => {
+    if (state.recording) {
+      stopRecording(false);
+    } else {
+      startRecording();
+    }
+  });
+
+  copyCurrentBtn.addEventListener("click", async () => {
+    const text = state.currentSession
+      ? state.currentSession.transcript
+      : (state.sessions[state.sessions.length - 1]?.transcript || "");
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      copyCurrentBtn.textContent = "コピーしました";
+    } catch {
+      copyCurrentBtn.textContent = "コピーに失敗しました";
+    }
+    setTimeout(() => (copyCurrentBtn.textContent = "現在の文字起こしをコピー"), 1500);
+  });
+
+  downloadAudioBtn.addEventListener("click", () => {
+    if (!state.lastAudioBlobUrl) return;
+    const a = document.createElement("a");
+    a.href = state.lastAudioBlobUrl;
+    a.download = `recording_${Date.now()}.webm`;
+    a.click();
+  });
+
+  window.addEventListener("beforeunload", (e) => {
+    if (state.recording) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+  });
+
+  // ---------- history ----------
+
+  function formatDuration(ms) {
+    const secs = Math.max(0, Math.floor(ms / 1000));
+    const mm = String(Math.floor(secs / 60)).padStart(2, "0");
+    const ss = String(secs % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
+  }
+
+  function downloadText(filename, text) {
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   function renderHistory() {
     const listEl = document.getElementById("history-list");
     const emptyMsg = document.getElementById("history-empty-msg");
     listEl.innerHTML = "";
-    if (state.history.length === 0) {
+
+    const finished = state.sessions.filter((s) => s.endedAt);
+    if (finished.length === 0) {
       emptyMsg.classList.remove("hidden");
       return;
     }
     emptyMsg.classList.add("hidden");
-    [...state.history].reverse().forEach((item) => {
-      const realIndex = state.history.indexOf(item);
+
+    [...finished].reverse().forEach((session) => {
       const el = document.createElement("div");
       el.className = "history-item";
+
       const date = document.createElement("p");
       date.className = "h-date";
-      date.textContent = new Date(item.date).toLocaleString("ja-JP");
-      const q = document.createElement("p");
-      q.className = "h-q";
-      q.textContent = "Q: " + item.question;
-      const a = document.createElement("p");
-      a.className = "h-a";
-      a.textContent = item.answer;
-      const del = document.createElement("button");
-      del.className = "item-delete-btn";
-      del.textContent = "削除";
-      del.addEventListener("click", () => {
-        state.history.splice(realIndex, 1);
-        saveHistory();
+      date.textContent =
+        new Date(session.startedAt).toLocaleString("ja-JP") +
+        `（${formatDuration(session.endedAt - session.startedAt)}）`;
+
+      const text = document.createElement("p");
+      text.className = "h-text";
+      text.textContent = session.transcript || "（文字起こし結果なし）";
+
+      const actions = document.createElement("div");
+      actions.className = "btn-row";
+
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "secondary-btn small-btn";
+      copyBtn.textContent = "コピー";
+      copyBtn.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(session.transcript || "");
+        copyBtn.textContent = "コピーしました";
+        setTimeout(() => (copyBtn.textContent = "コピー"), 1200);
+      });
+
+      const dlTextBtn = document.createElement("button");
+      dlTextBtn.className = "secondary-btn small-btn";
+      dlTextBtn.textContent = "テキスト保存";
+      dlTextBtn.addEventListener("click", () => {
+        downloadText(`transcript_${session.id}.txt`, session.transcript || "");
+      });
+
+      actions.append(copyBtn, dlTextBtn);
+
+      if (session.hasAudio) {
+        const audioBtn = document.createElement("button");
+        audioBtn.className = "secondary-btn small-btn";
+        audioBtn.textContent = "音声を読み込む";
+        audioBtn.addEventListener("click", async () => {
+          const blob = await loadAudioBlob(session.id);
+          if (!blob) {
+            audioBtn.textContent = "音声が見つかりません";
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const audioEl = document.createElement("audio");
+          audioEl.controls = true;
+          audioEl.src = url;
+          audioEl.className = "history-audio";
+          audioBtn.replaceWith(audioEl);
+        });
+        actions.appendChild(audioBtn);
+      }
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "item-delete-btn";
+      delBtn.textContent = "削除";
+      delBtn.addEventListener("click", async () => {
+        const idx = state.sessions.indexOf(session);
+        if (idx !== -1) state.sessions.splice(idx, 1);
+        saveSessions();
+        if (session.hasAudio) await deleteAudioBlob(session.id).catch(() => {});
         renderHistory();
       });
-      el.append(date, q, a, del);
+
+      el.append(date, text, actions, delBtn);
       listEl.appendChild(el);
     });
   }
 
-  // ---------- ask tab ----------
-
-  const questionInput = document.getElementById("question-input");
-  const askBtn = document.getElementById("ask-btn");
-  const regenerateBtn = document.getElementById("regenerate-btn");
-  const saveHistoryBtn = document.getElementById("save-history-btn");
-  const answerBox = document.getElementById("answer-box");
-  const answerText = document.getElementById("answer-text");
-  const answerSourceBadge = document.getElementById("answer-source-badge");
-  const askError = document.getElementById("ask-error");
-
-  let lastQuestion = "";
-  let lastAnswer = "";
-
-  askBtn.addEventListener("click", () => generateAnswer());
-  regenerateBtn.addEventListener("click", () => generateAnswer());
-
-  saveHistoryBtn.addEventListener("click", () => {
-    if (!lastAnswer) return;
-    state.history.push({ question: lastQuestion, answer: lastAnswer, date: Date.now() });
-    saveHistory();
-    renderHistory();
-    saveHistoryBtn.textContent = "保存しました";
-    setTimeout(() => (saveHistoryBtn.textContent = "履歴に保存"), 1500);
-  });
-
-  async function generateAnswer() {
-    const question = questionInput.value.trim();
-    askError.classList.add("hidden");
-    if (!question) {
-      askError.textContent = "質問を入力してください。";
-      askError.classList.remove("hidden");
-      return;
-    }
-    lastQuestion = question;
-
-    askBtn.disabled = true;
-    askBtn.textContent = "考え中...";
-
-    try {
-      let answer;
-      let source;
-      if (state.apiKey) {
-        answer = await generateWithClaude(question);
-        source = "Claudeによる生成";
-      } else {
-        answer = generateWithHeuristic(question);
-        source = "登録した価値観からの簡易生成";
-      }
-      lastAnswer = answer;
-      answerText.textContent = answer;
-      answerSourceBadge.textContent = source;
-      answerBox.classList.remove("hidden");
-    } catch (err) {
-      askError.textContent = "生成に失敗しました：" + err.message;
-      askError.classList.remove("hidden");
-    } finally {
-      askBtn.disabled = false;
-      askBtn.textContent = "私ならどう答える？";
-    }
-  }
-
-  // ---------- Claude-based generation ----------
-
-  async function generateWithClaude(question) {
-    const system = buildSystemPrompt();
-    const res = await fetch(ANTHROPIC_API_URL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": state.apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify({
-        model: ANTHROPIC_MODEL,
-        max_tokens: 500,
-        system,
-        messages: [{ role: "user", content: question }],
-      }),
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`APIエラー (${res.status}): ${body.slice(0, 200)}`);
-    }
-
-    const data = await res.json();
-    const textBlock = (data.content || []).find((b) => b.type === "text");
-    if (!textBlock) throw new Error("応答にテキストが含まれていません。");
-    return textBlock.text.trim();
-  }
-
-  function buildSystemPrompt() {
-    const p = state.profile;
-    const lines = [];
-    lines.push(
-      `あなたはこれから「${p.name || "この人"}」本人になりきって、一人称で質問に答えます。` +
-        "本人が実際にどう考え、どう答えそうかを再現してください。中立的なアドバイスや一般論ではなく、あくまで本人の視点・価値観・口調で答えてください。"
-    );
-    if (p.personality) {
-      lines.push(`【性格・考え方】\n${p.personality}`);
-    }
-    if (p.values.length > 0) {
-      lines.push(`【大切にしている価値観】\n${p.values.map((v) => "・" + v).join("\n")}`);
-    }
-    if (p.tone) {
-      lines.push(`【話し方・口癖】\n${p.tone}`);
-    }
-    if (p.qaExamples.length > 0) {
-      const examples = p.qaExamples
-        .map((qa) => `Q: ${qa.q}\nA: ${qa.a}`)
-        .join("\n\n");
-      lines.push(`【過去にこの人が実際に答えた例】\n${examples}`);
-    }
-    lines.push("回答は3〜6文程度で、本人が話しているような自然な一人称の文章にしてください。");
-    return lines.join("\n\n");
-  }
-
-  // ---------- heuristic fallback (no API key) ----------
-
-  function tokenize(text) {
-    return (text.toLowerCase().match(/[a-z0-9ぁ-んァ-ヶ一-龠々]+/gu) || []).filter(
-      (t) => t.length > 1
-    );
-  }
-
-  function overlapScore(tokensA, tokensB) {
-    const setB = new Set(tokensB);
-    let score = 0;
-    tokensA.forEach((t) => {
-      if (setB.has(t)) score += 1;
-    });
-    return score;
-  }
-
-  function generateWithHeuristic(question) {
-    const p = state.profile;
-    const qTokens = tokenize(question);
-
-    // find best matching past QA example
-    let bestQa = null;
-    let bestQaScore = 0;
-    p.qaExamples.forEach((qa) => {
-      const score = overlapScore(qTokens, tokenize(qa.q));
-      if (score > bestQaScore) {
-        bestQaScore = score;
-        bestQa = qa;
-      }
-    });
-
-    // find matching values
-    const matchedValues = p.values.filter((v) => overlapScore(qTokens, tokenize(v)) > 0);
-    const topValues = matchedValues.length > 0 ? matchedValues : p.values.slice(0, 2);
-
-    const hasAnyProfile =
-      p.personality || p.tone || p.values.length > 0 || p.qaExamples.length > 0;
-
-    if (!hasAnyProfile) {
-      return (
-        "まだプロフィールが登録されていません。「プロフィール」タブで性格・価値観・過去の回答例を登録すると、" +
-        "それをもとにした回答を作れるようになります。ここでは一般的な答えしか出せません：\n\n" +
-        `「${question}」について、まずは自分がその選択で何を一番失いたくないか、何を一番大事にしたいかを考えてみるとよさそうです。`
-      );
-    }
-
-    const parts = [];
-
-    if (bestQa && bestQaScore > 0) {
-      parts.push(
-        `似た話として、以前「${bestQa.q}」という質問に「${bestQa.a}」と答えたことがある。それに近い考え方をすると、`
-      );
-    }
-
-    if (topValues.length > 0) {
-      parts.push(`自分は${topValues.join("や")}を大事にしているタイプなので、`);
-    }
-
-    if (p.personality) {
-      parts.push(`もともと${summarize(p.personality)}という面もあるから、`);
-    }
-
-    parts.push(`「${question}」については、それらを軸にして判断すると思う。`);
-
-    let base = parts.join("");
-
-    if (p.tone) {
-      base += `\n\n(口調メモ：${p.tone} を意識するとより自分らしくなる)`;
-    }
-
-    return base;
-  }
-
-  function summarize(text) {
-    const trimmed = text.trim();
-    return trimmed.length > 40 ? trimmed.slice(0, 40) + "…" : trimmed;
-  }
-
   // ---------- init ----------
 
-  fillProfileForm();
+  if (!SpeechRecognitionImpl) {
+    unsupportedMsg.classList.remove("hidden");
+    toggleBtn.disabled = true;
+    toggleBtn.title = "このブラウザは音声認識に対応していません";
+  }
+
   renderHistory();
 })();
