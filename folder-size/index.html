@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>フォルダ容量ビューア</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="app-header">
+    <h1>フォルダ容量ビューア</h1>
+    <p class="subtitle">
+      フォルダをドラッグ&amp;ドロップするか選択すると、階層ごとの容量内訳を表示します。
+      解析はすべてブラウザ内で行われ、ファイルの中身はどこにも送信されません。
+    </p>
+  </header>
+
+  <div id="dropzone" class="dropzone">
+    <p class="drop-main">ここにフォルダをドラッグ&amp;ドロップ</p>
+    <p class="or-text">または</p>
+    <button id="pick-btn" class="primary-btn" type="button">フォルダを選択</button>
+    <input id="dir-input" type="file" webkitdirectory directory hidden>
+  </div>
+
+  <p id="status" class="status-text hidden"></p>
+
+  <div id="summary" class="summary hidden">
+    <div class="summary-head">
+      <h2 id="summary-name"></h2>
+      <button id="reset-btn" class="secondary-btn" type="button">別のフォルダを選ぶ</button>
+    </div>
+    <p id="summary-stats" class="stats-line"></p>
+  </div>
+
+  <div id="tree-root" class="tree-root"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
