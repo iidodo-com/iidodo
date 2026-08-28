@@ -1,0 +1,1232 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>私ならこう答える</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: #f7f7f8;
+    color: #1a1a1a;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 13px;
+    color: #555;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  header .title { font-weight: 600; color: #111; font-size: 14px; }
+  nav {
+    display: flex;
+    gap: 4px;
+    padding: 8px 16px 0;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  nav button {
+    padding: 8px 16px;
+    font-size: 14px;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    color: #666;
+  }
+  nav button.active { color: #111; font-weight: 600; border-bottom-color: #111; }
+  main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+  .grid2 { display: grid; grid-template-columns: 1fr; gap: 20px; }
+  @media (min-width: 900px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+  textarea, input[type=text], input[type=password] {
+    width: 100%;
+    font-family: inherit;
+    font-size: 14px;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  textarea { resize: vertical; line-height: 1.6; }
+  label.field-label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid #ccc;
+    background: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    color: #333;
+  }
+  .chip.selected { background: #111; color: #fff; border-color: #111; }
+  .btn {
+    padding: 9px 18px;
+    border-radius: 4px;
+    border: 1px solid #111;
+    background: #111;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .btn.secondary { background: #fff; color: #111; border-color: #ccc; }
+  .btn.small { padding: 5px 12px; font-size: 12px; }
+  .card { border: 1px solid #ddd; border-radius: 6px; background: #fff; margin-bottom: 14px; }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; background: #fafafa; border-bottom: 1px solid #ddd;
+    font-size: 13px; font-weight: 600;
+  }
+  .card-body { padding: 12px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+  .muted { color: #888; font-size: 13px; }
+  .warn-box {
+    background: #fff8e6; border: 1px solid #f0d78c; border-radius: 4px;
+    padding: 10px 12px; font-size: 12px; color: #6b5300; margin-bottom: 10px;
+  }
+  .error-box {
+    background: #fdecec; border: 1px solid #f3b4b4; border-radius: 4px;
+    padding: 10px 12px; font-size: 13px; color: #a12a2a; margin-bottom: 10px; white-space: pre-wrap;
+  }
+  .placeholder {
+    color: #999; border: 1px dashed #ccc; border-radius: 6px; padding: 30px; text-align: center; font-size: 13px;
+  }
+  .history-item {
+    border: 1px solid #ddd; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px;
+    cursor: pointer; background: #fff; font-size: 13px;
+  }
+  .history-item:hover { border-color: #999; }
+  .history-item.selected { border-color: #111; }
+  .history-meta { display: flex; justify-content: space-between; color: #888; font-size: 11px; margin-bottom: 4px; }
+  .settings-section { margin-bottom: 22px; }
+  .settings-section h3 { font-size: 14px; margin-bottom: 6px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .qa-item { margin-bottom: 8px; }
+  .qa-item .q { font-weight: 600; }
+  .qa-item .a { color: #444; }
+  .verdict-badge {
+    display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;
+  }
+  .verdict-pass { background: #e3f6e5; color: #226b2e; }
+  .verdict-cond { background: #fff3d6; color: #7a5b00; }
+  .verdict-fail { background: #fbe4e4; color: #93262a; }
+  .diff-item { border-bottom: 1px solid #eee; padding: 8px 0; font-size: 13px; }
+  .diff-item:last-child { border-bottom: none; }
+  .diff-before { color: #999; text-decoration: line-through; }
+  .diff-reason { color: #888; font-size: 12px; margin-top: 2px; }
+  footer { text-align: center; color: #aaa; font-size: 11px; padding: 24px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="title">私ならこう答える</span>
+  <span class="muted" id="statusLine"></span>
+</header>
+
+<nav id="tabNav">
+  <button data-tab="draft" class="active">回答生成</button>
+  <button data-tab="wallbounce">壁打ちモード</button>
+  <button data-tab="history">履歴</button>
+  <button data-tab="settings">設定・context編集</button>
+</nav>
+
+<main id="app"></main>
+
+<footer>ブラウザだけで動作するローカル版。データはこのブラウザ内（localStorage）にのみ保存されます。</footer>
+
+<script>
+"use strict";
+
+/* =========================================================
+   1. デフォルトのcontext（本人プロファイル・文体・案件・過去事例）
+   ========================================================= */
+
+const DEFAULT_PERSONA = `# 本人プロファイル
+
+## 立場
+- 木本 拓志（きもと ひろゆき）。広島市 企画総務局 行政経営部 行政経営課 主事。
+- 令和7年度から行政経営課（令和8年度で2年目）。市役所は令和3年入庁で、通算5年目。
+- 前歴：平成24年から中国管区警察局。令和3年に広島市役所へ。
+- 令和3年〜令和6年は下水道局管理部経営企画課で、予算編成・決算・下水道事業会計システム再構築
+  （要件定義〜ユーザーテスト）を担当。予算規模は約1,000億円。
+- 資格：行政書士、応用情報技術者。関西学院大学法学部・ロースクール修了。司法試験短答式2回合格。
+- 令和8年6月の勤勉手当で最上位評価「特に良好」。課長からは主体性・スピード感・報告のタイミングを評価されている。
+
+## 職場の関係者（回答の宛先として頻出）
+- 中川課長：行政経営課長。直属上司。論点を先に投げると理屈の通りを厳しく見る。
+- 青山補佐：行政経営課補佐。デジタル行政推進室との協議窓口。直属上司の一人。
+- 杉本補佐：デジタル行政推進室。所掌分担・予算一体化を提案してきた相手。
+- 小菅氏：デジタル化推進支援業務担当。BPR予算要求で連携。
+- 受託・照会先：デロイトトーマツ（BPR支援）、EYストラテジー・アンド・コンサルティング、
+  フォーティエンスコンサルティング（旧クニエ）。
+
+## 仕事の動機・価値観
+- 取り組みの動機は「それで助かる人のことを思って」。窓口受付時間短縮もBPRも同じ。
+  依頼の際に動機を前置きしないが、動機がないわけではない。
+- 前例のない課題に自分から手を挙げる。直近1年の案件はほぼ全て自分の起案。
+- 本人の自己認識は「案件を創出する企画型より、外から来る案件をさばく処理量型が性に合う」だが、
+  実際の行動とは食い違っている（この点は本人も認識済み。分析材料にはしてよいが、決めつけない）。
+- どちらかといえば専門職より管理職志向。ただし広島市に管理職試験はなく、昇任は人事の判断。
+- 新しいもの好き。業務自動化（Node.js / Python / VBA / SQL）を自作する。
+  職場PCにはデスクトップアプリを入れられないため、ブラウザ完結か Excel マクロで組む制約がある。
+
+## 判断の型（過去の実例から抽出）
+1. 先行事例で相場観を取る。神戸市（令和7年12月一斉実施・苦情1件）、三次市（令和8年5月に45分短縮）を
+   ヒアリング・視察し、対象範囲やスケジュールの土台にする。
+2. データで影響を定量化してから議論する。発券機CSV約78万件を自分で集計し、
+   「変更後受付時間9:00〜16:30が現行受付時間内来庁者の90.4%」という形で示す。
+3. 指示を待たずに、後で必要になるものを先に作る。ヒアリングシートも発券機データ分析も、
+   議会答弁で必ず問われると判断して自発的に着手した。
+4. 例外は類型化して整理する。消防出張所は「既に実態に応じた開庁時間を設定」の「等」に含める、など。
+5. 調達・所掌では、利益相反と競争性を優先する。デジタル化推進支援業務とBPR支援業務の一体化について、
+   本人の結論は「一本化はしない方が良い（別契約が望ましい）」。自己審査構造・競争性低下を理由とする。
+6. 現場に強いない設計にする。BPR横展開は「区役所枠＋本庁の手上げ枠」。積極的でない部署に強いる理屈は立たない、
+   という中川課長の指摘を取り込んで方針を修正した。`;
+
+const DEFAULT_STYLE = `# 文体・回答作法のルール
+
+## 大原則
+- 簡潔で過不足のない文面を好む。見れば分かることは書かない（添付の中身を本文で列挙し直さない等）。
+- 結論を先に書く。意見を求められたら一般論を並べず、自分の結論を明示する。
+- 主張には根拠をセットで付ける。数値は算出方法・出典が言えるものだけ使う。
+
+## 書かないもの（禁止）
+- 「あくまで個人の見解ですが」等の免責。
+- 冒頭の時候・謝辞の定型（上司宛では特に不要）。
+- 末尾の「ご不明な点がございましたらお申し付けください」的な締め（必要なときだけ）。
+- どう反応しても当たる書き方（反証不能な表現）。
+- 相手の行動を数え上げて突きつける、煽る書き方。
+- 実在しない出典・URL・数値。分からないことは「【要確認：〇〇】」と書く。
+
+## 文書の基準
+- 広島市「文書事務の手引（令和7年4月改訂）」に準拠する（見出し符号、数字表記、宛名形式等）。
+- 復命書は様式「01_復命書」（件名／期間／所属職名氏名／用務先／概要＝1視察の概要・2日時場所・3相手方・4所感）。
+- 上司への協議はA4縦1枚に収めることが多い。図表中心。
+
+## 相手別のトーン
+- 上司（課長・補佐）：前置き不要。論点 → 自分の案 → 判断してほしい点、の順。
+  懸念が想定されるときは先回りして書く。決定事項は事後でも必ずメールで残す。
+- 他課・デジタル行政推進室：所掌と費用負担の切り分けを曖昧にしない。合意事項を文字にして返す。
+- 区役所などの現場：負担を増やす話は、代替手段とセットで出す。強いる書き方をしない。
+- 他都市・国：先に質問表を送るなど、相手の手間を減らす段取りを明示する。
+- 受託事業者：仕様書との関係（契約変更の要否、協議録の扱い）を必ず整理して書く。
+
+## 添削・修正を頼まれたときの絶対ルール
+- 本人が書いた文章の文体・語順を活かす。全面書き換えをしない。
+  全面的に直す必要があると判断した場合は、直す前に理由を述べて確認を取る。
+- 修正箇所は「どこを・なぜ」の形で示す。修正案だけを並べない。`;
+
+const DEFAULT_PROJECTS = `# 進行中の案件と論点（要更新）
+
+## A. 窓口受付時間短縮（主軸）
+- 令和8年9月に市長説明、令和9年4月本格実施。
+- 変更案は 8:30〜17:15 → 9:00〜16:30 の方向で検討。発券機データ上、現行受付時間内来庁者の90.4%を
+  変更後の時間帯でカバー（678,389件／約78万件中）。
+- 全庁照会（3,458件・93所属）を実施済み。区役所・福祉課向けヒアリングシートを20所属分集約済み。
+- 電話受付は今回対象外（実態調査の上で今後判断）。
+- 論点：浄水場など公用／公共用の財産区分の整理、消防出張所の扱い、
+  オープンカウンター型の区役所をどう物理的に閉めるか（ロールスクリーン設置を検討中、令和9年度予算要求へ）。
+- 時間外勤務削減効果は「16:30以降に発券されたものの処理時間を削減対象とみなす」考え方で算定。
+
+## B. BPR支援業務委託（デロイトトーマツ）
+- 令和9年度予算要求の3テーマ：①給与課PoC継続、②行政事務センター設置検討、③BPR横展開。
+- BPR横展開は「区役所BPR枠＋本庁希望枠」。全庁照会を改めて実施した上で実施。
+  執務環境改善は今回の照会対象から外した。
+- 研修企画は案3（研修を実施せず、工数を福利課の個別相談に充当）で課長了承済み。
+  仕様書と異なるが契約変更は行わず協議録で記録する方針。
+- 論点：年末調整の代行入力（国税庁FAQ問2-9の「一定の要件」該当性、現業職員にIDを付与できない前提）。
+
+## C. デジタル化推進支援業務との契約一本化
+- デジタル行政推進室から、所掌分担（D＝デジタル化支援はデジ室／X＝BPR支援は行政経営課）と
+  予算一体確保の提案あり。組織統合の見込みもある。
+- EY・フォーティエンスに一体化の可否を照会済み。EYは全面一体化ではなくA（個別案件支援）／B（全庁DX推進・ガバナンス）の
+  二契約への再編を推奨。
+- 本人の結論：一本化しない（別契約が望ましい）。中川課長の了承取得済み。
+
+## D. その他
+- SideBooks（会議資料閲覧システム）の運用。PDF変換VBAを自作して共有フォルダに配置。
+- システム出力PDF→Excel転記の自動化、人事データのDB化（SQLite＋ADO接続）を検討中。`;
+
+const DEFAULT_PRECEDENTS = `# 過去の判断事例（回答のトーンと結論の出し方の見本）
+
+## 例1：中川課長の懸念への対応（BPR横展開）
+- 課長の懸念：①全庁で窓口短縮する中、区役所のみをBPR対象にする理屈が立つか、
+  ②区役所側のニーズの程度（積極的でない区に強いる理屈はない）。
+- 本人の対応：全庁照会を改めて実施し「区役所枠＋本庁の手上げ枠」の二枠構成に組み替え。
+  実施方針を1枚資料にして提示。
+- 型：上司の懸念は否定せず、制度設計を変えて解消する。
+
+## 例2：一体化照会
+- 複数事業者に同じ問いを投げて回答を並べ、論点整理をWord（1検討の経緯／2メリット・デメリット／3懸念点／
+  4各社回答の概要／5結論）にまとめ、A4縦1枚に収めた上で上司に説明。
+- 型：外部の見解を集めてから自分の結論を書く。結論は明示する。
+
+## 例3：神戸市への事前質問
+- 打合せ前に質問表（Excel）を送付。回答は当日こちらが聞き取って記録する旨を明記し、
+  相手が事前記入する負担を負わない形にした。質問項目の列挙はメール本文では省略（添付を見れば分かるため）。
+- 型：相手の手間を減らす段取りを先に示す。本文は短く。
+
+## 例4：三次市視察
+- 45分短縮・代替サービスの新規導入なし・周知期間3か月・目立ったトラブルなしを確認。
+  リモート窓口はPoCで利用者0人という事実もそのまま持ち帰った。
+- 型：自分の主張に不利な事実も落とさずに記録する。`;
+
+const DEFAULT_MODEL = "claude-sonnet-4-6";
+
+/* =========================================================
+   2. localStorage ヘルパー
+   ========================================================= */
+
+const LS_KEYS = {
+  apiKey: "wnk.apiKey",
+  model: "wnk.model",
+  persona: "wnk.context.persona",
+  style: "wnk.context.style",
+  projects: "wnk.context.projects",
+  precedents: "wnk.context.precedents",
+  learned: "wnk.context.learned",
+  history: "wnk.history",
+};
+
+function lsGet(key, fallback) {
+  const v = localStorage.getItem(key);
+  return v === null ? fallback : v;
+}
+function lsSet(key, value) { localStorage.setItem(key, value); }
+
+function initDefaults() {
+  if (localStorage.getItem(LS_KEYS.persona) === null) lsSet(LS_KEYS.persona, DEFAULT_PERSONA);
+  if (localStorage.getItem(LS_KEYS.style) === null) lsSet(LS_KEYS.style, DEFAULT_STYLE);
+  if (localStorage.getItem(LS_KEYS.projects) === null) lsSet(LS_KEYS.projects, DEFAULT_PROJECTS);
+  if (localStorage.getItem(LS_KEYS.precedents) === null) lsSet(LS_KEYS.precedents, DEFAULT_PRECEDENTS);
+  if (localStorage.getItem(LS_KEYS.learned) === null) lsSet(LS_KEYS.learned, "");
+  if (localStorage.getItem(LS_KEYS.model) === null) lsSet(LS_KEYS.model, DEFAULT_MODEL);
+}
+
+function getContext() {
+  return {
+    persona: lsGet(LS_KEYS.persona, DEFAULT_PERSONA),
+    style: lsGet(LS_KEYS.style, DEFAULT_STYLE),
+    projects: lsGet(LS_KEYS.projects, DEFAULT_PROJECTS),
+    precedents: lsGet(LS_KEYS.precedents, DEFAULT_PRECEDENTS),
+    learned: lsGet(LS_KEYS.learned, ""),
+  };
+}
+
+function getHistory() {
+  try {
+    return JSON.parse(lsGet(LS_KEYS.history, "[]"));
+  } catch (e) {
+    return [];
+  }
+}
+function saveHistory(entries) { lsSet(LS_KEYS.history, JSON.stringify(entries)); }
+function appendHistory(entry) {
+  const h = getHistory();
+  h.push(entry);
+  saveHistory(h);
+}
+
+/* =========================================================
+   3. システムプロンプト組み立て（server/index.ts + src/lib/prompt.ts のロジックを移植）
+   ========================================================= */
+
+const ROLE_DEFINITION = `あなたは「本人」ではない。本人の判断基準と文体を再現して下書きを作る役である。
+本人になりきって一人称で断定するのではなく、本人が実際に書きそうな文章そのものを生成することが仕事である。
+以下に本人のプロファイル・文体ルール・進行案件・過去事例・学習済みルールを与える。これらに書かれていない事実は
+本人の判断根拠として使ってはならない。`;
+
+function buildContextSection(ctx) {
+  const parts = [
+    ["## 本人プロファイル", ctx.persona],
+    ["## 文体・回答作法のルール", ctx.style],
+    ["## 進行中の案件と論点", ctx.projects],
+    ["## 過去の判断事例", ctx.precedents],
+    ["## 学習済みルール（フィードバックから蓄積）", ctx.learned.trim() || "（まだ蓄積なし）"],
+  ];
+  return parts.map(([title, body]) => title + "\n" + body).join("\n\n---\n\n");
+}
+
+const PROHIBITIONS = `## 禁止事項（厳守）
+- 事実・数値・出典を創作しない。context にない事実を断定しない。分からない箇所は「【要確認：〇〇】」と明示する。
+- 「あくまで個人の見解です」等の免責文、前置きの挨拶、末尾の御用聞き（「他にご不明点はございましたら」等）を書かない。
+- どう転んでも当たる書き方（反証不能な表現）をしない。
+- 相手を煽る・詰める表現、相手の行動を数え上げて突きつける表現をしない。
+- 一般論の羅列で終わらせない。意見を求められたら結論を先に書く。
+- 出力は指定されたJSON形式のみ。コードフェンスや説明文、JSON以外の文字を一切含めない。`;
+
+const DRAFT_FORMAT = `## 出力形式（回答生成モード）
+次のTypeScript型に一致するJSONを1つだけ出力する。
+
+type DraftOutput = {
+  estimated_recipient: string | null;
+  estimated_scene: string | null;
+  estimated_length: string | null;
+  answer: string;
+  reasons: string[];
+  risks: string;
+  alternative: string;
+};
+
+- estimated_* は、その項目が未選択のときだけ本文から推定した値を入れる。選択済みならnull。
+- reasons は3点以内。抽象的な理由ではなく、参照したcontextの項目名・案件名を挙げること。
+- alternative は語尾やトーン違いの水増しを禁止する。方針そのものが違う代替案が無ければ"別案なし"。`;
+
+const WALLBOUNCE_CRITIQUE_FORMAT = `## 出力形式（壁打ちモード・講評）
+本人が書いた答えを講評する。代筆はしない。次のTypeScript型に一致するJSONを1つだけ出力する。
+
+type WallbounceCritique = {
+  verdict: "通る" | "条件付き" | "通らない";
+  verdict_reason: string;
+  anticipated_questions: { question: string; response: string }[];
+  verification_points: string;
+};`;
+
+const WALLBOUNCE_EDIT_FORMAT = `## 出力形式（壁打ちモード・添削）
+本人が「直して」と明示的に要求した場合のみ、この形式で添削する。
+本人の文体・語順を極力保持し、全面書き換えはしない。次のTypeScript型に一致するJSONを1つだけ出力する。
+
+type WallbounceEdit = {
+  changes: { location: string; before: string; after: string; reason: string }[];
+  revised_text: string;
+};`;
+
+function buildSystemPrompt(ctx, mode) {
+  const sections = [ROLE_DEFINITION, buildContextSection(ctx)];
+  if (mode === "draft") sections.push(DRAFT_FORMAT);
+  else if (mode === "wallbounce_critique") sections.push(WALLBOUNCE_CRITIQUE_FORMAT);
+  else if (mode === "wallbounce_edit") sections.push(WALLBOUNCE_EDIT_FORMAT);
+  sections.push(PROHIBITIONS);
+  return sections.join("\n\n");
+}
+
+function buildDraftUserMessage(input) {
+  return [
+    "相手：" + (input.recipient || "未選択（本文から推定すること）"),
+    "場面：" + (input.scene || "未選択（本文から推定すること）"),
+    "長さ：" + (input.length || "未選択（内容に応じて適切な長さを判断すること）"),
+    "",
+    "以下が、受け取った質問・相談・メール・照会文である。",
+    "---",
+    input.text,
+  ].join("\n");
+}
+
+function buildWallbounceUserMessage(input) {
+  return [
+    "相手：" + (input.recipient || "未選択（本文から推定すること）"),
+    "場面：" + (input.scene || "未選択（本文から推定すること）"),
+    "",
+    "以下が、受け取った質問・相談・メール・照会文である。",
+    "---質問---",
+    input.text,
+    "",
+    "以下が、本人が書いた答えである。この答えを講評すること。代筆・書き直しはしないこと。",
+    "---本人の答え---",
+    input.myAnswer,
+  ].join("\n");
+}
+
+function buildWallbounceEditUserMessage(input) {
+  return [
+    "以下の質問に対して本人が書いた答えを、本人から明示的に依頼があったので添削する。",
+    "文体・語順は極力保持し、全面書き換えはしないこと。",
+    "---質問---",
+    input.text,
+    "",
+    "---本人の答え（添削対象）---",
+    input.myAnswer,
+  ].join("\n");
+}
+
+const LEARN_ROLE = `あなたは、本人（広島市職員）が生成AIの下書きをどう直したかを分析し、
+再利用可能な「反証可能な粒度」のルールを1文だけ抽出するアシスタントである。
+一般論・抽象論（例：「丁寧に書く」「分かりやすく書く」）は抽出しない。
+「上司宛では前置きの謝辞を入れない」のように、具体的な状況＋具体的な振る舞いのペアだけを抽出する。
+元案と修正後の差分から、そのような具体的ルールが読み取れない場合はruleをnullにする。`;
+
+function buildLearnSystemPrompt(existingLines) {
+  const existing = existingLines.length > 0
+    ? existingLines.map((l, i) => i + ": " + l).join("\n")
+    : "（既存ルールなし）";
+  return [
+    LEARN_ROLE,
+    "",
+    "## 既存の学習済みルール一覧（インデックス付き）",
+    existing,
+    "",
+    `## 出力形式
+次のTypeScript型に一致するJSONを1つだけ出力する。コードフェンスや説明文を含めない。
+
+type LearnExtraction = {
+  action: "add" | "update" | "skip";
+  target_index: number | null;
+  rule: string | null;
+};
+
+- 既存ルールと実質的に同義の内容が既にある場合は"update"にして、target_indexにその番号を入れ、
+  ruleに更新後の1行を書く。
+- 新規の具体的ルールが読み取れた場合は"add"。
+- 一般論しか読み取れない、または元案と修正後の差が文体の揺れ程度の場合は"skip"。`,
+  ].join("\n");
+}
+
+function buildLearnUserMessage(input) {
+  return [
+    "相手：" + (input.recipient || "不明"),
+    "場面：" + (input.scene || "不明"),
+    "",
+    "---AIが生成した元案---",
+    input.originalAnswer,
+    "",
+    "---本人が修正して採用した本文---",
+    input.editedAnswer,
+  ].join("\n");
+}
+
+/* =========================================================
+   4. Anthropic API 呼び出し（ブラウザから直接）
+   ========================================================= */
+
+function stripCodeFence(text) {
+  const trimmed = text.trim();
+  const m = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  return m ? m[1] : trimmed;
+}
+
+async function callClaude(system, userMessage) {
+  const apiKey = lsGet(LS_KEYS.apiKey, "");
+  const model = lsGet(LS_KEYS.model, DEFAULT_MODEL);
+  if (!apiKey) {
+    throw new Error("APIキーが設定されていません。「設定・context編集」タブでAPIキーを入力してください。");
+  }
+
+  let res;
+  try {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: model,
+        max_tokens: 4096,
+        system: system,
+        messages: [{ role: "user", content: userMessage }],
+      }),
+    });
+  } catch (networkErr) {
+    throw new Error(
+      "通信に失敗しました。ネットワーク制限やプロキシ設定が原因の可能性があります。（詳細: " + networkErr.message + "）"
+    );
+  }
+
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const errBody = await res.json();
+      detail = errBody?.error?.message || JSON.stringify(errBody);
+    } catch (e) {
+      detail = res.statusText;
+    }
+    if (res.status === 401) {
+      throw new Error("APIキーが正しくないか、無効です。設定タブでキーを確認してください。");
+    }
+    throw new Error("APIエラー（" + res.status + "）: " + detail);
+  }
+
+  const data = await res.json();
+  const block = (data.content || []).find((b) => b.type === "text");
+  if (!block) throw new Error("Claudeからテキスト応答が得られませんでした。");
+  return block.text;
+}
+
+function parseJsonResponse(text) {
+  return JSON.parse(stripCodeFence(text));
+}
+
+function getLearnedLines(learnedText) {
+  return learnedText.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+}
+
+async function applyLearnedRuleUpdate(action, targetIndex, rule) {
+  if (action === "skip" || !rule) return;
+  const learned = lsGet(LS_KEYS.learned, "");
+  const lines = getLearnedLines(learned);
+  const formatted = rule.startsWith("- ") ? rule : "- " + rule;
+  if (action === "update" && targetIndex !== null && targetIndex >= 0 && targetIndex < lines.length) {
+    lines[targetIndex] = formatted;
+  } else {
+    lines.push(formatted);
+  }
+  lsSet(LS_KEYS.learned, lines.join("\n") + "\n");
+}
+
+/* =========================================================
+   5. 状態管理・共通UIヘルパー
+   ========================================================= */
+
+const RECIPIENTS = ["上司（課長・補佐）", "同僚・他課", "区役所などの現場", "他都市・国", "受託事業者", "市民"];
+const SCENES = ["メール返信", "口頭で答える", "会議での発言", "文書・資料に書く", "議会・市長説明の想定問答"];
+const LENGTHS = ["短め（3行以内）", "標準", "しっかり書く"];
+
+const state = {
+  tab: "draft",
+  draft: { recipient: null, scene: null, length: null, result: null, loading: false, error: null, prefillText: "" },
+  wallbounce: { recipient: null, scene: null, critique: null, edit: null, loading: false, editLoading: false, error: null },
+  historySelected: null,
+};
+
+function el(tag, attrs, children) {
+  const e = document.createElement(tag);
+  if (attrs) {
+    for (const k in attrs) {
+      if (k === "class") e.className = attrs[k];
+      else if (k === "html") e.innerHTML = attrs[k];
+      else if (k.startsWith("on")) e.addEventListener(k.slice(2), attrs[k]);
+      else e.setAttribute(k, attrs[k]);
+    }
+  }
+  (children || []).forEach((c) => {
+    if (c === null || c === undefined) return;
+    e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  });
+  return e;
+}
+
+function copyButton(getText) {
+  const btn = el("button", { class: "btn secondary small" }, ["コピー"]);
+  btn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(getText());
+      btn.textContent = "コピーしました";
+      setTimeout(() => (btn.textContent = "コピー"), 1500);
+    } catch (e) {
+      /* clipboard未対応環境では何もしない */
+    }
+  });
+  return btn;
+}
+
+function chipGroup(options, selected, onSelect) {
+  const wrap = el("div", { class: "chips" });
+  options.forEach((opt) => {
+    const chip = el("button", {
+      class: "chip" + (selected === opt ? " selected" : ""),
+      type: "button",
+      onclick: () => onSelect(selected === opt ? null : opt),
+    }, [opt]);
+    wrap.appendChild(chip);
+  });
+  return wrap;
+}
+
+/* =========================================================
+   6. 回答生成モード
+   ========================================================= */
+
+function renderDraftTab(root) {
+  const s = state.draft;
+  const grid = el("div", { class: "grid2" });
+
+  // 左：入力
+  const left = el("div");
+  const textarea = el("textarea", { rows: "12", placeholder: "質問文・メール本文・照会文をそのまま貼り付けてください" });
+  textarea.value = s.prefillText || "";
+  const genBtn = el("button", { class: "btn", style: "margin-top:14px;" }, [s.loading ? "生成中…" : "私ならこう答える を生成"]);
+  genBtn.disabled = s.loading || !textarea.value.trim();
+  genBtn.addEventListener("click", () => generateDraft(textarea.value));
+  textarea.addEventListener("input", () => {
+    s.prefillText = textarea.value;
+    genBtn.disabled = s.loading || !textarea.value.trim();
+  });
+  left.appendChild(textarea);
+
+  const chipsWrap = el("div", { class: "grid2", style: "margin-top:12px;" });
+  const mkChipBlock = (label, options, key) => {
+    const box = el("div");
+    box.appendChild(el("label", { class: "field-label" }, [label + "（任意）"]));
+    box.appendChild(chipGroup(options, s[key], (v) => { s[key] = v; render(); }));
+    return box;
+  };
+  const chipRow = el("div", { style: "display:flex; flex-direction:column; gap:10px; margin-top:12px;" });
+  chipRow.appendChild(mkChipBlock("相手", RECIPIENTS, "recipient"));
+  chipRow.appendChild(mkChipBlock("場面", SCENES, "scene"));
+  chipRow.appendChild(mkChipBlock("長さ", LENGTHS, "length"));
+  left.appendChild(chipRow);
+
+  left.appendChild(el("div", { style: "margin-top:14px;" }, [genBtn]));
+
+  if (s.error) left.appendChild(el("div", { class: "error-box", style: "margin-top:10px;" }, [s.error]));
+
+  grid.appendChild(left);
+
+  // 右：出力
+  const right = el("div");
+  if (!s.result && !s.loading) {
+    right.appendChild(el("div", { class: "placeholder" }, ["生成結果はここに表示されます"]));
+  } else if (s.loading) {
+    right.appendChild(el("div", { class: "muted" }, ["生成しています…"]));
+  } else if (s.result) {
+    right.appendChild(renderDraftResult(s.result));
+  }
+  grid.appendChild(right);
+
+  root.appendChild(grid);
+}
+
+function renderDraftResult(result) {
+  const out = result.output;
+  const wrap = el("div");
+
+  const estimations = [];
+  if (out.estimated_recipient) estimations.push("相手：" + out.estimated_recipient);
+  if (out.estimated_scene) estimations.push("場面：" + out.estimated_scene);
+  if (out.estimated_length) estimations.push("長さ：" + out.estimated_length);
+  if (estimations.length > 0) {
+    wrap.appendChild(el("div", { class: "warn-box" }, ["未選択の項目を本文から推定しました：" + estimations.join(" / ")]));
+  }
+
+  function block(title, text) {
+    const card = el("div", { class: "card" });
+    const head = el("div", { class: "card-head" }, [el("span", null, [title]), copyButton(() => text)]);
+    const body = el("div", { class: "card-body" }, [text]);
+    card.appendChild(head);
+    card.appendChild(body);
+    return card;
+  }
+
+  wrap.appendChild(block("① 私ならこう答える", out.answer));
+  wrap.appendChild(block("② 判断の根拠", (out.reasons || []).map((r) => "・" + r).join("\n")));
+  wrap.appendChild(block("③ 触れなかった論点・リスク", out.risks));
+  wrap.appendChild(block("④ 別案", out.alternative));
+
+  wrap.appendChild(renderFeedbackControls(result.historyId));
+
+  return wrap;
+}
+
+async function generateDraft(text) {
+  const s = state.draft;
+  s.loading = true;
+  s.error = null;
+  s.result = null;
+  render();
+  try {
+    const ctx = getContext();
+    const system = buildSystemPrompt(ctx, "draft");
+    const userMessage = buildDraftUserMessage({ text, recipient: s.recipient, scene: s.scene, length: s.length });
+    const raw = await callClaude(system, userMessage);
+    const output = parseJsonResponse(raw);
+    const entry = {
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      mode: "draft",
+      input: { text, recipient: s.recipient, scene: s.scene, length: s.length },
+      output,
+    };
+    appendHistory(entry);
+    s.result = { historyId: entry.id, output };
+  } catch (e) {
+    s.error = e.message || String(e);
+  } finally {
+    s.loading = false;
+    render();
+  }
+}
+
+function renderFeedbackControls(historyId) {
+  const wrap = el("div", { style: "border-top:1px solid #eee; padding-top:12px; margin-top:4px;" });
+  const history = getHistory();
+  const entry = history.find((h) => h.id === historyId);
+
+  if (entry && entry.feedback) {
+    const labelMap = { adopt: "採用", adopt_edited: "修正して採用", reject: "不採用" };
+    const box = el("div", { class: "muted" }, ["評価を記録しました（" + labelMap[entry.feedback.verdict] + "）"]);
+    if (entry.feedback.rule) {
+      box.appendChild(el("div", { class: "muted", style: "margin-top:4px;" }, [
+        "学習メモに反映：「" + entry.feedback.rule + "」",
+      ]));
+    }
+    wrap.appendChild(box);
+    return wrap;
+  }
+
+  wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:8px;" }, ["この回答案を評価してください"]));
+  const row = el("div", { class: "row" });
+
+  const adoptBtn = el("button", { class: "btn secondary small" }, ["採用"]);
+  adoptBtn.addEventListener("click", () => submitFeedback(historyId, "adopt"));
+
+  const editBtn = el("button", { class: "btn secondary small" }, ["修正して採用"]);
+  const rejectBtn = el("button", { class: "btn secondary small" }, ["不採用"]);
+  rejectBtn.addEventListener("click", () => submitFeedback(historyId, "reject"));
+
+  row.appendChild(adoptBtn);
+  row.appendChild(editBtn);
+  row.appendChild(rejectBtn);
+  wrap.appendChild(row);
+
+  const editArea = el("div", { style: "display:none; margin-top:10px;" });
+  const editTextarea = el("textarea", { rows: "6", placeholder: "実際に使った（修正後の）本文を貼り付けてください" });
+  const submitEditBtn = el("button", { class: "btn small", style: "margin-top:8px;" }, ["この内容で記録する"]);
+  submitEditBtn.addEventListener("click", () => {
+    if (!editTextarea.value.trim()) return;
+    submitFeedback(historyId, "adopt_edited", editTextarea.value);
+  });
+  editArea.appendChild(editTextarea);
+  editArea.appendChild(el("div", null, [submitEditBtn]));
+  editBtn.addEventListener("click", () => { editArea.style.display = editArea.style.display === "none" ? "block" : "none"; });
+  wrap.appendChild(editArea);
+
+  return wrap;
+}
+
+async function submitFeedback(historyId, verdict, editedText) {
+  const history = getHistory();
+  const idx = history.findIndex((h) => h.id === historyId);
+  if (idx === -1) return;
+  const entry = history[idx];
+
+  let ruleUpdate = { action: "skip", rule: null };
+
+  if (verdict === "adopt_edited" && editedText && entry.mode === "draft") {
+    try {
+      const ctx = getContext();
+      const existingLines = getLearnedLines(ctx.learned);
+      const system = buildLearnSystemPrompt(existingLines);
+      const userMessage = buildLearnUserMessage({
+        originalAnswer: entry.output.answer,
+        editedAnswer: editedText,
+        recipient: entry.input.recipient,
+        scene: entry.input.scene,
+      });
+      const raw = await callClaude(system, userMessage);
+      const extraction = parseJsonResponse(raw);
+      await applyLearnedRuleUpdate(extraction.action, extraction.target_index, extraction.rule);
+      ruleUpdate = { action: extraction.action, rule: extraction.rule };
+    } catch (e) {
+      // 学習抽出に失敗しても、フィードバック自体の記録は続行する
+      ruleUpdate = { action: "skip", rule: null };
+    }
+  }
+
+  entry.feedback = { verdict, editedText, ruleAction: ruleUpdate.action, rule: ruleUpdate.rule };
+  history[idx] = entry;
+  saveHistory(history);
+  render();
+}
+
+/* =========================================================
+   7. 壁打ちモード
+   ========================================================= */
+
+function renderWallbounceTab(root) {
+  const s = state.wallbounce;
+  const grid = el("div", { class: "grid2" });
+
+  const left = el("div");
+  left.appendChild(el("label", { class: "field-label" }, ["質問・照会文"]));
+  const qText = el("textarea", { rows: "6" });
+  qText.value = s.qText || "";
+  left.appendChild(qText);
+
+  left.appendChild(el("label", { class: "field-label", style: "margin-top:10px;" }, ["本人が書いた答え"]));
+  const aText = el("textarea", { rows: "8" });
+  aText.value = s.aText || "";
+  left.appendChild(aText);
+
+  const chipRow = el("div", { style: "display:flex; flex-direction:column; gap:10px; margin-top:12px;" });
+  const mkChipBlock = (label, options, key) => {
+    const box = el("div");
+    box.appendChild(el("label", { class: "field-label" }, [label + "（任意）"]));
+    box.appendChild(chipGroup(options, s[key], (v) => { s[key] = v; render(); }));
+    return box;
+  };
+  chipRow.appendChild(mkChipBlock("相手", RECIPIENTS, "recipient"));
+  chipRow.appendChild(mkChipBlock("場面", SCENES, "scene"));
+  left.appendChild(chipRow);
+
+  const critiqueBtn = el("button", { class: "btn", style: "margin-top:14px;" }, [s.loading ? "講評中…" : "この答えを講評する"]);
+  const updateCritiqueBtn = () => {
+    const canSubmit = qText.value.trim() && aText.value.trim();
+    critiqueBtn.disabled = s.loading || !canSubmit;
+  };
+  updateCritiqueBtn();
+  critiqueBtn.addEventListener("click", () => generateCritique(qText.value, aText.value));
+  qText.addEventListener("input", () => { s.qText = qText.value; updateCritiqueBtn(); });
+  aText.addEventListener("input", () => { s.aText = aText.value; updateCritiqueBtn(); });
+  left.appendChild(el("div", { style: "margin-top:14px;" }, [critiqueBtn]));
+
+  if (s.error) left.appendChild(el("div", { class: "error-box", style: "margin-top:10px;" }, [s.error]));
+
+  grid.appendChild(left);
+
+  const right = el("div");
+  if (!s.critique && !s.loading) {
+    right.appendChild(el("div", { class: "placeholder" }, ["講評結果はここに表示されます（代筆はしません）"]));
+  }
+  if (s.loading) right.appendChild(el("div", { class: "muted" }, ["講評しています…"]));
+
+  if (s.critique) {
+    const c = s.critique;
+    const verdictCard = el("div", { class: "card" });
+    const vClass = c.verdict === "通る" ? "verdict-pass" : c.verdict === "条件付き" ? "verdict-cond" : "verdict-fail";
+    verdictCard.appendChild(el("div", { class: "card-body" }, [
+      el("div", { style: "margin-bottom:6px;" }, ["判定：", el("span", { class: "verdict-badge " + vClass }, [c.verdict])]),
+      el("div", null, [c.verdict_reason]),
+    ]));
+    right.appendChild(verdictCard);
+
+    const qaCard = el("div", { class: "card" });
+    qaCard.appendChild(el("div", { class: "card-head" }, ["相手から来る質問の予測"]));
+    const qaBody = el("div", { class: "card-body" });
+    (c.anticipated_questions || []).forEach((qa) => {
+      qaBody.appendChild(el("div", { class: "qa-item" }, [
+        el("div", { class: "q" }, ["Q. " + qa.question]),
+        el("div", { class: "a" }, ["A. " + qa.response]),
+      ]));
+    });
+    if (!(c.anticipated_questions || []).length) qaBody.appendChild(el("div", { class: "muted" }, ["特になし"]));
+    qaCard.appendChild(qaBody);
+    right.appendChild(qaCard);
+
+    const verifyCard = el("div", { class: "card" });
+    verifyCard.appendChild(el("div", { class: "card-head" }, ["裏取りが必要な箇所"]));
+    verifyCard.appendChild(el("div", { class: "card-body" }, [c.verification_points]));
+    right.appendChild(verifyCard);
+
+    if (!s.edit) {
+      const editBtn = el("button", { class: "btn secondary" }, [s.editLoading ? "添削中…" : "直して（明示的に添削を依頼する）"]);
+      editBtn.disabled = s.editLoading;
+      editBtn.addEventListener("click", () => generateEdit(qText.value, aText.value));
+      right.appendChild(editBtn);
+    }
+  }
+
+  if (s.edit) {
+    const changesCard = el("div", { class: "card" });
+    changesCard.appendChild(el("div", { class: "card-head" }, ["変更箇所と理由"]));
+    const changesBody = el("div", { class: "card-body" });
+    (s.edit.changes || []).forEach((c) => {
+      changesBody.appendChild(el("div", { class: "diff-item" }, [
+        el("div", { class: "muted" }, [c.location]),
+        el("div", { class: "diff-before" }, [c.before]),
+        el("div", null, [c.after]),
+        el("div", { class: "diff-reason" }, ["理由：" + c.reason]),
+      ]));
+    });
+    if (!(s.edit.changes || []).length) changesBody.appendChild(el("div", { class: "muted" }, ["変更なし"]));
+    changesCard.appendChild(changesBody);
+    right.appendChild(changesCard);
+
+    const revisedCard = el("div", { class: "card" });
+    revisedCard.appendChild(el("div", { class: "card-head" }, [el("span", null, ["添削後の全文"]), copyButton(() => s.edit.revised_text)]));
+    revisedCard.appendChild(el("div", { class: "card-body" }, [s.edit.revised_text]));
+    right.appendChild(revisedCard);
+  }
+
+  grid.appendChild(right);
+  root.appendChild(grid);
+}
+
+async function generateCritique(text, myAnswer) {
+  const s = state.wallbounce;
+  s.loading = true;
+  s.error = null;
+  s.critique = null;
+  s.edit = null;
+  render();
+  try {
+    const ctx = getContext();
+    const system = buildSystemPrompt(ctx, "wallbounce_critique");
+    const userMessage = buildWallbounceUserMessage({ text, myAnswer, recipient: s.recipient, scene: s.scene });
+    const raw = await callClaude(system, userMessage);
+    const output = parseJsonResponse(raw);
+    appendHistory({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      mode: "wallbounce_critique",
+      input: { text, myAnswer, recipient: s.recipient, scene: s.scene },
+      output,
+    });
+    s.critique = output;
+  } catch (e) {
+    s.error = e.message || String(e);
+  } finally {
+    s.loading = false;
+    render();
+  }
+}
+
+async function generateEdit(text, myAnswer) {
+  const s = state.wallbounce;
+  s.editLoading = true;
+  s.error = null;
+  render();
+  try {
+    const ctx = getContext();
+    const system = buildSystemPrompt(ctx, "wallbounce_edit");
+    const userMessage = buildWallbounceEditUserMessage({ text, myAnswer });
+    const raw = await callClaude(system, userMessage);
+    const output = parseJsonResponse(raw);
+    appendHistory({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      mode: "wallbounce_edit",
+      input: { text, myAnswer, recipient: null, scene: null },
+      output,
+    });
+    s.edit = output;
+  } catch (e) {
+    s.error = e.message || String(e);
+  } finally {
+    s.editLoading = false;
+    render();
+  }
+}
+
+/* =========================================================
+   8. 履歴
+   ========================================================= */
+
+function modeLabel(mode) {
+  if (mode === "draft") return "回答生成";
+  if (mode === "wallbounce_critique") return "壁打ち・講評";
+  return "壁打ち・添削";
+}
+function feedbackLabel(v) {
+  if (v === "adopt") return "採用";
+  if (v === "adopt_edited") return "修正して採用";
+  return "不採用";
+}
+
+function renderHistoryTab(root) {
+  const grid = el("div", { class: "grid2" });
+  const left = el("div");
+  const searchInput = el("input", { type: "text", placeholder: "履歴を検索" });
+  left.appendChild(searchInput);
+
+  const list = el("div", { style: "margin-top:10px;" });
+  left.appendChild(list);
+
+  function renderList() {
+    list.innerHTML = "";
+    const query = searchInput.value.trim().toLowerCase();
+    const history = getHistory().slice().reverse();
+    const filtered = history.filter((h) => {
+      if (!query) return true;
+      const hay = [h.input.text, h.input.myAnswer, JSON.stringify(h.output)].join(" ").toLowerCase();
+      return hay.includes(query);
+    });
+    if (filtered.length === 0) {
+      list.appendChild(el("div", { class: "muted" }, ["履歴がありません"]));
+      return;
+    }
+    filtered.forEach((h) => {
+      const item = el("div", {
+        class: "history-item" + (state.historySelected && state.historySelected.id === h.id ? " selected" : ""),
+        onclick: () => { state.historySelected = h; render(); },
+      });
+      item.appendChild(el("div", { class: "history-meta" }, [modeLabel(h.mode), new Date(h.timestamp).toLocaleString("ja-JP")]));
+      const preview = el("div", null, [(h.input.text || "").slice(0, 80)]);
+      item.appendChild(preview);
+      if (h.feedback) {
+        item.appendChild(el("div", { class: "muted", style: "margin-top:4px;" }, ["評価：" + feedbackLabel(h.feedback.verdict)]));
+      }
+      list.appendChild(item);
+    });
+  }
+  searchInput.addEventListener("input", renderList);
+  renderList();
+
+  const right = el("div");
+  const sel = state.historySelected;
+  if (!sel) {
+    right.appendChild(el("div", { class: "muted" }, ["履歴を選択すると詳細が表示されます"]));
+  } else {
+    const inputCard = el("div", { class: "card" });
+    const inputBody = el("div", { class: "card-body" });
+    inputBody.appendChild(el("div", { class: "muted" }, ["入力"]));
+    inputBody.appendChild(el("div", null, [sel.input.text]));
+    if (sel.input.myAnswer) {
+      inputBody.appendChild(el("div", { class: "muted", style: "margin-top:8px;" }, ["本人の答え"]));
+      inputBody.appendChild(el("div", null, [sel.input.myAnswer]));
+    }
+    inputCard.appendChild(inputBody);
+    right.appendChild(inputCard);
+
+    const outCard = el("div", { class: "card" });
+    outCard.appendChild(el("div", { class: "card-body" }, [
+      el("div", { class: "muted" }, ["出力"]),
+      el("pre", { style: "white-space:pre-wrap; font-size:12px; color:#555;" }, [JSON.stringify(sel.output, null, 2)]),
+    ]));
+    right.appendChild(outCard);
+
+    if (sel.mode === "draft") {
+      const reuseBtn = el("button", { class: "btn secondary" }, ["この入力を回答生成モードに呼び戻す"]);
+      reuseBtn.addEventListener("click", () => {
+        state.draft.prefillText = sel.input.text;
+        state.draft.recipient = sel.input.recipient;
+        state.draft.scene = sel.input.scene;
+        state.draft.length = sel.input.length;
+        state.tab = "draft";
+        render();
+      });
+      right.appendChild(reuseBtn);
+    }
+  }
+
+  grid.appendChild(left);
+  grid.appendChild(right);
+  root.appendChild(grid);
+}
+
+/* =========================================================
+   9. 設定・context編集
+   ========================================================= */
+
+function renderSettingsTab(root) {
+  const wrap = el("div");
+
+  // APIキー
+  const apiSection = el("div", { class: "settings-section" });
+  apiSection.appendChild(el("h3", null, ["Anthropic APIキー"]));
+  apiSection.appendChild(el("div", { class: "warn-box" }, [
+    "このキーはブラウザのlocalStorageに平文で保存されます。共有PCでは使用後に「キーを削除」してください。" +
+    "自分専用のPCであれば、通常は保存したままで問題ありません。",
+  ]));
+  const apiRow = el("div", { class: "row" });
+  const apiInput = el("input", { type: "password", placeholder: "sk-ant-..." });
+  apiInput.value = lsGet(LS_KEYS.apiKey, "");
+  const apiSaveBtn = el("button", { class: "btn small" }, ["保存"]);
+  const apiDeleteBtn = el("button", { class: "btn secondary small" }, ["キーを削除"]);
+  const apiMsg = el("span", { class: "muted" }, [""]);
+  apiSaveBtn.addEventListener("click", () => {
+    lsSet(LS_KEYS.apiKey, apiInput.value.trim());
+    apiMsg.textContent = "保存しました";
+    updateStatusLine();
+    setTimeout(() => (apiMsg.textContent = ""), 1500);
+  });
+  apiDeleteBtn.addEventListener("click", () => {
+    localStorage.removeItem(LS_KEYS.apiKey);
+    apiInput.value = "";
+    apiMsg.textContent = "削除しました";
+    updateStatusLine();
+    setTimeout(() => (apiMsg.textContent = ""), 1500);
+  });
+  apiRow.appendChild(apiInput);
+  apiRow.appendChild(apiSaveBtn);
+  apiRow.appendChild(apiDeleteBtn);
+  apiRow.appendChild(apiMsg);
+  apiSection.appendChild(apiRow);
+  wrap.appendChild(apiSection);
+
+  // モデル
+  const modelSection = el("div", { class: "settings-section" });
+  modelSection.appendChild(el("h3", null, ["モデルID"]));
+  const modelRow = el("div", { class: "row" });
+  const modelInput = el("input", { type: "text" });
+  modelInput.value = lsGet(LS_KEYS.model, DEFAULT_MODEL);
+  const modelSaveBtn = el("button", { class: "btn small" }, ["保存"]);
+  const modelMsg = el("span", { class: "muted" }, [""]);
+  modelSaveBtn.addEventListener("click", () => {
+    lsSet(LS_KEYS.model, modelInput.value.trim() || DEFAULT_MODEL);
+    modelMsg.textContent = "保存しました";
+    setTimeout(() => (modelMsg.textContent = ""), 1500);
+  });
+  modelRow.appendChild(modelInput);
+  modelRow.appendChild(modelSaveBtn);
+  modelRow.appendChild(modelMsg);
+  modelSection.appendChild(modelRow);
+  wrap.appendChild(modelSection);
+
+  // context編集
+  function contextField(label, key, rows, note) {
+    const section = el("div", { class: "settings-section" });
+    section.appendChild(el("h3", null, [label]));
+    if (note) section.appendChild(el("div", { class: "muted", style: "margin-bottom:6px;" }, [note]));
+    const ta = el("textarea", { rows: String(rows) });
+    ta.value = lsGet(key, "");
+    const saveBtn = el("button", { class: "btn small", style: "margin-top:6px;" }, ["保存"]);
+    const msg = el("span", { class: "muted", style: "margin-left:8px;" }, [""]);
+    saveBtn.addEventListener("click", () => {
+      lsSet(key, ta.value);
+      msg.textContent = "保存しました（次回の生成から反映されます）";
+      setTimeout(() => (msg.textContent = ""), 2000);
+    });
+    section.appendChild(ta);
+    section.appendChild(el("div", null, [saveBtn, msg]));
+    return section;
+  }
+
+  wrap.appendChild(contextField("本人プロファイル", LS_KEYS.persona, 10));
+  wrap.appendChild(contextField("文体・回答作法のルール", LS_KEYS.style, 10));
+  wrap.appendChild(contextField("進行中の案件と論点", LS_KEYS.projects, 10, "変わりやすい情報なので、定期的にここを更新してください。"));
+  wrap.appendChild(contextField("過去の判断事例", LS_KEYS.precedents, 8));
+  wrap.appendChild(contextField("学習済みルール", LS_KEYS.learned, 8, "「修正して採用」を選ぶたびに自動で追記されます。直接編集も可能です。"));
+
+  const resetSection = el("div", { class: "settings-section" });
+  const resetBtn = el("button", { class: "btn secondary small" }, ["本人プロファイル/文体/案件/過去事例を初期状態に戻す"]);
+  resetBtn.addEventListener("click", () => {
+    if (!confirm("編集内容を破棄して初期状態に戻します。よろしいですか？（学習済みルールは変更されません）")) return;
+    lsSet(LS_KEYS.persona, DEFAULT_PERSONA);
+    lsSet(LS_KEYS.style, DEFAULT_STYLE);
+    lsSet(LS_KEYS.projects, DEFAULT_PROJECTS);
+    lsSet(LS_KEYS.precedents, DEFAULT_PRECEDENTS);
+    render();
+  });
+  resetSection.appendChild(resetBtn);
+  wrap.appendChild(resetSection);
+
+  root.appendChild(wrap);
+}
+
+/* =========================================================
+   10. レンダリングルート
+   ========================================================= */
+
+function updateStatusLine() {
+  const statusLine = document.getElementById("statusLine");
+  const hasKey = !!lsGet(LS_KEYS.apiKey, "");
+  statusLine.textContent = hasKey ? "APIキー設定済み" : "APIキー未設定（設定タブで入力してください）";
+}
+
+function render() {
+  const app = document.getElementById("app");
+  app.innerHTML = "";
+  if (state.tab === "draft") renderDraftTab(app);
+  else if (state.tab === "wallbounce") renderWallbounceTab(app);
+  else if (state.tab === "history") renderHistoryTab(app);
+  else if (state.tab === "settings") renderSettingsTab(app);
+
+  document.querySelectorAll("#tabNav button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === state.tab);
+  });
+
+  updateStatusLine();
+}
+
+document.getElementById("tabNav").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-tab]");
+  if (!btn) return;
+  state.tab = btn.dataset.tab;
+  render();
+});
+
+initDefaults();
+render();
+</script>
+</body>
+</html>
