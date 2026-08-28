@@ -6,6 +6,11 @@ rem Japanese text, some download/unzip paths can re-encode the file
 rem and corrupt it, causing cmd.exe to run garbled text as commands.
 rem The web app itself is fully in Japanese; only this console
 rem window is in English.
+rem
+rem Note: parentheses characters are avoided everywhere inside the
+rem if-blocks below on purpose. cmd.exe's block parser can get
+rem confused by a literal ( or ) inside an echoed line even when it
+rem looks balanced, so plain punctuation is used instead.
 cd /d "%~dp0"
 
 echo Checking this folder...
@@ -26,7 +31,7 @@ if not exist "package.json" (
 where npm >nul 2>nul
 if errorlevel 1 (
   echo ======================================================
-  echo   npm (Node.js) was not found on this computer.
+  echo   npm was not found on this computer. Node.js is required.
   echo   Install Node.js LTS from https://nodejs.org/
   echo   then double-click this file again.
   echo   If you cannot install software on this PC, ask your
@@ -53,8 +58,9 @@ if not exist ".env" (
   echo ======================================================
   echo   .env was created.
   echo   Notepad will open. After ANTHROPIC_API_KEY= paste your
-  echo   own API key (from https://console.anthropic.com),
-  echo   save the file, then close Notepad to continue.
+  echo   own API key, save the file, then close Notepad to
+  echo   continue. You can create a key at
+  echo   https://console.anthropic.com
   echo ======================================================
   echo.
   start /wait notepad ".env"
@@ -66,8 +72,8 @@ if not exist "node_modules" (
   if errorlevel 1 (
     echo.
     echo ======================================================
-    echo   npm install failed. Check the error message above
-    echo   (a proxy or network restriction can cause this).
+    echo   npm install failed. Check the error message above.
+    echo   A proxy or network restriction can cause this.
     echo ======================================================
     pause
     exit /b 1
