@@ -1,0 +1,4 @@
+# start.bat is stored with CRLF line endings on purpose (the Windows
+# standard for .bat files). Mark it binary so git never rewrites the
+# line endings on checkout/commit regardless of core.autocrlf.
+start.bat binary
