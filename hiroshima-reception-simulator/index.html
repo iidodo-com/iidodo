@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>窓口受付時間シミュレーター（広島市区役所 発券機データ分析）</title>
+<style>
+  :root{
+    --navy:#1a3c6e;
+    --navy-dark:#122a4e;
+    --ink:#1f2937;
+    --sub:#5b6472;
+    --bg:#f5f6f8;
+    --panel:#ffffff;
+    --border:#d8dce2;
+    --accent:#2563eb;
+    --ok:#1f8a4c;
+    --ng:#c0392b;
+    --warn:#b8860b;
+    --ward1:#4472C4; --ward2:#ED7D31; --ward3:#A5A5A5; --ward4:#FFC000;
+    --ward5:#5B9BD5; --ward6:#70AD47; --ward7:#264478; --ward8:#9E480E;
+    --ward9:#636363; --ward10:#997300;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:"Yu Gothic","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.6;
+  }
+  header.app-header{
+    background:var(--navy); color:#fff; padding:14px 20px;
+  }
+  header.app-header h1{ margin:0; font-size:19px; }
+  header.app-header p{ margin:4px 0 0; font-size:12.5px; color:#dbe4f3; }
+  .safety-banner{
+    background:#eef6ee; border:1px solid #bfe3bf; color:#1f5c2c;
+    padding:8px 14px; font-size:12.5px; margin:10px 20px 0; border-radius:4px;
+  }
+  main{ padding:14px 20px 60px; max-width:1320px; margin:0 auto; }
+  #parseFailBanner{
+    background:#fdf1e0; border:1px solid #e8b96a; color:#7a4a08;
+    padding:10px 14px; font-size:13px; margin-top:10px; border-radius:4px;
+  }
+  #parseFailBanner button{ border-color:#7a4a08; color:#7a4a08; margin-top:6px; }
+  section.panel, details.panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:6px;
+    padding:14px 16px; margin-bottom:14px;
+  }
+  details.panel > summary{
+    cursor:pointer; font-weight:bold; font-size:14.5px; color:var(--navy);
+    outline:none;
+  }
+  h2.section-title{ font-size:15px; margin:0 0 10px; color:var(--navy); border-left:4px solid var(--navy); padding-left:8px; }
+  h3.sub-title{ font-size:13.5px; margin:14px 0 6px; color:var(--navy-dark); }
+  .grid{ display:grid; gap:10px; }
+  .grid-cols-2{ grid-template-columns:1fr 1fr; }
+  .grid-cols-3{ grid-template-columns:1fr 1fr 1fr; }
+  .grid-cols-4{ grid-template-columns:1fr 1fr 1fr 1fr; }
+  @media (max-width:900px){ .grid-cols-2,.grid-cols-3,.grid-cols-4{ grid-template-columns:1fr; } }
+  label.field-label{ display:block; font-size:12px; color:var(--sub); margin-bottom:2px; }
+  .field-note{ font-size:11px; color:var(--sub); margin-top:2px; }
+  input[type=number], input[type=text], input[type=time], input[type=date], select, textarea{
+    width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:4px;
+    font-size:13px; background:#fff; color:var(--ink); font-family:inherit;
+  }
+  input.required-empty{ border-color:var(--ng); background:#fdf1f0; }
+  fieldset{ border:1px solid var(--border); border-radius:4px; padding:10px; margin:0; }
+  fieldset legend{ font-size:12px; color:var(--navy); padding:0 4px; }
+  button{
+    font-family:inherit; font-size:13px; padding:7px 14px; border-radius:4px;
+    border:1px solid var(--navy); background:#fff; color:var(--navy); cursor:pointer;
+  }
+  button.primary{ background:var(--navy); color:#fff; }
+  button.primary:hover{ background:var(--navy-dark); }
+  button:hover{ background:#eef2f8; }
+  button.primary:disabled, button:disabled{ opacity:.45; cursor:not-allowed; }
+  button.small{ padding:4px 9px; font-size:12px; }
+  .btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  #dropzone{
+    border:2px dashed var(--border); border-radius:6px; padding:26px; text-align:center;
+    color:var(--sub); background:#fafbfc;
+  }
+  #dropzone.dragover{ border-color:var(--accent); background:#eef4ff; color:var(--accent); }
+  table{ border-collapse:collapse; width:100%; font-size:12.5px; }
+  table caption{ text-align:left; font-size:12px; color:var(--sub); margin-bottom:4px; }
+  th, td{ border:1px solid var(--border); padding:5px 7px; text-align:right; }
+  th{ background:#eef1f5; color:var(--navy-dark); text-align:center; white-space:nowrap; }
+  td.label, th.label{ text-align:left; }
+  tbody tr:nth-child(even){ background:#fafbfc; }
+  .table-wrap{ overflow-x:auto; max-height:420px; overflow-y:auto; border:1px solid var(--border); border-radius:4px;}
+  .badge{ display:inline-block; padding:2px 8px; border-radius:10px; font-size:11.5px; font-weight:bold; }
+  .badge.ok{ background:#e6f5ea; color:var(--ok); }
+  .badge.ng{ background:#fbeceb; color:var(--ng); }
+  .badge.warn{ background:#fbf3e0; color:var(--warn); }
+  .kpi-row{ display:flex; gap:10px; flex-wrap:wrap; }
+  .kpi-card{
+    flex:1 1 180px; border:1px solid var(--border); border-radius:6px; padding:10px 12px; background:#fafbfc;
+  }
+  .kpi-card .kpi-label{ font-size:11.5px; color:var(--sub); }
+  .kpi-card .kpi-value{ font-size:22px; font-weight:bold; color:var(--navy); }
+  .kpi-card .kpi-sub{ font-size:11px; color:var(--sub); }
+  progress{ width:100%; height:16px; }
+  #loadLog{ font-size:11.5px; color:var(--sub); max-height:120px; overflow-y:auto; margin-top:6px; white-space:pre-line; }
+  nav#tabs{ display:flex; gap:4px; flex-wrap:wrap; margin-bottom:10px; }
+  nav#tabs button{ border-radius:4px 4px 0 0; }
+  nav#tabs button.active{ background:var(--navy); color:#fff; }
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+  canvas#chartCanvas, canvas#profileCanvas{ width:100%; height:auto; background:#fff; border:1px solid var(--border); }
+  .legend{ display:flex; gap:12px; flex-wrap:wrap; font-size:11.5px; margin-top:6px; }
+  .legend .sw{ display:inline-block; width:10px; height:10px; margin-right:4px; vertical-align:middle; }
+  .formula-box{
+    background:#f7f9fc; border:1px dashed var(--border); border-radius:4px; padding:10px 12px;
+    font-size:12.5px; margin:8px 0;
+  }
+  .formula-box code{ color:var(--navy-dark); font-weight:bold; }
+  footer{ text-align:center; font-size:11px; color:var(--sub); padding:16px 0; }
+  .highlight-row{ background:#fff6da !important; }
+  .checklist li{ margin-bottom:3px; }
+  .hint{ font-size:11.5px; color:var(--sub); }
+  .flex-between{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;}
+  .mono{ font-family:"Consolas","Menlo",monospace; }
+  .slider-row{ display:flex; align-items:center; gap:10px; }
+  .slider-row input[type=range]{ flex:1; }
+  @media print{
+    nav#tabs, #fileLoader, details.panel, .btn-row, header.app-header, .safety-banner{ display:none !important; }
+    .tab-panel{ display:block !important; }
+    body{ background:#fff; }
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>窓口受付時間シミュレーター</h1>
+  <p>広島市区役所 発券機データ分析ツール（受付時間短縮の影響度・時間外勤務削減効果の試算）</p>
+</header>
+
+<main>
+  <div class="safety-banner">
+    🔒 このページはネットワーク通信を一切行いません。読み込んだCSVデータは端末内（ブラウザのメモリ上）でのみ処理され、外部へ送信されることはありません。
+  </div>
+
+  <!-- ============ ファイル読み込み ============ -->
+  <section class="panel" id="fileLoader">
+    <h2 class="section-title">1. データ読み込み</h2>
+    <div id="dropzone">
+      フォルダまたはCSVファイルをここにドラッグ＆ドロップ<br>
+      <span class="hint">（「令和○年/○月/01中区/…」のようなフォルダ構造ごとドロップ可能です）</span>
+      <div class="btn-row" style="justify-content:center;">
+        <button id="pickFolderBtn" class="small">フォルダを選択</button>
+        <button id="pickFilesBtn" class="small">ファイルを選択（複数可）</button>
+      </div>
+      <input type="file" id="folderInput" webkitdirectory multiple style="display:none;">
+      <input type="file" id="filesInput" multiple style="display:none;">
+    </div>
+    <div id="fileSummary" class="hint" style="margin-top:8px;">読み込み待ち：0 ファイル</div>
+    <div class="btn-row">
+      <button id="profileBtn" disabled>① 列プロファイラで先頭1万行を解析</button>
+      <button id="parseBtn" class="primary" disabled>② 本解析を実行（全件集計）</button>
+      <button id="cancelBtn" disabled>中断</button>
+    </div>
+    <progress id="progressBar" value="0" max="100" style="display:none;"></progress>
+    <div id="loadLog"></div>
+    <div id="parseFailBanner" style="display:none;"></div>
+  </section>
+
+  <!-- ============ 設定パネル ============ -->
+  <details class="panel" id="settingsPanel">
+    <summary>2. 設定パネル（列位置・区分コード・時刻・受付時間 ほか）</summary>
+
+    <h3 class="sub-title">列位置（すべて 1始まり。1列目＝先頭列）</h3>
+    <div class="grid grid-cols-4">
+      <div><label class="field-label">発券時刻列（既定 5）</label><input type="number" id="colIssue" min="1" value="5"></div>
+      <div><label class="field-label">一線呼出時刻列（既定 40）</label><input type="number" id="colCall" min="1" value="40"></div>
+      <div><label class="field-label">一線終了時刻列（既定 41）</label><input type="number" id="colEnd" min="1" value="41"></div>
+      <div><label class="field-label">呼出テラーアドレス列（既定 53）</label><input type="number" id="colCounter" min="1" value="53"></div>
+    </div>
+    <div class="grid grid-cols-2" style="margin-top:8px;">
+      <div>
+        <label class="field-label">業務区分列（1始まり、既定 2）</label>
+        <input type="number" id="colTask" min="1" value="2" placeholder="列番号を入力してください">
+        <div class="field-note">既定値2はテーブル定義書3-4「発行業種（大区分）」列に基づきます。端末や機種が異なる場合は下の「列プロファイラ」で 50,51,52,60 が集中する列を確認してください。</div>
+      </div>
+      <div>
+        <label class="field-label">総列数（固定長チェック用、既定 65）</label>
+        <input type="number" id="colTotal" min="1" value="65">
+      </div>
+    </div>
+
+    <h3 class="sub-title">業務区分コード</h3>
+    <div class="field-note">既定値（50,51,52 / 60）はテーブル定義書の「係員呼出」「来店カウント」区分に基づきますが、これらの区分を使わず全ての発行コードが通常のチケット発行（各業種の受付処理そのもの）として記録されている発券機もあります。その場合は下のコード欄を実際の値（例: 1,2,3,4,5,6）に書き換えてください。列プロファイラを実行済みなら、ボタンで自動入力できます。</div>
+    <div class="grid grid-cols-2">
+      <div><label class="field-label">係員呼出（処理時間・時間外試算の対象）とみなすコード（カンマ区切り）</label><input type="text" id="taskStaffCodes" value="50,51,52"></div>
+      <div><label class="field-label">来店カウント（来庁実績の母数）とみなすコード</label><input type="text" id="taskVisitCodes" value="60"></div>
+    </div>
+    <div class="btn-row">
+      <button id="autofillCodesBtn" class="small">列プロファイラの検出結果から両方の欄に自動入力</button>
+    </div>
+
+    <h3 class="sub-title">時刻の形式・抽出ルール</h3>
+    <div class="grid grid-cols-3">
+      <div>
+        <label class="field-label">時刻の書式</label>
+        <select id="timeFormat">
+          <option value="HHCOLON" selected>HH:MM:SS（コロン区切り, 例 14:34:56）※テーブル定義書の既定形式</option>
+          <option value="auto">自動判定（コロンの有無・桁数で判定）</option>
+          <option value="HHMM">HHMM（4桁, 例 0905）</option>
+          <option value="HHMMSS">HHMMSS（6桁, 例 090512）</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label">ファイル名からの日付抽出パターン（正規表現、名前付きグループ yy,mm,dd）</label>
+        <input type="text" id="filenameDatePattern" value="^CD(?&lt;yy&gt;\d{2})(?&lt;mm&gt;\d{2})(?&lt;dd&gt;\d{2})\d{5}" class="mono">
+      </div>
+      <div>
+        <label class="field-label">フォルダ名からの区名抽出パターン（正規表現、名前付きグループ ward）</label>
+        <input type="text" id="folderWardPattern" value="^\d{2}(?&lt;ward&gt;.+区)$" class="mono">
+      </div>
+    </div>
+    <div class="field-note">日付は「CD+YYMMDD+支店コード5桁」のファイル名から、区名は「01中区」のようなフォルダ名から抽出します。YYは 70以上なら19YY、69以下なら20YYとして西暦化します。</div>
+
+    <h3 class="sub-title">受付時間・基準時刻</h3>
+    <div class="grid grid-cols-4">
+      <div><label class="field-label">現行：開始</label><input type="time" id="curStart" value="08:30"></div>
+      <div><label class="field-label">現行：終了</label><input type="time" id="curEnd" value="17:15"></div>
+      <div><label class="field-label">変更案：開始</label><input type="time" id="newStart" value="09:00"></div>
+      <div><label class="field-label">変更案：終了</label><input type="time" id="newEnd" value="16:30"></div>
+    </div>
+    <div class="grid grid-cols-3" style="margin-top:8px;">
+      <div><label class="field-label">時間外試算の基準時刻</label><input type="time" id="overtimeBase" value="16:30"></div>
+      <div><label class="field-label">処理時間の異常値上限（分。負値は常に除外）</label><input type="number" id="processMax" min="1" value="120"></div>
+      <div><label class="field-label">分布グラフの表示開始時刻（40区分×15分＝10時間分を表示）</label><input type="time" id="distStart" value="07:30"></div>
+    </div>
+
+    <h3 class="sub-title">時間外勤務削減の試算条件</h3>
+    <div class="grid grid-cols-3">
+      <div><label class="field-label">年間稼働日数</label><input type="number" id="annualWorkdays" min="1" value="245"></div>
+      <div><label class="field-label">時間単価（円）</label><input type="number" id="hourlyWage" min="0" value="3000"></div>
+      <div><label class="field-label">対象職員数（人）</label><input type="number" id="staffCount" min="0" value="1"></div>
+    </div>
+
+    <h3 class="sub-title">期間フィルタ（任意・集計全般に適用。検証モードでは無視されます）</h3>
+    <div class="grid grid-cols-2">
+      <div><label class="field-label">開始日</label><input type="date" id="periodStart"></div>
+      <div><label class="field-label">終了日</label><input type="date" id="periodEnd"></div>
+    </div>
+
+    <div class="btn-row">
+      <button id="exportSettingsBtn" class="small">設定をJSON保存</button>
+      <button id="importSettingsBtn" class="small">設定JSONを読込</button>
+      <input type="file" id="importSettingsInput" accept=".json" style="display:none;">
+      <button id="resetSettingsBtn" class="small">既定値に戻す</button>
+      <span class="hint" style="align-self:center;">設定ハッシュ: <span id="settingsHash" class="mono">-</span></span>
+    </div>
+  </details>
+
+  <!-- ============ タブ ============ -->
+  <nav id="tabs">
+    <button class="tab-btn active" data-tab="profiler">列プロファイラ</button>
+    <button class="tab-btn" data-tab="distribution">来庁分布</button>
+    <button class="tab-btn" data-tab="simulation">受付時間シミュレーション</button>
+    <button class="tab-btn" data-tab="overtime">時間外勤務削減試算</button>
+    <button class="tab-btn" data-tab="validation">検証モード</button>
+  </nav>
+
+  <!-- ---- 列プロファイラ ---- -->
+  <section class="tab-panel active" id="tab-profiler">
+    <h2 class="section-title">列プロファイラ（先頭1万行の列別統計）</h2>
+    <p class="hint">読み込んだファイルを先頭から走査し、最大1万行の範囲で全列のユニーク値・上位10件・型推定を集計します。業務区分コード（50,51,52,60）が集中している列、時刻らしい列（4桁/6桁で有効な時刻）を自動で候補表示します。</p>
+    <div id="profileCandidates"></div>
+    <div class="table-wrap" style="margin-top:10px;">
+      <table id="profileTable">
+        <thead><tr><th>列番号</th><th class="label">推定型</th><th>ユニーク数</th><th>非空値数</th><th class="label">上位10件（値:件数）</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ---- 来庁分布 ---- -->
+  <section class="tab-panel" id="tab-distribution">
+    <h2 class="section-title">来庁分布（15分刻み・40区分）</h2>
+    <div class="grid grid-cols-4">
+      <div>
+        <label class="field-label">時刻の基準</label>
+        <select id="distBasis"><option value="issue">発券時刻</option><option value="call">呼出時刻</option><option value="end">終了時刻</option></select>
+      </div>
+      <div>
+        <label class="field-label">積み上げ軸</label>
+        <select id="distStackBy"><option value="ward">区別</option><option value="task">業務区分別</option></select>
+      </div>
+      <div>
+        <label class="field-label">対象業務区分</label>
+        <div id="distTaskFilter" class="hint"></div>
+      </div>
+      <div>
+        <label class="field-label">対象区（複数選択可）</label>
+        <div id="distWardFilter" class="hint" style="max-height:70px; overflow-y:auto;"></div>
+      </div>
+    </div>
+    <canvas id="chartCanvas" width="1200" height="480"></canvas>
+    <div class="legend" id="chartLegend"></div>
+    <div class="btn-row">
+      <button id="exportDistCsv" class="small">集計表をCSV保存（BOM付きUTF-8）</button>
+      <button id="exportDistTsv" class="small">集計表をTSVコピー</button>
+      <button id="exportDistPng" class="small">グラフをPNG保存</button>
+    </div>
+    <div class="table-wrap" style="margin-top:10px;">
+      <table id="distTable"></table>
+    </div>
+  </section>
+
+  <!-- ---- シミュレーション ---- -->
+  <section class="tab-panel" id="tab-simulation">
+    <h2 class="section-title">受付時間シミュレーション</h2>
+    <div class="grid grid-cols-2">
+      <div>
+        <label class="field-label">変更後：開始時刻 <span id="simStartLabel" class="mono"></span></label>
+        <div class="slider-row"><input type="range" id="simStartRange" min="0" max="1439" step="5"><input type="time" id="simStartTime"></div>
+      </div>
+      <div>
+        <label class="field-label">変更後：終了時刻 <span id="simEndLabel" class="mono"></span></label>
+        <div class="slider-row"><input type="range" id="simEndRange" min="0" max="1439" step="5"><input type="time" id="simEndTime"></div>
+      </div>
+    </div>
+    <div class="field-note">母数＝現行受付時間内（設定パネルの値）に来庁した「来店カウント」対象者。時刻基準は下で選択できます。</div>
+    <label class="field-label" style="margin-top:8px;">時刻の基準</label>
+    <select id="simBasis" style="max-width:220px;"><option value="issue">発券時刻</option><option value="call">呼出時刻</option><option value="end">終了時刻</option></select>
+
+    <div class="kpi-row" style="margin-top:12px;">
+      <div class="kpi-card"><div class="kpi-label">現行時間内 来庁者数（母数）</div><div class="kpi-value" id="simDenom">-</div></div>
+      <div class="kpi-card"><div class="kpi-label">変更後時間内に収まる人数・比率</div><div class="kpi-value" id="simInRange">-</div><div class="kpi-sub" id="simInRangePct"></div></div>
+      <div class="kpi-card"><div class="kpi-label">短縮される前側（開始が遅くなる分）</div><div class="kpi-value" id="simFront">-</div></div>
+      <div class="kpi-card"><div class="kpi-label">短縮される後側（終了が早まる分）</div><div class="kpi-value" id="simBack">-</div></div>
+    </div>
+
+    <h3 class="sub-title">区別・業務区分別 影響度ランキング（短縮対象＝現行時間内かつ変更後時間外の件数）</h3>
+    <div class="btn-row">
+      <button id="exportSimCsv" class="small">ランキングをCSV保存</button>
+      <button id="exportSimTsv" class="small">ランキングをTSVコピー</button>
+    </div>
+    <div class="table-wrap" style="margin-top:6px;">
+      <table id="simRankTable"></table>
+    </div>
+  </section>
+
+  <!-- ---- 時間外勤務削減試算 ---- -->
+  <section class="tab-panel" id="tab-overtime">
+    <h2 class="section-title">時間外勤務削減効果の試算</h2>
+    <p class="hint">考え方：時間外試算の基準時刻（設定パネル既定 16:30）以降に発券された案件について、係員呼出（設定した業務区分コード）にかかった処理時間（一線終了時刻－一線呼出時刻）を削減対象とみなします。</p>
+
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">対象件数（基準時刻以降・発券）</div><div class="kpi-value" id="otCount">-</div></div>
+      <div class="kpi-card"><div class="kpi-label">平均処理時間</div><div class="kpi-value" id="otAvg">-</div></div>
+      <div class="kpi-card"><div class="kpi-label">合計処理時間（対象期間内）</div><div class="kpi-value" id="otSum">-</div></div>
+      <div class="kpi-card"><div class="kpi-label">除外件数（負値・上限超・時刻欠損）</div><div class="kpi-value" id="otExcluded">-</div></div>
+    </div>
+    <div class="table-wrap" style="margin-top:6px; max-height:160px;">
+      <table id="otExcludeTable"></table>
+    </div>
+
+    <div class="formula-box">
+      <div>① 実開庁日数（データ中で発券記録が存在した日のユニーク日数）＝ <code id="otOpenDays">-</code> 日</div>
+      <div>② 対象期間内 合計処理時間 ÷ ① 実開庁日数 ＝ 1日あたり削減時間 ＝ <code id="otPerDay">-</code></div>
+      <div>③ 1日あたり削減時間 × 年間稼働日数（<code id="otAnnualDaysEcho">-</code>日） ＝ 年間削減時間 ＝ <code id="otAnnualHours">-</code></div>
+      <div>④ 年間削減時間 × 時間単価（<code id="otWageEcho">-</code>円） × 職員数（<code id="otStaffEcho">-</code>人） ＝ 年間削減金額 ＝ <code id="otAnnualMoney">-</code></div>
+    </div>
+    <div class="btn-row">
+      <button id="exportOtCsv" class="small">試算結果をCSV保存</button>
+      <button id="exportOtTsv" class="small">試算結果をTSVコピー</button>
+    </div>
+  </section>
+
+  <!-- ---- 検証モード ---- -->
+  <section class="tab-panel" id="tab-validation">
+    <h2 class="section-title">検証モード（9:00〜16:30／発券時刻基準で固定）</h2>
+    <p class="hint">この検証は設定パネルの「期間フィルタ」を無視し、読み込んだ全データに対して発券時刻基準で①〜⑤を判定します。既知の実データ値、または下で読み込んだ expected.json（generate_sample.py が出力）と突合します。</p>
+    <div class="btn-row">
+      <button id="loadExpectedBtn" class="small">expected.json を読み込む</button>
+      <input type="file" id="expectedInput" accept=".json" style="display:none;">
+      <button id="runValidationBtn" class="primary small">検証を実行</button>
+      <span class="hint" id="expectedSource">判定基準：実データ既知値（既定）</span>
+    </div>
+    <div class="table-wrap" style="margin-top:10px;">
+      <table id="validationTable">
+        <thead><tr><th class="label">段階</th><th class="label">項目</th><th>期待値</th><th>実測値</th><th>差分</th><th>判定</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="validationDiagnosis" style="margin-top:10px;"></div>
+  </section>
+
+  <footer>
+    窓口受付時間シミュレーター ｜ 生成日時: <span id="footerTime"></span> ｜ 設定ハッシュ: <span id="footerHash" class="mono">-</span>
+  </footer>
+</main>
+
+<script>
+/* =========================================================================
+   窓口受付時間シミュレーター
+   単一HTMLファイル・依存パッケージなし・外部通信なし
+   ========================================================================= */
+(function(){
+"use strict";
+
+/* ---------------------------------------------------------------------
+   1. 設定（CONFIG）
+   --------------------------------------------------------------------- */
+const DEFAULT_CONFIG = {
+  colIssue:5, colCall:40, colEnd:41, colCounter:53, colTask:2, colTotal:65,
+  taskStaffCodes:[50,51,52], taskVisitCodes:[60],
+  timeFormat:'HHCOLON',
+  filenameDatePattern:'^CD(?<yy>\\d{2})(?<mm>\\d{2})(?<dd>\\d{2})\\d{5}',
+  folderWardPattern:'^\\d{2}(?<ward>.+区)$',
+  curStart:'08:30', curEnd:'17:15',
+  newStart:'09:00', newEnd:'16:30',
+  overtimeBase:'16:30',
+  processMax:120,
+  distStart:'07:30',
+  annualWorkdays:245, hourlyWage:3000, staffCount:1,
+  periodStart:'', periodEnd:''
+};
+let CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+
+function hmToMin(hm){ if(!hm) return null; const m=hm.match(/^(\d{1,2}):(\d{2})$/); if(!m) return null; return (+m[1])*60+(+m[2]); }
+function minToHm(min){ min=((min%1440)+1440)%1440; const h=Math.floor(min/60), m=min%60; return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+function secToHms(sec){
+  const s = Math.round(sec);
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
+  return (h>0? h+'時間':'') + m+'分'+ (ss? ss+'秒':'');
+}
+function parseCsvIntList(s){ return String(s||'').split(',').map(v=>v.trim()).filter(v=>v!=='').map(Number).filter(v=>!isNaN(v)); }
+
+function readConfigFromForm(){
+  CONFIG.colIssue = +byId('colIssue').value || null;
+  CONFIG.colCall = +byId('colCall').value || null;
+  CONFIG.colEnd = +byId('colEnd').value || null;
+  CONFIG.colCounter = +byId('colCounter').value || null;
+  CONFIG.colTask = byId('colTask').value ? +byId('colTask').value : null;
+  CONFIG.colTotal = +byId('colTotal').value || 65;
+  CONFIG.taskStaffCodes = parseCsvIntList(byId('taskStaffCodes').value);
+  CONFIG.taskVisitCodes = parseCsvIntList(byId('taskVisitCodes').value);
+  CONFIG.timeFormat = byId('timeFormat').value;
+  CONFIG.filenameDatePattern = byId('filenameDatePattern').value;
+  CONFIG.folderWardPattern = byId('folderWardPattern').value;
+  CONFIG.curStart = byId('curStart').value;
+  CONFIG.curEnd = byId('curEnd').value;
+  CONFIG.newStart = byId('newStart').value;
+  CONFIG.newEnd = byId('newEnd').value;
+  CONFIG.overtimeBase = byId('overtimeBase').value;
+  CONFIG.processMax = +byId('processMax').value || 120;
+  CONFIG.distStart = byId('distStart').value;
+  CONFIG.annualWorkdays = +byId('annualWorkdays').value || 245;
+  CONFIG.hourlyWage = +byId('hourlyWage').value || 0;
+  CONFIG.staffCount = +byId('staffCount').value || 0;
+  CONFIG.periodStart = byId('periodStart').value;
+  CONFIG.periodEnd = byId('periodEnd').value;
+
+  byId('colTask').classList.toggle('required-empty', !CONFIG.colTask);
+  return CONFIG;
+}
+function writeConfigToForm(){
+  byId('colIssue').value = CONFIG.colIssue ?? '';
+  byId('colCall').value = CONFIG.colCall ?? '';
+  byId('colEnd').value = CONFIG.colEnd ?? '';
+  byId('colCounter').value = CONFIG.colCounter ?? '';
+  byId('colTask').value = CONFIG.colTask ?? '';
+  byId('colTotal').value = CONFIG.colTotal ?? 65;
+  byId('taskStaffCodes').value = (CONFIG.taskStaffCodes||[]).join(',');
+  byId('taskVisitCodes').value = (CONFIG.taskVisitCodes||[]).join(',');
+  byId('timeFormat').value = CONFIG.timeFormat;
+  byId('filenameDatePattern').value = CONFIG.filenameDatePattern;
+  byId('folderWardPattern').value = CONFIG.folderWardPattern;
+  byId('curStart').value = CONFIG.curStart;
+  byId('curEnd').value = CONFIG.curEnd;
+  byId('newStart').value = CONFIG.newStart;
+  byId('newEnd').value = CONFIG.newEnd;
+  byId('overtimeBase').value = CONFIG.overtimeBase;
+  byId('processMax').value = CONFIG.processMax;
+  byId('distStart').value = CONFIG.distStart;
+  byId('annualWorkdays').value = CONFIG.annualWorkdays;
+  byId('hourlyWage').value = CONFIG.hourlyWage;
+  byId('staffCount').value = CONFIG.staffCount;
+  byId('periodStart').value = CONFIG.periodStart || '';
+  byId('periodEnd').value = CONFIG.periodEnd || '';
+  byId('colTask').classList.toggle('required-empty', !CONFIG.colTask);
+}
+function byId(id){ return document.getElementById(id); }
+
+async function computeSettingsHash(){
+  const enc = new TextEncoder();
+  const data = enc.encode(JSON.stringify(CONFIG, Object.keys(CONFIG).sort()));
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  const hex = Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return hex.slice(0,10);
+}
+async function refreshSettingsHash(){
+  const h = await computeSettingsHash();
+  byId('settingsHash').textContent = h;
+  byId('footerHash').textContent = h;
+  return h;
+}
+
+/* ---------------------------------------------------------------------
+   2. データ構造（SoA: Structure of Arrays）
+   --------------------------------------------------------------------- */
+let DATA = null;
+/*
+DATA = {
+  n, dateIdx:Uint16Array, wardIdx:Uint8Array, taskCode:Uint16Array, counterNo:Uint16Array,
+  issueSec:Int32Array, callSec:Int32Array, endSec:Int32Array,
+  dateDict:[YYYY-MM-DD,...], wardDict:[区名,...],
+  stats:{ totalRows, invalidColCount, unmatchedTask, skippedFiles:[], unknownWardFiles:[], filesProcessed, bytesTotal }
+}
+*/
+
+/* ---------------------------------------------------------------------
+   3. Worker（Blobでインライン生成）
+   --------------------------------------------------------------------- */
+const WORKER_SRC = `
+self.onmessage = async function(ev){
+  const msg = ev.data;
+  if(msg.cmd === 'profile') runProfile(msg.files, msg.limit, msg.colTotal);
+  else if(msg.cmd === 'parse') runParse(msg.files, msg.config);
+};
+
+function reWithNamedGroups(pattern){
+  try { return new RegExp(pattern); } catch(e){ return null; }
+}
+
+function extractDate(filename, pattern){
+  const re = reWithNamedGroups(pattern);
+  if(!re) return null;
+  const m = filename.match(re);
+  if(!m || !m.groups) return null;
+  let yy = m.groups.yy, mm = m.groups.mm, dd = m.groups.dd;
+  if(yy==null || mm==null || dd==null) return null;
+  yy = +yy; mm = +mm; dd = +dd;
+  if(mm<1||mm>12||dd<1||dd>31) return null;
+  const yyyy = yy >= 70 ? 1900+yy : 2000+yy;
+  const p2=(n)=>String(n).padStart(2,'0');
+  return yyyy+'-'+p2(mm)+'-'+p2(dd);
+}
+function extractWard(relPath, pattern){
+  const re = reWithNamedGroups(pattern);
+  if(!re) return null;
+  const parts = relPath.split('/').filter(Boolean);
+  for(let i=parts.length-2;i>=0;i--){
+    const m = parts[i].match(re);
+    if(m && m.groups && m.groups.ward) return m.groups.ward;
+  }
+  return null;
+}
+function parseTimeToken(raw, format){
+  if(raw==null) return -1;
+  const s = String(raw).trim();
+  if(s==='') return -1;
+  let fmt = format;
+  if(fmt === 'auto') fmt = s.indexOf(':') >= 0 ? 'HHCOLON' : (s.length<=4 ? 'HHMM' : 'HHMMSS');
+  if(fmt === 'HHCOLON'){
+    const m = s.match(/^(\\d{1,2}):(\\d{2})(?::(\\d{2}))?$/);
+    if(!m) return -1;
+    const hh=+m[1], mm=+m[2], ss=m[3]?+m[3]:0;
+    if(hh>23||mm>59||ss>59) return -1;
+    return hh*3600+mm*60+ss;
+  }
+  if(!/^\\d+$/.test(s)) return -1;
+  if(fmt === 'HHMM'){
+    const p = s.padStart(4,'0');
+    const hh=+p.slice(0,2), mm=+p.slice(2,4);
+    if(hh>23||mm>59) return -1;
+    return hh*3600+mm*60;
+  }
+  if(fmt === 'HHMMSS'){
+    const p = s.padStart(6,'0');
+    const hh=+p.slice(0,2), mm=+p.slice(2,4), ss=+p.slice(4,6);
+    if(hh>23||mm>59||ss>59) return -1;
+    return hh*3600+mm*60+ss;
+  }
+  return -1;
+}
+
+async function* iterLines(file){
+  const reader = file.stream().getReader();
+  const decoder = new TextDecoder('shift_jis');
+  let buf = '';
+  let bytesRead = 0;
+  while(true){
+    const {value, done} = await reader.read();
+    if(done) break;
+    bytesRead += value.byteLength;
+    buf += decoder.decode(value, {stream:true});
+    let idx;
+    while((idx = buf.search(/\\r\\n|\\n|\\r/)) >= 0){
+      const line = buf.slice(0, idx);
+      const m = buf.slice(idx).match(/^(\\r\\n|\\n|\\r)/);
+      buf = buf.slice(idx + m[0].length);
+      yield {line, bytesRead};
+    }
+  }
+  buf += decoder.decode();
+  if(buf.length) yield {line:buf, bytesRead};
+}
+
+async function runProfile(files, limit, colTotal){
+  const cols = [];
+  for(let c=0;c<colTotal;c++) cols.push({counts:new Map(), nonEmpty:0, numeric:0, timeLike4:0, timeLike6:0, timeLikeColon:0});
+  let lineCount = 0;
+  outer:
+  for(const f of files){
+    for await (const {line} of iterLines(f.fileObj)){
+      if(line.trim()==='') continue;
+      const fields = line.split(',');
+      for(let c=0;c<colTotal;c++){
+        const v = (fields[c]!==undefined ? fields[c] : '').trim();
+        const col = cols[c];
+        if(v===''){ continue; }
+        col.nonEmpty++;
+        if(col.counts.size < 500 || col.counts.has(v)){
+          col.counts.set(v, (col.counts.get(v)||0)+1);
+        }
+        if(/^-?\\d+(\\.\\d+)?$/.test(v)) col.numeric++;
+        if(/^\\d{4}$/.test(v)){
+          const hh=+v.slice(0,2), mm=+v.slice(2,4);
+          if(hh<24 && mm<60) col.timeLike4++;
+        }
+        if(/^\\d{6}$/.test(v)){
+          const hh=+v.slice(0,2), mm=+v.slice(2,4), ss=+v.slice(4,6);
+          if(hh<24 && mm<60 && ss<60) col.timeLike6++;
+        }
+        const colonMatch = v.match(/^(\\d{1,2}):(\\d{2})(?::(\\d{2}))?$/);
+        if(colonMatch){
+          const hh=+colonMatch[1], mm=+colonMatch[2], ss=colonMatch[3]?+colonMatch[3]:0;
+          if(hh<24 && mm<60 && ss<60) col.timeLikeColon++;
+        }
+      }
+      lineCount++;
+      if(lineCount % 500 === 0) self.postMessage({type:'profile-progress', lineCount});
+      if(lineCount >= limit) break outer;
+    }
+  }
+  const result = cols.map((col, idx) => {
+    const top = Array.from(col.counts.entries()).sort((a,b)=>b[1]-a[1]).slice(0,10);
+    let type = '文字列';
+    if(col.nonEmpty>0 && col.numeric/col.nonEmpty > 0.9) type = '数値';
+    if(col.nonEmpty>0 && col.timeLike6/col.nonEmpty > 0.7) type = '時刻候補(6桁)';
+    else if(col.nonEmpty>0 && col.timeLike4/col.nonEmpty > 0.7) type = '時刻候補(4桁)';
+    else if(col.nonEmpty>0 && col.timeLikeColon/col.nonEmpty > 0.7) type = '時刻候補(HH:MM:SS)';
+    let taskScore = 0;
+    for(const [v, cnt] of col.counts.entries()){
+      if(/^0*(50|51|52|60)$/.test(v.trim())) taskScore += cnt;
+    }
+    taskScore = col.nonEmpty>0 ? taskScore/col.nonEmpty : 0;
+    const looksCategorical = col.nonEmpty>0 && col.numeric/col.nonEmpty > 0.9 && col.counts.size>=2 && col.counts.size<=40;
+    return { col: idx+1, type, unique: col.counts.size, nonEmpty: col.nonEmpty, top, taskScore, looksCategorical };
+  });
+  self.postMessage({type:'profile-done', result, lineCount});
+}
+
+async function runParse(files, config){
+  const dateDict = [];
+  const dateMap = new Map();
+  const wardDict = ['不明'];
+  const wardMap = new Map([['不明',0]]);
+  const staffSet = new Set(config.taskStaffCodes);
+  const visitSet = new Set(config.taskVisitCodes);
+  const validTaskCodes = new Set([...staffSet, ...visitSet]);
+
+  let cap = 1200000;
+  let n = 0;
+  let dateIdx = new Uint16Array(cap);
+  let wardIdx = new Uint8Array(cap);
+  let taskCode = new Uint16Array(cap);
+  let counterNo = new Uint16Array(cap);
+  let issueSec = new Int32Array(cap).fill(-1);
+  let callSec = new Int32Array(cap).fill(-1);
+  let endSec = new Int32Array(cap).fill(-1);
+  function grow(){
+    const ncap = cap*2;
+    const gi = (arr, Ctor, fillVal) => { const na = new Ctor(ncap); if(fillVal!==undefined) na.fill(fillVal); na.set(arr); return na; };
+    dateIdx = gi(dateIdx, Uint16Array); wardIdx = gi(wardIdx, Uint8Array);
+    taskCode = gi(taskCode, Uint16Array); counterNo = gi(counterNo, Uint16Array);
+    issueSec = gi(issueSec, Int32Array, -1); callSec = gi(callSec, Int32Array, -1); endSec = gi(endSec, Int32Array, -1);
+    cap = ncap;
+  }
+
+  let totalRows = 0, invalidColCount = 0, unmatchedTask = 0;
+  const skippedFiles = [];
+  const unknownWardFiles = [];
+  let filesProcessed = 0;
+  const bytesTotal = files.reduce((s,f)=>s+f.fileObj.size,0);
+  let bytesDone = 0;
+
+  const ci = config.colIssue-1, cc = config.colCall-1, ce = config.colEnd-1, ccnt = config.colCounter-1, ct = config.colTask-1;
+  const colTotal = config.colTotal;
+
+  for(const f of files){
+    const dateStr = extractDate(f.name, config.filenameDatePattern);
+    if(!dateStr){ skippedFiles.push(f.relPath + '（日付抽出失敗）'); continue; }
+    let dIdx = dateMap.get(dateStr);
+    if(dIdx===undefined){ dIdx = dateDict.length; dateDict.push(dateStr); dateMap.set(dateStr, dIdx); }
+
+    let wardName = extractWard(f.relPath, config.folderWardPattern);
+    if(!wardName){ unknownWardFiles.push(f.relPath); wardName = '不明'; }
+    let wIdx = wardMap.get(wardName);
+    if(wIdx===undefined){ wIdx = wardDict.length; wardDict.push(wardName); wardMap.set(wardName, wIdx); }
+
+    for await (const {line, bytesRead} of iterLines(f.fileObj)){
+      if(line.trim()===''){ continue; }
+      totalRows++;
+      const fields = line.split(',');
+      if(fields.length < colTotal){ invalidColCount++; continue; }
+      const tRaw = fields[ct];
+      const tCode = tRaw!==undefined ? parseInt(tRaw.trim(),10) : NaN;
+      if(isNaN(tCode) || !validTaskCodes.has(tCode)){ unmatchedTask++; continue; }
+
+      if(n>=cap) grow();
+      dateIdx[n]=dIdx; wardIdx[n]=wIdx; taskCode[n]=tCode;
+      const cntRaw = fields[ccnt]!==undefined ? parseInt(fields[ccnt].trim(),10) : NaN;
+      counterNo[n] = isNaN(cntRaw)? 0 : cntRaw;
+      issueSec[n] = parseTimeToken(fields[ci], config.timeFormat);
+      callSec[n] = parseTimeToken(fields[cc], config.timeFormat);
+      endSec[n] = parseTimeToken(fields[ce], config.timeFormat);
+      n++;
+    }
+    filesProcessed++;
+    bytesDone += f.fileObj.size;
+    self.postMessage({type:'parse-progress', filesProcessed, filesTotal: files.length, bytesDone, bytesTotal, n});
+  }
+
+  const buffers = {
+    dateIdx: dateIdx.slice(0,n).buffer, wardIdx: wardIdx.slice(0,n).buffer,
+    taskCode: taskCode.slice(0,n).buffer, counterNo: counterNo.slice(0,n).buffer,
+    issueSec: issueSec.slice(0,n).buffer, callSec: callSec.slice(0,n).buffer, endSec: endSec.slice(0,n).buffer
+  };
+  self.postMessage({
+    type:'parse-done', n, dateDict, wardDict,
+    stats:{ totalRows, invalidColCount, unmatchedTask, skippedFiles, unknownWardFiles, filesProcessed, bytesTotal },
+    buffers
+  }, [buffers.dateIdx, buffers.wardIdx, buffers.taskCode, buffers.counterNo, buffers.issueSec, buffers.callSec, buffers.endSec]);
+}
+`;
+
+let worker = null;
+function getWorker(){
+  if(worker) return worker;
+  const blob = new Blob([WORKER_SRC], {type:'application/javascript'});
+  worker = new Worker(URL.createObjectURL(blob));
+  return worker;
+}
+
+/* ---------------------------------------------------------------------
+   4. ファイル読み込みUI（ドラッグ&ドロップ / webkitdirectory）
+   --------------------------------------------------------------------- */
+let loadedFiles = []; // {fileObj, name, relPath}
+let lastProfileResult = null; // 列プロファイラの直近の実行結果（業務区分コードの自動入力に使用）
+
+function logLoad(msg){
+  const el = byId('loadLog');
+  el.textContent += msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+function updateFileSummary(){
+  const totalSize = loadedFiles.reduce((s,f)=>s+f.fileObj.size,0);
+  byId('fileSummary').textContent = `読み込み待ち：${loadedFiles.length} ファイル（合計 ${(totalSize/1024/1024).toFixed(1)} MB）`;
+  byId('profileBtn').disabled = loadedFiles.length===0;
+  byId('parseBtn').disabled = loadedFiles.length===0;
+}
+
+function yieldToBrowser(){
+  // ブラウザに描画・入力処理の機会を返す（マクロタスク境界）。
+  // これを挟まずに大量のファイルをPromiseチェーンだけで処理すると、
+  // Chromeの「ページが応答していません」検知が誤って発動することがあるため。
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+let lastYieldTime = performance.now();
+async function maybeYield(thresholdMs){
+  // ファイル数ベースではなく経過時間ベースで譲歩する。
+  // ネットワークドライブやOneDrive同期フォルダ等、1ファイルあたりの
+  // I/Oが遅い環境でも、一定時間ごとに確実にブラウザへ制御を返すため。
+  if(performance.now() - lastYieldTime > (thresholdMs||50)){
+    await yieldToBrowser();
+    lastYieldTime = performance.now();
+  }
+}
+function readEntriesOnce(reader){
+  return new Promise((resolve, reject)=> reader.readEntries(resolve, reject));
+}
+async function readAllEntries(reader, pathLabel){
+  const entries = [];
+  while(true){
+    let batch;
+    try{
+      batch = await readEntriesOnce(reader);
+    } catch(err){
+      logLoad(`  警告: フォルダ読み取りに失敗しました（${pathLabel}）: ${err && err.message ? err.message : err}`);
+      break;
+    }
+    if(batch.length===0) break;
+    entries.push(...batch);
+    await maybeYield();
+  }
+  return entries;
+}
+async function walkEntry(entry, pathPrefix, out){
+  if(entry.isFile){
+    await new Promise((resolve)=>{
+      entry.file((file)=>{ out.push({fileObj:file, name:file.name, relPath: pathPrefix + file.name}); resolve(); }, ()=>resolve());
+    });
+    if(out.length % 100 === 0) logLoad(`  フォルダ走査中... ${out.length}件検出`);
+    await maybeYield();
+  } else if(entry.isDirectory){
+    const entries = await readAllEntries(entry.createReader(), pathPrefix + entry.name);
+    for(const child of entries){
+      await walkEntry(child, pathPrefix + entry.name + '/', out);
+    }
+  }
+}
+
+byId('dropzone').addEventListener('dragover', (e)=>{ e.preventDefault(); byId('dropzone').classList.add('dragover'); });
+byId('dropzone').addEventListener('dragleave', ()=>{ byId('dropzone').classList.remove('dragover'); });
+byId('dropzone').addEventListener('drop', async (e)=>{
+  e.preventDefault();
+  byId('dropzone').classList.remove('dragover');
+  const items = e.dataTransfer.items;
+  const out = [];
+  const entries = [];
+  for(let i=0;i<items.length;i++){
+    const entry = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry();
+    if(entry) entries.push(entry);
+  }
+  for(const entry of entries){ await walkEntry(entry, '', out); }
+  loadedFiles = loadedFiles.concat(out);
+  updateFileSummary();
+  logLoad(`ドロップにより ${out.length} 件のファイルを追加しました。`);
+});
+
+byId('pickFolderBtn').addEventListener('click', ()=> byId('folderInput').click());
+byId('pickFilesBtn').addEventListener('click', ()=> byId('filesInput').click());
+byId('folderInput').addEventListener('change', (e)=>{
+  const files = Array.from(e.target.files).map(f=>({fileObj:f, name:f.name, relPath:f.webkitRelativePath||f.name}));
+  loadedFiles = loadedFiles.concat(files);
+  updateFileSummary();
+  logLoad(`フォルダ選択により ${files.length} 件のファイルを追加しました。`);
+});
+byId('filesInput').addEventListener('change', (e)=>{
+  const files = Array.from(e.target.files).map(f=>({fileObj:f, name:f.name, relPath:f.name}));
+  loadedFiles = loadedFiles.concat(files);
+  updateFileSummary();
+  logLoad(`ファイル選択により ${files.length} 件のファイルを追加しました。（フォルダ情報なし＝区名は「不明」扱い）`);
+});
+
+/* ---- 列プロファイラ実行 ---- */
+byId('profileBtn').addEventListener('click', ()=>{
+  readConfigFromForm();
+  const w = getWorker();
+  byId('progressBar').style.display='block';
+  byId('progressBar').removeAttribute('max');
+  logLoad('列プロファイラを実行中（先頭1万行）...');
+  const files = loadedFiles.map(f=>({fileObj:f.fileObj, name:f.name, relPath:f.relPath}));
+  w.onmessage = (ev)=>{
+    const msg = ev.data;
+    if(msg.type==='profile-progress'){
+      logLoad(`  ${msg.lineCount} 行処理...`);
+    } else if(msg.type==='profile-done'){
+      byId('progressBar').style.display='none';
+      lastProfileResult = msg.result;
+      renderProfile(msg.result);
+      logLoad(`列プロファイラ完了（${msg.lineCount}行）。`);
+    }
+  };
+  w.postMessage({cmd:'profile', files, limit:10000, colTotal: CONFIG.colTotal});
+});
+
+function autofillButtonHtml(colNum, label){
+  return `<button type="button" class="small profile-autofill-btn" data-col="${colNum}" style="margin:2px 4px 2px 0;">${label||('列'+colNum+'を業務区分列として採用')}</button>`;
+}
+function renderProfile(result){
+  const sorted = result.slice().sort((a,b)=>b.taskScore-a.taskScore);
+  const candidates = sorted.filter(r=>r.taskScore>0.2).slice(0,5);
+  const candDiv = byId('profileCandidates');
+  let fallbackCandidates = [];
+  if(candidates.length){
+    candDiv.innerHTML = '<div class="formula-box"><b>業務区分の候補列（50,51,52,60が値の集中している列）:</b><br>'
+      + candidates.map(c=>`列${c.col}（該当率 ${(c.taskScore*100).toFixed(1)}%）`).join(' / ')
+      + '<div style="margin-top:6px;">' + candidates.map(c=>autofillButtonHtml(c.col)).join('') + '</div></div>';
+  } else {
+    fallbackCandidates = result.filter(r=>r.looksCategorical && r.type.indexOf('時刻候補')!==0)
+      .sort((a,b)=>a.unique-b.unique).slice(0,8);
+    candDiv.innerHTML = '<div class="formula-box"><b>業務区分コード(50,51,52,60)が明確に集中している列は見つかりませんでした。</b>'
+      + 'この発券機ではコード体系が異なっている可能性があります（＝係員呼出・来店カウントを区別せず、通常のチケット発行コードのみを使っている可能性）。'
+      + (fallbackCandidates.length
+        ? '<br>代わりに「ユニーク値が少ない数値列」を候補として表示します。ボタンを押すとその列を業務区分列として設定し、検出されたコードを両方の欄（係員呼出・来店カウント）に自動入力します：<br>'
+          + '<div style="margin-top:6px;">' + fallbackCandidates.map(c=>autofillButtonHtml(c.col, `列${c.col}を採用（ユニーク数${c.unique}）`)).join('') + '</div>'
+          + '<div class="hint" style="margin-top:4px;">どれが正しいか分からない場合は、右の「上位10件」列の値を見て、業種名らしき別列（隣接する文字列型の列など）と対応していそうなものを選んでください。</div>'
+        : '数値列の候補も見つかりませんでした。下の一覧を先頭から目視で確認してください。')
+      + '</div>';
+  }
+  const timeCandidates = result.filter(r=>r.type.indexOf('時刻候補')===0);
+  if(timeCandidates.length){
+    candDiv.innerHTML += '<div class="hint" style="margin-top:6px;">時刻らしき列の候補：' + timeCandidates.map(c=>`列${c.col}(${c.type})`).join(', ') + '</div>';
+  }
+  candDiv.querySelectorAll('.profile-autofill-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> autofillCodesFromColumn(+btn.dataset.col));
+  });
+  const fallbackCols = new Set(fallbackCandidates.map(c=>c.col));
+  const tbody = document.querySelector('#profileTable tbody');
+  tbody.innerHTML = '';
+  for(const r of result){
+    const tr = document.createElement('tr');
+    if(r.taskScore>0.2 || fallbackCols.has(r.col)) tr.className='highlight-row';
+    const topStr = r.top.map(([v,c])=>`${v}:${c}`).join(', ');
+    tr.innerHTML = `<td>${r.col}</td><td class="label">${r.type}</td><td>${r.unique}</td><td>${r.nonEmpty}</td><td class="label">${topStr}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+/* ---- 本解析実行 ---- */
+byId('parseBtn').addEventListener('click', ()=>{
+  readConfigFromForm();
+  if(!CONFIG.colTask){ alert('業務区分列を入力してください（列プロファイラで候補を確認できます）。'); return; }
+  byId('parseFailBanner').style.display='none';
+  const w = getWorker();
+  byId('progressBar').style.display='block';
+  byId('progressBar').max = 100; byId('progressBar').value = 0;
+  byId('parseBtn').disabled = true;
+  logLoad('本解析を開始します...');
+  const files = loadedFiles.map(f=>({fileObj:f.fileObj, name:f.name, relPath:f.relPath}));
+  w.onmessage = (ev)=>{
+    const msg = ev.data;
+    if(msg.type==='parse-progress'){
+      const pct = msg.bytesTotal>0 ? Math.round(msg.bytesDone/msg.bytesTotal*100) : 0;
+      byId('progressBar').value = pct;
+      logLoad(`  ${msg.filesProcessed}/${msg.filesTotal} ファイル処理済み（${pct}%, 集計対象 ${msg.n}件）`);
+    } else if(msg.type==='parse-done'){
+      byId('progressBar').style.display='none';
+      byId('parseBtn').disabled = false;
+      DATA = {
+        n: msg.n,
+        dateIdx: new Uint16Array(msg.buffers.dateIdx),
+        wardIdx: new Uint8Array(msg.buffers.wardIdx),
+        taskCode: new Uint16Array(msg.buffers.taskCode),
+        counterNo: new Uint16Array(msg.buffers.counterNo),
+        issueSec: new Int32Array(msg.buffers.issueSec),
+        callSec: new Int32Array(msg.buffers.callSec),
+        endSec: new Int32Array(msg.buffers.endSec),
+        dateDict: msg.dateDict, wardDict: msg.wardDict, stats: msg.stats
+      };
+      logLoad(`本解析完了：対象レコード ${msg.n}件 / 総読取行 ${msg.stats.totalRows}行 / 列数不一致 ${msg.stats.invalidColCount}件 / 業務区分不一致 ${msg.stats.unmatchedTask}件`);
+      if(msg.stats.skippedFiles.length) logLoad(`日付抽出に失敗しスキップしたファイル: ${msg.stats.skippedFiles.length}件\n  ` + msg.stats.skippedFiles.slice(0,10).join('\n  '));
+      if(msg.stats.unknownWardFiles.length) logLoad(`区名抽出に失敗し「不明」としたファイル: ${msg.stats.unknownWardFiles.length}件`);
+      showParseFailBannerIfNeeded(msg);
+      onDataReady();
+    }
+  };
+  w.postMessage({cmd:'parse', files, config: CONFIG});
+});
+
+function showParseFailBannerIfNeeded(msg){
+  const banner = byId('parseFailBanner');
+  const allMismatched = msg.n===0 && msg.stats.totalRows>0 && msg.stats.unmatchedTask===msg.stats.totalRows;
+  if(!allMismatched){ banner.style.display='none'; return; }
+  let fixHtml;
+  if(lastProfileResult){
+    const cand = lastProfileResult.filter(r=>r.looksCategorical && r.type.indexOf('時刻候補')!==0)
+      .sort((a,b)=>a.unique-b.unique)[0];
+    fixHtml = cand
+      ? `候補: 列${cand.col}（ユニーク数${cand.unique}）。<button type="button" id="autoFixAndRerunBtn">この列を採用して自動修正・再解析</button>`
+      : '数値の候補列も見つかりませんでした。「列プロファイラ」タブで手動確認してください。';
+  } else {
+    fixHtml = '列プロファイラをまだ実行していません。<button type="button" id="runProfileFirstBtn">①列プロファイラを実行</button>';
+  }
+  banner.style.display = 'block';
+  banner.innerHTML = `⚠ 全${msg.stats.totalRows.toLocaleString()}行が業務区分列（列${CONFIG.colTask}）のコード不一致でした。設定したコードがこの列に存在しません。<br>${fixHtml}`;
+  const autoBtn = byId('autoFixAndRerunBtn');
+  if(autoBtn) autoBtn.addEventListener('click', ()=>{
+    const cand = lastProfileResult.filter(r=>r.looksCategorical && r.type.indexOf('時刻候補')!==0)
+      .sort((a,b)=>a.unique-b.unique)[0];
+    if(cand && autofillCodesFromColumn(cand.col)){
+      banner.style.display='none';
+      byId('parseBtn').click();
+    }
+  });
+  const runProfBtn = byId('runProfileFirstBtn');
+  if(runProfBtn) runProfBtn.addEventListener('click', ()=> byId('profileBtn').click());
+}
+function autofillCodesFromColumn(colNum){
+  if(!lastProfileResult){ alert('先に「①列プロファイラで先頭1万行を解析」を実行してください。'); return false; }
+  const colInfo = lastProfileResult[colNum-1];
+  if(!colInfo){ alert('業務区分列の番号が不正です。'); return false; }
+  const codes = Array.from(new Set(colInfo.top.map(([v])=>parseInt(v,10)).filter(n=>!isNaN(n)))).sort((a,b)=>a-b);
+  if(codes.length===0){ alert('この列からは数値コードを検出できませんでした。列番号を見直してください。'); return false; }
+  const codeStr = codes.join(',');
+  byId('colTask').value = colNum;
+  byId('taskStaffCodes').value = codeStr;
+  byId('taskVisitCodes').value = codeStr;
+  readConfigFromForm();
+  refreshSettingsHash();
+  if(DATA){ buildWardTaskFilters(); recomputeAll(); }
+  let msg = `業務区分列を${colNum}に設定し、検出されたコード（${codeStr}）を「係員呼出」「来店カウント」の両方の欄に入力しました。`;
+  if(colInfo.unique>10) msg += `\n注意：この列には10種類を超える値があり、プロファイラは上位10件までしか集計していません。まれにしか出現しないコードが漏れている可能性があるため、上位10件の内訳を確認してください。`;
+  else msg += '\n実際の運用（係員呼出と来店カウントを区別しない発券機）に合わせて、両方を同じコード一覧にしています。区別が必要な場合は個別に編集してください。';
+  logLoad(msg.replace(/\n/g, '\n  '));
+  alert(msg);
+  return true;
+}
+byId('autofillCodesBtn').addEventListener('click', ()=>{
+  readConfigFromForm();
+  autofillCodesFromColumn(CONFIG.colTask);
+});
+
+/* ---------------------------------------------------------------------
+   5. タブ切り替え
+   --------------------------------------------------------------------- */
+document.querySelectorAll('#tabs .tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#tabs .tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    byId('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ---------------------------------------------------------------------
+   6. データ準備後の初期化
+   --------------------------------------------------------------------- */
+function onDataReady(){
+  buildWardTaskFilters();
+  initSimulationControls();
+  recomputeAll();
+}
+
+function buildWardTaskFilters(){
+  const wardDiv = byId('distWardFilter');
+  wardDiv.innerHTML = DATA.wardDict.map((w,i)=>`<label style="display:block;"><input type="checkbox" class="wardChk" value="${i}" checked> ${w}</label>`).join('');
+  const taskDiv = byId('distTaskFilter');
+  const allCodes = Array.from(new Set([...CONFIG.taskStaffCodes, ...CONFIG.taskVisitCodes]));
+  taskDiv.innerHTML = allCodes.map(c=>{
+    const isVisit = CONFIG.taskVisitCodes.includes(c);
+    return `<label style="display:block;"><input type="checkbox" class="taskChk" value="${c}" ${isVisit?'checked':''}> コード${c}${isVisit?'（来店カウント）':'（係員呼出）'}</label>`;
+  }).join('');
+  wardDiv.querySelectorAll('input').forEach(el=>el.addEventListener('change', renderDistribution));
+  taskDiv.querySelectorAll('input').forEach(el=>el.addEventListener('change', renderDistribution));
+}
+
+['distBasis','distStackBy'].forEach(id=>{});
+
+/* ---------------------------------------------------------------------
+   7. 共通フィルタユーティリティ
+   --------------------------------------------------------------------- */
+function periodFilterRange(){
+  const startIdx = CONFIG.periodStart ? DATA.dateDict.indexOf(CONFIG.periodStart) : -1;
+  const endIdx = CONFIG.periodEnd ? DATA.dateDict.indexOf(CONFIG.periodEnd) : -1;
+  return {start: CONFIG.periodStart||null, end: CONFIG.periodEnd||null};
+}
+function inPeriod(dateStr, range){
+  if(range.start && dateStr < range.start) return false;
+  if(range.end && dateStr > range.end) return false;
+  return true;
+}
+
+/* ---------------------------------------------------------------------
+   8. 来庁分布
+   --------------------------------------------------------------------- */
+const WARD_COLORS = ['#4472C4','#ED7D31','#A5A5A5','#FFC000','#5B9BD5','#70AD47','#264478','#9E480E','#636363','#997300','#8FAADC','#F4B183'];
+
+function renderDistribution(){
+  if(!DATA) return;
+  const basis = byId('distBasis').value;
+  const stackBy = byId('distStackBy').value;
+  const secArr = basis==='issue'?DATA.issueSec:basis==='call'?DATA.callSec:DATA.endSec;
+  const checkedWards = new Set(Array.from(document.querySelectorAll('.wardChk:checked')).map(el=>+el.value));
+  const checkedTasks = new Set(Array.from(document.querySelectorAll('.taskChk:checked')).map(el=>+el.value));
+  const range = periodFilterRange();
+
+  const startMin = hmToMin(CONFIG.distStart) ?? 450;
+  const BUCKETS = 40, BUCKET_MIN = 15;
+  const stackKeys = stackBy==='ward' ? DATA.wardDict.map((w,i)=>({key:i,label:w})) : Array.from(checkedTasks).map(c=>({key:c,label:'コード'+c}));
+  const series = {}; // key -> Int32Array(BUCKETS)
+  stackKeys.forEach(k=> series[k.key]=new Int32Array(BUCKETS));
+  let overflow = 0, excluded = 0;
+
+  const n = DATA.n;
+  for(let i=0;i<n;i++){
+    const tc = DATA.taskCode[i];
+    if(!checkedTasks.has(tc)) continue;
+    const wi = DATA.wardIdx[i];
+    if(!checkedWards.has(wi)) continue;
+    const dateStr = DATA.dateDict[DATA.dateIdx[i]];
+    if(!inPeriod(dateStr, range)) continue;
+    const sec = secArr[i];
+    if(sec < 0){ excluded++; continue; }
+    const min = Math.floor(sec/60);
+    let rel = min - startMin; if(rel<0) rel += 1440;
+    const bucket = Math.floor(rel / BUCKET_MIN);
+    if(bucket<0 || bucket>=BUCKETS){ overflow++; continue; }
+    const key = stackBy==='ward' ? wi : tc;
+    if(series[key]) series[key][bucket]++;
+  }
+
+  drawStackedBar(series, stackKeys, BUCKETS, BUCKET_MIN, startMin);
+  renderDistTable(series, stackKeys, BUCKETS, BUCKET_MIN, startMin, overflow, excluded);
+}
+
+function drawStackedBar(series, stackKeys, BUCKETS, BUCKET_MIN, startMin){
+  const canvas = byId('chartCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,W,H);
+
+  const marginL=54, marginR=16, marginT=16, marginB=70;
+  const plotW = W-marginL-marginR, plotH = H-marginT-marginB;
+  let maxTotal = 1;
+  const totals = new Array(BUCKETS).fill(0);
+  for(const k of stackKeys){ const arr=series[k.key]; for(let b=0;b<BUCKETS;b++) totals[b]+=arr[b]; }
+  maxTotal = Math.max(1, ...totals);
+  const niceMax = Math.ceil(maxTotal/10)*10 || 10;
+
+  ctx.strokeStyle = '#d8dce2'; ctx.fillStyle = '#5b6472'; ctx.font='11px sans-serif';
+  ctx.textAlign='right'; ctx.textBaseline='middle';
+  const gridLines = 5;
+  for(let g=0; g<=gridLines; g++){
+    const y = marginT + plotH - (plotH*g/gridLines);
+    ctx.beginPath(); ctx.moveTo(marginL,y); ctx.lineTo(W-marginR,y); ctx.stroke();
+    ctx.fillText(Math.round(niceMax*g/gridLines), marginL-6, y);
+  }
+
+  const barW = plotW / BUCKETS;
+  for(let b=0;b<BUCKETS;b++){
+    let yCursor = marginT+plotH;
+    stackKeys.forEach((k, ki)=>{
+      const v = series[k.key][b];
+      if(v<=0) return;
+      const h = plotH * v / niceMax;
+      ctx.fillStyle = WARD_COLORS[ki % WARD_COLORS.length];
+      ctx.fillRect(marginL + b*barW + 1, yCursor-h, barW-2, h);
+      yCursor -= h;
+    });
+  }
+
+  ctx.strokeStyle = '#1f2937';
+  ctx.beginPath(); ctx.moveTo(marginL, marginT+plotH); ctx.lineTo(W-marginR, marginT+plotH); ctx.stroke();
+
+  ctx.fillStyle = '#5b6472'; ctx.textAlign='center'; ctx.textBaseline='top';
+  for(let b=0;b<BUCKETS;b+=4){
+    const min = (startMin + b*BUCKET_MIN)%1440;
+    ctx.fillText(minToHm(min), marginL + b*barW + barW/2, marginT+plotH+6);
+  }
+  ctx.fillStyle='#1a3c6e'; ctx.font='bold 12px sans-serif';
+  ctx.fillText('時刻（15分刻み）', marginL+plotW/2, marginT+plotH+40);
+
+  ctx.save();
+  ctx.translate(14, marginT+plotH/2); ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='#1a3c6e'; ctx.textAlign='center';
+  ctx.fillText('来庁件数', 0, 0);
+  ctx.restore();
+
+  ctx.font='10.5px sans-serif'; ctx.fillStyle='#5b6472'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  computeSettingsHash().then(h=>{
+    ctx.clearRect(0, H-16, W, 16);
+    ctx.fillText('設定ハッシュ: '+h+' ｜ 生成日時: '+new Date().toLocaleString('ja-JP'), marginL, H-4);
+  });
+
+  const legend = byId('chartLegend');
+  legend.innerHTML = stackKeys.map((k,ki)=>`<span><span class="sw" style="background:${WARD_COLORS[ki%WARD_COLORS.length]}"></span>${k.label}</span>`).join('');
+}
+
+function renderDistTable(series, stackKeys, BUCKETS, BUCKET_MIN, startMin, overflow, excluded){
+  const table = byId('distTable');
+  let html = '<thead><tr><th class="label">時刻帯</th>' + stackKeys.map(k=>`<th>${k.label}</th>`).join('') + '<th>合計</th></tr></thead><tbody>';
+  for(let b=0;b<BUCKETS;b++){
+    const min = (startMin + b*BUCKET_MIN)%1440;
+    const min2 = (min+BUCKET_MIN)%1440;
+    let rowTotal = 0;
+    const cells = stackKeys.map(k=>{ const v=series[k.key][b]; rowTotal+=v; return `<td>${v}</td>`; }).join('');
+    html += `<tr><td class="label">${minToHm(min)}〜${minToHm(min2)}</td>${cells}<td><b>${rowTotal}</b></td></tr>`;
+  }
+  html += `</tbody><tfoot><tr><td class="label">表示範囲外・時刻欠損</td><td colspan="${stackKeys.length}">範囲外 ${overflow}件 / 時刻欠損 ${excluded}件</td><td></td></tr></tfoot>`;
+  table.innerHTML = html;
+}
+
+['distBasis','distStackBy'].forEach(id=> byId(id).addEventListener('change', renderDistribution));
+
+/* ---------------------------------------------------------------------
+   9. シミュレーション
+   --------------------------------------------------------------------- */
+function initSimulationControls(){
+  const ns = hmToMin(CONFIG.newStart), ne = hmToMin(CONFIG.newEnd);
+  byId('simStartRange').value = ns; byId('simEndRange').value = ne;
+  byId('simStartTime').value = CONFIG.newStart; byId('simEndTime').value = CONFIG.newEnd;
+  byId('simStartLabel').textContent = CONFIG.newStart;
+  byId('simEndLabel').textContent = CONFIG.newEnd;
+}
+function syncSimFromRange(which){
+  if(which==='start'){ const v=+byId('simStartRange').value; byId('simStartTime').value=minToHm(v); byId('simStartLabel').textContent=minToHm(v); }
+  else { const v=+byId('simEndRange').value; byId('simEndTime').value=minToHm(v); byId('simEndLabel').textContent=minToHm(v); }
+  renderSimulation();
+}
+function syncSimFromTime(which){
+  if(which==='start'){ const v=hmToMin(byId('simStartTime').value); if(v!=null){ byId('simStartRange').value=v; byId('simStartLabel').textContent=minToHm(v);} }
+  else { const v=hmToMin(byId('simEndTime').value); if(v!=null){ byId('simEndRange').value=v; byId('simEndLabel').textContent=minToHm(v);} }
+  renderSimulation();
+}
+byId('simStartRange').addEventListener('input', ()=>syncSimFromRange('start'));
+byId('simEndRange').addEventListener('input', ()=>syncSimFromRange('end'));
+byId('simStartTime').addEventListener('change', ()=>syncSimFromTime('start'));
+byId('simEndTime').addEventListener('change', ()=>syncSimFromTime('end'));
+byId('simBasis').addEventListener('change', renderSimulation);
+
+function renderSimulation(){
+  if(!DATA) return;
+  const basis = byId('simBasis').value;
+  const secArr = basis==='issue'?DATA.issueSec:basis==='call'?DATA.callSec:DATA.endSec;
+  const curS = hmToMin(CONFIG.curStart), curE = hmToMin(CONFIG.curEnd);
+  const newS = +byId('simStartRange').value, newE = +byId('simEndRange').value;
+  const range = periodFilterRange();
+  const visitSet = new Set(CONFIG.taskVisitCodes);
+
+  let denom=0, inRange=0, front=0, back=0;
+  const rankMap = new Map(); // "ward|task" -> {denom, cut}
+
+  const n = DATA.n;
+  for(let i=0;i<n;i++){
+    if(!visitSet.has(DATA.taskCode[i])) continue;
+    const dateStr = DATA.dateDict[DATA.dateIdx[i]];
+    if(!inPeriod(dateStr, range)) continue;
+    const sec = secArr[i]; if(sec<0) continue;
+    const min = Math.floor(sec/60);
+    if(!(min>=curS && min<curE)) continue;
+    denom++;
+    const key = DATA.wardIdx[i]+'|'+DATA.taskCode[i];
+    if(!rankMap.has(key)) rankMap.set(key, {ward:DATA.wardDict[DATA.wardIdx[i]], task:DATA.taskCode[i], denom:0, cut:0});
+    const rec = rankMap.get(key);
+    rec.denom++;
+    let isIn = min>=newS && min<newE;
+    let isFront = min>=curS && min<newS && newS>curS;
+    let isBack = min>=newE && min<curE && newE<curE;
+    if(isIn) inRange++;
+    if(isFront) front++;
+    if(isBack) back++;
+    if(isFront || isBack) rec.cut++;
+  }
+
+  byId('simDenom').textContent = denom.toLocaleString();
+  byId('simInRange').textContent = inRange.toLocaleString();
+  byId('simInRangePct').textContent = denom>0 ? `母数比 ${(inRange/denom*100).toFixed(1)}%` : '-';
+  byId('simFront').textContent = front.toLocaleString();
+  byId('simBack').textContent = back.toLocaleString();
+
+  const rows = Array.from(rankMap.values()).sort((a,b)=>b.cut-a.cut);
+  const table = byId('simRankTable');
+  let html = '<thead><tr><th class="label">区</th><th class="label">業務区分コード</th><th>現行時間内件数</th><th>短縮対象件数</th><th>短縮対象率</th></tr></thead><tbody>';
+  for(const r of rows){
+    html += `<tr><td class="label">${r.ward}</td><td class="label">${r.task}</td><td>${r.denom.toLocaleString()}</td><td>${r.cut.toLocaleString()}</td><td>${r.denom>0?(r.cut/r.denom*100).toFixed(1):'0.0'}%</td></tr>`;
+  }
+  html += '</tbody>';
+  table.innerHTML = html;
+
+  window._simRows = rows;
+}
+
+/* ---------------------------------------------------------------------
+   10. 時間外勤務削減試算
+   --------------------------------------------------------------------- */
+function renderOvertime(){
+  if(!DATA) return;
+  const baseMin = hmToMin(CONFIG.overtimeBase);
+  const staffSet = new Set(CONFIG.taskStaffCodes);
+  const range = periodFilterRange();
+
+  let count=0, sumSec=0, exNegative=0, exOverMax=0, exMissing=0;
+  const dateSetAll = new Set();
+  const n = DATA.n;
+  for(let i=0;i<n;i++){
+    const dateStr = DATA.dateDict[DATA.dateIdx[i]];
+    if(!inPeriod(dateStr, range)) continue;
+    if(DATA.issueSec[i] >= 0) dateSetAll.add(dateStr);
+    if(!staffSet.has(DATA.taskCode[i])) continue;
+    const issue = DATA.issueSec[i];
+    if(issue < 0) continue;
+    if(Math.floor(issue/60) < baseMin) continue;
+    const call = DATA.callSec[i], end = DATA.endSec[i];
+    if(call<0 || end<0){ exMissing++; continue; }
+    const diff = end - call;
+    if(diff < 0){ exNegative++; continue; }
+    if(diff > CONFIG.processMax*60){ exOverMax++; continue; }
+    count++; sumSec += diff;
+  }
+  const openDays = dateSetAll.size;
+  const avgSec = count>0 ? sumSec/count : 0;
+
+  byId('otCount').textContent = count.toLocaleString();
+  byId('otAvg').textContent = secToHms(avgSec);
+  byId('otSum').textContent = secToHms(sumSec);
+  const excludedTotal = exNegative+exOverMax+exMissing;
+  byId('otExcluded').textContent = excludedTotal.toLocaleString();
+  byId('otExcludeTable').innerHTML = `<thead><tr><th class="label">除外理由</th><th>件数</th></tr></thead><tbody>
+    <tr><td class="label">処理時間が負値</td><td>${exNegative.toLocaleString()}</td></tr>
+    <tr><td class="label">処理時間が上限（${CONFIG.processMax}分）超過</td><td>${exOverMax.toLocaleString()}</td></tr>
+    <tr><td class="label">呼出時刻または終了時刻が欠損</td><td>${exMissing.toLocaleString()}</td></tr>
+  </tbody>`;
+
+  const perDaySec = openDays>0 ? sumSec/openDays : 0;
+  const annualSec = perDaySec * CONFIG.annualWorkdays;
+  const annualHours = annualSec/3600;
+  const annualMoney = annualHours * CONFIG.hourlyWage * CONFIG.staffCount;
+
+  byId('otOpenDays').textContent = openDays.toLocaleString();
+  byId('otPerDay').textContent = secToHms(perDaySec);
+  byId('otAnnualDaysEcho').textContent = CONFIG.annualWorkdays;
+  byId('otAnnualHours').textContent = annualHours.toFixed(1)+' 時間';
+  byId('otWageEcho').textContent = CONFIG.hourlyWage.toLocaleString();
+  byId('otStaffEcho').textContent = CONFIG.staffCount;
+  byId('otAnnualMoney').textContent = Math.round(annualMoney).toLocaleString()+' 円';
+
+  window._otResult = {count, avgSec, sumSec, exNegative, exOverMax, exMissing, openDays, perDaySec, annualHours, annualMoney};
+}
+
+/* ---------------------------------------------------------------------
+   11. 検証モード
+   --------------------------------------------------------------------- */
+const KNOWN_EXPECTED = {
+  total: 781149, currentHours: 750170, newHoursCount: 678389, newHoursRatio: 90.4,
+  front30: 31793, back45: 39988
+};
+let loadedExpected = null;
+
+byId('loadExpectedBtn').addEventListener('click', ()=> byId('expectedInput').click());
+byId('expectedInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      loadedExpected = JSON.parse(reader.result);
+      byId('expectedSource').textContent = '判定基準：expected.json（'+file.name+'）';
+    } catch(err){ alert('expected.json の読み込みに失敗しました: '+err.message); }
+  };
+  reader.readAsText(file);
+});
+
+byId('runValidationBtn').addEventListener('click', runValidation);
+
+function runValidation(){
+  if(!DATA){ alert('先にデータを読み込んで本解析を実行してください。'); return; }
+  const exp = loadedExpected || KNOWN_EXPECTED;
+  const visitSet = new Set(CONFIG.taskVisitCodes);
+  const curS = hmToMin(CONFIG.curStart), curE = hmToMin(CONFIG.curEnd);
+  const newS = hmToMin(CONFIG.newStart), newE = hmToMin(CONFIG.newEnd);
+
+  let total=0, currentHours=0, newHoursCount=0, front=0, back=0;
+  const n = DATA.n;
+  for(let i=0;i<n;i++){
+    if(!visitSet.has(DATA.taskCode[i])) continue;
+    const sec = DATA.issueSec[i]; if(sec<0) continue;
+    const min = Math.floor(sec/60);
+    total++;
+    if(min>=curS && min<curE){
+      currentHours++;
+      if(min>=newS && min<newE) newHoursCount++;
+      if(min>=curS && min<newS) front++;
+      if(min>=newE && min<curE) back++;
+    }
+  }
+  const ratio = currentHours>0 ? newHoursCount/currentHours*100 : 0;
+
+  const rows = [
+    {stage:'①', label:'全レコード数（来店カウント・発券時刻有効）', expected: exp.total, actual: total},
+    {stage:'②', label:'現行受付時間内の母数', expected: exp.currentHours, actual: currentHours},
+    {stage:'③', label:'9:00-16:30内の件数', expected: exp.newHoursCount, actual: newHoursCount},
+    {stage:'③', label:'　└ 母数比（%）', expected: exp.newHoursRatio, actual: Number(ratio.toFixed(1)), isPct:true},
+    {stage:'④', label:'前側短縮（8:30-9:00）件数', expected: exp.front30, actual: front},
+    {stage:'④', label:'後側短縮（16:30-17:15）件数', expected: exp.back45, actual: back},
+    {stage:'⑤', label:'③+④ 合計 = ② （内部整合）', expected: currentHours, actual: newHoursCount+front+back, isInternal:true}
+  ];
+
+  const tbody = document.querySelector('#validationTable tbody');
+  tbody.innerHTML = '';
+  const failStages = [];
+  for(const r of rows){
+    const diff = r.actual - r.expected;
+    const ok = r.isPct ? Math.abs(diff) < 0.05 : diff === 0;
+    if(!ok) failStages.push(r.stage+' '+r.label);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="label">${r.stage}</td><td class="label">${r.label}</td>
+      <td>${r.isPct? r.expected.toFixed(1)+'%' : r.expected.toLocaleString()}</td>
+      <td>${r.isPct? r.actual.toFixed(1)+'%' : r.actual.toLocaleString()}</td>
+      <td>${r.isPct? diff.toFixed(2)+'%' : diff.toLocaleString()}</td>
+      <td>${ok?'<span class="badge ok">一致</span>':'<span class="badge ng">不一致</span>'}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  const diagDiv = byId('validationDiagnosis');
+  if(failStages.length===0){
+    diagDiv.innerHTML = '<span class="badge ok">全段階で一致しました</span>';
+  } else {
+    diagDiv.innerHTML = `<div class="badge ng" style="margin-bottom:6px;">不一致段階: ${failStages.join(' / ')}</div>
+      <div class="hint"><b>原因候補チェックリスト：</b></div>
+      <ul class="checklist hint">
+        <li>母数の取り方：「来店カウント」とみなすコード設定（設定パネルの「来店カウントコード」）が正しいか</li>
+        <li>時刻基準：検証モードは発券時刻固定です。列位置（発券時刻列＝${CONFIG.colIssue}）が正しいか列プロファイラで確認</li>
+        <li>業務区分列（${CONFIG.colTask}）の設定が実データの列とずれていないか</li>
+        <li>境界条件：時間の「以上・未満」の向き（本ツールは開始time以上・終了time未満で判定）</li>
+        <li>期間フィルタ：検証は期間フィルタを無視する仕様だが、読み込んだファイル自体に期間の抜け漏れがないか</li>
+        <li>ファイル名日付抽出・フォルダ区名抽出の正規表現が一部ファイルで失敗し、読み込み対象から漏れていないか（読み込みログを確認）</li>
+        <li>時刻書式（HHMM/HHMMSS/HH:MM:SS）の判定が実データと合っているか</li>
+      </ul>`;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   12. エクスポート（CSV=BOM付きUTF-8 / TSV=クリップボード / PNG）
+   --------------------------------------------------------------------- */
+function tableElementToRows(tableEl){
+  const rows = [];
+  tableEl.querySelectorAll('tr').forEach(tr=>{
+    const cells = Array.from(tr.children).map(td=>td.textContent.trim());
+    rows.push(cells);
+  });
+  return rows;
+}
+function timestampSuffix(){
+  const d = new Date();
+  const p2 = n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}_${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`;
+}
+async function downloadCsv(rows, filename){
+  const hash = await computeSettingsHash();
+  const meta = [
+    ['# 生成日時', new Date().toLocaleString('ja-JP')],
+    ['# 設定ハッシュ', hash],
+    ['# ファイル', filename],
+    []
+  ];
+  const all = meta.concat(rows);
+  const csv = all.map(r=>r.map(v=>{
+    v = String(v);
+    return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+  }).join(',')).join('\r\n');
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(a.href);
+}
+async function copyTsv(rows){
+  const tsv = rows.map(r=>r.join('\t')).join('\n');
+  try{ await navigator.clipboard.writeText(tsv); alert('クリップボードにコピーしました。'); }
+  catch(e){
+    const ta = document.createElement('textarea'); ta.value = tsv; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove();
+    alert('クリップボードにコピーしました。');
+  }
+}
+function exportCanvasPng(canvas, filename){
+  canvas.toBlob((blob)=>{
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(a.href);
+  }, 'image/png');
+}
+
+byId('exportDistCsv').addEventListener('click', ()=> downloadCsv(tableElementToRows(byId('distTable')), `visit_distribution_${timestampSuffix()}.csv`));
+byId('exportDistTsv').addEventListener('click', ()=> copyTsv(tableElementToRows(byId('distTable'))));
+byId('exportDistPng').addEventListener('click', ()=> exportCanvasPng(byId('chartCanvas'), `visit_distribution_${timestampSuffix()}.png`));
+byId('exportSimCsv').addEventListener('click', ()=> downloadCsv(tableElementToRows(byId('simRankTable')), `simulation_ranking_${timestampSuffix()}.csv`));
+byId('exportSimTsv').addEventListener('click', ()=> copyTsv(tableElementToRows(byId('simRankTable'))));
+byId('exportOtCsv').addEventListener('click', ()=>{
+  const r = window._otResult || {};
+  const rows = [
+    ['項目','値'],
+    ['対象件数', r.count??''], ['平均処理時間(秒)', r.avgSec?.toFixed(1)??''], ['合計処理時間(秒)', r.sumSec??''],
+    ['除外(負値)', r.exNegative??''], ['除外(上限超)', r.exOverMax??''], ['除外(欠損)', r.exMissing??''],
+    ['実開庁日数', r.openDays??''], ['1日あたり削減時間(秒)', r.perDaySec?.toFixed(1)??''],
+    ['年間削減時間(h)', r.annualHours?.toFixed(1)??''], ['年間削減金額(円)', Math.round(r.annualMoney||0)]
+  ];
+  downloadCsv(rows, `overtime_reduction_${timestampSuffix()}.csv`);
+});
+byId('exportOtTsv').addEventListener('click', ()=>{
+  const r = window._otResult || {};
+  const rows = [['項目','値'],['対象件数', r.count??''],['平均処理時間(秒)', r.avgSec?.toFixed(1)??''],['合計処理時間(秒)', r.sumSec??''],
+    ['実開庁日数', r.openDays??''],['年間削減時間(h)', r.annualHours?.toFixed(1)??''],['年間削減金額(円)', Math.round(r.annualMoney||0)]];
+  copyTsv(rows);
+});
+
+/* ---------------------------------------------------------------------
+   13. 設定パネルのイベント／再計算
+   --------------------------------------------------------------------- */
+function recomputeAll(){
+  if(!DATA) return;
+  renderDistribution();
+  renderSimulation();
+  renderOvertime();
+}
+document.querySelectorAll('#settingsPanel input, #settingsPanel select').forEach(el=>{
+  el.addEventListener('change', ()=>{
+    readConfigFromForm();
+    refreshSettingsHash();
+    if(DATA){ buildWardTaskFilters(); recomputeAll(); }
+  });
+});
+
+byId('exportSettingsBtn').addEventListener('click', ()=>{
+  readConfigFromForm();
+  const blob = new Blob([JSON.stringify(CONFIG,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `reception_sim_settings_${timestampSuffix()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+});
+byId('importSettingsBtn').addEventListener('click', ()=> byId('importSettingsInput').click());
+byId('importSettingsInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const imported = JSON.parse(reader.result);
+      CONFIG = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), imported);
+      writeConfigToForm(); refreshSettingsHash();
+      if(DATA){ buildWardTaskFilters(); recomputeAll(); }
+    } catch(err){ alert('設定JSONの読み込みに失敗しました: '+err.message); }
+  };
+  reader.readAsText(file);
+});
+byId('resetSettingsBtn').addEventListener('click', ()=>{
+  CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  writeConfigToForm(); refreshSettingsHash();
+  if(DATA){ buildWardTaskFilters(); recomputeAll(); }
+});
+
+/* ---------------------------------------------------------------------
+   14. 初期化
+   --------------------------------------------------------------------- */
+writeConfigToForm();
+refreshSettingsHash();
+byId('footerTime').textContent = new Date().toLocaleString('ja-JP');
+
+})();
+</script>
+</body>
+</html>
