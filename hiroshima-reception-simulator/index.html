@@ -772,29 +772,44 @@ function yieldToBrowser(){
   // Chromeの「ページが応答していません」検知が誤って発動することがあるため。
   return new Promise(resolve => setTimeout(resolve, 0));
 }
+let lastYieldTime = performance.now();
+async function maybeYield(thresholdMs){
+  // ファイル数ベースではなく経過時間ベースで譲歩する。
+  // ネットワークドライブやOneDrive同期フォルダ等、1ファイルあたりの
+  // I/Oが遅い環境でも、一定時間ごとに確実にブラウザへ制御を返すため。
+  if(performance.now() - lastYieldTime > (thresholdMs||50)){
+    await yieldToBrowser();
+    lastYieldTime = performance.now();
+  }
+}
+function readEntriesOnce(reader){
+  return new Promise((resolve, reject)=> reader.readEntries(resolve, reject));
+}
+async function readAllEntries(reader, pathLabel){
+  const entries = [];
+  while(true){
+    let batch;
+    try{
+      batch = await readEntriesOnce(reader);
+    } catch(err){
+      logLoad(`  警告: フォルダ読み取りに失敗しました（${pathLabel}）: ${err && err.message ? err.message : err}`);
+      break;
+    }
+    if(batch.length===0) break;
+    entries.push(...batch);
+    await maybeYield();
+  }
+  return entries;
+}
 async function walkEntry(entry, pathPrefix, out){
   if(entry.isFile){
     await new Promise((resolve)=>{
       entry.file((file)=>{ out.push({fileObj:file, name:file.name, relPath: pathPrefix + file.name}); resolve(); }, ()=>resolve());
     });
-    if(out.length % 30 === 0){
-      logLoad(`  フォルダ走査中... ${out.length}件検出`);
-      await yieldToBrowser();
-    }
+    if(out.length % 100 === 0) logLoad(`  フォルダ走査中... ${out.length}件検出`);
+    await maybeYield();
   } else if(entry.isDirectory){
-    const reader = entry.createReader();
-    const readAll = () => new Promise((resolve)=>{
-      const entries = [];
-      const readBatch = () => {
-        reader.readEntries((batch)=>{
-          if(batch.length===0){ resolve(entries); return; }
-          entries.push(...batch);
-          readBatch();
-        }, (err)=>{ logLoad(`  警告: フォルダ読み取りに失敗しました（${pathPrefix + entry.name}）: ${err && err.message ? err.message : err}`); resolve(entries); });
-      };
-      readBatch();
-    });
-    const entries = await readAll();
+    const entries = await readAllEntries(entry.createReader(), pathPrefix + entry.name);
     for(const child of entries){
       await walkEntry(child, pathPrefix + entry.name + '/', out);
     }
