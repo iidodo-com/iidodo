@@ -1,114 +1,12 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>私だったらどう答えるか</title>
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-<div class="app">
-  <header class="app-header">
-    <h1>私だったら、どう答えるか</h1>
-    <p class="subtitle">自分の価値観・口調・過去の判断を登録して、新しい質問に「自分らしい答え」を作るアプリ</p>
-  </header>
-
-  <nav class="tabs">
-    <button class="tab-btn active" data-tab="ask">質問する</button>
-    <button class="tab-btn" data-tab="profile">プロフィール</button>
-    <button class="tab-btn" data-tab="history">履歴</button>
-    <button class="tab-btn" data-tab="settings">設定</button>
-  </nav>
-
-  <main>
-    <!-- 質問する -->
-    <section id="tab-ask" class="tab-panel active">
-      <label class="field-label" for="question-input">質問・お題を入力してください</label>
-      <textarea id="question-input" rows="3" placeholder="例：転職するべきか迷っています。どう考えますか？"></textarea>
-      <div class="btn-row">
-        <button id="ask-btn" class="primary-btn">私ならどう答える？</button>
-      </div>
-
-      <div id="answer-box" class="answer-box hidden">
-        <div class="answer-meta">
-          <span id="answer-source-badge" class="badge"></span>
-        </div>
-        <p id="answer-text"></p>
-        <div class="btn-row">
-          <button id="regenerate-btn" class="secondary-btn">もう一度生成</button>
-          <button id="save-history-btn" class="secondary-btn">履歴に保存</button>
-        </div>
-      </div>
-      <p id="ask-error" class="error-text hidden"></p>
-    </section>
-
-    <!-- プロフィール -->
-    <section id="tab-profile" class="tab-panel">
-      <p class="section-desc">ここに登録した内容をもとに「自分ならどう答えるか」を組み立てます。詳しく書くほど精度が上がります。</p>
-
-      <label class="field-label" for="profile-name">呼び名（任意）</label>
-      <input id="profile-name" type="text" placeholder="例：たかし">
-
-      <label class="field-label" for="profile-personality">性格・考え方の特徴</label>
-      <textarea id="profile-personality" rows="3" placeholder="例：慎重派だが一度決めたら行動が早い。人の感情を優先しがち。"></textarea>
-
-      <label class="field-label" for="profile-tone">話し方・口癖</label>
-      <textarea id="profile-tone" rows="2" placeholder="例：「正直に言うと〜」「結論から言うと〜」とよく言う。断定より提案口調。"></textarea>
-
-      <label class="field-label" for="profile-values-input">大切にしている価値観（1つずつ追加）</label>
-      <div class="chip-input-row">
-        <input id="profile-values-input" type="text" placeholder="例：家族との時間">
-        <button id="add-value-btn" class="secondary-btn">追加</button>
-      </div>
-      <div id="values-list" class="chip-list"></div>
-
-      <label class="field-label">過去に自分が答えた質問と回答（参考例）</label>
-      <div class="qa-form">
-        <input id="qa-question-input" type="text" placeholder="過去の質問（例：副業を始めるべき？）">
-        <textarea id="qa-answer-input" rows="2" placeholder="その時の自分の回答"></textarea>
-        <button id="add-qa-btn" class="secondary-btn">この例を追加</button>
-      </div>
-      <div id="qa-examples-list" class="qa-list"></div>
-
-      <div class="btn-row">
-        <button id="save-profile-btn" class="primary-btn">プロフィールを保存</button>
-      </div>
-      <p id="profile-saved-msg" class="saved-msg hidden">保存しました</p>
-    </section>
-
-    <!-- 履歴 -->
-    <section id="tab-history" class="tab-panel">
-      <p class="section-desc">保存した「私ならこう答える」の記録です。</p>
-      <div id="history-list" class="history-list"></div>
-      <p id="history-empty-msg" class="empty-msg hidden">まだ履歴がありません。</p>
-    </section>
-
-    <!-- 設定 -->
-    <section id="tab-settings" class="tab-panel">
-      <p class="section-desc">
-        Anthropic APIキーを設定すると、Claudeがプロフィール・過去の回答例をもとに、より自然な「自分ならこう答える」を生成します。
-        設定しない場合は、登録した価値観・過去回答から簡易的に回答を組み立てます。
-      </p>
-      <label class="field-label" for="api-key-input">Anthropic APIキー（任意）</label>
-      <input id="api-key-input" type="password" placeholder="sk-ant-...">
-      <p class="warn-text">
-        ⚠ このキーはブラウザのlocalStorageにのみ保存され、入力時に直接Anthropic APIへ送信されます。
-        共有端末や公開環境では入力しないでください。
-      </p>
-      <div class="btn-row">
-        <button id="save-key-btn" class="primary-btn">キーを保存</button>
-        <button id="clear-key-btn" class="secondary-btn">キーを削除</button>
-      </div>
-      <p id="key-saved-msg" class="saved-msg hidden"></p>
-
-      <hr>
-      <div class="btn-row">
-        <button id="clear-all-btn" class="danger-btn">全データを削除（プロフィール・履歴・キー）</button>
-      </div>
-    </section>
-  </main>
-</div>
-
-<script src="app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>私ならこう答える</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
