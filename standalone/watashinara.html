@@ -122,6 +122,15 @@
   .diff-before { color: #999; text-decoration: line-through; }
   .diff-reason { color: #888; font-size: 12px; margin-top: 2px; }
   footer { text-align: center; color: #aaa; font-size: 11px; padding: 24px 0; }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 1000;
+  }
+  .modal-box {
+    background: #fff; border-radius: 8px; padding: 20px;
+    max-width: 640px; width: 100%; max-height: 90vh; overflow-y: auto;
+  }
 </style>
 </head>
 <body>
@@ -286,6 +295,7 @@ const DEFAULT_MODEL = "claude-sonnet-4-6";
    ========================================================= */
 
 const LS_KEYS = {
+  mode: "wnk.mode",
   apiKey: "wnk.apiKey",
   model: "wnk.model",
   persona: "wnk.context.persona",
@@ -295,6 +305,7 @@ const LS_KEYS = {
   learned: "wnk.context.learned",
   history: "wnk.history",
 };
+const DEFAULT_MODE = "copy"; // "copy": claude.aiにコピペ／"api": APIキーで自動呼び出し
 
 function lsGet(key, fallback) {
   const v = localStorage.getItem(key);
@@ -309,6 +320,7 @@ function initDefaults() {
   if (localStorage.getItem(LS_KEYS.precedents) === null) lsSet(LS_KEYS.precedents, DEFAULT_PRECEDENTS);
   if (localStorage.getItem(LS_KEYS.learned) === null) lsSet(LS_KEYS.learned, "");
   if (localStorage.getItem(LS_KEYS.model) === null) lsSet(LS_KEYS.model, DEFAULT_MODEL);
+  if (localStorage.getItem(LS_KEYS.mode) === null) lsSet(LS_KEYS.mode, DEFAULT_MODE);
 }
 
 function getContext() {
@@ -493,13 +505,83 @@ function buildLearnUserMessage(input) {
 }
 
 /* =========================================================
-   4. Anthropic API 呼び出し（ブラウザから直接）
+   4. Claude呼び出し（APIキー直接 / claude.aiへのコピペ の2方式）
    ========================================================= */
 
 function stripCodeFence(text) {
   const trimmed = text.trim();
   const m = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
   return m ? m[1] : trimmed;
+}
+
+// claude.aiにコピペしてもらう方式。オーバーレイを出し、貼り付けられた
+// 返信テキストで解決するPromiseを返す。キャンセル時はreject。
+function askViaClaudeAi(promptText) {
+  return new Promise((resolve, reject) => {
+    const overlay = el("div", { class: "modal-overlay" });
+    const box = el("div", { class: "modal-box" });
+
+    box.appendChild(el("h3", { style: "margin-top:0;" }, ["claude.aiにコピペしてください"]));
+    box.appendChild(el("div", { class: "muted", style: "margin-bottom:8px;" }, [
+      "① 下のテキストをコピー　→　② 「claude.aiを開く」で新しいチャットに貼り付けて送信　→　" +
+      "③ Claudeの返信全文をコピー　→　④ 一番下の欄に貼り付けて「読み込む」を押してください。",
+    ]));
+
+    const promptArea = el("textarea", { rows: "8", readonly: "true" });
+    promptArea.value = promptText;
+    box.appendChild(promptArea);
+
+    const btnRow = el("div", { class: "row", style: "margin-top:8px;" });
+    btnRow.appendChild(copyButton(() => promptText));
+    const openBtn = el("button", { class: "btn secondary small" }, ["claude.aiを開く"]);
+    openBtn.addEventListener("click", () => window.open("https://claude.ai/new", "_blank"));
+    btnRow.appendChild(openBtn);
+    box.appendChild(btnRow);
+
+    box.appendChild(el("label", { class: "field-label", style: "margin-top:16px;" }, ["Claudeの返信をここに貼り付け"]));
+    const pasteArea = el("textarea", { rows: "8" });
+    box.appendChild(pasteArea);
+
+    const errorMsg = el("div", { class: "error-box", style: "display:none; margin-top:8px;" });
+    box.appendChild(errorMsg);
+
+    const actionRow = el("div", { class: "row", style: "margin-top:10px;" });
+    const loadBtn = el("button", { class: "btn small" }, ["読み込む"]);
+    const cancelBtn = el("button", { class: "btn secondary small" }, ["キャンセル"]);
+    loadBtn.addEventListener("click", () => {
+      const text = pasteArea.value.trim();
+      if (!text) {
+        errorMsg.style.display = "block";
+        errorMsg.textContent = "貼り付け欄が空です。";
+        return;
+      }
+      document.body.removeChild(overlay);
+      resolve(text);
+    });
+    cancelBtn.addEventListener("click", () => {
+      document.body.removeChild(overlay);
+      reject(new Error("キャンセルされました。"));
+    });
+    actionRow.appendChild(loadBtn);
+    actionRow.appendChild(cancelBtn);
+    box.appendChild(actionRow);
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    pasteArea.focus();
+  });
+}
+
+// 現在の実行方式（"api" または "copy"）に応じて、システムプロンプトと
+// ユーザーメッセージからClaudeの生テキスト応答を得る。呼び出し側は
+// この関数だけを使い、方式の違いを意識しなくてよい。
+async function getClaudeResponse(system, userMessage) {
+  const mode = lsGet(LS_KEYS.mode, DEFAULT_MODE);
+  if (mode === "api") {
+    return callClaude(system, userMessage);
+  }
+  const combined = system + "\n\n---\n\n" + userMessage;
+  return askViaClaudeAi(combined);
 }
 
 async function callClaude(system, userMessage) {
@@ -553,7 +635,20 @@ async function callClaude(system, userMessage) {
 }
 
 function parseJsonResponse(text) {
-  return JSON.parse(stripCodeFence(text));
+  const cleaned = stripCodeFence(text);
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    // claude.aiのチャット画面から貼り付けた場合、JSONの前後に
+    // 挨拶文などが混ざることがあるため、最初の{から最後の}までを
+    // 抜き出して再試行する。
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      return JSON.parse(text.slice(start, end + 1));
+    }
+    throw e;
+  }
 }
 
 function getLearnedLines(learnedText) {
@@ -727,7 +822,7 @@ async function generateDraft(text) {
     const ctx = getContext();
     const system = buildSystemPrompt(ctx, "draft");
     const userMessage = buildDraftUserMessage({ text, recipient: s.recipient, scene: s.scene, length: s.length });
-    const raw = await callClaude(system, userMessage);
+    const raw = await getClaudeResponse(system, userMessage);
     const output = parseJsonResponse(raw);
     const entry = {
       id: crypto.randomUUID(),
@@ -812,7 +907,7 @@ async function submitFeedback(historyId, verdict, editedText) {
         recipient: entry.input.recipient,
         scene: entry.input.scene,
       });
-      const raw = await callClaude(system, userMessage);
+      const raw = await getClaudeResponse(system, userMessage);
       const extraction = parseJsonResponse(raw);
       await applyLearnedRuleUpdate(extraction.action, extraction.target_index, extraction.rule);
       ruleUpdate = { action: extraction.action, rule: extraction.rule };
@@ -952,7 +1047,7 @@ async function generateCritique(text, myAnswer) {
     const ctx = getContext();
     const system = buildSystemPrompt(ctx, "wallbounce_critique");
     const userMessage = buildWallbounceUserMessage({ text, myAnswer, recipient: s.recipient, scene: s.scene });
-    const raw = await callClaude(system, userMessage);
+    const raw = await getClaudeResponse(system, userMessage);
     const output = parseJsonResponse(raw);
     appendHistory({
       id: crypto.randomUUID(),
@@ -979,7 +1074,7 @@ async function generateEdit(text, myAnswer) {
     const ctx = getContext();
     const system = buildSystemPrompt(ctx, "wallbounce_edit");
     const userMessage = buildWallbounceEditUserMessage({ text, myAnswer });
-    const raw = await callClaude(system, userMessage);
+    const raw = await getClaudeResponse(system, userMessage);
     const output = parseJsonResponse(raw);
     appendHistory({
       id: crypto.randomUUID(),
@@ -1100,9 +1195,33 @@ function renderHistoryTab(root) {
 function renderSettingsTab(root) {
   const wrap = el("div");
 
+  // 実行方法（APIキー直接 or claude.aiへコピペ）
+  const modeSection = el("div", { class: "settings-section" });
+  modeSection.appendChild(el("h3", null, ["回答生成の実行方法"]));
+  const currentMode = lsGet(LS_KEYS.mode, DEFAULT_MODE);
+  const modeChips = el("div", { class: "chips" });
+  const modeOptions = [
+    { value: "copy", label: "claude.aiにコピペする（APIキー不要）" },
+    { value: "api", label: "APIキーで自動呼び出し" },
+  ];
+  modeOptions.forEach((opt) => {
+    const chip = el("button", {
+      class: "chip" + (currentMode === opt.value ? " selected" : ""),
+      type: "button",
+      onclick: () => { lsSet(LS_KEYS.mode, opt.value); render(); },
+    }, [opt.label]);
+    modeChips.appendChild(chip);
+  });
+  modeSection.appendChild(modeChips);
+  modeSection.appendChild(el("div", { class: "muted", style: "margin-top:6px;" }, [
+    "「claude.aiにコピペする」を選ぶと、生成のたびに文章をコピー→claude.aiに貼り付け→" +
+    "返信をアプリに貼り戻す、という手順になります。追加費用はかかりません。",
+  ]));
+  wrap.appendChild(modeSection);
+
   // APIキー
   const apiSection = el("div", { class: "settings-section" });
-  apiSection.appendChild(el("h3", null, ["Anthropic APIキー"]));
+  apiSection.appendChild(el("h3", null, ["Anthropic APIキー", el("span", { class: "muted" }, ["（「APIキーで自動呼び出し」を選んだ場合のみ必要）"])]));
   apiSection.appendChild(el("div", { class: "warn-box" }, [
     "このキーはブラウザのlocalStorageに平文で保存されます。共有PCでは使用後に「キーを削除」してください。" +
     "自分専用のPCであれば、通常は保存したままで問題ありません。",
@@ -1199,6 +1318,11 @@ function renderSettingsTab(root) {
 
 function updateStatusLine() {
   const statusLine = document.getElementById("statusLine");
+  const mode = lsGet(LS_KEYS.mode, DEFAULT_MODE);
+  if (mode === "copy") {
+    statusLine.textContent = "claude.aiコピペモード（APIキー不要）";
+    return;
+  }
   const hasKey = !!lsGet(LS_KEYS.apiKey, "");
   statusLine.textContent = hasKey ? "APIキー設定済み" : "APIキー未設定（設定タブで入力してください）";
 }
