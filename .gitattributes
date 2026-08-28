@@ -1,4 +1,0 @@
-# start.bat は Windows のコマンドプロンプトが正しく解釈できるよう
-# Shift-JIS (CP932) で保存している。改行コード変換やエンコーディング変換を
-# 一切行わせないため binary 扱いにする。
-start.bat binary
