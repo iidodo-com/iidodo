@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>庁内会議 録音＋文字起こしツール</title>
+<style>
+  :root {
+    --bg: #f5f4f1;
+    --surface: #ffffff;
+    --border: #e2e0da;
+    --text: #2a2823;
+    --text-muted: #726e64;
+    --accent: #b5602f;
+    --accent-hover: #9c4f24;
+    --accent-soft: #f1e3d8;
+    --danger: #b3402f;
+    --danger-soft: #fbe4e0;
+    --safe: #3a7a4a;
+    --safe-soft: #e2f1e6;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .app { max-width: 860px; margin: 0 auto; padding: 0 16px 64px; }
+  .status-banner {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    padding: 12px 16px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-align: center;
+  }
+  .status-banner-safe { background: var(--safe-soft); color: var(--safe); }
+  .status-banner-warn { background: var(--danger-soft); color: var(--danger); }
+  .app-header { padding: 20px 0 4px; }
+  .app-header h1 { font-size: 1.4rem; margin: 0 0 6px; }
+  .subtitle { color: var(--text-muted); margin: 0 0 8px; font-size: 0.88rem; }
+  section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-top: 16px;
+  }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  .field-label { display: block; font-size: 0.85rem; font-weight: 600; margin: 14px 0 6px; }
+  .section-desc { color: var(--text-muted); font-size: 0.88rem; margin: 0 0 10px; }
+  textarea, input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.95rem;
+    font-family: inherit;
+    resize: vertical;
+  }
+  textarea:focus, input:focus { outline: none; border-color: var(--accent); }
+  .btn-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .primary-btn, .secondary-btn, .danger-btn {
+    border: none;
+    border-radius: var(--radius);
+    padding: 10px 18px;
+    font-size: 0.92rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .primary-btn { background: var(--accent); color: #fff; }
+  .primary-btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .secondary-btn { background: var(--accent-soft); color: var(--accent-hover); }
+  .secondary-btn:hover:not(:disabled) { background: #e7d3c1; }
+  .danger-btn { background: var(--danger-soft); color: var(--danger); }
+  .danger-btn:hover:not(:disabled) { background: #f5cec7; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .timer-display {
+    font-size: 2.6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    margin: 6px 0 12px;
+  }
+  .level-meter-track {
+    height: 18px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+  .level-meter-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--safe), var(--accent) 70%, var(--danger) 100%);
+    transition: width 60ms linear;
+  }
+  .level-meter-label { font-size: 0.78rem; color: var(--text-muted); text-align: right; }
+  .warn-text {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    background: var(--accent-soft);
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    margin-top: 8px;
+  }
+  .warn-text.strong { background: var(--danger-soft); color: var(--danger); font-weight: 600; }
+  .safe-text {
+    font-size: 0.82rem;
+    color: var(--safe);
+    background: var(--safe-soft);
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    margin-top: 8px;
+  }
+  .mode-option {
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .mode-option input { margin-right: 8px; }
+  .mode-panel { margin-top: 8px; padding-left: 26px; }
+  progress { width: 100%; height: 14px; border-radius: 999px; overflow: hidden; }
+  #transcript-output { min-height: 260px; white-space: pre-wrap; }
+  .hidden { display: none !important; }
+  #global-error-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    max-width: 90%;
+    background: var(--danger);
+    color: #fff;
+    padding: 12px 18px;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+    z-index: 100;
+  }
+  #segment-status-list { list-style: none; padding: 0; margin: 8px 0 0; font-size: 0.82rem; color: var(--text-muted); }
+  #segment-status-list li { padding: 2px 0; }
+  #transcription-progress { font-weight: 600; margin: 8px 0; }
+  .recovery-item {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+<header id="status-banner" class="status-banner status-banner-safe" role="status" aria-live="polite">現在のモード: 録音のみ ／ 音声は外部に送信されません</header>
+
+<div class="app">
+  <div class="app-header">
+    <h1>庁内会議 録音＋文字起こしツール</h1>
+    <p class="subtitle">このページはインターネットに接続されたサーバーには送信されません（Geminiモード選択時を除く）。ブラウザを閉じるとAPIキーなど一時情報は消去されます。</p>
+  </div>
+
+  <section id="section-recovery" hidden>
+    <h2>前回の録音データが見つかりました</h2>
+    <p class="section-desc">ページが閉じられる前に自動保存された録音データです。必要に応じてダウンロードまたは削除してください。</p>
+    <div id="recovery-list"></div>
+  </section>
+
+  <section id="section-recording">
+    <h2>1. 録音</h2>
+    <button id="btn-mic-permission" class="secondary-btn">マイクへのアクセスを許可</button>
+
+    <div class="level-meter-track" style="margin-top:14px;">
+      <div id="level-meter-fill" class="level-meter-fill"></div>
+    </div>
+    <div class="level-meter-label" id="level-meter-label">マイク未許可</div>
+
+    <div id="timer-display" class="timer-display">00:00</div>
+
+    <div class="btn-row">
+      <button id="btn-start" class="primary-btn" disabled>録音開始</button>
+      <button id="btn-pause" class="secondary-btn" disabled>一時停止</button>
+      <button id="btn-resume" class="secondary-btn" disabled hidden>再開</button>
+      <button id="btn-stop" class="danger-btn" disabled>停止</button>
+    </div>
+    <div class="btn-row">
+      <button id="btn-download-audio" class="secondary-btn" disabled>音声ファイルをダウンロード（.webm）</button>
+      <button id="btn-delete-session-data" class="danger-btn" disabled>この録音の自動保存データを端末から削除</button>
+    </div>
+    <p class="warn-text">録音は一定時間ごとに内部的に区切られます（区切りの瞬間に数十ミリ秒程度の録音断が生じる場合があります）。録音中は下記のモード選択を変更できません。</p>
+  </section>
+
+  <section id="section-mode">
+    <h2>2. 文字起こしモードの選択</h2>
+
+    <label class="mode-option">
+      <input type="radio" name="mode" value="a" id="mode-a">
+      (A) ローカル処理 — 音声を外部に送信せず、ブラウザ内だけで文字起こしします
+    </label>
+    <div class="mode-panel" id="panel-mode-a" hidden>
+      <p class="safe-text">音声は外部に送信されません（すべてこのブラウザ内で処理されます）。</p>
+      <p class="warn-text">このモードは話者を区別できません（「話者A／話者B」のような分離は行われません）。話者を分けたい場合は (B) Gemini API モードをご検討ください。</p>
+      <p class="warn-text">初回利用時は文字起こしAIモデル（数十MB〜）のダウンロードが必要です。会議開始前に済ませておくことをおすすめします。</p>
+      <div id="model-load-progress-wrap" hidden>
+        <label class="field-label" for="model-load-progress-bar">モデル読み込み中…</label>
+        <progress id="model-load-progress-bar" max="100" value="0"></progress>
+        <div id="model-load-progress-text" style="font-size:0.82rem;color:var(--text-muted);">0%</div>
+      </div>
+    </div>
+
+    <label class="mode-option">
+      <input type="radio" name="mode" value="b" id="mode-b">
+      (B) Gemini API — ユーザーのAPIキーで音声をGoogleのサーバーに送信して文字起こしします
+    </label>
+    <div class="mode-panel" id="panel-mode-b" hidden>
+      <p class="warn-text strong">⚠ 音声は外部（Gemini API）に送信されます。庁内会議の音声を外部送信するため、利用前に所属の情報セキュリティ担当の確認が必要です。</p>
+      <label class="field-label" for="gemini-api-key-input">Gemini APIキー</label>
+      <input type="password" id="gemini-api-key-input" placeholder="APIキーを入力してください" autocomplete="off">
+      <p class="warn-text">このAPIキーはブラウザのメモリ上にのみ保持され、保存されません。ページを閉じる・再読み込みすると自動的に消去されます（漏洩防止のため意図的にlocalStorage等へは保存していません）。</p>
+    </div>
+
+    <label class="mode-option">
+      <input type="radio" name="mode" value="c" id="mode-c" checked>
+      (C) 録音のみ — 文字起こしは行わず、音声ファイルの保存だけを行います
+    </label>
+    <div class="mode-panel" id="panel-mode-c" hidden>
+      <p class="safe-text">音声は外部に送信されません。文字起こしも行われません（録音・保存のみ）。</p>
+    </div>
+  </section>
+
+  <section id="section-glossary">
+    <h2>3. 用語辞書（固有名詞）</h2>
+    <p class="section-desc">1行につき1語で入力してください。(B)モードではAIへの参考情報として渡され、(A)モードでは文字起こし結果への置換補正に使われます。</p>
+    <label class="field-label" for="glossary-terms">用語一覧</label>
+    <textarea id="glossary-terms" rows="8"></textarea>
+  </section>
+
+  <section id="section-output">
+    <h2>4. 文字起こし結果</h2>
+    <div id="transcription-progress-wrap" hidden>
+      <div id="transcription-progress">0 / 0 セグメント処理中</div>
+      <ul id="segment-status-list"></ul>
+    </div>
+    <label class="field-label" for="transcript-output">結果（直接編集できます）</label>
+    <textarea id="transcript-output" rows="14"></textarea>
+    <div class="btn-row">
+      <button id="btn-copy" class="secondary-btn">クリップボードにコピー</button>
+      <button id="btn-save-txt" class="secondary-btn">.txtで保存</button>
+    </div>
+  </section>
+</div>
+
+<div id="global-error-toast" role="alert" aria-live="assertive" hidden></div>
+
+<script type="module">
+// ===== CONFIG =====
+const CONFIG = {
+  SEGMENT_DURATION_MS_DEFAULT: 10 * 60 * 1000, // モード(A)/(C): 10分。動作確認時は 30 * 1000 に変更可
+  SEGMENT_DURATION_MS_GEMINI: 5 * 60 * 1000,   // モード(B): 5分（Gemini inline_data 20MB上限対策）
+  WHISPER_MODEL_ID: 'Xenova/whisper-base',
+  TRANSFORMERS_JS_URL: 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2',
+  GEMINI_MODEL: 'gemini-2.5-pro',
+  GEMINI_ENDPOINT: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
+  GEMINI_MAX_RAW_BYTES: 14 * 1024 * 1024, // raw WAV bytes cap (~18.7MB after base64, under 20MB inline_data limit)
+  DB_NAME: 'iidodo_recording_transcription_db',
+  DB_VERSION: 1,
+  STORE_NAME: 'chunks',
+  DEFAULT_GLOSSARY: [
+    '窓口受付時間短縮',
+    '発券機データ',
+    '公用財産',
+    '公共用財産',
+    '債務負担行為',
+    '行政経営課',
+    '所管課',
+  ],
+};
+
+// ===== DOM =====
+const DOM = {
+  statusBanner: document.getElementById('status-banner'),
+  sectionRecovery: document.getElementById('section-recovery'),
+  recoveryList: document.getElementById('recovery-list'),
+  btnMicPermission: document.getElementById('btn-mic-permission'),
+  levelMeterFill: document.getElementById('level-meter-fill'),
+  levelMeterLabel: document.getElementById('level-meter-label'),
+  timerDisplay: document.getElementById('timer-display'),
+  btnStart: document.getElementById('btn-start'),
+  btnPause: document.getElementById('btn-pause'),
+  btnResume: document.getElementById('btn-resume'),
+  btnStop: document.getElementById('btn-stop'),
+  btnDownloadAudio: document.getElementById('btn-download-audio'),
+  btnDeleteSessionData: document.getElementById('btn-delete-session-data'),
+  modeRadios: Array.from(document.querySelectorAll('input[name="mode"]')),
+  panelModeA: document.getElementById('panel-mode-a'),
+  panelModeB: document.getElementById('panel-mode-b'),
+  panelModeC: document.getElementById('panel-mode-c'),
+  modelLoadProgressWrap: document.getElementById('model-load-progress-wrap'),
+  modelLoadProgressBar: document.getElementById('model-load-progress-bar'),
+  modelLoadProgressText: document.getElementById('model-load-progress-text'),
+  geminiApiKeyInput: document.getElementById('gemini-api-key-input'),
+  glossaryTextarea: document.getElementById('glossary-terms'),
+  transcriptionProgressWrap: document.getElementById('transcription-progress-wrap'),
+  transcriptionProgress: document.getElementById('transcription-progress'),
+  segmentStatusList: document.getElementById('segment-status-list'),
+  transcriptOutput: document.getElementById('transcript-output'),
+  btnCopy: document.getElementById('btn-copy'),
+  btnSaveTxt: document.getElementById('btn-save-txt'),
+  errorToast: document.getElementById('global-error-toast'),
+};
+
+// ===== STATE =====
+const state = {
+  mode: 'c',
+  recordingState: 'idle', // idle | recording | paused
+  sessionId: null,
+  segmentIndex: 0,
+  elapsedMs: 0,
+  lastRotationMs: 0,
+  segmentDurationMs: CONFIG.SEGMENT_DURATION_MS_DEFAULT,
+  totalSegmentsEstimate: 0,
+  processedSegments: 0,
+  mediaStream: null,
+  mediaRecorder: null,
+  currentMimeType: null,
+  allSegmentBlobs: [],
+  timerIntervalId: null,
+  audioCtx: null,
+  analyser: null,
+  levelMeterRafId: null,
+  whisperPipeline: null,
+  modelLoading: false,
+  processingQueue: Promise.resolve(),
+  errorToastTimeoutId: null,
+  pendingSegmentMeta: null,
+};
+let geminiApiKeyInMemory = '';
+
+// ===== UTIL =====
+function formatMMSS(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+  const ss = String(totalSec % 60).padStart(2, '0');
+  return `${mm}:${ss}`;
+}
+
+function nowStamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = new Array(n + 1);
+  let curr = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+async function blobToBase64(blob) {
+  const buf = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function downloadBlob(blob, filename) {
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (err) {
+    showError('file_save_failed', err && err.message);
+  }
+}
+
+function getGlossaryTerms() {
+  return DOM.glossaryTextarea.value
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function encodeWav(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const writeStr = (offset, str) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+// ===== ERROR_HANDLING =====
+const ERROR_MESSAGES = {
+  getusermedia_unsupported: 'このブラウザは録音機能に対応していません。最新のGoogle ChromeまたはMicrosoft Edgeでこのページを開いてください。',
+  mic_permission_denied: 'マイクへのアクセスが許可されませんでした。アドレスバー付近のマイクアイコンから許可設定をご確認ください。',
+  mic_not_found: 'マイクが見つかりません。マイクが接続されているかご確認ください。',
+  mediarecorder_unsupported: 'このブラウザは録音形式に対応していません。最新のChromeまたはEdgeをご利用ください。',
+  idb_unavailable: '録音データの自動保存機能が使用できません。録音は継続されますが、ページを閉じるとデータが失われる可能性があります。',
+  idb_quota_exceeded: '端末の保存容量が上限に達しました。不要な録音データを削除するか、録音を停止してファイルを保存してください。',
+  model_download_failed: '文字起こしモデルのダウンロードに失敗しました。インターネット接続をご確認ください（初回のみモデルのダウンロードが必要です）。',
+  whisper_inference_error: '文字起こし処理中にエラーが発生しました。録音時間を短くするか、ページを再読み込みして再試行してください。',
+  gemini_key_missing: 'Gemini APIキーが入力されていません。APIキーを入力してください。',
+  gemini_key_invalid: 'APIキーが正しくないか、権限がありません。Gemini APIキーをご確認ください。',
+  gemini_rate_limited: 'リクエストが多すぎます。しばらく待ってから再試行してください（APIの利用制限に達した可能性があります）。',
+  gemini_network_error: 'Gemini APIへの接続に失敗しました。ネットワーク接続をご確認の上、再試行してください。',
+  gemini_audio_too_large: '音声データが大きすぎてGemini APIに送信できませんでした。録音を短く区切るか、録音のみモードをご利用ください。',
+  gemini_blocked_or_empty: '文字起こし結果を取得できませんでした。内容によりAPI側でブロックされた可能性があります。',
+  clipboard_failed: 'クリップボードへのコピーに失敗しました。テキストを選択して手動でコピーしてください（テキストを自動選択しました）。',
+  file_save_failed: 'ファイルの保存に失敗しました。もう一度お試しください。',
+  segment_rotation_failed: '録音の区切り処理でエラーが発生しました。録音を停止し、最初からやり直してください。',
+};
+
+function showError(code, detail) {
+  const msg = ERROR_MESSAGES[code] || 'エラーが発生しました。';
+  DOM.errorToast.textContent = msg;
+  DOM.errorToast.hidden = false;
+  if (detail) console.error(code, detail);
+  clearTimeout(state.errorToastTimeoutId);
+  state.errorToastTimeoutId = setTimeout(() => { DOM.errorToast.hidden = true; }, 8000);
+}
+
+// ===== STATUS_BANNER =====
+function updateStatusBanner() {
+  const modeLabels = { a: 'ローカル処理（AIをブラウザ内で実行）', b: 'Gemini API', c: '録音のみ' };
+  const transmissionLabels = {
+    a: '音声は外部に送信されません',
+    b: '⚠ 音声はGemini APIに送信されます',
+    c: '音声は外部に送信されません（文字起こしは行いません）',
+  };
+  DOM.statusBanner.textContent = `現在のモード: ${modeLabels[state.mode]} ／ ${transmissionLabels[state.mode]}`;
+  DOM.statusBanner.className = 'status-banner ' + (state.mode === 'b' ? 'status-banner-warn' : 'status-banner-safe');
+}
+
+// ===== MIC_AND_LEVEL_METER =====
+async function requestMicAccess() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showError('getusermedia_unsupported');
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.mediaStream = stream;
+    setupLevelMeter(stream);
+    DOM.btnStart.disabled = false;
+    DOM.btnMicPermission.disabled = true;
+    DOM.btnMicPermission.textContent = 'マイク許可済み';
+  } catch (err) {
+    if (err && err.name === 'NotAllowedError') showError('mic_permission_denied', err.message);
+    else if (err && err.name === 'NotFoundError') showError('mic_not_found', err.message);
+    else showError('mic_permission_denied', err && err.message);
+  }
+}
+
+function setupLevelMeter(stream) {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  state.audioCtx = new AudioCtx();
+  const source = state.audioCtx.createMediaStreamSource(stream);
+  state.analyser = state.audioCtx.createAnalyser();
+  state.analyser.fftSize = 1024;
+  source.connect(state.analyser); // destinationには繋がない（ハウリング防止）
+  startLevelMeterLoop();
+}
+
+function startLevelMeterLoop() {
+  const buffer = new Uint8Array(state.analyser.fftSize);
+  const loop = () => {
+    state.analyser.getByteTimeDomainData(buffer);
+    let sumSquares = 0;
+    for (let i = 0; i < buffer.length; i++) {
+      const norm = (buffer[i] - 128) / 128;
+      sumSquares += norm * norm;
+    }
+    const rms = Math.sqrt(sumSquares / buffer.length);
+    const pct = Math.min(100, Math.round(rms * 220));
+    DOM.levelMeterFill.style.width = pct + '%';
+    DOM.levelMeterLabel.textContent = pct <= 2 ? '無音（マイクに向かって話してみてください）' : `入力レベル: ${pct}%`;
+    state.levelMeterRafId = requestAnimationFrame(loop);
+  };
+  state.levelMeterRafId = requestAnimationFrame(loop);
+}
+
+function stopLevelMeterLoop() {
+  if (state.levelMeterRafId) cancelAnimationFrame(state.levelMeterRafId);
+  state.levelMeterRafId = null;
+}
+
+// ===== RECORDING_CONTROL =====
+function pickMimeType() {
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm'];
+  for (const c of candidates) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return null;
+}
+
+function startNewRecorder(mimeType) {
+  const mr = new MediaRecorder(state.mediaStream, { mimeType });
+  const localChunks = [];
+  mr.ondataavailable = (e) => { if (e.data && e.data.size > 0) localChunks.push(e.data); };
+  mr.onstop = () => {
+    const segBlob = new Blob(localChunks, { type: mimeType });
+    handleSegmentComplete(segBlob);
+  };
+  mr.onerror = (e) => showError('segment_rotation_failed', e && e.error && e.error.message);
+  mr.start();
+  state.mediaRecorder = mr;
+  state.currentMimeType = mimeType;
+}
+
+function startRecording() {
+  if (!state.mediaStream) { showError('mic_permission_denied'); return; }
+  const mimeType = pickMimeType();
+  if (!mimeType) { showError('mediarecorder_unsupported'); return; }
+
+  state.sessionId = crypto.randomUUID();
+  state.segmentIndex = 0;
+  state.elapsedMs = 0;
+  state.lastRotationMs = 0;
+  state.allSegmentBlobs = [];
+  state.processedSegments = 0;
+  state.totalSegmentsEstimate = 0;
+  state.processingQueue = Promise.resolve();
+  state.segmentDurationMs = state.mode === 'b' ? CONFIG.SEGMENT_DURATION_MS_GEMINI : CONFIG.SEGMENT_DURATION_MS_DEFAULT;
+
+  DOM.transcriptOutput.value = '';
+  DOM.segmentStatusList.innerHTML = '';
+  DOM.transcriptionProgressWrap.hidden = state.mode === 'c';
+  updateTranscriptionProgress();
+  DOM.btnDownloadAudio.disabled = true;
+  DOM.btnDeleteSessionData.disabled = true;
+
+  updateModeRadiosDisabled(true);
+  startNewRecorder(mimeType);
+  state.recordingState = 'recording';
+  state.timerIntervalId = setInterval(tickElapsedTimer, 1000);
+  updateRecordingButtons();
+}
+
+function tickElapsedTimer() {
+  state.elapsedMs += 1000;
+  DOM.timerDisplay.textContent = formatMMSS(state.elapsedMs);
+  if (state.elapsedMs - state.lastRotationMs >= state.segmentDurationMs) {
+    rotateSegment(false);
+  }
+}
+
+function rotateSegment(isFinal) {
+  const mr = state.mediaRecorder;
+  if (!mr) return;
+  state.pendingSegmentMeta = { startMs: state.lastRotationMs, endMs: state.elapsedMs, index: state.segmentIndex, isFinal };
+  state.lastRotationMs = state.elapsedMs;
+  state.segmentIndex += 1;
+  try {
+    mr.stop();
+  } catch (err) {
+    showError('segment_rotation_failed', err && err.message);
+    return;
+  }
+  if (!isFinal) {
+    startNewRecorder(state.currentMimeType);
+  }
+}
+
+function pauseRecording() {
+  if (state.recordingState !== 'recording') return;
+  clearInterval(state.timerIntervalId);
+  if (state.mediaRecorder && state.mediaRecorder.state === 'recording') state.mediaRecorder.pause();
+  state.recordingState = 'paused';
+  updateRecordingButtons();
+}
+
+function resumeRecording() {
+  if (state.recordingState !== 'paused') return;
+  if (state.mediaRecorder && state.mediaRecorder.state === 'paused') state.mediaRecorder.resume();
+  state.recordingState = 'recording';
+  state.timerIntervalId = setInterval(tickElapsedTimer, 1000);
+  updateRecordingButtons();
+}
+
+function stopRecording() {
+  if (state.recordingState === 'idle') return;
+  clearInterval(state.timerIntervalId);
+  rotateSegment(true);
+  state.recordingState = 'idle';
+  if (state.mode !== 'c') {
+    state.totalSegmentsEstimate = state.segmentIndex;
+    updateTranscriptionProgress();
+  }
+  updateModeRadiosDisabled(false);
+  updateRecordingButtons();
+  DOM.btnDownloadAudio.disabled = false;
+  DOM.btnDeleteSessionData.disabled = false;
+}
+
+function updateRecordingButtons() {
+  const rs = state.recordingState;
+  DOM.btnStart.disabled = rs !== 'idle' || !state.mediaStream;
+  DOM.btnPause.disabled = rs !== 'recording';
+  DOM.btnPause.hidden = rs === 'paused';
+  DOM.btnResume.disabled = rs !== 'paused';
+  DOM.btnResume.hidden = rs !== 'paused';
+  DOM.btnStop.disabled = rs === 'idle';
+}
+
+function updateModeRadiosDisabled(disabled) {
+  DOM.modeRadios.forEach((r) => { r.disabled = disabled; });
+  DOM.geminiApiKeyInput.disabled = disabled;
+}
+
+// ===== INDEXEDDB_PERSISTENCE =====
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(CONFIG.DB_NAME, CONFIG.DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(CONFIG.STORE_NAME)) {
+        const store = db.createObjectStore(CONFIG.STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('sessionId', 'sessionId', { unique: false });
+        store.createIndex('segmentIndex', 'segmentIndex', { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveSegmentToDb(record) {
+  try {
+    const db = await openDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(CONFIG.STORE_NAME, 'readwrite');
+      tx.objectStore(CONFIG.STORE_NAME).add(record);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch (err) {
+    if (err && err.name === 'QuotaExceededError') showError('idb_quota_exceeded', err.message);
+    else showError('idb_unavailable', err && err.message);
+  }
+}
+
+async function listSessions() {
+  try {
+    const db = await openDb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(CONFIG.STORE_NAME, 'readonly');
+      const store = tx.objectStore(CONFIG.STORE_NAME);
+      const sessions = {};
+      const req = store.openCursor();
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          const rec = cursor.value;
+          if (!sessions[rec.sessionId]) sessions[rec.sessionId] = { sessionId: rec.sessionId, count: 0, maxEndMs: 0, mimeType: rec.mimeType };
+          sessions[rec.sessionId].count += 1;
+          sessions[rec.sessionId].maxEndMs = Math.max(sessions[rec.sessionId].maxEndMs, rec.endMs || 0);
+          cursor.continue();
+        } else {
+          resolve(Object.values(sessions));
+        }
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    showError('idb_unavailable', err && err.message);
+    return [];
+  }
+}
+
+async function loadSessionBlobs(sessionId) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(CONFIG.STORE_NAME, 'readonly');
+    const idx = tx.objectStore(CONFIG.STORE_NAME).index('sessionId');
+    const req = idx.getAll(IDBKeyRange.only(sessionId));
+    req.onsuccess = () => resolve(req.result.sort((a, b) => a.segmentIndex - b.segmentIndex));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function deleteSession(sessionId) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(CONFIG.STORE_NAME, 'readwrite');
+    const idx = tx.objectStore(CONFIG.STORE_NAME).index('sessionId');
+    const req = idx.openCursor(IDBKeyRange.only(sessionId));
+    req.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) { cursor.delete(); cursor.continue(); }
+    };
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function renderRecoveryPanel() {
+  const sessions = await listSessions();
+  if (!sessions.length) return;
+  DOM.sectionRecovery.hidden = false;
+  DOM.recoveryList.innerHTML = '';
+  sessions.forEach((s) => {
+    const div = document.createElement('div');
+    div.className = 'recovery-item';
+    div.innerHTML = `<p>録音時間目安: ${formatMMSS(s.maxEndMs)} ／ セグメント数: ${s.count}</p>`;
+    const btnDl = document.createElement('button');
+    btnDl.className = 'secondary-btn';
+    btnDl.textContent = 'この録音をダウンロード';
+    btnDl.addEventListener('click', async () => {
+      try {
+        const records = await loadSessionBlobs(s.sessionId);
+        const blob = new Blob(records.map((r) => r.blob), { type: records[0] ? records[0].mimeType : 'audio/webm' });
+        downloadBlob(blob, `録音_復旧_${nowStamp()}.webm`);
+      } catch (err) {
+        showError('file_save_failed', err && err.message);
+      }
+    });
+    const btnDel = document.createElement('button');
+    btnDel.className = 'danger-btn';
+    btnDel.textContent = '削除';
+    btnDel.addEventListener('click', async () => {
+      await deleteSession(s.sessionId);
+      div.remove();
+      if (!DOM.recoveryList.children.length) DOM.sectionRecovery.hidden = true;
+    });
+    const row = document.createElement('div');
+    row.className = 'btn-row';
+    row.appendChild(btnDl);
+    row.appendChild(btnDel);
+    div.appendChild(row);
+    DOM.recoveryList.appendChild(div);
+  });
+}
+
+async function handleSegmentComplete(blob) {
+  const meta = state.pendingSegmentMeta;
+  if (!meta) return;
+  state.allSegmentBlobs.push(blob);
+  saveSegmentToDb({
+    sessionId: state.sessionId,
+    segmentIndex: meta.index,
+    startMs: meta.startMs,
+    endMs: meta.endMs,
+    mimeType: state.currentMimeType,
+    blob,
+    createdAt: Date.now(),
+  });
+  if (state.mode !== 'c') {
+    state.processingQueue = state.processingQueue
+      .then(() => onSegmentReady(blob, meta.index, meta.startMs, meta.endMs))
+      .catch((err) => console.error(err));
+  }
+}
+
+// ===== MODE_A_LOCAL_WHISPER =====
+const modelLoadProgressState = {};
+function updateModelLoadProgress(p) {
+  if (p && p.status === 'progress' && p.file) {
+    modelLoadProgressState[p.file] = { loaded: p.loaded || 0, total: p.total || 0 };
+  }
+  let loadedSum = 0, totalSum = 0;
+  for (const k in modelLoadProgressState) {
+    loadedSum += modelLoadProgressState[k].loaded;
+    totalSum += modelLoadProgressState[k].total;
+  }
+  const pct = totalSum > 0 ? Math.round((loadedSum / totalSum) * 100) : 0;
+  DOM.modelLoadProgressBar.value = pct;
+  DOM.modelLoadProgressText.textContent = pct + '%';
+}
+
+async function loadWhisperModelIfNeeded() {
+  if (state.whisperPipeline) return state.whisperPipeline;
+  if (state.modelLoading) {
+    while (state.modelLoading) await new Promise((r) => setTimeout(r, 200));
+    return state.whisperPipeline;
+  }
+  state.modelLoading = true;
+  DOM.modelLoadProgressWrap.hidden = false;
+  try {
+    const { pipeline, env } = await import(CONFIG.TRANSFORMERS_JS_URL);
+    env.allowLocalModels = false;
+    state.whisperPipeline = await pipeline('automatic-speech-recognition', CONFIG.WHISPER_MODEL_ID, {
+      quantized: true,
+      progress_callback: updateModelLoadProgress,
+    });
+    return state.whisperPipeline;
+  } catch (err) {
+    showError('model_download_failed', err && err.message);
+    throw err;
+  } finally {
+    state.modelLoading = false;
+  }
+}
+
+async function decodeSegmentToPCM16k(blob) {
+  const arrayBuffer = await blob.arrayBuffer();
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  const tempCtx = new AudioCtx();
+  let decoded;
+  try {
+    decoded = await tempCtx.decodeAudioData(arrayBuffer.slice(0));
+  } finally {
+    tempCtx.close();
+  }
+  const targetSampleRate = 16000;
+  const offlineCtx = new OfflineAudioContext(1, Math.ceil(decoded.duration * targetSampleRate), targetSampleRate);
+  const source = offlineCtx.createBufferSource();
+  source.buffer = decoded;
+  source.connect(offlineCtx.destination);
+  source.start(0);
+  const rendered = await offlineCtx.startRendering();
+  return rendered.getChannelData(0).slice();
+}
+
+function applyGlossaryCorrection(text, terms) {
+  let result = text.normalize('NFKC');
+  for (const rawTerm of terms) {
+    const term = rawTerm.normalize('NFKC');
+    if (!term) continue;
+    if (result.includes(term)) continue;
+    const L = term.length;
+    const threshold = Math.max(1, Math.floor(L * 0.3));
+    let best = null;
+    for (let winLen = Math.max(1, L - 1); winLen <= L + 1; winLen++) {
+      for (let i = 0; i + winLen <= result.length; i++) {
+        const windowStr = result.slice(i, i + winLen);
+        const dist = levenshtein(windowStr, term);
+        if (dist <= threshold && (!best || dist < best.dist)) {
+          best = { i, winLen, dist };
+        }
+      }
+    }
+    if (best) {
+      result = result.slice(0, best.i) + term + result.slice(best.i + best.winLen);
+    }
+  }
+  return result;
+}
+
+async function transcribeSegmentLocal(blob) {
+  try {
+    const asr = await loadWhisperModelIfNeeded();
+    const pcm = await decodeSegmentToPCM16k(blob);
+    const result = await asr(pcm, {
+      language: 'japanese',
+      task: 'transcribe',
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      return_timestamps: true,
+    });
+    const rawText = (result && result.text) ? result.text : '';
+    return applyGlossaryCorrection(rawText, getGlossaryTerms());
+  } catch (err) {
+    showError('whisper_inference_error', err && err.message);
+    return '';
+  }
+}
+
+// ===== MODE_B_GEMINI =====
+function buildGeminiPrompt(glossaryText) {
+  return [
+    'あなたは自治体職員向け会議の音声を日本語で文字起こしするアシスタントです。',
+    '以下は今回の会議で使われる可能性のある専門用語・固有名詞です。発音が近い場合はこれらの表記を優先して書き起こしてください:',
+    glossaryText,
+    '',
+    '複数人が発言している場合は、話者ごとに「話者A：」「話者B：」のように区別して記載してください。同一人物と思われる発言には同じラベルを使ってください。',
+    '',
+    '出力は書き起こしテキストのみとしてください。',
+  ].join('\n');
+}
+
+async function callGeminiForSegment(blob) {
+  if (!geminiApiKeyInMemory) {
+    showError('gemini_key_missing');
+    return '';
+  }
+  try {
+    const pcm = await decodeSegmentToPCM16k(blob);
+    const wavBlob = encodeWav(pcm, 16000);
+    if (wavBlob.size > CONFIG.GEMINI_MAX_RAW_BYTES) {
+      showError('gemini_audio_too_large');
+      return '';
+    }
+    const base64 = await blobToBase64(wavBlob);
+    const glossaryText = DOM.glossaryTextarea.value.trim();
+    const prompt = buildGeminiPrompt(glossaryText);
+    const body = {
+      contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'audio/wav', data: base64 } }] }],
+    };
+    const resp = await fetch(CONFIG.GEMINI_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiApiKeyInMemory },
+      body: JSON.stringify(body),
+    });
+    if (resp.status === 401 || resp.status === 403) { showError('gemini_key_invalid'); return ''; }
+    if (resp.status === 429) { showError('gemini_rate_limited'); return ''; }
+    if (!resp.ok) { showError('gemini_network_error', `HTTP ${resp.status}`); return ''; }
+    const data = await resp.json();
+    const cand = data && data.candidates && data.candidates[0];
+    const text = cand && cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
+    if (!text) { showError('gemini_blocked_or_empty'); return ''; }
+    return text;
+  } catch (err) {
+    showError('gemini_network_error', err && err.message);
+    return '';
+  }
+}
+
+// ===== SEGMENT_ORCHESTRATION =====
+function updateSegmentStatus(index, status) {
+  let li = document.getElementById(`segment-status-${index}`);
+  if (!li) {
+    li = document.createElement('li');
+    li.id = `segment-status-${index}`;
+    DOM.segmentStatusList.appendChild(li);
+  }
+  li.textContent = `セグメント${index + 1}: ${status}`;
+}
+
+function updateTranscriptionProgress() {
+  DOM.transcriptionProgress.textContent = `${state.processedSegments} / ${state.totalSegmentsEstimate} セグメント処理中`;
+}
+
+function appendTranscriptSegment(label, text) {
+  const existing = DOM.transcriptOutput.value;
+  DOM.transcriptOutput.value = existing ? `${existing}\n\n${label}\n${text}` : `${label}\n${text}`;
+}
+
+async function onSegmentReady(blob, index, startMs, endMs) {
+  const label = `【${formatMMSS(startMs)}〜${formatMMSS(endMs)}】`;
+  updateSegmentStatus(index, '処理中');
+  try {
+    let text = '';
+    if (state.mode === 'a') text = await transcribeSegmentLocal(blob);
+    else if (state.mode === 'b') text = await callGeminiForSegment(blob);
+    appendTranscriptSegment(label, text);
+    state.processedSegments += 1;
+    updateTranscriptionProgress();
+    updateSegmentStatus(index, '完了');
+  } catch (err) {
+    updateSegmentStatus(index, 'エラー');
+    console.error(err);
+  }
+}
+
+// ===== OUTPUT_ACTIONS =====
+async function copyToClipboard() {
+  try {
+    if (!navigator.clipboard) throw new Error('clipboard unsupported');
+    await navigator.clipboard.writeText(DOM.transcriptOutput.value);
+  } catch (err) {
+    DOM.transcriptOutput.select();
+    showError('clipboard_failed', err && err.message);
+  }
+}
+
+function saveAsTxt() {
+  try {
+    const blob = new Blob([DOM.transcriptOutput.value], { type: 'text/plain;charset=utf-8' });
+    downloadBlob(blob, `議事録下書き_${nowStamp()}.txt`);
+  } catch (err) {
+    showError('file_save_failed', err && err.message);
+  }
+}
+
+// ===== INIT =====
+function applyModeUI() {
+  DOM.panelModeA.hidden = state.mode !== 'a';
+  DOM.panelModeB.hidden = state.mode !== 'b';
+  DOM.panelModeC.hidden = state.mode !== 'c';
+  updateStatusBanner();
+  if (state.mode === 'a') loadWhisperModelIfNeeded().catch(() => {});
+}
+
+function init() {
+  DOM.glossaryTextarea.value = CONFIG.DEFAULT_GLOSSARY.join('\n');
+
+  if (!window.indexedDB) showError('idb_unavailable');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) showError('getusermedia_unsupported');
+  if (!window.MediaRecorder) showError('mediarecorder_unsupported');
+
+  DOM.modeRadios.forEach((r) => {
+    r.addEventListener('change', () => {
+      if (!r.checked) return;
+      state.mode = r.value;
+      applyModeUI();
+    });
+  });
+  applyModeUI();
+
+  DOM.geminiApiKeyInput.addEventListener('input', () => {
+    geminiApiKeyInMemory = DOM.geminiApiKeyInput.value;
+  });
+
+  DOM.btnMicPermission.addEventListener('click', requestMicAccess);
+  DOM.btnStart.addEventListener('click', startRecording);
+  DOM.btnPause.addEventListener('click', pauseRecording);
+  DOM.btnResume.addEventListener('click', resumeRecording);
+  DOM.btnStop.addEventListener('click', stopRecording);
+
+  DOM.btnDownloadAudio.addEventListener('click', () => {
+    if (!state.allSegmentBlobs.length) return;
+    const blob = new Blob(state.allSegmentBlobs, { type: state.currentMimeType || 'audio/webm' });
+    downloadBlob(blob, `録音_${nowStamp()}.webm`);
+  });
+
+  DOM.btnDeleteSessionData.addEventListener('click', async () => {
+    if (!state.sessionId) return;
+    await deleteSession(state.sessionId);
+    DOM.btnDeleteSessionData.disabled = true;
+  });
+
+  DOM.btnCopy.addEventListener('click', copyToClipboard);
+  DOM.btnSaveTxt.addEventListener('click', saveAsTxt);
+
+  updateRecordingButtons();
+  renderRecoveryPanel();
+}
+
+init();
+</script>
+</body>
+</html>
