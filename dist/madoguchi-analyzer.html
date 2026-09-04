@@ -1,0 +1,2072 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>番号発券機データ分析ツール（窓口受付時間・時間外勤務 影響分析）</title>
+<style>
+:root{
+  --bg:#f4f5f7; --panel:#ffffff; --border:#d7dbe0; --text:#1c2430; --muted:#5a6472;
+  --accent:#1a5fb4; --accent-bg:#e8f0fc; --warn:#9a5b00; --warn-bg:#fff3e0;
+  --danger:#b3261e; --danger-bg:#fde8e6; --ok:#1e7a34; --ok-bg:#e8f6ec;
+  --grid:#e2e5ea; --bar1:#2f6fb0; --bar2:#4f9a5b; --bar3:#c4842a; --bar4:#8a5fbf;
+  --bar5:#c1477e; --bar6:#3aa6a0; --bar7:#a1a534; --bar8:#7a7a7a; --bar9:#d1495b; --bar10:#4a6fa5;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:"Yu Gothic","Meiryo","Hiragino Kaku Gothic ProN",sans-serif;font-size:14px;}
+h1,h2,h3,h4{font-weight:700;margin:0 0 8px}
+h1{font-size:19px}
+h2{font-size:16px;border-left:5px solid var(--accent);padding-left:8px;margin-top:0}
+h3{font-size:14px;color:var(--accent)}
+a{color:var(--accent)}
+button{font-family:inherit;font-size:13px;cursor:pointer;border:1px solid var(--border);
+  background:var(--panel);border-radius:5px;padding:6px 12px;color:var(--text)}
+button:hover{background:var(--accent-bg);border-color:var(--accent)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.primary:hover{filter:brightness(1.08)}
+button:disabled{opacity:.5;cursor:not-allowed}
+input[type=text],input[type=number],input[type=date],select,textarea{
+  font-family:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:#fff;color:var(--text)}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{border:1px solid var(--grid);padding:4px 6px;text-align:right}
+th{background:#eef1f5;text-align:center;position:sticky;top:0}
+td.left,th.left{text-align:left}
+.wrap{max-width:1400px;margin:0 auto;padding:12px 16px 60px}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.col{display:flex;flex-direction:column;gap:4px}
+.small{font-size:12px;color:var(--muted)}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:700}
+.badge.privacy{background:var(--ok-bg);color:var(--ok)}
+.badge.info{background:var(--accent-bg);color:var(--accent)}
+.badge.warn{background:var(--warn-bg);color:var(--warn)}
+.statusbar{position:sticky;top:0;z-index:50;background:#10233f;color:#fff;padding:8px 16px;
+  display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12.5px}
+.statusbar b{color:#9fd0ff}
+.statusbar .privacy{margin-left:auto;background:#123a1f;color:#8fe3a6;padding:3px 10px;border-radius:12px;font-weight:700}
+#dropzone{border:2px dashed var(--border);border-radius:10px;padding:26px;text-align:center;color:var(--muted);
+  background:#fbfcfe;transition:.15s}
+#dropzone.drag{border-color:var(--accent);background:var(--accent-bg);color:var(--accent)}
+.progresswrap{background:#eef1f5;border-radius:6px;overflow:hidden;height:18px;margin:8px 0}
+.progressbar{height:100%;background:var(--accent);width:0%;transition:width .2s;color:#fff;font-size:11px;
+  display:flex;align-items:center;justify-content:flex-end;padding-right:6px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--border);margin-bottom:12px}
+.tabbtn{border:none;border-bottom:3px solid transparent;border-radius:0;background:none;padding:8px 12px;font-weight:700;color:var(--muted)}
+.tabbtn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tabpanel{display:none}
+.tabpanel.active{display:block}
+.hint{cursor:help;border-bottom:1px dotted var(--muted)}
+.exporrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.gridwrap{overflow:auto;max-height:520px;border:1px solid var(--grid);border-radius:6px}
+.heat0{background:#f4f6f9}.heat1{background:#dbe9fb}.heat2{background:#b7d3f6}.heat3{background:#8fbcef}
+.heat4{background:#5f9de3}.heat5{background:#2f7fd4}
+.chiplist{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--border);border-radius:14px;padding:3px 10px;font-size:12px;cursor:pointer;background:#fff}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.footer-note{color:var(--muted);font-size:11.5px;margin-top:4px}
+.skiplist{max-height:200px;overflow:auto;font-size:11.5px;background:#fafbfc;border:1px solid var(--grid);padding:6px;border-radius:6px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12.5px}
+.kv b{color:var(--muted);font-weight:600}
+.mapgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.mapgrid label{font-size:11.5px;color:var(--muted);display:block}
+.slidewrap{display:flex;align-items:center;gap:8px}
+input[type=range]{width:260px}
+svg text{font-family:"Yu Gothic","Meiryo",sans-serif}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;margin-top:4px}
+.legend span{display:inline-flex;align-items:center;gap:4px}
+.legend i{width:10px;height:10px;display:inline-block;border-radius:2px}
+details.settings summary{cursor:pointer;font-weight:700;color:var(--accent);margin-bottom:8px}
+.msgbox{padding:8px 10px;border-radius:6px;font-size:12.5px;margin-top:8px}
+.msgbox.warn{background:var(--warn-bg);color:var(--warn)}
+.msgbox.danger{background:var(--danger-bg);color:var(--danger)}
+.msgbox.ok{background:var(--ok-bg);color:var(--ok)}
+@media print{
+  .statusbar,#dropzone,.no-print,.tabs,button{display:none !important}
+  .tabpanel{display:block !important}
+  @page{size:A4 landscape;margin:10mm}
+  body{background:#fff}
+  .panel{border:none;padding:0;margin-bottom:10px}
+}
+</style>
+</head>
+<body>
+
+<div class="statusbar" id="statusbar">
+  <span><b>母数定義:</b> <span id="sb-baseline">-</span></span>
+  <span><b>欠測終了時刻:</b> <span id="sb-missing">-</span></span>
+  <span><b>外れ値閾値:</b> <span id="sb-outlier">-</span></span>
+  <span><b>時間外基準:</b> <span id="sb-basis">-</span></span>
+  <span><b>除外件数:</b> <span id="sb-excluded">-</span></span>
+  <span class="privacy">🔒 データは一切外部送信されません（すべてブラウザ内で処理）</span>
+</div>
+
+<div class="wrap">
+  <header class="panel">
+    <h1>番号発券機データ分析ツール — 受付時間変更の影響分析</h1>
+    <p class="small">
+      フォルダをまるごとドラッグ＆ドロップすると、来庁者数・受付時間変更の影響・時間外勤務削減効果を分析します。
+      外部CDN・外部フォント・外部APIは一切使用せず、単一HTMLファイルの中だけで完結して動作します。
+      <code>file://</code> で直接開いても動作します。
+    </p>
+  </header>
+
+  <section class="panel" id="loadpanel">
+    <h2>1. データ投入</h2>
+    <div id="dropzone">
+      <div id="dropzone-label">ここに「令和6年」または「旧端末」フォルダなどをまるごとドラッグ＆ドロップ<br>
+      （フォルダの深さは自動で判定します。<b>.CSV</b> ファイルを再帰的に検出します）</div>
+      <div class="row" style="justify-content:center;margin-top:10px">
+        <label class="button-like" style="border:1px solid var(--border);border-radius:5px;padding:6px 12px;background:#fff;cursor:pointer">
+          フォルダを選択
+          <input type="file" id="dirinput" webkitdirectory directory multiple style="display:none">
+        </label>
+        <button id="cache-clear-btn">キャッシュを破棄して再読込</button>
+        <button id="stop-btn" disabled>読み込み中断</button>
+      </div>
+    </div>
+    <div class="small" id="scan-status" style="display:none"></div>
+    <div class="progresswrap" id="progresswrap" style="display:none">
+      <div class="progressbar" id="progressbar">0%</div>
+    </div>
+    <div class="row small" id="progresstext" style="display:none">
+      <span id="p-files">0/0 ファイル</span>
+      <span id="p-rows">0 行</span>
+      <span id="p-speed">0 行/秒</span>
+      <span id="p-eta">残り —</span>
+      <span id="p-cache"></span>
+    </div>
+    <div id="load-summary" class="msgbox ok" style="display:none"></div>
+  </section>
+
+  <section class="panel" id="settingspanel" style="display:none">
+    <details class="settings">
+      <summary>2. 設定（列マッピング・区判定・母数定義・欠測処理・外れ値・時間外基準・単価）</summary>
+      <div class="row" style="align-items:flex-start;gap:24px">
+        <div class="col" style="min-width:260px">
+          <h3>列マッピング（1始まり）</h3>
+          <div class="mapgrid" id="colmap-grid"></div>
+          <div class="footer-note">実データで位置確認済みの初期値です。変更するとブラウザに保存され、再パースが必要です。</div>
+        </div>
+        <div class="col" style="min-width:260px">
+          <h3>区の判定</h3>
+          <label class="small">直上フォルダ名にマッチさせる正規表現（グループ1=区コード, グループ2=区名）</label>
+          <input type="text" id="ku-regex" style="width:100%">
+          <h3 style="margin-top:10px">現行受付時間（比較の基準）</h3>
+          <div class="row">
+            <input type="text" id="current-open" value="08:30" size="5"> 〜
+            <input type="text" id="current-close" value="17:15" size="5">
+          </div>
+        </div>
+        <div class="col" style="min-width:260px">
+          <h3>母数定義（来庁者数の数え方）</h3>
+          <select id="baseline-select">
+            <option value="issued">① 発券レコードのみ（大区分1〜32）</option>
+            <option value="visit">② 来店カウントのみ（大区分60）</option>
+            <option value="both">③ 両方（合算・二重計上に注意）</option>
+          </select>
+          <h3 style="margin-top:10px">一線終了時刻が欠測のとき</h3>
+          <select id="missing-select">
+            <option value="exclude">① 除外（過小推計になる場合あり）</option>
+            <option value="median_ku_gyoshu">② 同一業種・同一区の中央値で補完</option>
+            <option value="median_all">③ 全体の中央値で補完</option>
+          </select>
+        </div>
+        <div class="col" style="min-width:220px">
+          <h3>外れ値・その他</h3>
+          <label class="small">処理時間の外れ値閾値（分）</label>
+          <input type="number" id="outlier-threshold" value="180" min="1" style="width:100px">
+          <label class="small" style="margin-top:6px">取消レコード（操作状態1=4）を処理時間集計から</label>
+          <select id="cancel-select">
+            <option value="exclude">除外する（既定）</option>
+            <option value="include">含める</option>
+          </select>
+          <label class="small" style="margin-top:6px">時間外算定の基準時刻</label>
+          <input type="text" id="basis-time" value="16:30" size="5">
+          <label class="small" style="margin-top:6px">時間単価（円/時）</label>
+          <input type="number" id="unit-cost" value="2000" min="0" style="width:100px">
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="settings-apply" class="primary">設定を適用して再集計</button>
+        <button id="settings-reset">初期値に戻す</button>
+        <span class="small" id="settings-msg"></span>
+      </div>
+    </details>
+  </section>
+
+  <section class="panel" id="filterpanel" style="display:none">
+    <h2>3. フィルタ</h2>
+    <div class="row" style="align-items:flex-start;gap:24px">
+      <div class="col">
+        <b class="small">区</b>
+        <div class="chiplist" id="filter-ku"></div>
+      </div>
+      <div class="col">
+        <b class="small">業種</b>
+        <div class="chiplist" id="filter-gyoshu"></div>
+      </div>
+      <div class="col">
+        <b class="small">曜日</b>
+        <div class="chiplist" id="filter-weekday"></div>
+      </div>
+      <div class="col">
+        <b class="small">期間</b>
+        <div class="row">
+          <input type="date" id="filter-from">〜<input type="date" id="filter-to">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="resultspanel" style="display:none">
+    <div class="tabs" id="tabs"></div>
+    <div id="tabpanels"></div>
+  </section>
+
+  <section class="panel" id="skippanel" style="display:none">
+    <h2>スキップ行ログ</h2>
+    <div class="row"><span id="skip-summary" class="small"></span>
+      <button id="skip-export">スキップ一覧をCSV出力</button></div>
+    <div class="skiplist" id="skip-list"></div>
+  </section>
+
+  <footer class="small" style="text-align:center;color:var(--muted);margin-top:20px">
+    madoguchi-analyzer — 単一HTMLファイル・完全ローカル動作。docs/SPEC.md に算定ロジックの定義があります。
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+ * 定数・設定
+ * ===================================================================== */
+const BIN_START_SEC = 8*3600, BIN_END_SEC = 19*3600, BIN_WIDTH_SEC = 900;
+const BIN_COUNT = (BIN_END_SEC - BIN_START_SEC) / BIN_WIDTH_SEC; // 44
+const WEEKDAY_LABELS = ["日","月","火","水","木","金","土"];
+const GYOSHU_COLORS = ["#2f6fb0","#4f9a5b","#c4842a","#8a5fbf","#c1477e",
+                        "#3aa6a0","#a1a534","#7a7a7a","#d1495b","#4a6fa5"];
+const CAT_VISIT = 60, CAT_STAFF_MIN = 50, CAT_STAFF_MAX = 52;
+
+const DEFAULT_COLUMN_MAP = {
+  issueNo:1, daiKubun:2, gyoshuName:3, groupNo:4, issueTime:5,
+  callTime:40, endTime:41, cancelTime:42,
+  op1:48, op2:49, op3:50, waitAtIssue:51, waitAtCall:52, tellerAddr:53, cardPulled:65
+};
+const COLUMN_LABELS = {
+  issueNo:"発行番号", daiKubun:"発行業種（大区分）", gyoshuName:"業種名", groupNo:"グループ番号",
+  issueTime:"発行時刻", callTime:"一線呼出時刻", endTime:"一線終了時刻", cancelTime:"取消時刻",
+  op1:"操作状態1", op2:"操作状態2", op3:"操作状態3", waitAtIssue:"発行時待人数",
+  waitAtCall:"呼出時待人数", tellerAddr:"呼出テラーアドレス", cardPulled:"カード抜いたフラグ"
+};
+const DEFAULT_KU_REGEX = "^(\\d{2})(.+)$";
+
+const DEFAULT_SETTINGS = {
+  columnMap: Object.assign({}, DEFAULT_COLUMN_MAP),
+  kuRegex: DEFAULT_KU_REGEX,
+  baseline: "issued",        // issued | visit | both
+  missingEndMethod: "exclude", // exclude | median_ku_gyoshu | median_all
+  outlierThresholdMin: 180,
+  cancelHandling: "exclude", // exclude | include
+  basisTime: "16:30",
+  unitCost: 2000,
+  currentOpen: "08:30",
+  currentClose: "17:15"
+};
+
+function loadSettings(){
+  try{
+    const raw = localStorage.getItem("madoguchi_settings_v1");
+    if(!raw) return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    const parsed = JSON.parse(raw);
+    return Object.assign(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), parsed,
+      {columnMap: Object.assign({}, DEFAULT_COLUMN_MAP, parsed.columnMap||{})});
+  }catch(e){ return JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); }
+}
+function saveSettings(s){
+  try{ localStorage.setItem("madoguchi_settings_v1", JSON.stringify(s)); }catch(e){}
+}
+
+/* =====================================================================
+ * 汎用ユーティリティ
+ * ===================================================================== */
+function hmsToSec(hms){
+  if(!hms) return -1;
+  const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(hms.trim());
+  if(!m) return -1;
+  return (+m[1])*3600 + (+m[2])*60 + (m[3]?+m[3]:0);
+}
+function secToHms(sec){
+  if(sec == null || sec < 0) return "";
+  sec = Math.round(sec);
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+}
+function secToHm(sec){
+  sec = Math.round(sec);
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60);
+  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
+}
+function binIndexToLabel(bin){ return secToHm(BIN_START_SEC + bin*BIN_WIDTH_SEC); }
+
+// 1970-01-01 からの通し日数（UTC基準・タイムゾーン非依存）
+function ymdToDateIdx(y,mo,d){ return Math.floor(Date.UTC(y,mo-1,d) / 86400000); }
+function dateIdxToYmd(idx){
+  const dt = new Date(idx*86400000);
+  return {y:dt.getUTCFullYear(), mo:dt.getUTCMonth()+1, d:dt.getUTCDate(), wd:dt.getUTCDay()};
+}
+function dateIdxToStr(idx){ const p=dateIdxToYmd(idx);
+  return p.y+"-"+String(p.mo).padStart(2,"0")+"-"+String(p.d).padStart(2,"0"); }
+
+function fmtMin(min){ return (Math.round(min*10)/10).toLocaleString("ja-JP",{minimumFractionDigits:1,maximumFractionDigits:1}); }
+function fmtInt(n){ return Math.round(n).toLocaleString("ja-JP"); }
+function fmtPct(n){ return (Math.round(n*10)/10)+"%"; }
+function fmtYen(n){ return "¥"+Math.round(n).toLocaleString("ja-JP"); }
+
+function median(arr){
+  if(!arr.length) return 0;
+  const a = arr.slice().sort((x,y)=>x-y);
+  const n = a.length;
+  return n%2 ? a[(n-1)/2] : (a[n/2-1]+a[n/2])/2;
+}
+function mean(arr){ return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0; }
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+}
+
+/* ---- cp932 エンコード（外部ライブラリ不使用）----------------------------------
+ * ブラウザ標準の TextDecoder('shift_jis') はデコードのみ対応でエンコードは無い。
+ * そこで 1〜2バイトの全コードポイント候補を実際に shift_jis デコードして
+ * 「文字 -> バイト列」の逆引き表をその場で構築する（外部の文字コード表を
+ * 埋め込む必要がない）。初回のCP932出力時に一度だけ構築する。 ------------------ */
+let _cp932Encoder = null;
+function buildCp932Encoder(){
+  const dec = new TextDecoder("shift_jis");
+  const map = new Map();
+  // 1バイト (0x00-0x80, 0xA0-0xDF: 半角含む)
+  for(let b=0; b<=0xFF; b++){
+    if(b>=0x81 && b<=0x9F) continue;
+    if(b>=0xE0 && b<=0xFC) continue;
+    const s = dec.decode(new Uint8Array([b]));
+    if(s && s.length===1 && !map.has(s)) map.set(s, [b]);
+  }
+  // 2バイト
+  const leads = [];
+  for(let b=0x81;b<=0x9F;b++) leads.push(b);
+  for(let b=0xE0;b<=0xFC;b++) leads.push(b);
+  for(const lead of leads){
+    for(let trail=0x40; trail<=0xFC; trail++){
+      if(trail===0x7F) continue;
+      const s = dec.decode(new Uint8Array([lead,trail]));
+      if(s && s.length===1 && s.charCodeAt(0)!==0xFFFD && !map.has(s)){
+        map.set(s, [lead,trail]);
+      }
+    }
+  }
+  return map;
+}
+function encodeCp932(str){
+  if(!_cp932Encoder) _cp932Encoder = buildCp932Encoder();
+  const bytes = [];
+  for(const ch of str){
+    if(ch==="\n"){ bytes.push(0x0D,0x0A); continue; }
+    if(ch==="\r") continue;
+    const b = _cp932Encoder.get(ch);
+    if(b) bytes.push.apply(bytes,b);
+    else if(ch.charCodeAt(0) < 0x80) bytes.push(ch.charCodeAt(0));
+    else bytes.push(0x3F); // '?' 代替
+  }
+  return new Uint8Array(bytes);
+}
+function exportTable(rows, filename, encoding, delimiter){
+  const lines = rows.map(r => r.map(v=>{
+    v = (v==null)?"":String(v);
+    if(v.indexOf(delimiter)>=0 || v.indexOf('"')>=0 || v.indexOf("\n")>=0){
+      v = '"'+v.replace(/"/g,'""')+'"';
+    }
+    return v;
+  }).join(delimiter));
+  const text = lines.join("\r\n")+"\r\n";
+  let blob;
+  if(encoding==="cp932"){
+    blob = new Blob([encodeCp932(text)], {type:"text/csv"});
+  }else{
+    blob = new Blob(["﻿"+text], {type:"text/csv;charset=utf-8"});
+  }
+  downloadBlob(blob, filename);
+}
+
+/* =====================================================================
+ * Worker: バイト列のまま65列CSVをパースする（docs/SPEC.md 3章）
+ * 文字列化・正規表現をホットパスで使わず、列指向 TypedArray に直接格納する。
+ * ===================================================================== */
+const WORKER_SRC = `
+self.onmessage = async function(ev){
+  const msg = ev.data;
+  if(msg.type !== "parseFiles") return;
+  const cmap = msg.columnMap;
+  const need = [cmap.daiKubun, cmap.gyoshuName, cmap.issueTime, cmap.callTime, cmap.endTime,
+                cmap.op1, cmap.tellerAddr];
+  const maxCol = Math.max.apply(null, need);
+
+  // growable typed-array バッファ
+  function Grower(Ctor, initial){
+    this.Ctor = Ctor; this.buf = new Ctor(initial||1024); this.len = 0;
+  }
+  Grower.prototype.push = function(v){
+    if(this.len >= this.buf.length){
+      const nb = new this.Ctor(this.buf.length*2);
+      nb.set(this.buf); this.buf = nb;
+    }
+    this.buf[this.len++] = v;
+  };
+  Grower.prototype.slice = function(){ return this.buf.slice(0, this.len); };
+
+  const g_dateIdx = new Grower(Int32Array);
+  const g_kuId = new Grower(Uint16Array);
+  const g_daiKubun = new Grower(Uint8Array);
+  const g_gyoshuLocal = new Grower(Uint16Array);
+  const g_issueSec = new Grower(Int32Array);
+  const g_callSec = new Grower(Int32Array);
+  const g_endSec = new Grower(Int32Array);
+  const g_op1 = new Grower(Uint8Array);
+  const g_teller = new Grower(Uint8Array);
+  const g_fileId = new Grower(Uint16Array);
+
+  const gyoshuDict = []; // localId -> decoded name
+  const gyoshuUsedAsBusiness = []; // localId -> 大区分1〜32のレコードで実際に使われたか
+  const gyoshuByteKeyToId = new Map();
+  const decoder = new TextDecoder("shift_jis");
+  const skipRows = [];
+
+  let filesDone = 0, rowsDone = 0;
+  const tasks = msg.tasks;
+  const t0 = performance.now();
+  let lastReport = t0;
+
+  for(let ti=0; ti<tasks.length; ti++){
+    const task = tasks[ti];
+    let buf;
+    try{
+      buf = await task.file.arrayBuffer();
+    }catch(e){
+      skipRows.push({file: task.relPath, line: 0, reason: "ファイル読込エラー: "+e.message});
+      filesDone++; continue;
+    }
+    const bytes = new Uint8Array(buf);
+    const len = bytes.length;
+    let pos = 0;
+    let lineNo = 0;
+
+    while(pos < len){
+      // 1行分の範囲を確定（クォート対応、CR/LF双方許容）
+      lineNo++;
+      const lineStart = pos;
+      let inQuotes = false;
+      let i = pos;
+      while(i < len){
+        const c = bytes[i];
+        if(c === 0x22){ // "
+          inQuotes = !inQuotes;
+          i++; continue;
+        }
+        if(!inQuotes && (c === 0x0D || c === 0x0A)){ break; }
+        i++;
+      }
+      const lineEnd = i; // exclusive、改行文字の手前
+      pos = i;
+      while(pos < len && (bytes[pos]===0x0D || bytes[pos]===0x0A)) pos++;
+      if(lineEnd === lineStart) continue; // 空行スキップ
+
+      // 列オフセット表を1パスで構築
+      const colStart = [lineStart];
+      inQuotes = false;
+      for(let j=lineStart; j<lineEnd; j++){
+        const c = bytes[j];
+        if(c===0x22){ inQuotes = !inQuotes; continue; }
+        if(!inQuotes && c===0x2C){ colStart.push(j+1); }
+      }
+      colStart.push(lineEnd+1);
+      const colCount = colStart.length - 1;
+      if(colCount !== 65){
+        skipRows.push({file: task.relPath, line: lineNo, reason: "列数が65ではない("+colCount+"列)"});
+        continue;
+      }
+
+      function fieldRange(col1){ // 1始まり
+        let s = colStart[col1-1], e = colStart[col1]-1;
+        if(s<e && bytes[s]===0x22) s++;
+        if(e>s && bytes[e-1]===0x22) e--;
+        return [s,e];
+      }
+      function parseIntField(col1){
+        const [s,e] = fieldRange(col1);
+        if(e<=s) return -1;
+        let v = 0, neg=false, any=false;
+        for(let k=s;k<e;k++){
+          const c = bytes[k];
+          if(c===0x2D && k===s){ neg=true; continue; }
+          if(c<0x30||c>0x39) return -1;
+          v = v*10 + (c-0x30); any=true;
+        }
+        if(!any) return -1;
+        return neg? -v : v;
+      }
+      function parseTimeField(col1){
+        const [s,e] = fieldRange(col1);
+        const L = e-s;
+        if(L < 5) return -1; // 空 or "0"
+        // HH:MM:SS or H:MM:SS 許容、末尾から秒読み取り
+        // 期待形式 HH:MM:SS(8バイト)。柔軟にコロン位置を探す。
+        let c1=-1,c2=-1;
+        for(let k=s;k<e;k++){ if(bytes[k]===0x3A){ if(c1<0) c1=k; else { c2=k; break; } } }
+        if(c1<0||c2<0) return -1;
+        let h=0; for(let k=s;k<c1;k++){ const c=bytes[k]; if(c<0x30||c>0x39) return -1; h=h*10+(c-0x30); }
+        let m=0; for(let k=c1+1;k<c2;k++){ const c=bytes[k]; if(c<0x30||c>0x39) return -1; m=m*10+(c-0x30); }
+        let se=0; for(let k=c2+1;k<e;k++){ const c=bytes[k]; if(c<0x30||c>0x39) return -1; se=se*10+(c-0x30); }
+        return h*3600+m*60+se;
+      }
+
+      const daiKubun = parseIntField(cmap.daiKubun);
+      if(daiKubun < 0){
+        skipRows.push({file: task.relPath, line: lineNo, reason: "大区分が数値でない"});
+        continue;
+      }
+      // 業種名: バイト列キーでインターン化
+      const [gs,ge] = fieldRange(cmap.gyoshuName);
+      let key = "";
+      for(let k=gs;k<ge;k++) key += String.fromCharCode(bytes[k]);
+      let gid = gyoshuByteKeyToId.get(key);
+      if(gid === undefined){
+        gid = gyoshuDict.length;
+        gyoshuDict.push(ge>gs ? decoder.decode(bytes.subarray(gs,ge)) : "");
+        gyoshuUsedAsBusiness.push(false);
+        gyoshuByteKeyToId.set(key, gid);
+      }
+      // 大区分1〜32(通常業務)で使われた名称だけを「業種」として扱う。
+      // 係員呼出(50〜52)・来店カウント(60)の列3ラベルが業種一覧を汚染しないようにする。
+      if(daiKubun >= 1 && daiKubun <= 32) gyoshuUsedAsBusiness[gid] = true;
+
+      const issueSec = parseTimeField(cmap.issueTime);
+      const callSec = parseTimeField(cmap.callTime);
+      const endSec = parseTimeField(cmap.endTime);
+      const op1 = parseIntField(cmap.op1);
+      const teller = parseIntField(cmap.tellerAddr);
+
+      if(issueSec < 0){
+        skipRows.push({file: task.relPath, line: lineNo, reason: "発行時刻が不正"});
+        continue;
+      }
+
+      g_dateIdx.push(task.dateIdx);
+      g_kuId.push(task.kuId);
+      g_daiKubun.push(daiKubun);
+      g_gyoshuLocal.push(gid);
+      g_issueSec.push(issueSec);
+      g_callSec.push(callSec);
+      g_endSec.push(endSec);
+      g_op1.push(op1<0?0:op1);
+      g_teller.push(teller<0?0:teller);
+      g_fileId.push(task.fileId);
+      rowsDone++;
+    }
+    filesDone++;
+    const now = performance.now();
+    if(now - lastReport > 200 || ti===tasks.length-1){
+      lastReport = now;
+      self.postMessage({type:"progress", filesDone, rowsDone, total: tasks.length});
+    }
+  }
+
+  const dateIdx = g_dateIdx.slice(), kuId = g_kuId.slice(), daiKubunArr = g_daiKubun.slice(),
+        gyoshuLocal = g_gyoshuLocal.slice(), issueSec = g_issueSec.slice(), callSec = g_callSec.slice(),
+        endSec = g_endSec.slice(), op1 = g_op1.slice(), teller = g_teller.slice(), fileId = g_fileId.slice();
+
+  self.postMessage({
+    type:"result", filesDone, rowsDone: dateIdx.length, skipRows, gyoshuDict, gyoshuUsedAsBusiness,
+    dateIdx, kuId, daiKubun: daiKubunArr, gyoshuLocal, issueSec, callSec, endSec, op1, teller, fileId
+  }, [dateIdx.buffer, kuId.buffer, daiKubunArr.buffer, gyoshuLocal.buffer, issueSec.buffer,
+      callSec.buffer, endSec.buffer, op1.buffer, teller.buffer, fileId.buffer]);
+};
+`;
+
+/* =====================================================================
+ * ファイル列挙（ドラッグ＆ドロップ再帰走査 / webkitdirectory 両対応）
+ * ===================================================================== */
+async function collectEntriesFromDataTransfer(dt){
+  const items = dt.items;
+  const files = [];
+  const entries = [];
+  for(let i=0;i<items.length;i++){
+    const it = items[i];
+    if(it.webkitGetAsEntry){
+      const en = it.webkitGetAsEntry();
+      if(en) entries.push(en);
+    }
+  }
+  async function walk(entry, path){
+    if(entry.isFile){
+      await new Promise((res)=>{
+        entry.file(f=>{ f.__relPath = path + entry.name; files.push(f); res(); }, ()=>res());
+      });
+    }else if(entry.isDirectory){
+      const reader = entry.createReader();
+      let batch;
+      do{
+        batch = await new Promise((res)=>reader.readEntries(res, ()=>res([])));
+        for(const child of batch){ await walk(child, path + entry.name + "/"); }
+      }while(batch.length>0);
+    }
+  }
+  for(const en of entries){ await walk(en, ""); }
+  return files;
+}
+function collectFilesFromInput(fileList){
+  const out = [];
+  for(let i=0;i<fileList.length;i++){
+    const f = fileList[i];
+    f.__relPath = f.webkitRelativePath || f.name;
+    out.push(f);
+  }
+  return out;
+}
+function isCsvFile(f){ return /\.csv$/i.test(f.name); }
+
+// ファイル名 CD YYMMDD XXXXX .CSV から対象日を取得
+function parseDateFromFilename(name){
+  const m = /^CD(\d{2})(\d{2})(\d{2})\d{5}\.csv$/i.exec(name);
+  if(!m) return null;
+  const y = 2000 + (+m[1]), mo = +m[2], d = +m[3];
+  if(mo<1||mo>12||d<1||d>31) return null;
+  return ymdToDateIdx(y, mo, d);
+}
+// 直上フォルダ名から区コード・区名を取得
+function parseKuFromPath(relPath, regexStr){
+  const parts = relPath.split("/");
+  const folder = parts.length>=2 ? parts[parts.length-2] : "";
+  let re;
+  try{ re = new RegExp(regexStr); }catch(e){ re = new RegExp(DEFAULT_KU_REGEX); }
+  const m = re.exec(folder);
+  if(m && m[1] && m[2]) return {code:m[1], name:m[2], folder};
+  return {code:null, name:folder||"(不明)", folder};
+}
+
+/* =====================================================================
+ * IndexedDB キャッシュ
+ * ===================================================================== */
+const IDB_NAME = "madoguchi_analyzer_cache";
+const IDB_STORE = "datasets";
+function idbOpen(){
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = ()=>{ req.result.createObjectStore(IDB_STORE, {keyPath:"hash"}); };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+async function idbGet(hash){
+  const db = await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(IDB_STORE,"readonly");
+    const req = tx.objectStore(IDB_STORE).get(hash);
+    req.onsuccess = ()=>resolve(req.result||null);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+async function idbPut(record){
+  const db = await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(IDB_STORE,"readwrite");
+    tx.objectStore(IDB_STORE).put(record);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function idbClearAll(){
+  const db = await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(IDB_STORE,"readwrite");
+    tx.objectStore(IDB_STORE).clear();
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function sha256Hex(str){
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+/* =====================================================================
+ * データ読み込みパイプライン本体
+ * ===================================================================== */
+const App = {
+  settings: loadSettings(),
+  ku: [],           // [{id, code, name}]
+  kuByFolder: new Map(),
+  gyoshu: [],        // [name,...] グローバルID
+  gyoshuByName: new Map(),
+  data: null,        // {dateIdx,kuId,daiKubun,gyoshuId,issueSec,callSec,endSec,op1,teller,fileId,n}
+  fileNames: [],      // fileId -> relPath
+  skipRows: [],
+  stats: {filesTotal:0, filesDone:0, rowsDone:0, t0:0, cacheHit:false},
+  grids: null,
+  filter: {ku:null, gyoshu:null, weekday:null, from:null, to:null}, // null = 全選択
+  aborted: false
+};
+
+function ensureKu(relPath){
+  const info = parseKuFromPath(relPath, App.settings.kuRegex);
+  const key = info.folder;
+  if(App.kuByFolder.has(key)) return App.kuByFolder.get(key);
+  const id = App.ku.length;
+  const rec = {id, code: info.code || String(id).padStart(2,"0"), name: info.name};
+  App.ku.push(rec);
+  App.kuByFolder.set(key, id);
+  return id;
+}
+
+async function loadFiles(fileObjs, opts){
+  opts = opts || {};
+  App.aborted = false;
+  const csvFiles = fileObjs.filter(isCsvFile);
+  if(csvFiles.length === 0){
+    setLoadSummary("danger", "投入されたフォルダの中に .CSV ファイルが見つかりませんでした。");
+    return;
+  }
+  // メタデータ解決（区・日付・ファイルID）。 I/Oは発生しない軽い処理。
+  App.ku = []; App.kuByFolder = new Map();
+  App.fileNames = [];
+  const tasks = [];
+  let badName = 0;
+  for(let i=0;i<csvFiles.length;i++){
+    const f = csvFiles[i];
+    const rel = f.__relPath || f.name;
+    const dateIdx = parseDateFromFilename(f.name);
+    const kuId = ensureKu(rel);
+    const fileId = App.fileNames.length;
+    App.fileNames.push(rel);
+    if(dateIdx == null){ badName++; }
+    tasks.push({file:f, relPath:rel, kuId, dateIdx: dateIdx==null?-1:dateIdx, fileId});
+  }
+  if(badName>0){
+    App.skipRows.push({file:"(複数)", line:0, reason: badName+"件のファイル名が CD+YYMMDD+支店番号.CSV 形式に一致せず対象日を特定できませんでした"});
+  }
+
+  // manifest ハッシュ（キャッシュキー）: 相対パス+サイズ+更新日時
+  const manifestStr = csvFiles.map(f=>(f.__relPath||f.name)+":"+f.size+":"+(f.lastModified||0))
+    .sort().join("|") + "||settings:" + JSON.stringify(App.settings.columnMap) + App.settings.kuRegex;
+  const hash = await sha256Hex(manifestStr);
+
+  showProgress(true);
+  setProgressText("キャッシュを確認中…");
+
+  if(!opts.forceReparse){
+    try{
+      const cached = await idbGet(hash);
+      if(cached){
+        restoreFromCache(cached);
+        App.stats.cacheHit = true;
+        finishLoad();
+        return;
+      }
+    }catch(e){ /* IndexedDB利用不可でも続行 */ }
+  }
+  App.stats.cacheHit = false;
+
+  const nWorkers = Math.max(1, Math.min(8, navigator.hardwareConcurrency || 4));
+  const buckets = Array.from({length:nWorkers}, ()=>[]);
+  tasks.forEach((t,i)=>buckets[i%nWorkers].push(t));
+
+  const workerBlobUrl = URL.createObjectURL(new Blob([WORKER_SRC], {type:"text/javascript"}));
+  const workers = buckets.map(()=>new Worker(workerBlobUrl));
+  App._activeWorkers = workers;
+
+  App.stats = {filesTotal: tasks.length, filesDone:0, rowsDone:0, t0: performance.now(), cacheHit:false};
+  App.skipRows = App.skipRows.filter(r=>r.file==="(複数)");
+
+  const partials = [];
+  let completed = 0;
+
+  await new Promise((resolve)=>{
+    workers.forEach((w, wi)=>{
+      w.onmessage = (ev)=>{
+        const msg = ev.data;
+        if(msg.type === "progress"){
+          App.stats.filesDone += (msg.filesDone - (w.__lastFilesDone||0));
+          w.__lastFilesDone = msg.filesDone;
+          updateProgressUI();
+        }else if(msg.type === "result"){
+          partials.push(msg);
+          App.stats.rowsDone += msg.rowsDone;
+          updateProgressUI();
+          w.terminate();
+          completed++;
+          if(completed === workers.length){ resolve(); }
+        }
+      };
+      w.postMessage({
+        type:"parseFiles",
+        tasks: buckets[wi].map(t=>({file:t.file, relPath:t.relPath, kuId:t.kuId, dateIdx:t.dateIdx, fileId:t.fileId})),
+        columnMap: App.settings.columnMap
+      });
+    });
+  });
+  URL.revokeObjectURL(workerBlobUrl);
+
+  mergeWorkerResults(partials);
+
+  // キャッシュ保存（失敗しても致命的ではない）
+  try{
+    await idbPut(buildCacheRecord(hash));
+  }catch(e){ /* ignore */ }
+
+  finishLoad();
+}
+
+function mergeWorkerResults(partials){
+  let total = 0;
+  partials.forEach(p=>total+=p.rowsDone);
+  const dateIdx = new Int32Array(total), kuId = new Uint16Array(total), daiKubun = new Uint8Array(total),
+        gyoshuId = new Uint16Array(total), issueSec = new Int32Array(total), callSec = new Int32Array(total),
+        endSec = new Int32Array(total), op1 = new Uint8Array(total), teller = new Uint8Array(total),
+        fileId = new Uint16Array(total);
+  App.gyoshu = []; App.gyoshuByName = new Map();
+  let offset = 0;
+  for(const p of partials){
+    // 業種名: ワーカーローカルID -> グローバルID 変換表。
+    // 大区分1〜32(通常業務)で実際に使われた名称だけを業種一覧に採用する
+    // （係員呼出・来店カウントの列3ラベルは cat=G/G+1 で別扱いのため、gyoshuId は参照されない＝0で無害）。
+    const remap = new Uint16Array(p.gyoshuDict.length);
+    for(let i=0;i<p.gyoshuDict.length;i++){
+      if(!p.gyoshuUsedAsBusiness[i]){ remap[i] = 0; continue; }
+      const name = p.gyoshuDict[i];
+      let gid = App.gyoshuByName.get(name);
+      if(gid === undefined){ gid = App.gyoshu.length; App.gyoshu.push(name); App.gyoshuByName.set(name,gid); }
+      remap[i] = gid;
+    }
+    const n = p.rowsDone;
+    dateIdx.set(p.dateIdx, offset); kuId.set(p.kuId, offset); daiKubun.set(p.daiKubun, offset);
+    issueSec.set(p.issueSec, offset); callSec.set(p.callSec, offset); endSec.set(p.endSec, offset);
+    op1.set(p.op1, offset); teller.set(p.teller, offset); fileId.set(p.fileId, offset);
+    for(let i=0;i<n;i++) gyoshuId[offset+i] = remap[p.gyoshuLocal[i]];
+    offset += n;
+    App.skipRows.push.apply(App.skipRows, p.skipRows);
+  }
+  App.data = {dateIdx,kuId,daiKubun,gyoshuId,issueSec,callSec,endSec,op1,teller,fileId,n: total};
+}
+
+function buildCacheRecord(hash){
+  const d = App.data;
+  return {
+    hash, createdAt: Date.now(),
+    ku: App.ku, gyoshu: App.gyoshu, fileNames: App.fileNames, skipRows: App.skipRows,
+    n: d.n,
+    dateIdx:d.dateIdx.buffer, kuId:d.kuId.buffer, daiKubun:d.daiKubun.buffer, gyoshuId:d.gyoshuId.buffer,
+    issueSec:d.issueSec.buffer, callSec:d.callSec.buffer, endSec:d.endSec.buffer,
+    op1:d.op1.buffer, teller:d.teller.buffer, fileId:d.fileId.buffer,
+    stats: {filesTotal: App.stats.filesTotal}
+  };
+}
+function restoreFromCache(rec){
+  App.ku = rec.ku; App.gyoshu = rec.gyoshu; App.fileNames = rec.fileNames; App.skipRows = rec.skipRows||[];
+  App.kuByFolder = new Map(); App.ku.forEach((k,i)=>{});
+  App.data = {
+    n: rec.n,
+    dateIdx:new Int32Array(rec.dateIdx), kuId:new Uint16Array(rec.kuId), daiKubun:new Uint8Array(rec.daiKubun),
+    gyoshuId:new Uint16Array(rec.gyoshuId), issueSec:new Int32Array(rec.issueSec), callSec:new Int32Array(rec.callSec),
+    endSec:new Int32Array(rec.endSec), op1:new Uint8Array(rec.op1), teller:new Uint8Array(rec.teller),
+    fileId:new Uint16Array(rec.fileId)
+  };
+  App.stats.filesTotal = (rec.stats&&rec.stats.filesTotal) || App.ku.length;
+  App.stats.filesDone = App.stats.filesTotal;
+  App.stats.rowsDone = rec.n;
+}
+
+/* =====================================================================
+ * プリ集約グリッド（日付×区×15分ビン×カテゴリ）
+ * カテゴリ: 0..G-1 = 業種ID（大区分1〜32のみ有効）, G = 来店カウント(大区分60), G+1 = 係員呼出(50〜52)
+ * 画面のフィルタ・受付時間スライダー・感度分析マトリクス・時間外基準変更は、
+ * このグリッドの範囲和だけで応答し、生データ（App.data）は再走査しない。
+ * 取消/欠測方式/外れ値閾値/母数定義を変更した場合のみ、1回の線形スキャンで再構築する。
+ * ===================================================================== */
+function buildGrids(){
+  const d = App.data;
+  const G = App.gyoshu.length;
+  const CAT_COUNT = G + 2; // G+0=visit, G+1=staff
+  const dateSet = new Set();
+  for(let i=0;i<d.n;i++) dateSet.add(d.dateIdx[i]);
+  const dateList = Array.from(dateSet).sort((a,b)=>a-b);
+  const dateCompact = new Map(); dateList.forEach((dt,i)=>dateCompact.set(dt,i));
+  const kuCount = Math.max(1, App.ku.length);
+  const dayKuCount = dateList.length * kuCount;
+
+  const countGrid = new Int32Array(dayKuCount * BIN_COUNT * CAT_COUNT);
+
+  function cellIndex(dateCompactIdx, kuId, bin, cat){
+    return ((dateCompactIdx*kuCount + kuId) * BIN_COUNT + bin) * CAT_COUNT + cat;
+  }
+
+  for(let i=0;i<d.n;i++){
+    const bin = Math.floor((d.issueSec[i] - BIN_START_SEC) / BIN_WIDTH_SEC);
+    if(bin < 0 || bin >= BIN_COUNT) continue;
+    const dc = dateCompact.get(d.dateIdx[i]);
+    if(dc === undefined) continue;
+    const dk = d.daiKubun[i];
+    let cat;
+    if(dk >= 1 && dk <= 32) cat = d.gyoshuId[i];
+    else if(dk === CAT_VISIT) cat = G;
+    else if(dk >= CAT_STAFF_MIN && dk <= CAT_STAFF_MAX) cat = G+1;
+    else continue;
+    countGrid[cellIndex(dc, d.kuId[i], bin, cat)]++;
+  }
+
+  App.grids = {
+    dateList, dateCompact, kuCount, catCount: CAT_COUNT, gyoshuCount: G, dayKuCount,
+    cellIndex, countGrid,
+    durSumAll:null, durCountAll:null, durSumClip:null, durCountClip:null,
+    waitSumTotal:0, waitCountTotal:0
+  };
+  buildDurationGrid();
+}
+
+// 中央値補完のための業種×区の中央値、及び全体中央値を計算してから処理時間グリッドを構築する
+function buildDurationGrid(){
+  const d = App.data, gr = App.grids;
+  if(!gr) return;
+  const s = App.settings;
+  const cancelExcl = (s.cancelHandling === "exclude");
+  const method = s.missingEndMethod;
+  const G = gr.gyoshuCount;
+
+  // 1st pass: 有効な処理時間（欠測でない）を ku*gyoshu 別・全体別に収集
+  const byKuGyoshu = new Map(); // key "ku|gyoshu" -> array(minutes)
+  const allDur = [];
+  for(let i=0;i<d.n;i++){
+    const dk = d.daiKubun[i];
+    if(dk < 1 || dk > 32) continue;
+    if(cancelExcl && d.op1[i] === 4) continue;
+    if(d.callSec[i] < 0 || d.endSec[i] < 0) continue;
+    const durMin = (d.endSec[i] - d.callSec[i]) / 60;
+    if(durMin <= 0) continue;
+    allDur.push(durMin);
+    const key = d.kuId[i]+"|"+d.gyoshuId[i];
+    let arr = byKuGyoshu.get(key);
+    if(!arr){ arr = []; byKuGyoshu.set(key, arr); }
+    arr.push(durMin);
+  }
+  const medianAll = median(allDur);
+  const medianByKey = new Map();
+  byKuGyoshu.forEach((arr,key)=>medianByKey.set(key, median(arr)));
+
+  const dayKuCount = gr.dayKuCount, catCount = gr.catCount, threshold = s.outlierThresholdMin;
+  const durSumAll = new Float64Array(dayKuCount*BIN_COUNT*catCount);
+  const durCountAll = new Int32Array(dayKuCount*BIN_COUNT*catCount);
+  const durSumClip = new Float64Array(dayKuCount*BIN_COUNT*catCount);
+  const durCountClip = new Int32Array(dayKuCount*BIN_COUNT*catCount);
+  let waitSumTotal = 0, waitCountTotal = 0;
+
+  for(let i=0;i<d.n;i++){
+    const dk = d.daiKubun[i];
+    if(dk < 1 || dk > 32) continue;
+    if(cancelExcl && d.op1[i] === 4) continue;
+    const bin = Math.floor((d.issueSec[i] - BIN_START_SEC) / BIN_WIDTH_SEC);
+    if(bin < 0 || bin >= BIN_COUNT) continue;
+    const dc = gr.dateCompact.get(d.dateIdx[i]);
+    if(dc === undefined) continue;
+    const cat = d.gyoshuId[i];
+    if(cat >= G) continue;
+
+    let durMin;
+    if(d.callSec[i] < 0){ continue; } // 未呼出は処理時間の対象外
+    if(d.endSec[i] < 0){
+      if(method === "exclude") { durMin = null; }
+      else if(method === "median_ku_gyoshu"){
+        const key = d.kuId[i]+"|"+d.gyoshuId[i];
+        durMin = medianByKey.has(key) ? medianByKey.get(key) : medianAll;
+      } else { durMin = medianAll; }
+    } else {
+      durMin = (d.endSec[i] - d.callSec[i]) / 60;
+      if(durMin <= 0) durMin = null;
+    }
+    if(durMin != null){
+      const idx = gr.cellIndex(dc, d.kuId[i], bin, cat);
+      durSumAll[idx] += durMin; durCountAll[idx]++;
+      if(durMin <= threshold){ durSumClip[idx] += durMin; durCountClip[idx]++; }
+    }
+
+    // 待ち時間（呼出-発行）。呼出があるレコードのみ。
+    if(d.issueSec[i] >= 0 && d.callSec[i] >= 0){
+      const w = (d.callSec[i]-d.issueSec[i])/60;
+      if(w >= 0){ waitSumTotal += w; waitCountTotal++; }
+    }
+  }
+
+  gr.durSumAll = durSumAll; gr.durCountAll = durCountAll;
+  gr.durSumClip = durSumClip; gr.durCountClip = durCountClip;
+  gr.waitSumTotal = waitSumTotal; gr.waitCountTotal = waitCountTotal;
+  gr.medianAll = medianAll; gr.medianByKey = medianByKey;
+
+  // 除外件数（画面上部の常時表示用）
+  let cancelCount=0, missingCount=0, gyoshuCount=0, visitCount=0, staffCount=0;
+  for(let i=0;i<d.n;i++){
+    const dk = d.daiKubun[i];
+    if(dk>=1 && dk<=32) gyoshuCount++;
+    else if(dk===CAT_VISIT) visitCount++;
+    else if(dk>=CAT_STAFF_MIN && dk<=CAT_STAFF_MAX) staffCount++;
+    if(d.op1[i]===4) cancelCount++;
+    if(dk>=1 && dk<=32 && d.op1[i]!==4 && d.callSec[i]>=0 && d.endSec[i]<0) missingCount++;
+  }
+  gr.counters = {cancelCount, missingCount, gyoshuCount, visitCount, staffCount, total:d.n};
+}
+
+/* ---- グリッド問い合わせ用ヘルパー ------------------------------------ */
+// dateFrom/dateTo(dateIdx, inclusive, null可), kuIdSet(Set|null), gyoshuIdSet(Set|null),
+// weekdaySet(Set|null), binFrom, binTo(exclusive) を指定して、母数定義に沿った来庁者数を集計する。
+function currentFilterSets(){
+  const f = App.filter;
+  return {
+    ku: f.ku && f.ku.size < App.ku.length ? f.ku : null,
+    gyoshu: f.gyoshu && f.gyoshu.size < App.gyoshu.length ? f.gyoshu : null,
+    weekday: f.weekday && f.weekday.size < 7 ? f.weekday : null,
+    from: f.from, to: f.to
+  };
+}
+function baselineCats(){
+  const G = App.grids.gyoshuCount;
+  const s = App.settings.baseline;
+  if(s === "issued") return {type:"gyoshu"};
+  if(s === "visit") return {type:"visit", cat:G};
+  return {type:"both", cat:G};
+}
+function countByBin(binFrom, binTo){
+  // 戻り値: Float64Array(長さ BIN_COUNT) 各ビンの来庁者数（現在のフィルタ・母数定義を適用）
+  const gr = App.grids, f = currentFilterSets();
+  const out = new Float64Array(BIN_COUNT);
+  if(!gr) return out;
+  const base = baselineCats();
+  binFrom = Math.max(0, binFrom); binTo = Math.min(BIN_COUNT, binTo);
+  for(let dc=0; dc<gr.dateList.length; dc++){
+    const dateIdx = gr.dateList[dc];
+    if(f.from!=null && dateIdx < f.from) continue;
+    if(f.to!=null && dateIdx > f.to) continue;
+    if(f.weekday){ const wd = dateIdxToYmd(dateIdx).wd; if(!f.weekday.has(wd)) continue; }
+    for(let ku=0; ku<gr.kuCount; ku++){
+      if(f.ku && !f.ku.has(ku)) continue;
+      for(let bin=binFrom; bin<binTo; bin++){
+        if(base.type === "gyoshu" || base.type === "both"){
+          for(let g=0; g<gr.gyoshuCount; g++){
+            if(f.gyoshu && !f.gyoshu.has(g)) continue;
+            out[bin] += gr.countGrid[gr.cellIndex(dc,ku,bin,g)];
+          }
+        }
+        if(base.type === "visit" || base.type === "both"){
+          out[bin] += gr.countGrid[gr.cellIndex(dc,ku,bin,gr.gyoshuCount)];
+        }
+      }
+    }
+  }
+  return out;
+}
+function prefixSum(arr){ const p = new Float64Array(arr.length+1); for(let i=0;i<arr.length;i++) p[i+1]=p[i]+arr[i]; return p; }
+function rangeSumFromPrefix(prefix, from, to){ from=Math.max(0,from); to=Math.min(prefix.length-1,to); return to>from ? prefix[to]-prefix[from] : 0; }
+
+/* ---- 受付時間スライダー（SPEC 4.2） -------------------------------- */
+function acceptanceWindowStats(newOpenSec, newCloseSec){
+  const s = App.settings;
+  const curOpenBin = Math.floor((hmsToSec(s.currentOpen)-BIN_START_SEC)/BIN_WIDTH_SEC);
+  const curCloseBin = Math.floor((hmsToSec(s.currentClose)-BIN_START_SEC)/BIN_WIDTH_SEC);
+  const newOpenBin = Math.floor((newOpenSec-BIN_START_SEC)/BIN_WIDTH_SEC);
+  const newCloseBin = Math.floor((newCloseSec-BIN_START_SEC)/BIN_WIDTH_SEC);
+  const bins = countByBin(0, BIN_COUNT);
+  const prefix = prefixSum(bins);
+  const current = rangeSumFromPrefix(prefix, curOpenBin, curCloseBin);
+  const changed = rangeSumFromPrefix(prefix, newOpenBin, newCloseBin);
+  const frontCut = newOpenBin > curOpenBin ? rangeSumFromPrefix(prefix, curOpenBin, newOpenBin) : 0;
+  const frontExt = newOpenBin < curOpenBin ? rangeSumFromPrefix(prefix, newOpenBin, curOpenBin) : 0;
+  const backCut = newCloseBin < curCloseBin ? rangeSumFromPrefix(prefix, newCloseBin, curCloseBin) : 0;
+  const backExt = newCloseBin > curCloseBin ? rangeSumFromPrefix(prefix, curCloseBin, newCloseBin) : 0;
+  return {
+    current, changed, ratio: current>0 ? (changed/current*100) : 0,
+    frontCut, frontExt, backCut, backExt,
+    curOpenBin, curCloseBin, newOpenBin, newCloseBin
+  };
+}
+
+/* ---- 感度分析マトリクス（SPEC 4.3） -------------------------------- */
+function sensitivityMatrix(){
+  const s = App.settings;
+  const curOpenSec = hmsToSec(s.currentOpen), curCloseSec = hmsToSec(s.currentClose);
+  const curWidthMin = (curCloseSec-curOpenSec)/60;
+  const bins = countByBin(0, BIN_COUNT);
+  const prefix = prefixSum(bins);
+  const curOpenBin = Math.floor((curOpenSec-BIN_START_SEC)/BIN_WIDTH_SEC);
+  const curCloseBin = Math.floor((curCloseSec-BIN_START_SEC)/BIN_WIDTH_SEC);
+  const current = rangeSumFromPrefix(prefix, curOpenBin, curCloseBin) || 1;
+  const rows = [];
+  for(let sb=0; sb<BIN_COUNT; sb++){
+    for(let eb=sb+1; eb<=BIN_COUNT; eb++){
+      const cnt = rangeSumFromPrefix(prefix, sb, eb);
+      const widthMin = (eb-sb)*15;
+      rows.push({
+        startBin:sb, endBin:eb,
+        startLabel: binIndexToLabel(sb), endLabel: binIndexToLabel(eb),
+        count: cnt, coverage: cnt/current*100,
+        reduceMin: curWidthMin - widthMin
+      });
+    }
+  }
+  return {rows, current, curWidthMin};
+}
+
+/* ---- 時間外勤務削減効果（SPEC 4.4） -------------------------------- */
+function overtimeAggregate(basisSec){
+  const gr = App.grids, f = currentFilterSets();
+  const basisBin = Math.max(0, Math.ceil((basisSec-BIN_START_SEC)/BIN_WIDTH_SEC));
+  const map = new Map(); // key ku|month|gyoshu
+  for(let dc=0; dc<gr.dateList.length; dc++){
+    const dateIdx = gr.dateList[dc];
+    if(f.from!=null && dateIdx < f.from) continue;
+    if(f.to!=null && dateIdx > f.to) continue;
+    if(f.weekday){ const wd=dateIdxToYmd(dateIdx).wd; if(!f.weekday.has(wd)) continue; }
+    const ymd = dateIdxToYmd(dateIdx);
+    for(let ku=0; ku<gr.kuCount; ku++){
+      if(f.ku && !f.ku.has(ku)) continue;
+      for(let g=0; g<gr.gyoshuCount; g++){
+        if(f.gyoshu && !f.gyoshu.has(g)) continue;
+        let sumClip=0,countClip=0,sumAll=0,countAll=0;
+        for(let bin=basisBin; bin<BIN_COUNT; bin++){
+          const idx = gr.cellIndex(dc,ku,bin,g);
+          sumClip += gr.durSumClip[idx]; countClip += gr.durCountClip[idx];
+          sumAll += gr.durSumAll[idx]; countAll += gr.durCountAll[idx];
+        }
+        if(countAll===0) continue;
+        const key = ku+"|"+ymd.mo+"|"+g;
+        let row = map.get(key);
+        if(!row){ row = {kuId:ku, month:ymd.mo, gyoshuId:g, sumClip:0,countClip:0,sumAll:0,countAll:0}; map.set(key,row); }
+        row.sumClip+=sumClip; row.countClip+=countClip; row.sumAll+=sumAll; row.countAll+=countAll;
+      }
+    }
+  }
+  const rows = Array.from(map.values()).sort((a,b)=> a.kuId-b.kuId || a.month-b.month || a.gyoshuId-b.gyoshuId);
+  let totalSumClip=0, totalCountClip=0, totalSumAll=0, totalCountAll=0;
+  rows.forEach(r=>{ totalSumClip+=r.sumClip; totalCountClip+=r.countClip; totalSumAll+=r.sumAll; totalCountAll+=r.countAll; });
+  return {rows, totalSumClip, totalCountClip, totalSumAll, totalCountAll};
+}
+
+/* ---- 待ち時間分布・テラー別処理時間分布（SPEC 4.5, 生データを直接走査） ---- */
+function computeDurationForRow(i){
+  const d = App.data, s = App.settings, gr = App.grids;
+  if(d.callSec[i] < 0) return null;
+  if(d.endSec[i] < 0){
+    if(s.missingEndMethod === "exclude") return null;
+    if(s.missingEndMethod === "median_ku_gyoshu"){
+      const key = d.kuId[i]+"|"+d.gyoshuId[i];
+      return gr.medianByKey.has(key) ? gr.medianByKey.get(key) : gr.medianAll;
+    }
+    return gr.medianAll;
+  }
+  const dur = (d.endSec[i]-d.callSec[i])/60;
+  return dur>0 ? dur : null;
+}
+function waitTimeHistogram(binWidthMin){
+  const d = App.data, s = App.settings, f = currentFilterSets();
+  const hist = new Map(); let count=0, sum=0, max=0;
+  for(let i=0;i<d.n;i++){
+    const dk = d.daiKubun[i]; if(dk<1||dk>32) continue;
+    if(s.cancelHandling==="exclude" && d.op1[i]===4) continue;
+    if(f.ku && !f.ku.has(d.kuId[i])) continue;
+    if(f.gyoshu && !f.gyoshu.has(d.gyoshuId[i])) continue;
+    if(f.from!=null && d.dateIdx[i]<f.from) continue;
+    if(f.to!=null && d.dateIdx[i]>f.to) continue;
+    if(d.callSec[i] < 0 || d.issueSec[i] < 0) continue;
+    const w = (d.callSec[i]-d.issueSec[i])/60;
+    if(w < 0) continue;
+    const b = Math.floor(w/binWidthMin);
+    hist.set(b, (hist.get(b)||0)+1);
+    count++; sum+=w; if(w>max) max=w;
+  }
+  return {hist, count, mean: count?sum/count:0, max};
+}
+function tellerDurationStats(){
+  const d = App.data, s = App.settings, f = currentFilterSets();
+  const byTeller = new Map();
+  for(let i=0;i<d.n;i++){
+    const dk = d.daiKubun[i]; if(dk<1||dk>32) continue;
+    if(s.cancelHandling==="exclude" && d.op1[i]===4) continue;
+    if(f.ku && !f.ku.has(d.kuId[i])) continue;
+    if(f.gyoshu && !f.gyoshu.has(d.gyoshuId[i])) continue;
+    if(f.from!=null && d.dateIdx[i]<f.from) continue;
+    if(f.to!=null && d.dateIdx[i]>f.to) continue;
+    const dur = computeDurationForRow(i);
+    if(dur == null) continue;
+    if(dur > s.outlierThresholdMin) continue;
+    const t = d.teller[i];
+    let a = byTeller.get(t); if(!a){ a=[]; byTeller.set(t,a); } a.push(dur);
+  }
+  const rows = Array.from(byTeller.entries()).map(([teller,arr])=>({
+    teller, count:arr.length, mean:mean(arr), median:median(arr), max:Math.max.apply(null,arr)
+  })).sort((a,b)=>b.count-a.count);
+  return rows;
+}
+
+/* ---- 繁忙日の特定（SPEC 4.6, 生データを直接走査） -------------------- */
+function dailyTotals(){
+  const d = App.data, f = currentFilterSets();
+  const base = App.settings.baseline;
+  const map = new Map();
+  for(let i=0;i<d.n;i++){
+    const dk = d.daiKubun[i];
+    let counts;
+    const isGyoshu = dk>=1 && dk<=32;
+    const isVisit = dk===CAT_VISIT;
+    if(base==="issued" && !isGyoshu) continue;
+    if(base==="visit" && !isVisit) continue;
+    if(base==="both" && !isGyoshu && !isVisit) continue;
+    if(f.ku && !f.ku.has(d.kuId[i])) continue;
+    if(isGyoshu && f.gyoshu && !f.gyoshu.has(d.gyoshuId[i])) continue;
+    if(f.from!=null && d.dateIdx[i]<f.from) continue;
+    if(f.to!=null && d.dateIdx[i]>f.to) continue;
+    const dateIdx = d.dateIdx[i];
+    if(f.weekday){ const wd=dateIdxToYmd(dateIdx).wd; if(!f.weekday.has(wd)) continue; }
+    map.set(dateIdx, (map.get(dateIdx)||0)+1);
+  }
+  const rows = Array.from(map.entries()).map(([dateIdx,count])=>{
+    const ymd = dateIdxToYmd(dateIdx);
+    return {dateIdx, count, ymd};
+  }).sort((a,b)=>b.count-a.count);
+  return rows;
+}
+
+/* =====================================================================
+ * SVG チャート描画（外部ライブラリ不使用の自前実装）
+ * ===================================================================== */
+const SVGNS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs){
+  const el = document.createElementNS(SVGNS, tag);
+  if(attrs) for(const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+function makeSvg(w,h){
+  const svg = svgEl("svg", {width:w, height:h, viewBox:`0 0 ${w} ${h}`, style:"background:#fff"});
+  return svg;
+}
+function drawStackedBarChart(container, series, labels, opts){
+  // series: [{name, color, values:Float64Array(len==labels.length)}]
+  opts = opts || {};
+  const W = opts.width || 900, H = opts.height || 340;
+  const padL = 50, padR = 16, padT = 16, padB = 60;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const n = labels.length;
+  const totals = labels.map((_,i)=> series.reduce((s,se)=>s+se.values[i],0));
+  const maxV = Math.max(1, ...totals);
+  const svg = makeSvg(W,H);
+  // 目盛り(横線)
+  const steps = 5;
+  for(let s=0;s<=steps;s++){
+    const v = maxV*s/steps;
+    const y = padT + plotH - (v/maxV)*plotH;
+    svg.appendChild(svgEl("line",{x1:padL,y1:y,x2:W-padR,y2:y,stroke:"#e2e5ea",'stroke-width':1}));
+    const t = svgEl("text",{x:padL-6,y:y+4,'text-anchor':'end','font-size':10,fill:'#5a6472'});
+    t.textContent = Math.round(v); svg.appendChild(t);
+  }
+  const bw = plotW/n*0.72, gap = plotW/n;
+  for(let i=0;i<n;i++){
+    let y0 = padT+plotH;
+    const x = padL + i*gap + (gap-bw)/2;
+    for(const se of series){
+      const v = se.values[i];
+      if(v<=0) continue;
+      const h = (v/maxV)*plotH;
+      const y = y0-h;
+      const rect = svgEl("rect",{x,y,width:bw,height:h,fill:se.color});
+      const ttl = svgEl("title"); ttl.textContent = `${labels[i]} ${se.name}: ${fmtInt(v)}件`;
+      rect.appendChild(ttl);
+      svg.appendChild(rect);
+      y0 = y;
+    }
+    if(i % 4 === 0){
+      const t = svgEl("text",{x:x+bw/2,y:H-padB+16,'text-anchor':'middle','font-size':10,fill:'#5a6472',
+        transform:`rotate(60 ${x+bw/2} ${H-padB+16})`});
+      t.textContent = labels[i]; svg.appendChild(t);
+    }
+  }
+  svg.appendChild(svgEl("line",{x1:padL,y1:padT+plotH,x2:W-padR,y2:padT+plotH,stroke:"#8a94a3",'stroke-width':1}));
+  container.innerHTML=""; container.appendChild(svg);
+  return svg;
+}
+function drawHistogram(container, bins, binWidth, opts){
+  opts = opts || {};
+  const W = opts.width||800, H = opts.height||300;
+  const padL=50,padR=16,padT=16,padB=40;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  const keys = Array.from(bins.keys());
+  const maxBin = keys.length ? Math.max.apply(null,keys) : 0;
+  const n = maxBin+1;
+  const values = new Float64Array(n);
+  keys.forEach(k=>values[k]=bins.get(k));
+  const maxV = Math.max(1, ...values);
+  const svg = makeSvg(W,H);
+  for(let s=0;s<=4;s++){
+    const v = maxV*s/4, y = padT+plotH-(v/maxV)*plotH;
+    svg.appendChild(svgEl("line",{x1:padL,y1:y,x2:W-padR,y2:y,stroke:"#e2e5ea"}));
+    const t = svgEl("text",{x:padL-6,y:y+4,'text-anchor':'end','font-size':10,fill:'#5a6472'});
+    t.textContent = Math.round(v); svg.appendChild(t);
+  }
+  const bw = n>0 ? plotW/n : 0;
+  for(let i=0;i<n;i++){
+    const v = values[i]; if(v<=0) continue;
+    const h = (v/maxV)*plotH, x = padL+i*bw, y = padT+plotH-h;
+    const rect = svgEl("rect",{x,y,width:Math.max(1,bw-1),height:h,fill:"#2f6fb0"});
+    const ttl = svgEl("title"); ttl.textContent = `${i*binWidth}〜${(i+1)*binWidth}分: ${fmtInt(v)}件`;
+    rect.appendChild(ttl); svg.appendChild(rect);
+    if(i % Math.max(1,Math.round(n/12)) === 0){
+      const t = svgEl("text",{x:x+bw/2,y:H-padB+14,'text-anchor':'middle','font-size':10,fill:'#5a6472'});
+      t.textContent = i*binWidth; svg.appendChild(t);
+    }
+  }
+  svg.appendChild(svgEl("line",{x1:padL,y1:padT+plotH,x2:W-padR,y2:padT+plotH,stroke:"#8a94a3"}));
+  container.innerHTML=""; container.appendChild(svg);
+  return svg;
+}
+function svgToPngBlob(svg, scale){
+  return new Promise((resolve)=>{
+    const w = +svg.getAttribute("width"), h = +svg.getAttribute("height");
+    const xml = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([xml], {type:"image/svg+xml;charset=utf-8"});
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = ()=>{
+      const canvas = document.createElement("canvas");
+      canvas.width = w*(scale||2); canvas.height = h*(scale||2);
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff"; // 背景（透過にする場合は塗りつぶし省略）
+      if(!(window.__pngTransparent)) ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.scale(scale||2, scale||2);
+      ctx.drawImage(img,0,0);
+      canvas.toBlob(b=>{ URL.revokeObjectURL(url); resolve(b); }, "image/png");
+    };
+    img.src = url;
+  });
+}
+function exportSvg(svg, filename){
+  const xml = new XMLSerializer().serializeToString(svg);
+  downloadBlob(new Blob([xml],{type:"image/svg+xml"}), filename);
+}
+async function exportPng(svg, filename, transparent){
+  window.__pngTransparent = !!transparent;
+  const blob = await svgToPngBlob(svg, 2);
+  downloadBlob(blob, filename);
+}
+
+function countByBinPerGyoshu(binFrom, binTo){
+  // 業種別の内訳（時間帯別スタック棒グラフ用）。 [gyoshuId] -> Float64Array(BIN_COUNT)
+  const gr = App.grids, f = currentFilterSets();
+  const G = gr.gyoshuCount;
+  const result = [];
+  for(let g=0; g<G; g++) result.push(new Float64Array(BIN_COUNT));
+  binFrom = Math.max(0, binFrom); binTo = Math.min(BIN_COUNT, binTo);
+  const base = baselineCats();
+  if(base.type === "visit") return result; // 来店カウントのみの場合は業種内訳なし
+  for(let dc=0; dc<gr.dateList.length; dc++){
+    const dateIdx = gr.dateList[dc];
+    if(f.from!=null && dateIdx < f.from) continue;
+    if(f.to!=null && dateIdx > f.to) continue;
+    if(f.weekday){ const wd = dateIdxToYmd(dateIdx).wd; if(!f.weekday.has(wd)) continue; }
+    for(let ku=0; ku<gr.kuCount; ku++){
+      if(f.ku && !f.ku.has(ku)) continue;
+      for(let g=0; g<G; g++){
+        if(f.gyoshu && !f.gyoshu.has(g)) continue;
+        const arr = result[g];
+        for(let bin=binFrom; bin<binTo; bin++){
+          arr[bin] += gr.countGrid[gr.cellIndex(dc,ku,bin,g)];
+        }
+      }
+    }
+  }
+  return result;
+}
+
+/* =====================================================================
+ * 進捗・ステータスバー UI
+ * ===================================================================== */
+function showProgress(on){
+  document.getElementById("progresswrap").style.display = on?"block":"none";
+  document.getElementById("progresstext").style.display = on?"flex":"none";
+}
+function setProgressText(msg){
+  const el = document.getElementById("scan-status");
+  el.style.display = msg ? "block" : "none";
+  el.textContent = msg || "";
+}
+function setLoadSummary(kind, msg){
+  const el = document.getElementById("load-summary");
+  el.className = "msgbox " + kind; el.style.display="block"; el.textContent = msg;
+}
+function updateProgressUI(){
+  const st = App.stats;
+  const pct = st.filesTotal ? Math.min(100, Math.round(st.filesDone/st.filesTotal*100)) : 0;
+  const bar = document.getElementById("progressbar");
+  bar.style.width = pct+"%"; bar.textContent = pct+"%";
+  const elapsed = (performance.now()-st.t0)/1000;
+  const speed = elapsed>0 ? Math.round(st.rowsDone/elapsed) : 0;
+  const remainFiles = st.filesTotal - st.filesDone;
+  const perFile = st.filesDone>0 ? elapsed/st.filesDone : 0;
+  const etaSec = Math.max(0, Math.round(perFile*remainFiles));
+  document.getElementById("progresstext").style.display="flex";
+  document.getElementById("p-files").textContent = `${st.filesDone.toLocaleString()}/${st.filesTotal.toLocaleString()} ファイル`;
+  document.getElementById("p-rows").textContent = `${st.rowsDone.toLocaleString()} 行`;
+  document.getElementById("p-speed").textContent = `${speed.toLocaleString()} 行/秒`;
+  document.getElementById("p-eta").textContent = remainFiles>0 ? `残り約 ${etaSec}秒` : "";
+}
+function updateStatusBar(){
+  const s = App.settings;
+  const baselineLabel = {issued:"① 発券レコードのみ", visit:"② 来店カウントのみ", both:"③ 両方（合算）"}[s.baseline];
+  const missingLabel = {exclude:"① 除外", median_ku_gyoshu:"② 同業種同区中央値補完", median_all:"③ 全体中央値補完"}[s.missingEndMethod];
+  document.getElementById("sb-baseline").textContent = baselineLabel;
+  document.getElementById("sb-missing").textContent = missingLabel;
+  document.getElementById("sb-outlier").textContent = s.outlierThresholdMin+"分（"+(s.cancelHandling==="exclude"?"取消は除外":"取消も含める")+"）";
+  document.getElementById("sb-basis").textContent = s.basisTime+"以降";
+  const gr = App.grids;
+  if(gr && gr.counters){
+    const c = gr.counters;
+    document.getElementById("sb-excluded").textContent =
+      `取消${fmtInt(c.cancelCount)}件 / 終了時刻欠測${fmtInt(c.missingCount)}件 / スキップ行${fmtInt(App.skipRows.length)}件`;
+  }else{
+    document.getElementById("sb-excluded").textContent = "-";
+  }
+}
+
+/* =====================================================================
+ * タブ定義・切替
+ * ===================================================================== */
+const TABS = [
+  {id:"timeofday", label:"① 時間帯別来庁者数", render: renderTimeOfDayTab},
+  {id:"slider", label:"② 受付時間スライダー", render: renderSliderTab},
+  {id:"sensitivity", label:"③ 感度分析マトリクス", render: renderSensitivityTab},
+  {id:"overtime", label:"④ 時間外勤務削減効果", render: renderOvertimeTab},
+  {id:"dist", label:"⑤ 待ち時間・テラー別分布", render: renderDistTab},
+  {id:"busy", label:"⑥ 繁忙日の特定", render: renderBusyTab},
+  {id:"summary", label:"⑦ 説明資料サマリー", render: renderSummaryTab},
+];
+let currentTab = "timeofday";
+function buildTabsUI(){
+  const tabsEl = document.getElementById("tabs");
+  const panelsEl = document.getElementById("tabpanels");
+  tabsEl.innerHTML=""; panelsEl.innerHTML="";
+  TABS.forEach(t=>{
+    const btn = document.createElement("button");
+    btn.className = "tabbtn"+(t.id===currentTab?" active":"");
+    btn.textContent = t.label;
+    btn.onclick = ()=>{ currentTab=t.id; refreshTabs(); };
+    tabsEl.appendChild(btn);
+    const panel = document.createElement("div");
+    panel.className = "tabpanel"+(t.id===currentTab?" active":"");
+    panel.id = "panel-"+t.id;
+    panelsEl.appendChild(panel);
+  });
+}
+function refreshTabs(){
+  Array.from(document.getElementById("tabs").children).forEach((btn,i)=>{
+    btn.className = "tabbtn"+(TABS[i].id===currentTab?" active":"");
+  });
+  Array.from(document.getElementById("tabpanels").children).forEach((p,i)=>{
+    p.className = "tabpanel"+(TABS[i].id===currentTab?" active":"");
+  });
+  const t = TABS.find(t=>t.id===currentTab);
+  if(t) t.render(document.getElementById("panel-"+t.id));
+}
+function renderAll(){
+  updateStatusBar();
+  buildFilterUI();
+  refreshTabs();
+}
+
+/* ---- ① 時間帯別来庁者数 ---------------------------------------------- */
+function renderTimeOfDayTab(root){
+  const labels = []; for(let b=0;b<BIN_COUNT;b++) labels.push(binIndexToLabel(b));
+  const base = baselineCats();
+  let series;
+  if(base.type === "visit"){
+    const totals = countByBin(0,BIN_COUNT);
+    series = [{name:"来店カウント", color:"#4f9a5b", values: totals}];
+  }else{
+    const perG = countByBinPerGyoshu(0,BIN_COUNT);
+    series = App.gyoshu.map((name,i)=>({name, color:GYOSHU_COLORS[i%GYOSHU_COLORS.length], values:perG[i]}));
+    if(base.type === "both"){
+      series.push({name:"来店カウント", color:"#4f9a5b", values: (()=>{ const vg=new Float64Array(BIN_COUNT); const all=countByBin(0,BIN_COUNT); const gsum=new Float64Array(BIN_COUNT); perG.forEach(a=>a.forEach((v,i)=>gsum[i]+=v)); for(let i=0;i<BIN_COUNT;i++) vg[i]=all[i]-gsum[i]; return vg; })()});
+    }
+  }
+  const total = series.reduce((s,se)=>s+se.values.reduce((a,b)=>a+b,0),0);
+  root.innerHTML = `
+    <div class="panel">
+      <h2>時間帯別来庁者数（15分刻み、8:00〜19:00）</h2>
+      <p class="small hint" title="来庁時刻＝列${App.settings.columnMap.issueTime}（発行時刻）。母数定義: ${document.getElementById('sb-baseline').textContent}。現在のフィルタ条件を適用済み。">
+        対象件数: <b>${fmtInt(total)}</b> 件（ホバーで算定条件を表示）
+      </p>
+      <div id="tod-chart"></div>
+      <div class="legend" id="tod-legend"></div>
+      <div class="exporrow">
+        <button onclick="exportSvgFromContainer('tod-chart','時間帯別来庁者数.svg')">SVG書き出し</button>
+        <button onclick="exportPngFromContainer('tod-chart','時間帯別来庁者数.png',false)">PNG書き出し（背景あり）</button>
+        <button onclick="exportPngFromContainer('tod-chart','時間帯別来庁者数.png',true)">PNG書き出し（背景透過）</button>
+        <button onclick="exportTimeOfDayTable('cp932')">表をCSV出力(cp932)</button>
+        <button onclick="exportTimeOfDayTable('utf8')">表をCSV出力(UTF-8)</button>
+      </div>
+    </div>`;
+  const chartDiv = document.getElementById("tod-chart");
+  drawStackedBarChart(chartDiv, series, labels, {width: Math.min(1300, 900+series.length*0)});
+  const legend = document.getElementById("tod-legend");
+  legend.innerHTML = series.map(se=>`<span><i style="background:${se.color}"></i>${se.name}</span>`).join("");
+}
+function exportSvgFromContainer(id, filename){ exportSvg(document.getElementById(id).querySelector("svg"), filename); }
+function exportPngFromContainer(id, filename, transparent){ exportPng(document.getElementById(id).querySelector("svg"), filename, transparent); }
+function exportTimeOfDayTable(enc){
+  const base = baselineCats();
+  const header = ["時間帯"];
+  let rows;
+  if(base.type==="visit"){
+    header.push("来店カウント");
+    const totals = countByBin(0,BIN_COUNT);
+    rows = Array.from({length:BIN_COUNT},(_,b)=>[binIndexToLabel(b), Math.round(totals[b])]);
+  }else{
+    header.push.apply(header, App.gyoshu);
+    if(base.type==="both") header.push("来店カウント");
+    const perG = countByBinPerGyoshu(0,BIN_COUNT);
+    const all = base.type==="both" ? countByBin(0,BIN_COUNT) : null;
+    rows = Array.from({length:BIN_COUNT},(_,b)=>{
+      const r = [binIndexToLabel(b)];
+      let gsum=0;
+      App.gyoshu.forEach((_,i)=>{ r.push(Math.round(perG[i][b])); gsum+=perG[i][b]; });
+      if(base.type==="both") r.push(Math.round(all[b]-gsum));
+      return r;
+    });
+  }
+  exportTable([header,...rows], "時間帯別来庁者数."+(enc==="cp932"?"csv":"csv"), enc, ",");
+}
+
+/* ---- ② 受付時間スライダー -------------------------------------------- */
+function renderSliderTab(root){
+  const s = App.settings;
+  root.innerHTML = `
+    <div class="panel">
+      <h2>受付時間スライダー</h2>
+      <p class="small">現行受付時間: <b>${s.currentOpen}〜${s.currentClose}</b>（設定パネルで変更可）</p>
+      <div class="row">
+        <div class="col"><label class="small">開始時刻</label>
+          <div class="slidewrap"><input type="range" id="sl-open" min="0" max="${BIN_COUNT}" step="1"><span id="sl-open-label"></span></div>
+        </div>
+        <div class="col"><label class="small">終了時刻</label>
+          <div class="slidewrap"><input type="range" id="sl-close" min="0" max="${BIN_COUNT}" step="1"><span id="sl-close-label"></span></div>
+        </div>
+      </div>
+      <div class="kv" id="sl-result" style="margin-top:12px"></div>
+      <div class="exporrow">
+        <button id="sl-export-md">この結果をMD文章として書き出す</button>
+      </div>
+    </div>`;
+  const openBin = Math.round((hmsToSec(s.currentOpen)-BIN_START_SEC)/BIN_WIDTH_SEC);
+  const closeBin = Math.round((hmsToSec(s.currentClose)-BIN_START_SEC)/BIN_WIDTH_SEC);
+  const openEl = document.getElementById("sl-open"), closeEl = document.getElementById("sl-close");
+  openEl.value = openBin; closeEl.value = closeBin;
+  function update(){
+    const ob = +openEl.value, cb = Math.max(+closeEl.value, ob+1);
+    closeEl.value = cb;
+    const openSec = BIN_START_SEC+ob*BIN_WIDTH_SEC, closeSec = BIN_START_SEC+cb*BIN_WIDTH_SEC;
+    document.getElementById("sl-open-label").textContent = secToHm(openSec);
+    document.getElementById("sl-close-label").textContent = secToHm(closeSec);
+    const st = acceptanceWindowStats(openSec, closeSec);
+    App.lastSliderStats = Object.assign({openSec,closeSec}, st);
+    document.getElementById("sl-result").innerHTML = `
+      <b>変更後受付時間</b><span>${secToHm(openSec)}〜${secToHm(closeSec)}</span>
+      <b>変更後の来庁者数</b><span>${fmtInt(st.changed)} 件</span>
+      <b>現行受付時間内来庁者数</b><span>${fmtInt(st.current)} 件</span>
+      <b>現行比カバー率</b><span>${fmtPct(st.ratio)}</span>
+      <b>前半短縮分（${s.currentOpen}〜${secToHm(openSec)}）</b><span>${st.frontCut>0?fmtInt(st.frontCut)+" 件":(st.frontExt>0?"延長 "+fmtInt(st.frontExt)+" 件":"変更なし")}</span>
+      <b>後半短縮分（${secToHm(closeSec)}〜${s.currentClose}）</b><span>${st.backCut>0?fmtInt(st.backCut)+" 件":(st.backExt>0?"延長 "+fmtInt(st.backExt)+" 件":"変更なし")}</span>`;
+  }
+  openEl.oninput = update; closeEl.oninput = update; update();
+  document.getElementById("sl-export-md").onclick = ()=>exportSliderMarkdown();
+}
+function exportSliderMarkdown(){
+  const st = App.lastSliderStats; if(!st) return;
+  const s = App.settings;
+  const md = `## 受付時間変更の影響（自動生成サマリー）
+
+変更後受付時間 **${secToHm(st.openSec)}〜${secToHm(st.closeSec)}** は、現行受付時間（${s.currentOpen}〜${s.currentClose}）内来庁者の
+**${fmtPct(st.ratio)}（${fmtInt(st.changed)}件 / ${fmtInt(st.current)}件）** に相当する。
+
+- 前半（${s.currentOpen}〜${secToHm(st.openSec)}）の短縮により影響を受ける来庁者数: ${fmtInt(st.frontCut)} 件
+- 後半（${secToHm(st.closeSec)}〜${s.currentClose}）の短縮により影響を受ける来庁者数: ${fmtInt(st.backCut)} 件
+
+母数定義: ${document.getElementById('sb-baseline').textContent} ／ 集計条件は分析条件JSONを参照。
+`;
+  downloadBlob(new Blob([md],{type:"text/markdown"}), "受付時間変更サマリー.md");
+}
+
+/* ---- ③ 感度分析マトリクス -------------------------------------------- */
+function renderSensitivityTab(root){
+  root.innerHTML = `
+    <div class="panel">
+      <h2>感度分析マトリクス（開始時刻 × 終了時刻 総当たり）</h2>
+      <p class="small">現行受付時間 ${App.settings.currentOpen}〜${App.settings.currentClose} を基準にカバー率・削減見込み時間を算出。説明資料の根拠表としてそのまま利用できます。</p>
+      <div class="exporrow">
+        <button onclick="exportSensitivityTable('cp932')">CSV出力(cp932)</button>
+        <button onclick="exportSensitivityTable('utf8')">CSV出力(UTF-8)</button>
+      </div>
+      <div class="gridwrap" style="margin-top:8px"><table id="sens-table"></table></div>
+    </div>`;
+  const {rows} = sensitivityMatrix();
+  const starts = Array.from(new Set(rows.map(r=>r.startBin))).sort((a,b)=>a-b);
+  const ends = Array.from(new Set(rows.map(r=>r.endBin))).sort((a,b)=>a-b);
+  const byKey = new Map(rows.map(r=>[r.startBin+"_"+r.endBin, r]));
+  const maxCoverage = Math.max.apply(null, rows.map(r=>r.coverage));
+  let html = "<thead><tr><th>開始＼終了</th>"+ends.map(e=>`<th>${binIndexToLabel(e)}</th>`).join("")+"</tr></thead><tbody>";
+  starts.forEach(sb=>{
+    html += `<tr><th>${binIndexToLabel(sb)}</th>`;
+    ends.forEach(eb=>{
+      const r = byKey.get(sb+"_"+eb);
+      if(!r || eb<=sb){ html += "<td></td>"; return; }
+      const heat = Math.min(5, Math.floor(r.coverage/maxCoverage*5));
+      html += `<td class="heat${heat}" title="対象:${fmtInt(r.count)}件 カバー率:${fmtPct(r.coverage)} 削減見込み:${Math.round(r.reduceMin)}分">${fmtPct(r.coverage)}</td>`;
+    });
+    html += "</tr>";
+  });
+  html += "</tbody>";
+  document.getElementById("sens-table").innerHTML = html;
+  App.lastSensitivity = rows;
+}
+function exportSensitivityTable(enc){
+  const rows = App.lastSensitivity || sensitivityMatrix().rows;
+  const header = ["開始時刻","終了時刻","対象人数","現行比カバー率(%)","削減見込み時間(分)"];
+  const body = rows.map(r=>[r.startLabel, r.endLabel, Math.round(r.count), (Math.round(r.coverage*10)/10), Math.round(r.reduceMin)]);
+  exportTable([header,...body], "感度分析マトリクス.csv", enc, ",");
+}
+
+/* ---- ④ 時間外勤務削減効果 -------------------------------------------- */
+function renderOvertimeTab(root){
+  const s = App.settings;
+  root.innerHTML = `
+    <div class="panel">
+      <h2>時間外勤務削減効果の推計</h2>
+      <div class="row">
+        <label class="small">基準時刻（この時刻以降に発行されたレコードの処理時間を集計）</label>
+        <input type="text" id="ot-basis" value="${s.basisTime}" size="5">
+        <button id="ot-apply">再計算</button>
+      </div>
+      <p class="small hint" title="対象=大区分1〜32。取消(${s.cancelHandling==='exclude'?'除外':'含める'})。終了時刻欠測は${document.getElementById('sb-missing').textContent}。外れ値閾値${s.outlierThresholdMin}分。">
+        条件の詳細（ホバー）／ 時間単価 <input type="number" id="ot-unitcost" value="${s.unitCost}" style="width:90px"> 円/時
+      </p>
+      <div class="kv" id="ot-total" style="margin:10px 0"></div>
+      <div class="exporrow">
+        <button onclick="exportOvertimeTable('cp932')">CSV出力(cp932)</button>
+        <button onclick="exportOvertimeTable('utf8')">CSV出力(UTF-8)</button>
+      </div>
+      <div class="gridwrap" style="margin-top:8px"><table id="ot-table"></table></div>
+    </div>`;
+  function recalc(){
+    const basisSec = hmsToSec(document.getElementById("ot-basis").value) ;
+    const unitCost = +document.getElementById("ot-unitcost").value || 0;
+    const agg = overtimeAggregate(basisSec>=0?basisSec:hmsToSec(s.basisTime));
+    App.lastOvertime = agg;
+    const costClip = agg.totalSumClip/60*unitCost, costAll = agg.totalSumAll/60*unitCost;
+    document.getElementById("ot-total").innerHTML = `
+      <b>合計処理時間（外れ値除外後）</b><span>${fmtMin(agg.totalSumClip)} 分（${agg.totalCountClip}件）</span>
+      <b>合計処理時間（外れ値含む・参考）</b><span>${fmtMin(agg.totalSumAll)} 分（${agg.totalCountAll}件）</span>
+      <b>金額換算（外れ値除外後）</b><span>${fmtYen(costClip)}</span>
+      <b>金額換算（外れ値含む・参考）</b><span>${fmtYen(costAll)}</span>`;
+    const header = "<thead><tr><th class='left'>区</th><th>月</th><th class='left'>業種</th><th>件数(除外後)</th><th>時間(分,除外後)</th><th>金額(円)</th><th>件数(参考)</th><th>時間(分,参考)</th></tr></thead>";
+    const body = agg.rows.map(r=>`<tr><td class="left">${App.ku[r.kuId]?App.ku[r.kuId].name:r.kuId}</td><td>${r.month}月</td>
+      <td class="left">${App.gyoshu[r.gyoshuId]}</td><td>${r.countClip}</td><td>${fmtMin(r.sumClip)}</td>
+      <td>${fmtYen(r.sumClip/60*unitCost)}</td><td>${r.countAll}</td><td>${fmtMin(r.sumAll)}</td></tr>`).join("");
+    document.getElementById("ot-table").innerHTML = header+"<tbody>"+body+"</tbody>";
+  }
+  document.getElementById("ot-apply").onclick = recalc;
+  document.getElementById("ot-unitcost").onchange = recalc;
+  recalc();
+}
+function exportOvertimeTable(enc){
+  const agg = App.lastOvertime; if(!agg) return;
+  const header = ["区","月","業種","件数(外れ値除外後)","時間分(除外後)","件数(参考,外れ値含む)","時間分(参考)"];
+  const body = agg.rows.map(r=>[App.ku[r.kuId]?App.ku[r.kuId].name:r.kuId, r.month, App.gyoshu[r.gyoshuId],
+    r.countClip, Math.round(r.sumClip*10)/10, r.countAll, Math.round(r.sumAll*10)/10]);
+  exportTable([header,...body], "時間外勤務削減効果.csv", enc, ",");
+}
+
+/* ---- ⑤ 待ち時間分布・テラー別処理時間分布 ------------------------------ */
+function renderDistTab(root){
+  root.innerHTML = `
+    <div class="panel">
+      <h2>待ち時間分布（呼出−発行）</h2>
+      <div id="wait-chart"></div>
+      <div class="kv" id="wait-stats" style="margin-top:6px"></div>
+      <div class="exporrow">
+        <button onclick="exportSvgFromContainer('wait-chart','待ち時間分布.svg')">SVG書き出し</button>
+        <button onclick="exportPngFromContainer('wait-chart','待ち時間分布.png',false)">PNG書き出し</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>テラー別処理時間分布</h2>
+      <div class="gridwrap"><table id="teller-table"></table></div>
+      <div class="exporrow">
+        <button onclick="exportTellerTable('cp932')">CSV出力(cp932)</button>
+        <button onclick="exportTellerTable('utf8')">CSV出力(UTF-8)</button>
+      </div>
+    </div>`;
+  const w = waitTimeHistogram(1);
+  drawHistogram(document.getElementById("wait-chart"), w.hist, 1, {width:800,height:280});
+  document.getElementById("wait-stats").innerHTML =
+    `<b>件数</b><span>${fmtInt(w.count)}</span><b>平均</b><span>${fmtMin(w.mean)} 分</span><b>最大</b><span>${fmtMin(w.max)} 分</span>`;
+  const tellers = tellerDurationStats();
+  App.lastTeller = tellers;
+  document.getElementById("teller-table").innerHTML =
+    "<thead><tr><th>テラー番号</th><th>件数</th><th>平均処理時間(分)</th><th>中央値(分)</th><th>最大(分)</th></tr></thead><tbody>"+
+    tellers.map(t=>`<tr><td>${t.teller}</td><td>${t.count}</td><td>${fmtMin(t.mean)}</td><td>${fmtMin(t.median)}</td><td>${fmtMin(t.max)}</td></tr>`).join("")+
+    "</tbody>";
+}
+function exportTellerTable(enc){
+  const rows = App.lastTeller || tellerDurationStats();
+  const header = ["テラー番号","件数","平均処理時間(分)","中央値(分)","最大(分)"];
+  const body = rows.map(t=>[t.teller,t.count,Math.round(t.mean*10)/10,Math.round(t.median*10)/10,Math.round(t.max*10)/10]);
+  exportTable([header,...body], "テラー別処理時間分布.csv", enc, ",");
+}
+
+/* ---- ⑥ 繁忙日の特定 --------------------------------------------------- */
+function renderBusyTab(root){
+  const rows = dailyTotals();
+  App.lastBusy = rows;
+  const top = rows.slice(0,20);
+  const byMonth = new Map(), byWeekday = new Array(7).fill(0);
+  let monthStartSum=0, monthStartN=0, monthEndSum=0, monthEndN=0, otherSum=0, otherN=0;
+  rows.forEach(r=>{
+    const key = r.ymd.y+"-"+String(r.ymd.mo).padStart(2,"0");
+    byMonth.set(key, (byMonth.get(key)||0)+r.count);
+    byWeekday[r.ymd.wd]+=r.count;
+    if(r.ymd.d<=5){ monthStartSum+=r.count; monthStartN++; }
+    else if(r.ymd.d>=26){ monthEndSum+=r.count; monthEndN++; }
+    else { otherSum+=r.count; otherN++; }
+  });
+  root.innerHTML = `
+    <div class="panel">
+      <h2>繁忙日ランキング（上位20日）</h2>
+      <div class="gridwrap"><table>
+        <thead><tr><th>順位</th><th>日付</th><th>曜日</th><th>件数</th></tr></thead>
+        <tbody>${top.map((r,i)=>`<tr><td>${i+1}</td><td>${dateIdxToStr(r.dateIdx)}</td><td>${WEEKDAY_LABELS[r.ymd.wd]}</td><td>${fmtInt(r.count)}</td></tr>`).join("")}</tbody>
+      </table></div>
+      <div class="exporrow"><button onclick="exportBusyTable('cp932')">全日分をCSV出力(cp932)</button>
+      <button onclick="exportBusyTable('utf8')">全日分をCSV出力(UTF-8)</button></div>
+    </div>
+    <div class="panel">
+      <h2>月別・曜日別傾向</h2>
+      <div class="row" style="align-items:flex-start;gap:30px">
+        <div><h3>月別合計</h3><table>${Array.from(byMonth.entries()).sort().map(([k,v])=>`<tr><td class="left">${k}</td><td>${fmtInt(v)}</td></tr>`).join("")}</table></div>
+        <div><h3>曜日別合計</h3><table>${byWeekday.map((v,i)=>`<tr><td class="left">${WEEKDAY_LABELS[i]}</td><td>${fmtInt(v)}</td></tr>`).join("")}</table></div>
+        <div><h3>月初・月末・それ以外（1日あたり平均）</h3>
+          <table>
+            <tr><td class="left">月初（1〜5日）</td><td>${monthStartN?fmtInt(monthStartSum/monthStartN):0}</td></tr>
+            <tr><td class="left">月末（26日〜）</td><td>${monthEndN?fmtInt(monthEndSum/monthEndN):0}</td></tr>
+            <tr><td class="left">それ以外</td><td>${otherN?fmtInt(otherSum/otherN):0}</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>`;
+}
+function exportBusyTable(enc){
+  const rows = App.lastBusy || dailyTotals();
+  const header = ["日付","曜日","件数"];
+  const body = rows.slice().sort((a,b)=>a.dateIdx-b.dateIdx).map(r=>[dateIdxToStr(r.dateIdx), WEEKDAY_LABELS[r.ymd.wd], r.count]);
+  exportTable([header,...body], "日別集計.csv", enc, ",");
+}
+
+/* ---- ⑦ 説明資料サマリー ------------------------------------------------ */
+function renderSummaryTab(root){
+  root.innerHTML = `
+    <div class="panel">
+      <h2>説明資料用サマリー（.md 自動生成）</h2>
+      <p class="small">「②受付時間スライダー」タブで設定した内容をもとに文章を生成します。先にスライダーで条件を確定してください。</p>
+      <textarea id="summary-text" rows="16" style="width:100%;font-family:monospace"></textarea>
+      <div class="exporrow">
+        <button id="summary-gen">サマリーを生成</button>
+        <button id="summary-download">.mdとしてダウンロード</button>
+      </div>
+    </div>`;
+  document.getElementById("summary-gen").onclick = ()=>{
+    document.getElementById("summary-text").value = buildSummaryMarkdown();
+  };
+  document.getElementById("summary-download").onclick = ()=>{
+    downloadBlob(new Blob([document.getElementById("summary-text").value],{type:"text/markdown"}), "説明資料サマリー.md");
+  };
+  document.getElementById("summary-text").value = buildSummaryMarkdown();
+}
+function buildSummaryMarkdown(){
+  const s = App.settings;
+  const st = App.lastSliderStats;
+  const ot = App.lastOvertime;
+  let md = `# 窓口受付時間変更 影響分析サマリー\n\n`;
+  md += `- データ件数: ${fmtInt(App.data?App.data.n:0)} 件（${App.ku.length}区）\n`;
+  md += `- 母数定義: ${document.getElementById('sb-baseline').textContent}\n`;
+  md += `- 終了時刻欠測の扱い: ${document.getElementById('sb-missing').textContent}\n`;
+  md += `- 外れ値閾値: ${s.outlierThresholdMin}分（取消は${s.cancelHandling==='exclude'?'除外':'含める'}）\n\n`;
+  if(st){
+    md += `## 受付時間変更の影響\n\n`;
+    md += `変更後受付時間**${secToHm(st.openSec)}〜${secToHm(st.closeSec)}**は、現行受付時間（${s.currentOpen}〜${s.currentClose}）内来庁者の`;
+    md += `**${fmtPct(st.ratio)}（${fmtInt(st.changed)}件／${fmtInt(st.current)}件）**に相当する。\n\n`;
+    md += `- 前半短縮（${s.currentOpen}〜${secToHm(st.openSec)}）による影響: ${fmtInt(st.frontCut)}件\n`;
+    md += `- 後半短縮（${secToHm(st.closeSec)}〜${s.currentClose}）による影響: ${fmtInt(st.backCut)}件\n\n`;
+  }
+  if(ot){
+    md += `## 時間外勤務削減効果\n\n`;
+    md += `基準時刻${s.basisTime}以降に発行された案件の処理時間合計は**${fmtMin(ot.totalSumClip)}分（外れ値除外後、${ot.totalCountClip}件）**、`;
+    md += `時間単価${s.unitCost}円/時で換算すると**${fmtYen(ot.totalSumClip/60*s.unitCost)}**に相当する。\n\n`;
+  }
+  md += `---\n本サマリーは madoguchi-analyzer が現在の画面条件から自動生成した下書きです。数値の根拠は docs/SPEC.md を参照してください。\n`;
+  return md;
+}
+
+/* =====================================================================
+ * 設定パネル・フィルタパネル UI
+ * ===================================================================== */
+function buildColumnMapUI(){
+  const grid = document.getElementById("colmap-grid");
+  grid.innerHTML = "";
+  Object.keys(DEFAULT_COLUMN_MAP).forEach(key=>{
+    const wrap = document.createElement("div");
+    const label = document.createElement("label"); label.textContent = COLUMN_LABELS[key]+"（列)";
+    const input = document.createElement("input");
+    input.type = "number"; input.min="1"; input.max="65"; input.value = App.settings.columnMap[key];
+    input.dataset.key = key;
+    input.style.width = "100%";
+    wrap.appendChild(label); wrap.appendChild(input);
+    grid.appendChild(wrap);
+  });
+}
+function readSettingsFromUI(){
+  const s = App.settings;
+  document.querySelectorAll("#colmap-grid input").forEach(inp=>{ s.columnMap[inp.dataset.key] = +inp.value || DEFAULT_COLUMN_MAP[inp.dataset.key]; });
+  s.kuRegex = document.getElementById("ku-regex").value || DEFAULT_KU_REGEX;
+  s.currentOpen = document.getElementById("current-open").value || "08:30";
+  s.currentClose = document.getElementById("current-close").value || "17:15";
+  s.baseline = document.getElementById("baseline-select").value;
+  s.missingEndMethod = document.getElementById("missing-select").value;
+  s.outlierThresholdMin = +document.getElementById("outlier-threshold").value || 180;
+  s.cancelHandling = document.getElementById("cancel-select").value;
+  s.basisTime = document.getElementById("basis-time").value || "16:30";
+  s.unitCost = +document.getElementById("unit-cost").value || 0;
+}
+function writeSettingsToUI(){
+  const s = App.settings;
+  buildColumnMapUI();
+  document.getElementById("ku-regex").value = s.kuRegex;
+  document.getElementById("current-open").value = s.currentOpen;
+  document.getElementById("current-close").value = s.currentClose;
+  document.getElementById("baseline-select").value = s.baseline;
+  document.getElementById("missing-select").value = s.missingEndMethod;
+  document.getElementById("outlier-threshold").value = s.outlierThresholdMin;
+  document.getElementById("cancel-select").value = s.cancelHandling;
+  document.getElementById("basis-time").value = s.basisTime;
+  document.getElementById("unit-cost").value = s.unitCost;
+}
+function onSettingsApply(needReparse){
+  const oldColumnMap = JSON.stringify(App.settings.columnMap);
+  const oldKuRegex = App.settings.kuRegex;
+  readSettingsFromUI();
+  saveSettings(App.settings);
+  const columnChanged = oldColumnMap !== JSON.stringify(App.settings.columnMap) || oldKuRegex !== App.settings.kuRegex;
+  document.getElementById("settings-msg").textContent = "適用しました（"+new Date().toLocaleTimeString()+"）";
+  if(columnChanged && App._lastFileObjs){
+    document.getElementById("settings-msg").textContent = "列マッピング／区判定を変更したため再パースします…";
+    loadFiles(App._lastFileObjs, {forceReparse:true});
+    return;
+  }
+  if(App.data){ buildDurationGrid(); renderAll(); }
+}
+
+function buildFilterUI(){
+  if(!App.data) return;
+  const f = App.filter;
+  if(!f.ku) f.ku = new Set(App.ku.map(k=>k.id));
+  if(!f.gyoshu) f.gyoshu = new Set(App.gyoshu.map((_,i)=>i));
+  if(!f.weekday) f.weekday = new Set([0,1,2,3,4,5,6]);
+
+  const kuEl = document.getElementById("filter-ku");
+  kuEl.innerHTML = App.ku.map(k=>`<span class="chip ${f.ku.has(k.id)?'on':''}" data-id="${k.id}">${k.code}${k.name}</span>`).join("");
+  kuEl.querySelectorAll(".chip").forEach(chip=>chip.onclick = ()=>{
+    const id = +chip.dataset.id;
+    if(f.ku.has(id)) f.ku.delete(id); else f.ku.add(id);
+    chip.classList.toggle("on");
+    refreshTabs();
+  });
+
+  const gyoshuEl = document.getElementById("filter-gyoshu");
+  gyoshuEl.innerHTML = App.gyoshu.map((name,i)=>`<span class="chip ${f.gyoshu.has(i)?'on':''}" data-id="${i}">${name}</span>`).join("");
+  gyoshuEl.querySelectorAll(".chip").forEach(chip=>chip.onclick = ()=>{
+    const id = +chip.dataset.id;
+    if(f.gyoshu.has(id)) f.gyoshu.delete(id); else f.gyoshu.add(id);
+    chip.classList.toggle("on");
+    refreshTabs();
+  });
+
+  const wdEl = document.getElementById("filter-weekday");
+  wdEl.innerHTML = WEEKDAY_LABELS.map((label,i)=>`<span class="chip ${f.weekday.has(i)?'on':''}" data-id="${i}">${label}</span>`).join("");
+  wdEl.querySelectorAll(".chip").forEach(chip=>chip.onclick = ()=>{
+    const id = +chip.dataset.id;
+    if(f.weekday.has(id)) f.weekday.delete(id); else f.weekday.add(id);
+    chip.classList.toggle("on");
+    refreshTabs();
+  });
+
+  const fromEl = document.getElementById("filter-from"), toEl = document.getElementById("filter-to");
+  if(!fromEl.value && App.grids && App.grids.dateList.length){
+    fromEl.value = dateIdxToStr(App.grids.dateList[0]);
+    toEl.value = dateIdxToStr(App.grids.dateList[App.grids.dateList.length-1]);
+  }
+  fromEl.onchange = ()=>{ f.from = fromEl.value ? ymdToDateIdxFromStr(fromEl.value) : null; refreshTabs(); };
+  toEl.onchange = ()=>{ f.to = toEl.value ? ymdToDateIdxFromStr(toEl.value) : null; refreshTabs(); };
+}
+function ymdToDateIdxFromStr(str){ const [y,m,d]=str.split("-").map(Number); return ymdToDateIdx(y,m,d); }
+
+/* =====================================================================
+ * スキップ行ログ
+ * ===================================================================== */
+function renderSkipLog(){
+  const panel = document.getElementById("skippanel");
+  if(App.skipRows.length===0){ panel.style.display="none"; return; }
+  panel.style.display = "block";
+  document.getElementById("skip-summary").textContent = `${App.skipRows.length.toLocaleString()} 件のスキップがあります（65列でない行・数値変換に失敗した行など）。`;
+  const list = document.getElementById("skip-list");
+  const shown = App.skipRows.slice(0,300);
+  list.innerHTML = shown.map(r=>`${r.file} (行${r.line}): ${r.reason}`).join("<br>") +
+    (App.skipRows.length>300 ? `<br>…他 ${App.skipRows.length-300} 件（CSV出力で全件確認できます）` : "");
+}
+function exportSkipLog(){
+  const header = ["ファイル","行番号","理由"];
+  const body = App.skipRows.map(r=>[r.file, r.line, r.reason]);
+  exportTable([header,...body], "スキップ行一覧.csv", "utf8", ",");
+}
+
+/* =====================================================================
+ * 分析条件 JSON エクスポート／インポート
+ * ===================================================================== */
+function exportConfigJson(){
+  const cfg = {settings: App.settings, filter: {
+    ku: App.filter.ku?Array.from(App.filter.ku):null,
+    gyoshu: App.filter.gyoshu?Array.from(App.filter.gyoshu):null,
+    weekday: App.filter.weekday?Array.from(App.filter.weekday):null,
+    from: App.filter.from, to: App.filter.to
+  }};
+  downloadBlob(new Blob([JSON.stringify(cfg,null,2)],{type:"application/json"}), "分析条件.json");
+}
+function importConfigJson(file){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const cfg = JSON.parse(reader.result);
+      App.settings = Object.assign(loadSettings(), cfg.settings||{});
+      saveSettings(App.settings);
+      writeSettingsToUI();
+      if(cfg.filter){
+        App.filter.ku = cfg.filter.ku ? new Set(cfg.filter.ku) : null;
+        App.filter.gyoshu = cfg.filter.gyoshu ? new Set(cfg.filter.gyoshu) : null;
+        App.filter.weekday = cfg.filter.weekday ? new Set(cfg.filter.weekday) : null;
+        App.filter.from = cfg.filter.from; App.filter.to = cfg.filter.to;
+      }
+      if(App.data){ buildDurationGrid(); renderAll(); }
+    }catch(e){ alert("読み込みに失敗しました: "+e.message); }
+  };
+  reader.readAsText(file);
+}
+
+/* =====================================================================
+ * 読み込み完了処理
+ * ===================================================================== */
+function finishLoad(){
+  showProgress(false);
+  setProgressText("");
+  buildGrids();
+  const elapsed = (performance.now()-App.stats.t0)/1000;
+  const speed = elapsed>0 ? Math.round(App.stats.rowsDone/elapsed) : 0;
+  const cacheNote = App.stats.cacheHit ? "（IndexedDBキャッシュから復元）" : "";
+  setLoadSummary("ok",
+    `読み込み完了 ${cacheNote}: ファイル${App.stats.filesTotal.toLocaleString()}件 / 行${App.stats.rowsDone.toLocaleString()}件 / `+
+    (App.stats.cacheHit ? "所要時間 -" : `所要時間 ${elapsed.toFixed(2)}秒 / ${speed.toLocaleString()}行/秒`));
+  document.getElementById("load-summary").style.display = "block";
+  App.lastPerf = {files:App.stats.filesTotal, rows:App.stats.rowsDone, seconds: App.stats.cacheHit?null:elapsed,
+    rowsPerSec: App.stats.cacheHit?null:speed, cacheHit: App.stats.cacheHit};
+  document.getElementById("settingspanel").style.display = "block";
+  document.getElementById("filterpanel").style.display = "block";
+  document.getElementById("resultspanel").style.display = "block";
+  App.filter = {ku:null, gyoshu:null, weekday:null, from:null, to:null};
+  writeSettingsToUI();
+  buildTabsUI();
+  renderAll();
+  renderSkipLog();
+}
+
+/* =====================================================================
+ * 初期化・イベント配線
+ * ===================================================================== */
+function wireEvents(){
+  const dz = document.getElementById("dropzone");
+  ["dragenter","dragover"].forEach(ev=>dz.addEventListener(ev, e=>{ e.preventDefault(); dz.classList.add("drag"); }));
+  ["dragleave","drop"].forEach(ev=>dz.addEventListener(ev, e=>{ e.preventDefault(); dz.classList.remove("drag"); }));
+  dz.addEventListener("drop", async (e)=>{
+    setProgressText("フォルダを走査中…"); showProgress(true);
+    const files = await collectEntriesFromDataTransfer(e.dataTransfer);
+    App._lastFileObjs = files;
+    loadFiles(files);
+  });
+  document.getElementById("dirinput").addEventListener("change", (e)=>{
+    const files = collectFilesFromInput(e.target.files);
+    App._lastFileObjs = files;
+    loadFiles(files);
+  });
+  document.getElementById("cache-clear-btn").addEventListener("click", async ()=>{
+    await idbClearAll();
+    if(App._lastFileObjs){ loadFiles(App._lastFileObjs, {forceReparse:true}); }
+    else alert("キャッシュを破棄しました。次回読み込みから再パースされます。");
+  });
+  document.getElementById("stop-btn").addEventListener("click", ()=>{
+    if(App._activeWorkers) App._activeWorkers.forEach(w=>w.terminate());
+    showProgress(false);
+    setLoadSummary("warn", "読み込みを中断しました。");
+  });
+  document.getElementById("settings-apply").addEventListener("click", ()=>onSettingsApply());
+  document.getElementById("settings-reset").addEventListener("click", ()=>{
+    App.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    saveSettings(App.settings); writeSettingsToUI();
+    if(App.data){ buildDurationGrid(); renderAll(); }
+  });
+  document.getElementById("skip-export").addEventListener("click", exportSkipLog);
+
+  // 追加の書き出しボタン（設定パネル内に用意していないため、フッター的にキーボードショートカット無しの単純ボタンを差し込む）
+  const exportRow = document.createElement("div");
+  exportRow.className = "row no-print";
+  exportRow.style.marginTop = "10px";
+  exportRow.innerHTML = `
+    <button id="cfg-export">分析条件をJSON出力</button>
+    <label style="border:1px solid var(--border);border-radius:5px;padding:6px 12px;background:#fff;cursor:pointer">
+      分析条件JSONを読み込み<input type="file" id="cfg-import" accept="application/json" style="display:none">
+    </label>
+    <button id="print-btn">A4横で印刷</button>`;
+  document.getElementById("loadpanel").appendChild(exportRow);
+  document.getElementById("cfg-export").addEventListener("click", exportConfigJson);
+  document.getElementById("cfg-import").addEventListener("change", (e)=>{
+    if(e.target.files[0]) importConfigJson(e.target.files[0]);
+  });
+  document.getElementById("print-btn").addEventListener("click", ()=>window.print());
+}
+
+function init(){
+  writeSettingsToUI();
+  wireEvents();
+  updateStatusBar();
+}
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
