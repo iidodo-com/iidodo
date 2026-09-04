@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ドラえもんのどら焼きキャッチ</title>
+<link rel="stylesheet" href="doraemon-game.css">
+</head>
+<body>
+<div class="game-wrap">
+  <header class="game-header">
+    <h1>ドラえもんの どら焼きキャッチ！</h1>
+    <p class="game-sub">左右に動いて どら焼きをキャッチ！ 爆弾は避けよう。暇つぶしにどうぞ。</p>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="game-canvas" width="400" height="600"></canvas>
+
+    <div class="hud">
+      <div class="hud-item">スコア: <span id="score">0</span></div>
+      <div class="hud-item">ハイスコア: <span id="high-score">0</span></div>
+      <div class="hud-item lives" id="lives"></div>
+    </div>
+
+    <div class="overlay" id="start-overlay">
+      <div class="overlay-box">
+        <h2>ドラえもんの<br>どら焼きキャッチ</h2>
+        <p>
+          落ちてくる <b class="c-dorayaki">どら焼き</b> をキャッチしてスコアを稼ごう。<br>
+          <b class="c-kuri">きんいろのどら焼き</b> は高得点！<br>
+          <b class="c-bomb">爆弾</b> に当たるとライフが減るよ。<br>
+          <b class="c-copter">タケコプター</b> を取ると少しの間 無敵＆スコア2倍！
+        </p>
+        <p class="controls-hint">
+          ← → キー / A・D キー、またはタップ＆ドラッグで移動
+        </p>
+        <button id="start-btn" class="primary-btn">スタート</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="gameover-overlay">
+      <div class="overlay-box">
+        <h2>ゲームオーバー</h2>
+        <p id="final-score-line" class="final-score"></p>
+        <p id="new-record-line" class="new-record hidden">🎉 ハイスコア更新！</p>
+        <button id="retry-btn" class="primary-btn">もう一度あそぶ</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="game-footer">
+    <p>※ 本作品はファンによる非公式のオリジナルミニゲームです。</p>
+  </footer>
+</div>
+
+<script src="doraemon-game.js"></script>
+</body>
+</html>
