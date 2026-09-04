@@ -895,7 +895,44 @@ function restoreFromCache(rec){
  * このグリッドの範囲和だけで応答し、生データ（App.data）は再走査しない。
  * 取消/欠測方式/外れ値閾値/母数定義を変更した場合のみ、1回の線形スキャンで再構築する。
  * ===================================================================== */
+// プリ集約グリッドは dayKuCount×BIN_COUNT×catCount のセル数に比例してメモリを消費する
+// (countGrid=Int32×1 + durGrid系=Float64×2/Int32×2 の合計で1セルあたり約28バイト)。
+// 業種名(列3)は本来32種類程度の想定だが、実データでは区・期間・端末設定の違いで
+// 表記ゆれが多く数百〜数千種類に膨れ得る。無制限だとメモリを使い果たしてブラウザが
+// 固まる（実運用で確認）ため、頻度上位のみを残し残りを「その他」にまとめて上限を設ける。
+const MAX_GYOSHU_CATEGORIES = 48;
+function capGyoshuCategories(){
+  const d = App.data;
+  if(!d || App.gyoshu.length <= MAX_GYOSHU_CATEGORIES){ App.gyoshuCappedInfo = null; return; }
+  const freq = new Map();
+  for(let i=0;i<d.n;i++){
+    const dk = d.daiKubun[i];
+    if(dk < 1 || dk > 32) continue;
+    const g = d.gyoshuId[i];
+    freq.set(g, (freq.get(g)||0)+1);
+  }
+  const sorted = Array.from(freq.entries()).sort((a,b)=>b[1]-a[1]);
+  const originalCount = App.gyoshu.length;
+  const keep = sorted.slice(0, MAX_GYOSHU_CATEGORIES-1).map(([g])=>g);
+  const remap = new Map();
+  keep.forEach((oldId,newId)=>remap.set(oldId,newId));
+  const otherId = keep.length;
+  const otherCount = originalCount - keep.length;
+  const newNames = keep.map(oldId=>App.gyoshu[oldId]);
+  newNames.push(`その他業種（${otherCount}種をまとめて表示）`);
+  for(let i=0;i<d.n;i++){
+    const dk = d.daiKubun[i];
+    if(dk < 1 || dk > 32) continue; // 60/50〜52は cat=G/G+1 の別扱いなので gyoshuId は無関係
+    const old = d.gyoshuId[i];
+    d.gyoshuId[i] = remap.has(old) ? remap.get(old) : otherId;
+  }
+  App.gyoshu = newNames;
+  App.gyoshuByName = new Map(newNames.map((n,i)=>[n,i]));
+  App.gyoshuCappedInfo = {originalCount, kept: keep.length, otherCount};
+}
+
 function buildGrids(){
+  capGyoshuCategories();
   const d = App.data;
   const G = App.gyoshu.length;
   const CAT_COUNT = G + 2; // G+0=visit, G+1=staff
@@ -905,6 +942,16 @@ function buildGrids(){
   const dateCompact = new Map(); dateList.forEach((dt,i)=>dateCompact.set(dt,i));
   const kuCount = Math.max(1, App.ku.length);
   const dayKuCount = dateList.length * kuCount;
+
+  // 保険: 業種カテゴリを上限内に丸めた後でも、区や日付の異常な多さでセル数が
+  // 極端になる場合は、巨大配列の同期確保でブラウザが固まる前に明確なエラーで止める。
+  const totalCells = dayKuCount * BIN_COUNT * CAT_COUNT;
+  const MAX_GRID_CELLS = 20_000_000; // 1セルあたり最大28バイト程度 -> 上限で概ね500〜600MB
+  if(totalCells > MAX_GRID_CELLS){
+    throw new Error(
+      `集計グリッドが大きすぎます（区${kuCount}×日付${dateList.length}×業種${CAT_COUNT}）。`+
+      `期間や区を絞って再度お試しください。`);
+  }
 
   const countGrid = new Int32Array(dayKuCount * BIN_COUNT * CAT_COUNT);
 
@@ -1987,13 +2034,27 @@ function importConfigJson(file){
 function finishLoad(){
   showProgress(false);
   setProgressText("");
-  buildGrids();
+  try{
+    buildGrids();
+  }catch(e){
+    setLoadSummary("danger", "集計に失敗しました: "+e.message);
+    document.getElementById("load-summary").style.display = "block";
+    return;
+  }
   const elapsed = (performance.now()-App.stats.t0)/1000;
   const speed = elapsed>0 ? Math.round(App.stats.rowsDone/elapsed) : 0;
   const cacheNote = App.stats.cacheHit ? "（IndexedDBキャッシュから復元）" : "";
-  setLoadSummary("ok",
+  let summaryMsg =
     `読み込み完了 ${cacheNote}: ファイル${App.stats.filesTotal.toLocaleString()}件 / 行${App.stats.rowsDone.toLocaleString()}件 / `+
-    (App.stats.cacheHit ? "所要時間 -" : `所要時間 ${elapsed.toFixed(2)}秒 / ${speed.toLocaleString()}行/秒`));
+    (App.stats.cacheHit ? "所要時間 -" : `所要時間 ${elapsed.toFixed(2)}秒 / ${speed.toLocaleString()}行/秒`);
+  let summaryKind = "ok";
+  if(App.gyoshuCappedInfo){
+    const c = App.gyoshuCappedInfo;
+    summaryMsg += ` ／ 注意: 業種名が${c.originalCount}種類検出されたため、頻度上位${c.kept}種のみを個別表示し、`+
+      `残り${c.otherCount}種は「その他業種」にまとめました（メモリ超過防止のため。件数の合計には影響しません）。`;
+    summaryKind = "warn";
+  }
+  setLoadSummary(summaryKind, summaryMsg);
   document.getElementById("load-summary").style.display = "block";
   App.lastPerf = {files:App.stats.filesTotal, rows:App.stats.rowsDone, seconds: App.stats.cacheHit?null:elapsed,
     rowsPerSec: App.stats.cacheHit?null:speed, cacheHit: App.stats.cacheHit};
