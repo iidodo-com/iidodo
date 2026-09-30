@@ -89,4 +89,4 @@ http.createServer(async (req, res) => {
 }).on("error", (e) => {
   console.log(e.code === "EADDRINUSE" ? `ポート ${PORT} は使用中です。古い黒い画面(node)をすべて閉じてからやり直してください。` : "起動失敗: " + e.message);
   process.exit(1);
-})).listen(PORT, HOST, () => console.log(`予測アプリ起動: http://${HOST}:${PORT}` + (proxyConf() ? `  (プロキシ: ${proxyConf().host})` : "  (プロキシなし)")));
+}).listen(PORT, HOST, () => console.log(`予測アプリ起動: http://${HOST}:${PORT}` + (proxyConf() ? `  (プロキシ: ${proxyConf().host})` : "  (プロキシなし)")));
