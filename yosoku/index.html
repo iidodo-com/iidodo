@@ -14,6 +14,7 @@ input{flex:1;min-width:140px}button{background:var(--ac);border:0;color:#fff;cur
 .chips{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}.chips span{font-size:12px;padding:3px 10px;border-radius:99px;background:#222d47;cursor:pointer}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.kpi small{color:var(--mut);display:block}.kpi b{font-size:20px}
 .up{color:var(--up)}.dn{color:var(--dn)}canvas{width:100%;height:340px;display:block}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:7px 6px;text-align:right;border-bottom:1px solid #222d47}th:first-child,td:first-child{text-align:left}th{color:var(--mut);font-weight:400}tr.r{cursor:pointer}tr.r:hover{background:#1e2942}.x{color:var(--mut);margin-left:6px;cursor:pointer}.sm{background:#2d3956;padding:6px 12px;font-size:13px}details{font-size:13px;color:var(--mut)}details b{color:var(--fg)}
 .warn{font-size:12px;color:var(--mut)}#msg{color:var(--dn);min-height:1.4em}ul{margin:6px 0 0;padding-left:20px}
 </style>
 </head>
@@ -26,16 +27,27 @@ input{flex:1;min-width:140px}button{background:var(--ac);border:0;color:#fff;cur
       <input id="sym" placeholder="銘柄コード 例: 7203.T / AAPL / ^N225 / BTC-USD" value="7203.T">
       <select id="hor"><option value="5">1週間先</option><option value="20" selected>1か月先</option><option value="60">3か月先</option></select>
       <button id="go">予測する</button>
+      <button id="add" style="background:#2d3956">＋ ウォッチリストに追加</button>
     </div>
     <div class="chips" id="chips"></div>
     <div id="msg"></div>
   </div>
+  <div class="card"><div class="row" style="justify-content:space-between;align-items:center"><b>ウォッチリスト一覧</b><button id="refresh" class="sm">一覧を更新</button></div>
+    <table id="tbl"></table></div>
   <div id="out" hidden>
     <div class="card"><b id="name"></b>
       <div class="grid" style="margin-top:10px" id="kpis"></div></div>
     <div class="card"><canvas id="cv"></canvas>
       <div class="warn">実線=過去終値 / 破線=中央値予測 / 濃い帯=50%区間 / 薄い帯=90%区間 / 点線=トレンド外挿</div></div>
-    <div class="card"><b>シグナルの根拠</b><ul id="why"></ul></div>
+    <div class="card"><b>シグナルの根拠</b> <span id="score" class="warn"></span><ul id="why"></ul>
+      <details><summary>判定ルールを見る</summary>
+        <p>次の4項目を採点し、合計(−4〜+4)で判定します。<br>
+        <b>① 移動平均</b>: 現在値&gt;20日線&gt;50日線なら+1、逆なら−1<br>
+        <b>② RSI(14日)</b>: 30未満(売られ過ぎ)+1、70超(買われ過ぎ)−1<br>
+        <b>③ トレンド</b>: 直近120日の回帰傾きが年率+10%超で+1、−10%未満で−1<br>
+        <b>④ 上昇確率</b>: モンテカルロで期間末に現在値を上回る割合が55%超で+1、45%未満で−1<br>
+        合計 +2以上=強気 / −2以下=弱気 / それ以外=中立</p>
+        <p>①③は「流れに乗る」順張り、②は「行き過ぎは戻る」逆張りなので、打ち消し合うことがあります。ルールは経験則で、過去成績での最適化はしていません。</p></details></div>
   </div>
   <p class="warn">※ 統計モデル(EWMAボラティリティ+ブートストラップ・モンテカルロ、対数線形トレンド)による確率的な見通しで、将来の値動きを保証するものではありません。投資判断は自己責任で。</p>
 </div>
