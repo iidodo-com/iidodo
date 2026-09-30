@@ -24,7 +24,8 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:7px 6px;t
   <p class="sub">過去の検証ではなく「これからどうなりそうか」を、実データ(外部通信)から確率分布で予測します。</p>
   <div class="card">
     <div class="row">
-      <input id="sym" placeholder="銘柄コード 例: 7203.T / AAPL / ^N225 / BTC-USD" value="7203.T">
+      <input id="sym" placeholder="銘柄コード 例: 7203 / AAPL / ^N225 / BTC-USD" autocomplete="off" value="7203.T">
+      <button id="clr" title="入力を消す" style="background:#2d3956">✕</button>
       <select id="hor"><option value="5">1週間先</option><option value="20" selected>1か月先</option><option value="60">3か月先</option></select>
       <button id="go">予測する</button>
       <button id="add" style="background:#2d3956">＋ ウォッチリストに追加</button>
