@@ -23,7 +23,7 @@ function proxyConf() {
 
 // Windows統合認証(NTLM/Kerberos)プロキシ用: curl.exe が現在のログインでプロキシ認証する
 function fetchViaCurl(url, px) {
-  const args = ["-sS", "-m", "20", "-A", "Mozilla/5.0", "-x", `${px.protocol}//${px.host}`, "--proxy-anyauth", "-U", px.username ? `${decodeURIComponent(px.username)}:${decodeURIComponent(px.password)}` : ":", url];
+  const args = ["-sS", "-m", "20", "-A", "Mozilla/5.0", "-x", `${px.protocol}//${px.host}`, "--proxy-anyauth", "--ssl-no-revoke", "-U", px.username ? `${decodeURIComponent(px.username)}:${decodeURIComponent(px.password)}` : ":", url];
   return new Promise((resolve, reject) =>
     execFile(process.platform === "win32" ? "curl.exe" : "curl", args, { maxBuffer: 20e6 }, (err, out, errText) =>
       err ? reject(new Error("curl失敗: " + (errText || err.message).trim().slice(0, 120))) : resolve(out)));
