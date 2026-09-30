@@ -9,6 +9,7 @@
   const pct = (x) => `<span class="${x >= 0 ? "up" : "dn"}">${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)}%</span>`;
 
   async function run() {
+    if (location.protocol === "file:") { $("msg").innerHTML = "このファイルを直接開いても株価を取得できません。start.bat をダブルクリック(または <code>node server.js</code>)して、開いた http://localhost:8787 で使ってください。"; return; }
     $("msg").textContent = "取得中…"; $("go").disabled = true;
     try {
       const r = await fetch(`/api/history?symbol=${encodeURIComponent($("sym").value.trim())}&range=2y`);
@@ -17,7 +18,7 @@
       if (d.rows.length < 80) throw new Error("データが少なすぎます(80営業日以上必要)");
       const H = +$("hor").value, closes = d.rows.map((x) => x.c), f = Forecast.forecast(closes, H);
       render(d, closes, f); $("msg").textContent = "";
-    } catch (e) { $("msg").textContent = e.message; }
+    } catch (e) { $("msg").textContent = e.message === "Failed to fetch" ? "サーバーに接続できません。start.bat が動いているか確認してください。" : e.message; }
     $("go").disabled = false;
   }
 
