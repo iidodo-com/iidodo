@@ -7,12 +7,19 @@
   function save() { try { localStorage.setItem(KEY, JSON.stringify(watch)); } catch {} }
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+  // 入力の正規化: 全角→半角、空白除去、大文字化、東証コード(4桁 or 3桁+英字)は .T を補う
+  function norm(v) {
+    let t = String(v).normalize("NFKC").replace(/\s+/g, "").toUpperCase();
+    if (/^\d{3}[0-9A-Z]$/.test(t)) t += ".T";
+    return t;
+  }
+
   function drawWatch() {
     $("chips").innerHTML = watch.map((w) => `<span data-s="${esc(w.s)}" title="${esc(w.n || "")}">${esc(w.s)}<i class="x" data-x="${esc(w.s)}">×</i></span>`).join("");
     $("tbl").innerHTML = "<tr><th>銘柄</th><th>現在値</th><th>変化(中央値)</th><th>上昇確率</th><th>シグナル</th></tr>" + watch.map((w) => {
       const r = rows[w.s];
       const cell = r ? (r.err ? `<td colspan="4">${esc(r.err)}</td>` : `<td>${fmt(r.f.last)}</td><td>${pct(r.f.expected.retMid)}</td><td>${(r.f.mc.probUp * 100).toFixed(0)}%</td><td class="${r.f.sig.label === "強気" ? "up" : r.f.sig.label === "弱気" ? "dn" : ""}">${r.f.sig.label}</td>`) : `<td colspan="4">-</td>`;
-      return `<tr class="r" data-s="${esc(w.s)}"><td>${esc(w.s)} <small class="warn">${esc(w.n || "")}</small></td>${cell}</tr>`;
+      return `<tr class="r" data-s="${esc(w.s)}"><td>${esc(w.s)} <small class="warn" data-rename="${esc(w.s)}" title="ダブルクリックで名前を変更">${esc(w.n || "名前を付ける")}</small></td>${cell}</tr>`;
     }).join("");
   }
   $("chips").onclick = (e) => {
@@ -20,10 +27,17 @@
     if (x) { watch = watch.filter((w) => w.s !== x); save(); drawWatch(); return; }
     const sp = e.target.closest("span"); if (sp) { $("sym").value = sp.dataset.s; run(); }
   };
+  $("tbl").ondblclick = (e) => {
+    const k = e.target.dataset.rename; if (!k) return;
+    const w = watch.find((x) => x.s === k), n = prompt(k + " の表示名(空にすると元に戻ります)", w.n || "");
+    if (n !== null) { w.n = n.trim() || (rows[k] && rows[k].n) || ""; save(); drawWatch(); }
+  };
   $("tbl").onclick = (e) => { const tr = e.target.closest("tr.r"); if (tr) { $("sym").value = tr.dataset.s; run(); } };
-  $("go").onclick = () => run(); $("sym").onkeydown = (e) => e.key === "Enter" && run();
+  $("go").onclick = () => run(); $("sym").onkeydown = (e) => { if (e.key === "Enter" && !e.isComposing) run(); };
+  $("clr").onclick = () => { $("sym").value = ""; $("msg").textContent = ""; $("sym").focus(); };
   $("add").onclick = async () => {
-    const s = $("sym").value.trim().toUpperCase();
+    const s = norm($("sym").value);
+    $("sym").value = s;
     if (!s) return;
     if (watch.some((w) => w.s === s)) { $("msg").textContent = s + " は登録済みです"; return; }
     await run(true);
@@ -46,7 +60,9 @@
   const pct = (x) => `<span class="${x >= 0 ? "up" : "dn"}">${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)}%</span>`;
 
   async function run(keep) {
-    const sym = $("sym").value.trim().toUpperCase();
+    const sym = norm($("sym").value);
+    $("sym").value = sym;
+    if (!sym) { $("msg").textContent = "銘柄コードを入力してください"; return; }
     if (location.protocol === "file:") { $("msg").innerHTML = "このファイルを直接開いても株価を取得できません。start.bat で起動した http://localhost:8787 で使ってください。"; return; }
     $("msg").textContent = "取得中…"; $("go").disabled = true;
     try {
