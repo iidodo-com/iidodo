@@ -618,7 +618,7 @@ let state='title';
 const P={x:2,y:2,a:0,pitch:0,hp:100,maxHp:100,wid:'pistol',mag:{},cd:0,rl:0,rlNeed:0,herbs:0,key:false,
   bloom:0,recoil:0,walkT:0,hurt:0,turn:0,flash:0,hitm:0,gain:0,kills:0,stage:1,bossDead:false,t:0,hbT:0};
 let ENEMIES=[],ITEMS=[],LV=null;
-const keys={},mouse={l:0,r:0};
+const keys={},mouse={l:0,r:0,rb:false,back:0};
 /* ---------------- アイテム ---------------- */
 const glowMat=c=>new THREE.SpriteMaterial({map:TX.glow,color:c,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:.8});
 function makeItemMesh(it){
@@ -936,10 +936,12 @@ document.addEventListener('mousedown',e=>{
   if(state!=='play')return;
   if(document.pointerLockElement!==cv&&!noLock){lockPointer();return}
   if(e.button===0){mouse.l=1;fire(true)}
-  else if(e.button===2)mouse.r=1;
+  else if(e.button===2){mouse.r=1;mouse.rb=e.ctrlKey||e.altKey||e.shiftKey}
+  else if(e.button===3){mouse.back=1;e.preventDefault()}
+  else if(e.button===4){mouse.r=1;mouse.rb=false;e.preventDefault()}
   else if(e.button===1){reload();e.preventDefault()}
 });
-document.addEventListener('mouseup',e=>{if(e.button===0)mouse.l=0;if(e.button===2)mouse.r=0});
+document.addEventListener('mouseup',e=>{if(e.button===0)mouse.l=0;if(e.button===2||e.button===4)mouse.r=0;if(e.button===3){mouse.back=0;e.preventDefault()}});
 let noLock=false,mpos={x:.5,y:.5};
 document.addEventListener('mousemove',e=>{
   if(noLock){const b=cv.getBoundingClientRect();mpos.x=clamp((e.clientX-b.left)/b.width,0,1);mpos.y=clamp((e.clientY-b.top)/b.height,0,1);return}
@@ -1075,8 +1077,9 @@ function update(dt){
   // 視点・移動
   if(P.turn>0){const s=Math.min(P.turn,dt*13);P.a+=s;P.turn-=s}
   let fx=0,fy=0;
-  if(keys.KeyW||keys.ArrowUp||mouse.r)fy+=1;
-  if(keys.KeyS||keys.ArrowDown)fy-=1;
+  const mBack=mouse.back||(mouse.r&&(mouse.rb||(noLock&&mpos.y>.8)));
+  if(keys.KeyW||keys.ArrowUp||(mouse.r&&!mBack))fy+=1;
+  if(keys.KeyS||keys.ArrowDown||mBack)fy-=1;
   if(keys.KeyD)fx+=1;if(keys.KeyA)fx-=1;
   if(keys.ArrowLeft)P.a-=dt*2.2;if(keys.ArrowRight)P.a+=dt*2.2;
   if(noLock){
@@ -1087,7 +1090,7 @@ function update(dt){
   P.moving=!!(fx||fy);
   if(P.moving){
     const l=Math.hypot(fx,fy);fx/=l;fy/=l;
-    const sp=2.5*(1+.06*S.up.spd)*(keys.ShiftLeft?1.45:1)*(fy<0?.6:1)*(P.rl>0?.85:1);
+    const sp=2.5*(1+.06*S.up.spd)*(keys.ShiftLeft?1.45:1)*(fy<0?.8:1)*(P.rl>0?.85:1);
     const c=Math.cos(P.a),s=Math.sin(P.a);
     tryMove(P,(c*fy-s*fx)*sp*dt,(s*fy+c*fx)*sp*dt,.22);
     P.walkT+=dt*sp;
@@ -1232,7 +1235,7 @@ function showTitle(){
 }
 function helpHtml(){return `<b>操作（マウス中心）</b><br>
   <kbd>マウス移動</kbd> 視点（上下も狙える。頭部は大ダメージ）<br>
-  <kbd>左クリック</kbd> 発砲（長押しでSMGは連射）／ <kbd>右クリック長押し</kbd> 前進<br>
+  <kbd>左クリック</kbd> 発砲（長押しでSMGは連射）／ <kbd>右クリック長押し</kbd> 前進 ／ <kbd>Shift</kbd>+右クリック長押し or マウスの<kbd>戻るボタン</kbd> or <kbd>S</kbd> 後退<br>
   <kbd>ホイール</kbd> 武器切替 ／ <kbd>中クリック</kbd> or <kbd>R</kbd> リロード<br>
   補助: <kbd>WASD</kbd> 移動 <kbd>Shift</kbd> ダッシュ <kbd>Space</kbd> 180°ターン <kbd>E</kbd> ハーブ <kbd>1-4</kbd> 武器 <kbd>Tab</kbd> マップ <kbd>Esc</kbd> 一時停止<br>
   <b>目的</b>：館を探索してカードキーを入手し、出口の扉へ。5階ごとにボス。稼いだ金で拠点のショップ・育成を活用しよう。`}
@@ -1303,7 +1306,7 @@ function act(a){
     case 'eq':S.eq=x;break;
     case 'sortie':autosave();startMission(S.sel);return;
     case 'go':lockPointer();
-      setTimeout(()=>{if((state==='ready'||state==='pause')&&document.pointerLockElement!==cv){noLock=true;state='play';hideScreen();msg('マウスをカーソル位置で操作モード:\n画面の左右端で旋回・上下で視線 (Escで一時停止)',5)}},300);return;
+      setTimeout(()=>{if((state==='ready'||state==='pause')&&document.pointerLockElement!==cv){noLock=true;state='play';hideScreen();msg('マウスをカーソル位置で操作モード:\n左右端で旋回・上下で視線 / 画面下部で右クリック=後退 (Esc:一時停止)',5)}},300);return;
     case 'retreat':endMission(false);return;
     case 'save':if(saveTo(+x))snd('buy');break;
     case 'del':if(confirm('SLOT '+x+' を削除しますか？')){localStorage.removeItem(SKEY+x)}break;
