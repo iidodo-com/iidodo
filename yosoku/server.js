@@ -3,6 +3,7 @@
 const http = require("http");
 const https = require("https");
 const tls = require("tls");
+const { execFile } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -20,11 +21,19 @@ function proxyConf() {
   try { return new URL(/^https?:\/\//.test(v) ? v : "http://" + v); } catch { return null; }
 }
 
+// Windows統合認証(NTLM/Kerberos)プロキシ用: curl.exe が現在のログインでプロキシ認証する
+function fetchViaCurl(url, px) {
+  const args = ["-sS", "-m", "20", "-A", "Mozilla/5.0", "-x", `${px.protocol}//${px.host}`, "--proxy-anyauth", "-U", px.username ? `${decodeURIComponent(px.username)}:${decodeURIComponent(px.password)}` : ":", url];
+  return new Promise((resolve, reject) =>
+    execFile(process.platform === "win32" ? "curl.exe" : "curl", args, { maxBuffer: 20e6 }, (err, out, errText) =>
+      err ? reject(new Error("curl失敗: " + (errText || err.message).trim().slice(0, 120))) : resolve(out)));
+}
+
 function fetchYahoo(symbol, range) {
   const host = "query1.finance.yahoo.com";
   const path = `/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
   const px = proxyConf();
-  return new Promise((resolve, reject) => {
+  const viaProxy = () => new Promise((resolve, reject) => {
     const get = (extra) => https.get({ host, path, headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000, ...extra }, (r) => {
       let data = "";
       r.on("data", (c) => (data += c));
@@ -42,6 +51,8 @@ function fetchYahoo(symbol, range) {
       .on("timeout", function () { this.destroy(new Error("プロキシ接続timeout")); })
       .end();
   });
+  if (!px) return viaProxy();
+  return viaProxy().catch((e) => (/407|プロキシ/.test(e.message) ? fetchViaCurl(`https://${host}${path}`, px) : Promise.reject(e)));
 }
 
 function toSeries(raw) {
