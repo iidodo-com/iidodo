@@ -45,7 +45,7 @@
     if (last > s20 && s20 > s50) { score++; why.push("短期>中期の上昇配列"); } else if (last < s20 && s20 < s50) { score--; why.push("下降配列"); }
     if (R > 70) { score--; why.push(`RSI ${R.toFixed(0)}: 買われ過ぎ`); } else if (R < 30) { score++; why.push(`RSI ${R.toFixed(0)}: 売られ過ぎ`); }
     if (tr.slopeDaily * 252 > 0.1) { score++; why.push("トレンド年率+10%超"); } else if (tr.slopeDaily * 252 < -0.1) { score--; why.push("トレンド年率-10%超"); }
-    if (mc.probUp > 0.55) score++; else if (mc.probUp < 0.45) score--;
+    if (mc.probUp > 0.55) { score++; why.push(`上昇確率 ${(mc.probUp * 100).toFixed(0)}% (55%超)`); } else if (mc.probUp < 0.45) { score--; why.push(`上昇確率 ${(mc.probUp * 100).toFixed(0)}% (45%未満)`); }
     const label = score >= 2 ? "強気" : score <= -2 ? "弱気" : "中立";
     return { score, label, why, rsi: R, sma20: s20, sma50: s50 };
   }
