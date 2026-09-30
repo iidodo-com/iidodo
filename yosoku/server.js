@@ -7,6 +7,7 @@ const { execFile } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
+const VERSION = "v6-ssl-no-revoke";
 const PORT = process.env.PORT || 8787;
 const HOST = process.env.HOST || "127.0.0.1";
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
@@ -88,7 +89,7 @@ http.createServer(async (req, res) => {
       res.end(body);
     } catch (e) {
       res.statusCode = 502;
-      res.end(JSON.stringify({ error: "取得失敗: " + e.message }));
+      res.end(JSON.stringify({ error: "取得失敗[" + VERSION + "]: " + e.message }));
     }
     return;
   }
@@ -100,4 +101,4 @@ http.createServer(async (req, res) => {
 }).on("error", (e) => {
   console.log(e.code === "EADDRINUSE" ? `ポート ${PORT} は使用中です。古い黒い画面(node)をすべて閉じてからやり直してください。` : "起動失敗: " + e.message);
   process.exit(1);
-}).listen(PORT, HOST, () => console.log(`予測アプリ起動: http://${HOST}:${PORT}` + (proxyConf() ? `  (プロキシ: ${proxyConf().host})` : "  (プロキシなし)")));
+}).listen(PORT, HOST, () => console.log(`予測アプリ起動 ${VERSION}: http://${HOST}:${PORT}` + (proxyConf() ? `  (プロキシ: ${proxyConf().host})` : "  (プロキシなし)")));
