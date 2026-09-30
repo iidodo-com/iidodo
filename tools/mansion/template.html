@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEAD MANSION - マウスFPSサバイバル</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;color:#ddd;user-select:none}
+#stage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(100vw,177.78vh);height:min(100vh,56.25vw);background:#000}
+#view{width:100%;height:100%;image-rendering:pixelated;display:block}
+#hud{position:absolute;inset:0;pointer-events:none;display:none;font-size:clamp(11px,1.8vmin,18px)}
+.hp{position:absolute;left:2%;bottom:3%;width:24%;background:rgba(0,0,0,.55);border:1px solid #555;padding:.5em .7em}
+.hp .lbl{display:flex;justify-content:space-between;letter-spacing:.1em}
+.bar{height:.9em;background:#222;margin-top:.3em;border:1px solid #444}
+.bar i{display:block;height:100%;width:100%;background:#3c3;transition:width .15s}
+.wpn{position:absolute;right:2%;bottom:3%;text-align:right;background:rgba(0,0,0,.55);border:1px solid #555;padding:.5em .9em;min-width:16%}
+.wpn .ammo{font-size:2.4em;line-height:1;font-family:monospace}
+.wpn .ammo small{font-size:.5em;color:#aaa}
+.top{position:absolute;left:2%;top:3%;background:rgba(0,0,0,.5);padding:.4em .8em;border:1px solid #444;line-height:1.5}
+#mini{position:absolute;right:2%;top:3%;width:18%;aspect-ratio:1;border:1px solid #555;background:rgba(0,0,0,.5);image-rendering:pixelated}
+#cross{position:absolute;left:50%;top:50%;width:0;height:0}
+#cross b{position:absolute;background:#fff;opacity:.85}
+#cross .h{height:2px;width:8px;top:-1px}#cross .v{width:2px;height:8px;left:-1px}
+#msg{position:absolute;left:50%;bottom:16%;transform:translateX(-50%);text-align:center;text-shadow:0 0 6px #000,0 0 3px #000;font-size:1.25em;line-height:1.6;white-space:pre}
+#hurt{position:absolute;inset:0;background:radial-gradient(transparent 40%,rgba(200,0,0,.75));opacity:0}
+#hitm{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border:2px solid #f44;border-radius:50%;opacity:0;transform:rotate(45deg)}
+#screen{position:absolute;inset:0;background:rgba(6,0,0,.92);display:none;overflow:auto;padding:2.5%;font-size:clamp(12px,2vmin,19px)}
+h1{font-size:3.2em;letter-spacing:.25em;color:#b11;text-shadow:0 0 18px #500;text-align:center;margin:.6em 0 .1em}
+h2{color:#c33;letter-spacing:.15em;margin:.3em 0 .5em}
+.sub{text-align:center;color:#888;margin-bottom:1.5em}
+button{font:inherit;color:#eee;background:#2a1010;border:1px solid #733;padding:.45em 1em;cursor:pointer;margin:.2em}
+button:hover:not(:disabled){background:#5a1a1a;border-color:#d55}
+button:disabled{opacity:.35;cursor:not-allowed}
+.big{font-size:1.3em;padding:.6em 2em}
+.c{text-align:center}
+.tabs{display:flex;gap:.3em;flex-wrap:wrap;border-bottom:1px solid #633;margin:.5em 0 1em}
+.tabs button.on{background:#7a1e1e;border-color:#e66}
+.top2{display:flex;gap:1.5em;flex-wrap:wrap;align-items:baseline;color:#ccc}
+.top2 b{color:#d44;letter-spacing:.2em;font-size:1.3em}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.6em}
+.card{border:1px solid #522;background:rgba(40,10,10,.6);padding:.6em .8em}
+.card .n{color:#eee;font-weight:bold}.card .d{color:#999;font-size:.85em;margin:.2em 0 .4em}
+.lv{color:#e93;font-family:monospace}
+.help{color:#aaa;line-height:1.8;max-width:46em;margin:0 auto;border:1px solid #422;padding:.8em 1.2em;background:rgba(30,0,0,.5)}
+.help kbd{background:#333;border:1px solid #666;padding:0 .4em;border-radius:3px;color:#fff;font-family:monospace}
+.slot{display:flex;align-items:center;gap:.6em;border:1px solid #522;padding:.5em .8em;margin:.4em 0;background:rgba(40,10,10,.5)}
+.slot .i{flex:1}
+textarea{width:100%;height:5em;background:#111;color:#9c9;border:1px solid #533;font-family:monospace;font-size:.8em}
+input[type=range]{width:14em;vertical-align:middle}
+#bossbar{position:absolute;left:50%;top:3%;transform:translateX(-50%);width:34%;display:none;text-align:center;text-shadow:0 0 4px #000}#bossbar .b{height:.8em;background:#200;border:1px solid #844;margin-top:.2em}#bossbar i{display:block;height:100%;background:#d22;width:100%}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="hud">
+    <div class="top"><div id="hStage"></div><div id="hEnemy"></div><div id="hKey"></div></div>
+    <canvas id="mini" width="120" height="120"></canvas>
+    <div id="cross"><b class="h" id="cl"></b><b class="h" id="cr"></b><b class="v" id="cu"></b><b class="v" id="cd"></b></div>
+    <div id="hitm"></div>
+    <div id="hurt"></div>
+    <div id="bossbar">☠ BOSS<div class="b"><i id="bossfill"></i></div></div>
+    <div id="msg"></div>
+    <div class="hp"><div class="lbl"><span id="hCond">FINE</span><span id="hHp">100</span></div><div class="bar"><i id="hBar"></i></div><div style="margin-top:.3em">🌿 ハーブ <span id="hHerb">0</span> <span style="color:#888">[E]</span> ／ ¥<span id="hMoney">0</span></div></div>
+    <div class="wpn"><div id="hWn"></div><div class="ammo"><span id="hMag">0</span><small> / <span id="hRes">0</span></small></div><div id="hRl" style="color:#fc6;height:1.2em"></div></div>
+  </div>
+  <div id="screen"></div>
+</div>
+
+<script>
+/*BUNDLE*/
+</script>
+</body>
+</html>
