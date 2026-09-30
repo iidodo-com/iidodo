@@ -2,6 +2,7 @@
 // 使い方: node server.js  →  http://localhost:8787
 const http = require("http");
 const https = require("https");
+const tls = require("tls");
 const fs = require("fs");
 const path = require("path");
 
@@ -11,14 +12,35 @@ const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; ch
 const RANGES = new Set(["6mo", "1y", "2y", "5y"]);
 const cache = new Map(); // key -> {t, body}
 
+// プロキシ: 環境変数 PROXY / HTTPS_PROXY (例: http://proxy.example:8080 または user:pass@host:port)
+function proxyConf() {
+  let v = process.env.PROXY || process.env.HTTPS_PROXY || process.env.https_proxy || "";
+  if (!v) return null;
+  const m = v.match(/https=([^;]+)/); if (m) v = m[1]; else if (v.includes("=")) v = v.split(";")[0].split("=")[1];
+  try { return new URL(/^https?:\/\//.test(v) ? v : "http://" + v); } catch { return null; }
+}
+
 function fetchYahoo(symbol, range) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
+  const host = "query1.finance.yahoo.com";
+  const path = `/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
+  const px = proxyConf();
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000 }, (r) => {
+    const get = (extra) => https.get({ host, path, headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000, ...extra }, (r) => {
       let data = "";
       r.on("data", (c) => (data += c));
       r.on("end", () => (r.statusCode === 200 ? resolve(data) : reject(new Error("upstream " + r.statusCode))));
-    }).on("error", reject).on("timeout", function () { this.destroy(new Error("timeout")); });
+    }).on("error", (e) => reject(new Error(e.code || e.message))).on("timeout", function () { this.destroy(new Error(px ? "timeout(プロキシ " + px.host + " 経由)" : "timeout(プロキシ未設定)")); });
+    if (!px) return get({});
+    const headers = { Host: host + ":443" };
+    if (px.username) headers["Proxy-Authorization"] = "Basic " + Buffer.from(decodeURIComponent(px.username) + ":" + decodeURIComponent(px.password)).toString("base64");
+    http.request({ host: px.hostname, port: px.port || 80, method: "CONNECT", path: host + ":443", headers, timeout: 15000 })
+      .on("connect", (r, socket) => {
+        if (r.statusCode !== 200) { socket.destroy(); return reject(new Error("プロキシ応答 " + r.statusCode)); }
+        get({ agent: false, createConnection: () => tls.connect({ socket, servername: host }) });
+      })
+      .on("error", (e) => reject(new Error("プロキシ接続失敗 " + (e.code || e.message))))
+      .on("timeout", function () { this.destroy(new Error("プロキシ接続timeout")); })
+      .end();
   });
 }
 
@@ -64,4 +86,4 @@ http.createServer(async (req, res) => {
   if (!TYPES[path.extname(name)] || !fs.existsSync(file)) { res.statusCode = 404; return res.end("not found"); }
   res.setHeader("Content-Type", TYPES[path.extname(name)]);
   fs.createReadStream(file).pipe(res);
-}).listen(PORT, HOST, () => console.log(`予測アプリ起動: http://${HOST}:${PORT}`));
+}).listen(PORT, HOST, () => console.log(`予測アプリ起動: http://${HOST}:${PORT}` + (proxyConf() ? `  (プロキシ: ${proxyConf().host})` : "  (プロキシなし)")));
