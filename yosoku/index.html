@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>予測型 投資アプリ</title>
+<style>
+:root{--bg:#0f1420;--card:#182033;--fg:#e8ecf5;--mut:#8b96b0;--up:#3ecf8e;--dn:#ff6b6b;--ac:#5b9dff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif}
+.app{max-width:900px;margin:0 auto;padding:16px}h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);font-size:13px;margin:0 0 16px}
+.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap}input,select,button{font:inherit;padding:9px 12px;border-radius:8px;border:1px solid #2d3956;background:#0f1420;color:var(--fg)}
+input{flex:1;min-width:140px}button{background:var(--ac);border:0;color:#fff;cursor:pointer;font-weight:600}
+.chips{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}.chips span{font-size:12px;padding:3px 10px;border-radius:99px;background:#222d47;cursor:pointer}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.kpi small{color:var(--mut);display:block}.kpi b{font-size:20px}
+.up{color:var(--up)}.dn{color:var(--dn)}canvas{width:100%;height:340px;display:block}
+.warn{font-size:12px;color:var(--mut)}#msg{color:var(--dn);min-height:1.4em}ul{margin:6px 0 0;padding-left:20px}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>📈 予測型 投資アプリ</h1>
+  <p class="sub">過去の検証ではなく「これからどうなりそうか」を、実データ(外部通信)から確率分布で予測します。</p>
+  <div class="card">
+    <div class="row">
+      <input id="sym" placeholder="銘柄コード 例: 7203.T / AAPL / ^N225 / BTC-USD" value="7203.T">
+      <select id="hor"><option value="5">1週間先</option><option value="20" selected>1か月先</option><option value="60">3か月先</option></select>
+      <button id="go">予測する</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div id="msg"></div>
+  </div>
+  <div id="out" hidden>
+    <div class="card"><b id="name"></b>
+      <div class="grid" style="margin-top:10px" id="kpis"></div></div>
+    <div class="card"><canvas id="cv"></canvas>
+      <div class="warn">実線=過去終値 / 破線=中央値予測 / 濃い帯=50%区間 / 薄い帯=90%区間 / 点線=トレンド外挿</div></div>
+    <div class="card"><b>シグナルの根拠</b><ul id="why"></ul></div>
+  </div>
+  <p class="warn">※ 統計モデル(EWMAボラティリティ+ブートストラップ・モンテカルロ、対数線形トレンド)による確率的な見通しで、将来の値動きを保証するものではありません。投資判断は自己責任で。</p>
+</div>
+<script src="forecast.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
