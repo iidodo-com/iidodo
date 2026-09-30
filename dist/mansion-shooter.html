@@ -404,6 +404,7 @@ function addEnemy(t,x,y,mul){
 /* ---------------- 入力 ---------------- */
 document.addEventListener('keydown',e=>{
   keys[e.code]=true;
+  if(e.code==='Escape'&&noLock&&state==='play'){mouse.l=mouse.r=0;state='pause';showPause()}
   if(state==='play'){
     if(e.code==='KeyR')reload();
     else if(e.code==='KeyE')useHerb();
@@ -417,13 +418,15 @@ let showMini=true;
 document.addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('mousedown',e=>{
   if(state!=='play')return;
-  if(document.pointerLockElement!==cv){lockPointer();return}
+  if(document.pointerLockElement!==cv&&!noLock){lockPointer();return}
   if(e.button===0){mouse.l=1;fire(true)}
   else if(e.button===2)mouse.r=1;
   else if(e.button===1){reload();e.preventDefault()}
 });
 document.addEventListener('mouseup',e=>{if(e.button===0)mouse.l=0;if(e.button===2)mouse.r=0});
+let noLock=false,mpos={x:.5,y:.5};
 document.addEventListener('mousemove',e=>{
+  if(noLock){const b=cv.getBoundingClientRect();mpos.x=clamp((e.clientX-b.left)/b.width,0,1);mpos.y=clamp((e.clientY-b.top)/b.height,0,1);return}
   if(state!=='play'||document.pointerLockElement!==cv)return;
   P.a+=e.movementX*.0022*SET.sens;
   P.pitch=clamp(P.pitch-e.movementY*.32*SET.sens*(SET.inv?-1:1),-95,95);
@@ -436,7 +439,7 @@ document.addEventListener('wheel',e=>{
 },{passive:true});
 function lockPointer(){try{const r=cv.requestPointerLock();if(r&&r.catch)r.catch(()=>{})}catch(e){}}
 document.addEventListener('pointerlockchange',()=>{
-  if(document.pointerLockElement===cv){if(state==='pause'||state==='ready'){state='play';hideScreen()}}
+  if(document.pointerLockElement===cv){noLock=false;if(state==='pause'||state==='ready'){state='play';hideScreen()}}
   else if(state==='play'){mouse.l=mouse.r=0;state='pause';showPause()}
 });
 window.addEventListener('blur',()=>{mouse.l=mouse.r=0});
@@ -531,6 +534,11 @@ function update(dt){
   if(keys.KeyS||keys.ArrowDown)fy-=1;
   if(keys.KeyD)fx+=1;if(keys.KeyA)fx-=1;
   if(keys.ArrowLeft)P.a-=dt*2.2;if(keys.ArrowRight)P.a+=dt*2.2;
+  if(noLock){
+    const dxm=mpos.x-.5,dym=mpos.y-.5;
+    if(Math.abs(dxm)>.06)P.a+=(dxm-Math.sign(dxm)*.06)*5*dt*SET.sens;
+    P.pitch=clamp(-dym*200*(SET.inv?-1:1),-95,95);
+  }
   P.moving=!!(fx||fy);
   if(P.moving){
     const l=Math.hypot(fx,fy);fx/=l;fy/=l;
@@ -866,7 +874,8 @@ function act(a){
     case 'sel':S.sel=+x;break;
     case 'eq':S.eq=x;break;
     case 'sortie':autosave();startMission(S.sel);return;
-    case 'go':lockPointer();if(document.pointerLockElement!==cv){/* ロック不可環境のフォールバック */}return;
+    case 'go':lockPointer();
+      setTimeout(()=>{if((state==='ready'||state==='pause')&&document.pointerLockElement!==cv){noLock=true;state='play';hideScreen();msg('マウスをカーソル位置で操作モード:\n画面の左右端で旋回・上下で視線 (Escで一時停止)',5)}},300);return;
     case 'retreat':endMission(false);return;
     case 'save':if(saveTo(+x))snd('buy');break;
     case 'del':if(confirm('SLOT '+x+' を削除しますか？')){localStorage.removeItem(SKEY+x)}break;
