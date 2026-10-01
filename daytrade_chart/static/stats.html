@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>イベント検証（/stats）</title>
+<style>
+  body { margin:0; background:#0f1419; color:#d7dde5; font:14px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif; padding:14px 18px; }
+  h1 { font-size:18px; margin:0 0 8px; } a { color:#4da3ff; }
+  select, button { background:#0c1117; color:#d7dde5; border:1px solid #2a3340; border-radius:6px; padding:4px 8px; font:inherit; }
+  .box { background:#161c24; border:1px solid #2a3340; border-radius:8px; padding:10px 14px; margin:10px 0; font-size:13px; }
+  .box ul { margin:4px 0 0 18px; padding:0; }
+  table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+  th, td { border-bottom:1px solid #2a3340; padding:5px 8px; text-align:right; white-space:nowrap; }
+  th:first-child, td:first-child, th.l, td.l { text-align:left; }
+  th { color:#8693a3; font-weight:600; font-size:12px; position:sticky; top:0; background:#0f1419; }
+  .pos { color:#ef4444; } .neg { color:#3b82f6; }
+  .low { color:#ffb454; font-size:11px; } .muted { color:#8693a3; }
+  .scroll { overflow:auto; }
+</style>
+</head>
+<body>
+<h1>イベント検証 <small class="muted">（売買の推奨ではなく、条件を後から検証するための記録）</small></h1>
+<div><a href="/">← チャートへ戻る</a></div>
+
+<div class="box">
+  <label>データ源 <select id="f-source"><option value="">すべて</option></select></label>
+  <label>銘柄 <select id="f-symbol"><option value="">すべて</option></select></label>
+  <label>イベント種別 <select id="f-type"><option value="">すべて</option></select></label>
+  　集計単位:
+  <label><input type="checkbox" class="g" value="type" checked>種別</label>
+  <label><input type="checkbox" class="g" value="symbol">銘柄</label>
+  <label><input type="checkbox" class="g" value="bucket" checked>時間帯</label>
+  <label><input type="checkbox" class="g" value="source">データ源</label>
+  <button id="reload">更新</button>
+  　CSV: <a id="csv-events" href="/api/export/events.csv">events</a> / <a href="/api/export/bars.csv">bars</a> / <a href="/api/export/ticks.csv">ticks</a> / <a href="/api/export/vwap_check.csv">vwap_check</a>
+</div>
+
+<div class="box">
+  <b>集計の定義（必ずお読みください）</b>
+  <ul>
+    <li><b>変化率(%)</b> = (発生後N分の価格 ÷ イベント発生時の価格 − 1) × 100。N = 1・3・5・10 分。<b>取引時間内の経過分</b>で数え、昼休みは含めない。</li>
+    <li><b>N分後の価格</b> = その時刻以前に受信した最新の価格。大引け(15:30)を超える場合は空欄で、母数に含めない。まだ時間が経っていないものも空欄（母数に含めない）。</li>
+    <li><b>母数</b> = 各列は「その時点の変化率が埋まったイベント件数(n)」。「件数」列はイベント総数。</li>
+    <li><b>平均変化率</b> = 変化率の単純平均。<b>プラス終了の割合</b> = 変化率が 0 より大きい件数 ÷ 母数（0%ちょうどはプラスに含めない）。</li>
+    <li><b>売買方向で符号を反転していません</b>（下抜けイベントで価格が下がり続けると平均は負になります）。<b>スプレッド・手数料・約定のずれ・税金は一切含みません。</b></li>
+    <li>価格は受信したスナップショットに基づく近似値で、取りこぼしがあり得ます。BBの標準偏差は <b id="ddof">-</b>。</li>
+    <li>母数が <b id="minn">30</b> 件未満の区分には「標本が少ない」と表示します。標本が少ない結果は偶然の可能性が高く、傾向とはみなせません。</li>
+  </ul>
+</div>
+
+<div class="muted" id="summary"></div>
+<div class="scroll"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const GL = { type:'種別', symbol:'銘柄', bucket:'時間帯', source:'データ源' };
+function cls(x){ return x==null ? '' : x>0 ? 'pos' : x<0 ? 'neg' : ''; }
+async function load(first){
+  const q = new URLSearchParams();
+  for (const k of ['source','symbol']) if ($('f-'+k).value) q.set(k, $('f-'+k).value);
+  if ($('f-type').value) q.set('etype', $('f-type').value);
+  const gb = [...document.querySelectorAll('.g:checked')].map(x => x.value);
+  q.set('group_by', gb.join(','));
+  const d = await (await fetch('/api/stats?' + q)).json();
+  if (first){
+    for (const s of d.sources) $('f-source').add(new Option(s, s));
+    for (const s of d.symbols) $('f-symbol').add(new Option(s.code + ' ' + s.name, s.code));
+    for (const t of d.types) $('f-type').add(new Option(t.label, t.type));
+  }
+  $('ddof').textContent = d.ddof === 0 ? '母標準偏差(ddof=0)' : '標本標準偏差(ddof=1)';
+  $('minn').textContent = d.min_sample;
+  $('summary').textContent = `イベント総数: ${d.total_events} 件`;
+  const hs = d.horizons_min;
+  $('tbl').tHead.innerHTML = '<tr>' + gb.map(g => `<th class="l">${GL[g]}</th>`).join('') + '<th>件数</th>' +
+    hs.map(h => `<th>${h}分後 平均変化率 (n)</th><th>${h}分後 プラス終了</th>`).join('') + '</tr>';
+  const tb = $('tbl').tBodies[0]; tb.innerHTML = '';
+  if (!d.rows.length){ tb.innerHTML = `<tr><td class="l muted" colspan="${gb.length+1+hs.length*2}">イベントがまだ記録されていません（チャート画面を動かしているとVWAP・EMA・BBの条件成立時に記録されます）</td></tr>`; return; }
+  d.rows.sort((a,b) => b.n - a.n);
+  for (const r of d.rows){
+    const cells = gb.map(g => `<td class="l">${g==='type' && r.label ? r.label : r.group[g] ?? ''}</td>`);
+    cells.push(`<td>${r.n}${r.low_sample ? ' <span class="low">標本が少ない</span>' : ''}</td>`);
+    for (const h of hs){
+      const c = r.h[h];
+      const m = c.mean==null ? '<span class="muted">-</span>' : `<span class="${cls(c.mean)}">${(c.mean>0?'+':'')+c.mean.toFixed(3)}%</span>`;
+      cells.push(`<td>${m} <span class="muted">(${c.n})</span>${c.low_sample && c.n>0 ? ' <span class="low">標本が少ない</span>' : ''}</td>`);
+      cells.push(`<td>${c.win_rate==null ? '<span class="muted">-</span>' : (c.win_rate*100).toFixed(1)+'%'}</td>`);
+    }
+    tb.insertAdjacentHTML('beforeend', '<tr>' + cells.join('') + '</tr>');
+  }
+}
+$('reload').onclick = () => load(false);
+for (const id of ['f-source','f-symbol','f-type']) $(id).onchange = () => load(false);
+document.querySelectorAll('.g').forEach(x => x.onchange = () => load(false));
+load(true); setInterval(() => load(false), 15000);
+</script>
+</body>
+</html>
