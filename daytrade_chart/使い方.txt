@@ -1,0 +1,29 @@
+■ 日本株デイトレ リアルタイムチャート（閲覧・記録専用／注文機能なし）
+
+【1. 準備】 Python 3.11 以上をインストール（https://www.python.org/ ）。
+          Windows は「Add python.exe to PATH」にチェック。
+
+【2. 起動】
+  Windows : start.bat をダブルクリック
+  Mac/Linux: ターミナルで ./start.sh
+  初回は部品のインストールで数分かかります。ブラウザが開かない時は
+  http://127.0.0.1:8000 を開いてください。終了は黒い画面で Ctrl+C。
+  ※チャート表示にインターネット接続が必要です（Lightweight Charts をCDNから読み込むため）。
+
+【3. まず試す（デモ）】
+  最初は「モック」モードで、疑似データが自動で流れます（昼休みも再現）。
+  左上で銘柄・1分足/5分足、上部で指標のON/OFF・期間を変更できます。
+  右上「検証画面」で、VWAP/EMA/ボリンジャーの条件成立の記録と、その後の値動きを集計できます。
+
+【4. 記録したデータで再生】
+  Windows: start.bat --provider replay --speed 60
+  Mac/Linux: ./start.sh --provider replay --speed 60
+
+【5. 実際の株価（kabuステーション）で使う】 ※未検証・Windows限定
+  - kabuステーションを起動・ログインし、APIを有効化（Professional/Premiumプラン）。
+  - .env を開き KABU_API_PASSWORD にAPIパスワードを書く（KABU_ENV=test のまま＝検証用ポート）。
+  - start.bat --provider kabu
+  実機での動作確認はまだできていません。まず検証用環境で試してください。
+
+【銘柄の変更】 config.yaml の symbols を編集（英数字コード可: 285A など）。
+【詳しい説明】 README.md を参照。

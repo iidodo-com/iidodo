@@ -37,6 +37,8 @@ Provider.stream → Tick検証・出来高差分 → Aggregator(1m,5m) ─┬→
 
 ## 2. セットアップと起動
 
+最短: Windows は `start.bat` をダブルクリック、Mac/Linux は `./start.sh`（初回は自動で環境構築）。詳細は `使い方.txt`。
+
 ```bash
 cd daytrade_chart
 python3 -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
