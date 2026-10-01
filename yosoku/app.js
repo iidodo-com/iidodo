@@ -59,7 +59,7 @@
     r.ns = Forecast.newsScore(r.news || []);
     r.f = Forecast.forecast(closes, +$("hor").value, $("usenews").checked && r.ns.count ? r.ns : null);
   }
-  async function applyLive(r, sym) { r.live = await getJson(`/api/quote?symbol=${q(sym)}`); calc(r); }
+  async function applyLive(r, sym) { r.live = await getJson(`/api/quote?symbol=${q(sym)}`); r.live.got = Date.now(); calc(r); }
 
   async function load1(sym, live) {
     try {
@@ -67,7 +67,7 @@
       if (d.rows.length < 80) throw new Error("データが少なすぎます(80営業日以上必要)");
       const r = { d, dates: d.rows.map((x) => x.d), base: d.rows.map((x) => x.c), n: d.name, news: [], live: null };
       try { r.news = (await getJson(`/api/news?symbol=${q(sym)}`)).items; } catch (e) { r.newsErr = e.message; }
-      if (live) { try { r.live = await getJson(`/api/quote?symbol=${q(sym)}`); } catch {} }
+      if (live) { try { r.live = await getJson(`/api/quote?symbol=${q(sym)}`); r.live.got = Date.now(); } catch {} }
       calc(r); rows[sym] = r;
     } catch (e) { rows[sym] = { err: e.message === "Failed to fetch" ? "サーバーに接続できません" : e.message }; throw e; }
     return rows[sym];
@@ -110,7 +110,9 @@
     $("name").textContent = `${d.name} (${d.symbol}) 通貨: ${d.currency}`;
     if (r.live) {
       const ch = r.live.prevClose ? (r.live.price / r.live.prevClose - 1) : null;
-      $("livemsg").innerHTML = `最新価格 <b>${fmt(r.live.price)}</b> (${new Date(r.live.time * 1000).toLocaleString("ja-JP")}時点${ch == null ? "" : " / 前日比 " + pct(ch)}) を反映済み`;
+      const hm = (ms) => new Date(ms).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+      const lag = Math.max(0, Math.round(((r.live.got || Date.now()) - r.live.time * 1000) / 60000));
+      $("livemsg").innerHTML = `最新価格 <b>${fmt(r.live.price)}</b>${ch == null ? "" : " (前日比 " + pct(ch) + ")"} / 約定時刻 ${hm(r.live.time * 1000)} ・ 取得 ${hm(r.live.got || Date.now())} → <b>約${lag}分遅れ</b>のデータ <small>(無料データは取引所の仕様で10〜20分遅れが普通)</small>`;
     } else $("livemsg").textContent = "表示は前営業日までの終値です。「最新価格に更新」で現在の価格を反映できます。";
     const e = f.expected, sg = f.sig, cls = sg.label === "強気" ? "up" : sg.label === "弱気" ? "dn" : "";
     $("kpis").innerHTML = [
