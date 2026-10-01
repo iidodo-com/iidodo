@@ -43,22 +43,35 @@
     await run(true);
     if (!$("msg").textContent && rows[s] && !rows[s].err) { watch.push({ s, n: rows[s].n }); save(); drawWatch(); $("msg").textContent = ""; }
   };
-  $("refresh").onclick = async () => { $("refresh").disabled = true; for (const w of watch) { try { await load1(w.s); } catch {} drawWatch(); } $("refresh").disabled = false; };
-
-  async function load1(sym) {
-    try {
-      const r = await fetch(`/api/history?symbol=${encodeURIComponent(sym)}&range=2y`), d = await r.json();
-      if (!r.ok) throw new Error(d.error);
-      if (d.rows.length < 80) throw new Error("データが少なすぎます(80営業日以上必要)");
-      const closes = d.rows.map((x) => x.c);
-      rows[sym] = { d, closes, n: d.name, f: Forecast.forecast(closes, +$("hor").value) };
-    } catch (e) { rows[sym] = { err: e.message === "Failed to fetch" ? "サーバーに接続できません" : e.message }; throw e; }
-    return rows[sym];
-  }
+  $("refresh").onclick = async () => { $("refresh").disabled = true; for (const w of watch) { try { await load1(w.s, true); } catch {} drawWatch(); } $("refresh").disabled = false; };
 
   const fmt = (n) => (n >= 1000 ? n.toLocaleString("ja-JP", { maximumFractionDigits: 0 }) : n.toFixed(2));
   const pct = (x) => `<span class="${x >= 0 ? "up" : "dn"}">${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)}%</span>`;
+  let cur = null;
+  const getJson = async (url) => { const r = await fetch(url), d = await r.json(); if (!r.ok) throw new Error(d.error); return d; };
+  const q = (sym) => encodeURIComponent(sym);
 
+  // 予測の再計算(ネットワーク不要): 最新価格の反映・ニュース反映の有無・予測期間
+  function calc(r) {
+    const closes = r.base.slice();
+    if (r.live) { if (r.dates[r.dates.length - 1] === r.live.date) closes[closes.length - 1] = r.live.price; else closes.push(r.live.price); }
+    r.closes = closes;
+    r.ns = Forecast.newsScore(r.news || []);
+    r.f = Forecast.forecast(closes, +$("hor").value, $("usenews").checked && r.ns.count ? r.ns : null);
+  }
+  async function applyLive(r, sym) { r.live = await getJson(`/api/quote?symbol=${q(sym)}`); calc(r); }
+
+  async function load1(sym, live) {
+    try {
+      const d = await getJson(`/api/history?symbol=${q(sym)}&range=2y`);
+      if (d.rows.length < 80) throw new Error("データが少なすぎます(80営業日以上必要)");
+      const r = { d, dates: d.rows.map((x) => x.d), base: d.rows.map((x) => x.c), n: d.name, news: [], live: null };
+      try { r.news = (await getJson(`/api/news?symbol=${q(sym)}`)).items; } catch (e) { r.newsErr = e.message; }
+      if (live) { try { r.live = await getJson(`/api/quote?symbol=${q(sym)}`); } catch {} }
+      calc(r); rows[sym] = r;
+    } catch (e) { rows[sym] = { err: e.message === "Failed to fetch" ? "サーバーに接続できません" : e.message }; throw e; }
+    return rows[sym];
+  }
   async function run(keep) {
     const sym = norm($("sym").value);
     $("sym").value = sym;
@@ -66,26 +79,51 @@
     if (location.protocol === "file:") { $("msg").innerHTML = "このファイルを直接開いても株価を取得できません。start.bat で起動した http://localhost:8787 で使ってください。"; return; }
     $("msg").textContent = "取得中…"; $("go").disabled = true;
     try {
-      const r = await load1(sym);
-      render(r.d, r.closes, r.f); $("msg").textContent = ""; drawWatch();
+      const r = await load1(sym, false);
+      cur = sym; render(r); $("msg").textContent = ""; drawWatch();
     } catch (e) { $("msg").textContent = rows[sym]?.err || e.message; delete rows[sym]; }
     $("go").disabled = false;
   }
+  $("live").onclick = async () => {
+    const r = rows[cur]; if (!r || r.err) return;
+    $("live").disabled = true; $("livemsg").textContent = "取得中…";
+    try { await applyLive(r, cur); render(r); drawWatch(); } catch (e) { $("livemsg").textContent = "最新価格の取得に失敗: " + e.message; }
+    $("live").disabled = false;
+  };
+  const recalcAll = () => { for (const k in rows) if (!rows[k].err) calc(rows[k]); if (rows[cur]) render(rows[cur]); drawWatch(); };
+  $("usenews").onchange = recalcAll;
 
-  function render(d, closes, f) {
+  const ago = (t) => { const m = Math.max(0, (Date.now() / 1000 - t) / 60); return m < 60 ? Math.round(m) + "分前" : m < 1440 ? Math.round(m / 60) + "時間前" : Math.round(m / 1440) + "日前"; };
+  function renderNews(r) {
+    const used = $("usenews").checked;
+    const head = r.ns.count ? `<p class="warn">直近${r.ns.count}件の見出しスコア: <b class="${r.ns.score > 0.05 ? "up" : r.ns.score < -0.05 ? "dn" : ""}">${r.ns.score >= 0 ? "+" : ""}${r.ns.score.toFixed(2)}</b>(−1〜+1) ${used ? "→ 予測に反映中" : "→ 反映OFF"}</p>` : `<p class="warn">${r.newsErr ? "ニュース取得失敗: " + esc(r.newsErr) : "この銘柄の関連ニュースは見つかりませんでした(予測には反映されません)"}</p>`;
+    $("news").innerHTML = head + "<ul>" + r.ns.items.slice(0, 10).map((it) => {
+      const tag = it.s > 0 ? '<span class="up">好</span>' : it.s < 0 ? '<span class="dn">悪</span>' : '<span class="warn">中</span>';
+      const link = /^https?:\/\//.test(it.link || "") ? `<a href="${esc(it.link)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a>` : esc(it.title);
+      return `<li>${tag} ${link} <small class="warn">${esc(it.publisher || "")} ${it.t ? ago(it.t) : ""}</small></li>`;
+    }).join("") + "</ul>";
+  }
+
+  function render(r) {
+    const d = r.d, closes = r.closes, f = r.f;
     $("out").hidden = false;
     $("name").textContent = `${d.name} (${d.symbol}) 通貨: ${d.currency}`;
+    if (r.live) {
+      const ch = r.live.prevClose ? (r.live.price / r.live.prevClose - 1) : null;
+      $("livemsg").innerHTML = `最新価格 <b>${fmt(r.live.price)}</b> (${new Date(r.live.time * 1000).toLocaleString("ja-JP")}時点${ch == null ? "" : " / 前日比 " + pct(ch)}) を反映済み`;
+    } else $("livemsg").textContent = "表示は前営業日までの終値です。「最新価格に更新」で現在の価格を反映できます。";
     const e = f.expected, sg = f.sig, cls = sg.label === "強気" ? "up" : sg.label === "弱気" ? "dn" : "";
     $("kpis").innerHTML = [
-      ["現在値", fmt(f.last)],
+      [r.live ? "現在値(最新)" : "現在値(終値)", fmt(f.last)],
       [`${f.H}営業日後 中央値`, `${fmt(e.mid)} ${pct(e.retMid)}`],
       ["90%予測レンジ", `${fmt(e.low)} 〜 ${fmt(e.high)}`],
       ["上昇確率", `${(f.mc.probUp * 100).toFixed(0)}%`],
       ["年率ボラ(推定)", `${(f.mc.sigmaDaily * Math.sqrt(252) * 100).toFixed(0)}%`],
       ["総合シグナル", `<span class="${cls}">${sg.label}</span>`],
     ].map(([k, v]) => `<div class="kpi"><small>${k}</small><b>${v}</b></div>`).join("");
-    $("score").textContent = `スコア ${sg.score > 0 ? "+" : ""}${sg.score} / ±4`;
+    $("score").textContent = `スコア ${sg.score > 0 ? "+" : ""}${sg.score} / ±${f.news ? 5 : 4}`;
     $("why").innerHTML = (sg.why.length ? sg.why : ["目立ったシグナルなし"]).concat([`SMA20 ${fmt(sg.sma20)} / SMA50 ${fmt(sg.sma50)} / RSI ${sg.rsi.toFixed(0)}`]).map((w) => `<li>${w}</li>`).join("");
+    renderNews(r);
     draw(closes, f);
   }
 
@@ -111,5 +149,5 @@
     line([[n - 1, f.last]].concat(f.tr.path.map((v, i) => [n + i, v])), "#f5c542", [2, 3]);
   }
   drawWatch(); run();
-  $("hor").onchange = () => { rows = {}; drawWatch(); run(); };
+  $("hor").onchange = recalcAll;
 })();
