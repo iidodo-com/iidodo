@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>デイトレ リアルタイムチャート（閲覧・記録専用）</title>
+<!-- Lightweight Charts はバージョン固定（v4.2.3 / API: chart.addCandlestickSeries 等） -->
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root { --bg:#0f1419; --panel:#161c24; --line:#2a3340; --text:#d7dde5; --muted:#8693a3; --accent:#4da3ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 -apple-system,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--line); }
+  select, input, button { background:#0c1117; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 8px; font:inherit; }
+  button.on { background:var(--accent); color:#04121f; border-color:var(--accent); }
+  input[type=number] { width:64px; } input.list { width:90px; }
+  .stat { display:flex; flex-direction:column; min-width:84px; } .stat small { color:var(--muted); font-size:11px; } .stat b { font-size:17px; font-variant-numeric:tabular-nums; }
+  #badge { padding:3px 10px; border-radius:999px; font-size:12px; border:1px solid var(--line); }
+  #badge.live,#badge.mock { background:#12361f; border-color:#2c7a4b; color:#8ff0b0; }
+  #badge.replay { background:#1c2c4a; border-color:#3d6fb8; color:#9cc7ff; }
+  #badge.reconnecting,#badge.connecting { background:#4a3a12; border-color:#a8832a; color:#ffd47a; }
+  #badge.disconnected { background:#4a1d1d; border-color:#b04444; color:#ff9c9c; }
+  #badge.lunch,#badge.off_hours,#badge.closed_day,#badge.replay_done { background:#2b2f36; color:#b9c2cf; }
+  #controls { display:flex; flex-wrap:wrap; gap:8px 16px; padding:8px 14px; border-bottom:1px solid var(--line); align-items:center; }
+  #controls label { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+  .sw { width:14px; height:3px; display:inline-block; border-radius:2px; }
+  #warn { margin:0; padding:6px 14px; background:#3a2f12; color:#ffd98a; font-size:12.5px; display:none; border-bottom:1px solid #6a5420; }
+  #warn div + div { margin-top:2px; }
+  main { display:flex; gap:0; height:calc(100vh - 170px); min-height:420px; }
+  #chartwrap { position:relative; flex:1; min-width:0; }
+  #chart { position:absolute; inset:0; }
+  #chartwrap.stalled #chart { filter:grayscale(.55) brightness(.8); }
+  #stall { position:absolute; left:50%; top:12px; transform:translateX(-50%); z-index:5; padding:6px 16px; border-radius:6px; background:#2b2f36e6; border:1px solid #556; display:none; font-weight:600; }
+  #chartwrap.stalled #stall { display:block; }
+  aside { width:300px; border-left:1px solid var(--line); background:var(--panel); overflow:auto; padding:8px 10px; font-size:12.5px; }
+  aside h3 { margin:2px 0 6px; font-size:13px; } .ev { padding:4px 0; border-bottom:1px solid var(--line); }
+  .ev small { color:var(--muted); }
+  footer { padding:4px 14px; color:var(--muted); font-size:12px; }
+  a { color:var(--accent); }
+  @media (max-width: 900px){ main{flex-direction:column;height:auto;} #chartwrap{height:60vh;} aside{width:auto;border-left:0;} }
+</style>
+</head>
+<body>
+<header>
+  <label>銘柄 <select id="symbol"></select></label>
+  <span id="tf">
+    <button data-iv="1m" class="on">1分足</button><button data-iv="5m">5分足</button>
+  </span>
+  <span id="badge" class="connecting">接続中</span>
+  <div class="stat"><small>現在値</small><b id="h-price">-</b></div>
+  <div class="stat"><small>前日終値比</small><b id="h-chg">-</b></div>
+  <div class="stat"><small>VWAP乖離率</small><b id="h-vdev">-</b></div>
+  <div class="stat"><small>VWAP</small><b id="h-vwap">-</b></div>
+  <div class="stat"><small>直近の出来高(<span id="ivlabel">1分足</span> / 直近ティック)</small><b id="h-vol">-</b></div>
+  <div class="stat"><small>データ時刻(JST)</small><b id="h-time" style="font-size:13px">-</b></div>
+  <span style="margin-left:auto"><a href="/stats" target="_blank">検証画面 /stats</a> ・ <a href="/api/export/events.csv">イベントCSV</a></span>
+</header>
+
+<div id="controls">
+  <label><input type="checkbox" id="t-vwap" checked><span class="sw" style="background:#f5c542"></span>VWAP</label>
+  <label><input type="checkbox" id="t-sma" checked><span class="sw" style="background:#ff9f43"></span>SMA <input class="list" id="p-sma" value="20" title="期間(カンマ区切りで複数可)"></label>
+  <label><input type="checkbox" id="t-ema" checked><span class="sw" style="background:#4da3ff"></span>EMA <input class="list" id="p-ema" value="9,21"></label>
+  <label><input type="checkbox" id="t-bb" checked><span class="sw" style="background:#b48cff"></span>BB 期間 <input type="number" id="p-bbn" value="20" min="2" max="500"> σ <input type="number" id="p-bb1" value="1" step="0.1" min="0.1" max="6"> / <input type="number" id="p-bb2" value="2" step="0.1" min="0.1" max="6"> <small id="std-label" style="color:var(--muted)"></small></label>
+  <label><input type="checkbox" id="t-vol" checked>出来高</label>
+  <label><input type="checkbox" id="t-ev" checked>イベント印</label>
+  <button id="apply">適用</button>
+  <label>配色 <select id="scheme">
+    <option value="jp-blue">陽線=赤 / 陰線=青</option>
+    <option value="jp-green">陽線=赤 / 陰線=緑</option>
+    <option value="intl">陽線=緑 / 陰線=赤</option>
+  </select></label>
+</div>
+<div id="warn"></div>
+<main>
+  <div id="chartwrap"><div id="stall"></div><div id="chart"></div></div>
+  <aside><h3>直近のイベント（記録用）</h3><div id="events"></div></aside>
+</main>
+<footer>売買・発注機能はありません（閲覧・記録専用）。形成中の足は半透明、「欠」は受信欠損の足。時刻は日本時間。</footer>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const store = { get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : v; } catch(e){ return d; } },
+                set(k, v){ try { localStorage.setItem(k, v); } catch(e){} } };
+
+const SCHEMES = { 'jp-blue':{up:'#ef4444',down:'#3b82f6'}, 'jp-green':{up:'#ef4444',down:'#22c55e'}, 'intl':{up:'#22c55e',down:'#ef4444'} };
+const LINE_COLORS = { sma:['#ff9f43','#ffb86b','#ffd29b'], ema:['#4da3ff','#7cc0ff','#a8d6ff'] };
+let scheme = store.get('scheme', 'jp-blue');
+let interval = store.get('interval', '1m');
+let symbol = store.get('symbol', null);
+let ws = null, haveSnapshot = false, meta = null, status = null;
+let bars = [];                       // 現在表示中の足（時刻昇順）
+let events = [];
+const lines = {};                    // 指標名 -> LineSeries
+const lastLineTime = {};
+let lastCandleTime = 0, lastVolTime = 0;
+
+// ---------- チャート ----------
+const chart = LightweightCharts.createChart($('chart'), {
+  layout:{ background:{ type:'solid', color:'#0f1419' }, textColor:'#aab4c2' },
+  grid:{ vertLines:{ color:'#1b232d' }, horzLines:{ color:'#1b232d' } },
+  timeScale:{ timeVisible:true, secondsVisible:false, borderColor:'#2a3340' },
+  rightPriceScale:{ borderColor:'#2a3340' },
+  crosshair:{ mode: LightweightCharts.CrosshairMode.Normal },
+  autoSize:true,
+});
+const candles = chart.addCandlestickSeries({ priceLineVisible:true });
+const volume = chart.addHistogramSeries({ priceFormat:{ type:'volume' }, priceScaleId:'vol', lastValueVisible:false, priceLineVisible:false });
+chart.priceScale('vol').applyOptions({ scaleMargins:{ top:0.8, bottom:0 } });
+chart.priceScale('right').applyOptions({ scaleMargins:{ top:0.05, bottom:0.22 } });
+
+function rgba(hex, a){ const n = parseInt(hex.slice(1), 16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
+function candlePoint(b){
+  const c = SCHEMES[scheme], up = b.c >= b.o, col = up ? c.up : c.down, a = b.closed ? 1 : 0.4;   // 形成中は半透明
+  return { time:b.time, open:b.o, high:b.h, low:b.l, close:b.c, color:rgba(col,a), borderColor:rgba(col,a), wickColor:rgba(col,a) };
+}
+function volPoint(b){
+  const c = SCHEMES[scheme], col = b.c >= b.o ? c.up : c.down;
+  return { time:b.time, value:b.v, color:rgba(col, b.closed ? 0.7 : 0.3) };
+}
+function applyScheme(){
+  const c = SCHEMES[scheme];
+  candles.applyOptions({ upColor:c.up, downColor:c.down, borderUpColor:c.up, borderDownColor:c.down, wickUpColor:c.up, wickDownColor:c.down });
+  if (bars.length){ candles.setData(bars.map(candlePoint)); volume.setData(bars.map(volPoint)); }
+}
+
+function lineStyleFor(name){
+  if (name === 'vwap') return { color:'#f5c542', lineWidth:2 };
+  if (name.startsWith('sma_')) return { color: LINE_COLORS.sma[Object.keys(lines).filter(n=>n.startsWith('sma_')).length % 3], lineWidth:1 };
+  if (name.startsWith('ema_')) return { color: LINE_COLORS.ema[Object.keys(lines).filter(n=>n.startsWith('ema_')).length % 3], lineWidth:1 };
+  if (name === 'bb_mid') return { color:'#b48cff', lineWidth:1, lineStyle:LightweightCharts.LineStyle.Dashed };
+  const two = /_2(\.0)?$/.test(name);
+  return { color: two ? '#8a63d2' : '#b48cff', lineWidth:1, lineStyle: two ? LightweightCharts.LineStyle.Solid : LightweightCharts.LineStyle.Dotted };
+}
+function group(name){ return name==='vwap' ? 'vwap' : name.startsWith('sma_') ? 'sma' : name.startsWith('ema_') ? 'ema' : 'bb'; }
+function ensureLine(name){
+  if (!lines[name]){
+    lines[name] = chart.addLineSeries(Object.assign({ priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false },
+      lineStyleFor(name), { visible: $('t-'+group(name)).checked }));
+    lastLineTime[name] = 0;
+  }
+  return lines[name];
+}
+function applyVisibility(){
+  for (const n in lines) lines[n].applyOptions({ visible: $('t-'+group(n)).checked });
+  volume.applyOptions({ visible: $('t-vol').checked });
+  refreshMarkers();
+}
+
+// ---------- マーカー（イベント・欠損） ----------
+function refreshMarkers(){
+  const step = interval === '1m' ? 60 : 300, ms = [];
+  if ($('t-ev').checked){
+    for (const e of events.slice(-60)){      // 密集を避けるため直近60件のみ（全件は右の一覧・/statsで確認）
+      const up = /上抜け|GC|上回る/.test(e.label);
+      ms.push({ time: Math.floor(e.time/step)*step, position: up ? 'belowBar':'aboveBar', color: up ? '#ffd166':'#ff8fab',
+                shape: up ? 'arrowUp':'arrowDown', text: e.etype.startsWith('vwap') ? '' : shortLabel(e) });
+    }
+  }
+  for (const b of bars) if (b.gap) ms.push({ time:b.time, position:'inBar', color:'#9aa4b2', shape:'square', text:'欠' });
+  ms.sort((a,b)=>a.time-b.time);
+  const times = new Set(bars.map(b=>b.time));
+  candles.setMarkers(ms.filter(m => times.has(m.time)));
+}
+function shortLabel(e){
+  if (e.etype.startsWith('vwap')) return 'VWAP'; if (e.etype.startsWith('ema')) return e.etype==='ema_golden'?'GC':'DC';
+  return e.etype.replace('bb_lower_','BB-').replace('bb_upper_','BB+')+'σ';
+}
+
+// ---------- 受信処理 ----------
+function fmt(x, d=1){ return x==null ? '-' : Number(x).toLocaleString('ja-JP', {minimumFractionDigits:d, maximumFractionDigits:d}); }
+function fmtPrice(x){ return x==null ? '-' : Number(x).toLocaleString('ja-JP', {maximumFractionDigits:2}); }
+function signed(x, d=2){ return x==null ? '-' : (x>0?'+':'') + x.toFixed(d) + '%'; }
+function colorOf(x){ const c = SCHEMES[scheme]; return x==null||x===0 ? '' : (x>0 ? c.up : c.down); }
+
+function setHeader(h){
+  $('h-price').textContent = fmtPrice(h.price);
+  const chg = $('h-chg'); chg.textContent = signed(h.chg_prev_close_pct); chg.style.color = colorOf(h.chg_prev_close_pct);
+  const vd = $('h-vdev'); vd.textContent = signed(h.vwap_dev_pct); vd.style.color = colorOf(h.vwap_dev_pct);
+  $('h-vwap').textContent = fmtPrice(h.vwap);
+  $('h-vol').textContent = `${fmt(h.last_bar_volume,0)} / ${fmt(h.last_tick_volume,0)}`;
+  $('h-time').textContent = h.last_tick_time || '-';
+}
+function setStatus(s){
+  status = s;
+  const b = $('badge'); b.textContent = s.label; b.className = s.code;
+  $('chartwrap').classList.toggle('stalled', !!s.stalled);
+  $('stall').textContent = s.label;
+}
+function setWarnings(ws_){
+  const w = $('warn');
+  w.innerHTML = (ws_||[]).map(t => `<div>⚠ ${t.replace(/</g,'&lt;')}</div>`).join('');
+  w.style.display = (ws_ && ws_.length) ? 'block' : 'none';
+}
+function renderEvents(){
+  const el = $('events');
+  el.innerHTML = events.slice(-60).reverse().map(e =>
+    `<div class="ev"><b>${e.jst.slice(11)}</b> ${e.label}<br><small>価格 ${fmtPrice(e.price)}</small></div>`).join('') || '<small>まだありません</small>';
+}
+
+function withDayBreaks(pts){          // 日付が変わる所に空白点を入れ、リセットされる線(VWAP等)を段差でつながない
+  const out = []; let prevDay = null;
+  for (const p of pts){ const d = Math.floor(p.time / 86400);
+    if (prevDay !== null && d !== prevDay) out.push({ time: p.time - 1 });
+    out.push(p); prevDay = d; }
+  return out;
+}
+function onSnapshot(m){
+  haveSnapshot = true;
+  bars = m.bars;
+  candles.setData(bars.map(candlePoint));
+  volume.setData(bars.map(volPoint));
+  lastCandleTime = bars.length ? bars[bars.length-1].time : 0;
+  const names = Object.keys(m.indicators);
+  for (const n of Object.keys(lines)) if (!names.includes(n)){ chart.removeSeries(lines[n]); delete lines[n]; }
+  for (const n of names){ const s = ensureLine(n); s.setData(n === 'vwap' ? withDayBreaks(m.indicators[n]) : m.indicators[n]); lastLineTime[n] = m.indicators[n].length ? m.indicators[n].at(-1).time : 0; }
+  events = m.events || [];
+  if (m.meta){ meta = m.meta; setWarnings(meta.warnings); $('std-label').textContent = '標準偏差: ' + meta.std_label; }
+  setHeader(m.header); setStatus(m.status);
+  renderEvents(); applyVisibility();
+  chart.timeScale().fitContent();
+}
+function onUpdate(m){
+  if (!haveSnapshot || m.symbol !== symbol || m.interval !== interval) return;
+  for (const b of m.bars){
+    if (b.time < lastCandleTime) continue;
+    const i = bars.findIndex(x => x.time === b.time);
+    if (i >= 0) bars[i] = b; else bars.push(b);
+    candles.update(candlePoint(b)); volume.update(volPoint(b)); lastCandleTime = b.time;
+  }
+  for (const n in m.indicators){
+    const s = ensureLine(n);
+    for (const p of m.indicators[n]){ if (p.time >= lastLineTime[n]){ s.update(p); lastLineTime[n] = p.time; } }
+  }
+  setHeader(m.header); setStatus(m.status); refreshMarkers();
+}
+function onEvent(m){ if (m.event.symbol === symbol){ events.push(m.event); renderEvents(); refreshMarkers(); } }
+
+// ---------- 通信 ----------
+function params(){
+  const list = id => $(id).value.split(/[,\s]+/).map(Number).filter(n => Number.isFinite(n) && n > 0);
+  return { sma:list('p-sma'), ema:list('p-ema'), bb_period:+$('p-bbn').value || 20,
+           bb_sigmas:[+$('p-bb1').value || 1, +$('p-bb2').value || 2] };
+}
+function subscribe(){
+  if (!ws || ws.readyState !== 1) return;
+  haveSnapshot = false;
+  ws.send(JSON.stringify({ type:'subscribe', symbol, interval, params:params() }));
+}
+let retry = 1000;
+function connect(){
+  ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws');
+  ws.onopen = () => { retry = 1000; subscribe(); };
+  ws.onmessage = ev => {
+    const m = JSON.parse(ev.data);
+    if (m.type === 'snapshot') onSnapshot(m); else if (m.type === 'update') onUpdate(m);
+    else if (m.type === 'status') setStatus(m.status); else if (m.type === 'event') onEvent(m);
+  };
+  ws.onclose = () => { setStatus({ code:'reconnecting', label:'再接続中（サーバーとの接続が切れました）', stalled:true });
+                       setTimeout(connect, retry); retry = Math.min(retry*2, 15000); };
+}
+
+// ---------- UI ----------
+async function init(){
+  const r = await fetch('/api/meta'); const m = await r.json();
+  meta = m;
+  const sel = $('symbol');
+  sel.innerHTML = m.symbols.map(s => `<option value="${s.code}">${s.code} ${s.name}</option>`).join('');
+  if (!symbol || !m.symbols.some(s => s.code === symbol)) symbol = m.symbols[0].code;
+  sel.value = symbol;
+  $('scheme').value = scheme;
+  $('p-sma').value = m.defaults.sma.join(','); $('p-ema').value = m.defaults.ema.join(',');
+  $('p-bbn').value = m.defaults.bb_period; $('p-bb1').value = m.defaults.bb_sigmas[0] ?? 1; $('p-bb2').value = m.defaults.bb_sigmas[1] ?? 2;
+  $('std-label').textContent = '標準偏差: ' + m.std_label;
+  setWarnings(m.warnings); setStatus(m.status);
+  for (const b of document.querySelectorAll('#tf button')) b.classList.toggle('on', b.dataset.iv === interval);
+  $('ivlabel').textContent = interval === '1m' ? '1分足' : '5分足';
+  sel.onchange = () => { symbol = sel.value; store.set('symbol', symbol); subscribe(); };
+  for (const b of document.querySelectorAll('#tf button')) b.onclick = () => {
+    interval = b.dataset.iv; store.set('interval', interval);
+    document.querySelectorAll('#tf button').forEach(x => x.classList.toggle('on', x === b));
+    $('ivlabel').textContent = interval === '1m' ? '1分足' : '5分足'; subscribe();
+  };
+  $('apply').onclick = subscribe;
+  for (const id of ['t-vwap','t-sma','t-ema','t-bb','t-vol','t-ev']) $(id).onchange = applyVisibility;
+  $('scheme').onchange = e => { scheme = e.target.value; store.set('scheme', scheme); applyScheme(); renderEvents(); };
+  applyScheme();
+  connect();
+}
+init();
+window.__app = { get bars(){ return bars; }, get events(){ return events; }, get status(){ return status; }, lines };   // テスト用
+})();
+</script>
+</body>
+</html>

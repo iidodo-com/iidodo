@@ -1,0 +1,87 @@
+# ===== 日本株デイトレ用リアルタイムチャート（閲覧・記録専用）設定 =====
+# 環境変数 PROVIDER / REPLAY_SPEED / REPLAY_DATE / MOCK_SPEED でも一部上書きできる。
+
+provider: mock            # mock | replay | kabu | tachibana(スタブ)
+timezone: Asia/Tokyo      # 表示・設定のタイムゾーン（内部はUTCエポック秒）
+db_path: data/market.db
+log_dir: logs
+
+# 銘柄リスト。codeは英数字可（285A等）。文字列として扱う（intに変換しない）。
+# 名前は例示用。実際の銘柄名はご自身で書き換えてください。
+symbols:
+  - {code: "6501", name: "サンプル6501", mock_base_price: 4200}
+  - {code: "285A", name: "サンプル285A", mock_base_price: 1800}
+  - {code: "200A", name: "サンプル200A", mock_base_price: 950}
+
+# ----- 取引時間（東証 現物。2024/11/5〜 後場は15:30まで）-----
+# 終了時刻は東証の最新公式情報で確認し、変わったらここだけ直す。
+sessions:
+  morning:   ["09:00", "11:30"]
+  afternoon: ["12:30", "15:30"]
+
+# ----- 休場日 -----
+calendar:
+  use_jpholiday: true          # 国民の祝日(jpholiday)。※jpholidayは12/31,1/2,1/3を含まない
+  year_end_closed: true        # 12/31〜1/3 を休場にする（東証の年末年始休業）
+  extra_holidays: []           # 追加の休場日 例: ["2026-11-04"]
+  extra_open_days: []          # 祝日・休場ルールを打ち消して営業日扱いにする日（臨時営業等）
+
+# 時間帯区分（検証画面の集計用）。開始<=時刻<終了
+time_buckets:
+  - {name: "寄付き直後(9:00-9:30)",  start: "09:00", end: "09:30"}
+  - {name: "前場中盤(9:30-11:00)",   start: "09:30", end: "11:00"}
+  - {name: "前場引け前(11:00-11:30)", start: "11:00", end: "11:30"}
+  - {name: "後場寄り直後(12:30-13:00)", start: "12:30", end: "13:00"}
+  - {name: "後場中盤(13:00-14:30)",   start: "13:00", end: "14:30"}
+  - {name: "大引け前(14:30-15:30)",   start: "14:30", end: "15:30"}
+
+# ----- 指標の既定値（UIで変更可）-----
+indicators:
+  sma: [20]
+  ema: [9, 21]
+  bb_period: 20
+  bb_sigmas: [1.0, 2.0]
+  bb_ddof: 0                    # 0=母標準偏差(既定) / 1=標本標準偏差
+  vwap_reset_afternoon: false   # true: 12:30(後場開始)でVWAPをリセット
+  ma_cross_lunch: true          # true: 昼休みをまたいでMA/BBを連続計算
+  ma_carry_prev_day: false      # true: 前日の足を引き継いでMA/BBを計算
+  afternoon_from: "12:00"       # この時刻以降の足を「後場」とみなす（足は昼休みに存在しない）
+
+# ----- 株式分割・併合（過去価格の不連続）-----
+# 分割日をまたぐ区間の指標計算を無効化する（その日で計算をリセット）。
+split_guard: true
+# 銘柄ごとの分割/併合の効力発生日。 例: {"6501": ["2026-04-01"]}
+splits: {}
+# 履歴データが「調整済みか」が不明/未調整のとき画面に警告を出す（kabuは履歴APIなし→常に警告対象）
+warn_unadjusted_history: true
+
+# ----- ティック検証 -----
+tick:
+  max_price_deviation: 0.5      # 前日終値(なければ直前値)からの乖離がこれを超えたら無視。値幅制限は価格帯で異なるため緩め
+  vwap_check_interval_s: 60     # 配信VWAPと自前VWAPの比較を記録する間隔
+  vwap_warn_pct: 0.5            # 乖離がこれ(%)を超えたらWARNING
+
+# ----- イベント記録（売買推奨ではなく後検証用）-----
+events:
+  ema_fast: 9
+  ema_slow: 21
+  bb_period: 20
+  bb_sigmas: [1.0, 2.0]
+  bb_ddof: 0
+  horizons_min: [1, 3, 5, 10]   # 発生後N分(取引時間内の経過分。昼休みは数えない)
+  min_sample: 30                # 母数がこれ未満の区分は「標本が少ない」
+
+# ----- プロバイダ個別設定 -----
+mock:
+  clock: virtual                # virtual: 仮想時計で前場→昼休み→後場を再現 / real: 実時間(取引時間内のみ配信)
+  speed: 60                     # virtualの倍率（60なら1秒=1分）
+  mean_tick_gap_s: 3.0          # 仮想時間での平均ティック間隔
+replay:
+  source: mock                  # DB(ticks)のどのsourceを再生するか: mock | kabu
+  date: null                    # "YYYY-MM-DD" / null=最新日
+  speed: 10                     # 1 / 10 / 60
+  max_real_gap_s: 2.0           # 無取引区間で実時間がこれ以上待たないようにする
+kabu:
+  exchange: 1                   # 1=東証（公式仕様の市場コード）
+  reconnect_min_s: 1
+  reconnect_max_s: 60
