@@ -7,7 +7,7 @@ const { execFile } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "v6-ssl-no-revoke";
+const VERSION = "v7-news-live";
 const PORT = process.env.PORT || 8787;
 const HOST = process.env.HOST || "127.0.0.1";
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
@@ -30,9 +30,8 @@ function fetchViaCurl(url, px) {
       err ? reject(new Error("curl失敗: " + (errText || err.message).trim().slice(0, 120))) : resolve(out)));
 }
 
-function fetchYahoo(symbol, range) {
+function fetchYahoo(path) {
   const host = "query1.finance.yahoo.com";
-  const path = `/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
   const px = proxyConf();
   const viaProxy = () => new Promise((resolve, reject) => {
     const get = (extra) => https.get({ host, path, headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000, ...extra }, (r) => {
@@ -46,6 +45,7 @@ function fetchYahoo(symbol, range) {
     http.request({ host: px.hostname, port: px.port || 80, method: "CONNECT", path: host + ":443", headers, timeout: 15000 })
       .on("connect", (r, socket) => {
         if (r.statusCode !== 200) { socket.destroy(); return reject(new Error("プロキシ応答 " + r.statusCode)); }
+        socket.on("error", (e) => reject(new Error("プロキシ通信切断 " + (e.code || e.message))));
         get({ agent: false, createConnection: () => tls.connect({ socket, servername: host }) });
       })
       .on("error", (e) => reject(new Error("プロキシ接続失敗 " + (e.code || e.message))))
@@ -70,21 +70,49 @@ function toSeries(raw) {
   return { symbol: res.meta.symbol, currency: res.meta.currency, name: res.meta.longName || res.meta.shortName || res.meta.symbol, rows };
 }
 
+// 想定外の通信エラーでサーバーごと落ちないようにする
+process.on("uncaughtException", (e) => console.log("警告(無視して継続):", e.code || e.message));
+
+const SYM_OK = /^[A-Za-z0-9.^=\-]{1,20}$/;
+const chartPath = (symbol, range, interval) => `/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`;
+
+// 最新価格(1分足のメタ情報)
+function toQuote(raw) {
+  const res = JSON.parse(raw).chart.result?.[0];
+  if (!res) throw new Error("銘柄が見つかりません");
+  const m = res.meta;
+  if (m.regularMarketPrice == null) throw new Error("最新価格がありません");
+  const t = m.regularMarketTime;
+  return { symbol: m.symbol, currency: m.currency, price: m.regularMarketPrice, time: t, date: new Date((t + (m.gmtoffset || 0)) * 1000).toISOString().slice(0, 10), prevClose: m.chartPreviousClose ?? m.previousClose ?? null };
+}
+
+// ニュース(銘柄に関連するものだけ)
+function toNews(raw, symbol) {
+  const items = (JSON.parse(raw).news || []).map((n) => ({ title: n.title, publisher: n.publisher, link: n.link, t: n.providerPublishTime, tickers: n.relatedTickers || [] }));
+  const rel = items.filter((n) => n.tickers.includes(symbol.toUpperCase()));
+  return (rel.length ? rel : []).map(({ tickers, ...n }) => n);
+}
+
+const ROUTES = {
+  "/api/history": { ttl: 5 * 60e3, build: (sy, u) => { const r = u.searchParams.get("range") || "2y"; return RANGES.has(r) ? [chartPath(sy, r, "1d"), toSeries] : null; } },
+  "/api/quote": { ttl: 10e3, build: (sy) => [chartPath(sy, "1d", "1m"), toQuote] },
+  "/api/news": { ttl: 10 * 60e3, build: (sy) => [`/v1/finance/search?q=${encodeURIComponent(sy)}&newsCount=20&quotesCount=0`, (raw) => ({ symbol: sy, items: toNews(raw, sy) })] },
+};
+
 http.createServer(async (req, res) => {
   const u = new URL(req.url, "http://x");
-  if (u.pathname === "/api/history") {
+  const route = ROUTES[u.pathname];
+  if (route) {
     const symbol = (u.searchParams.get("symbol") || "").trim();
-    const range = u.searchParams.get("range") || "2y";
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    if (!/^[A-Za-z0-9.^=\-]{1,20}$/.test(symbol) || !RANGES.has(range)) {
-      res.statusCode = 400;
-      return res.end(JSON.stringify({ error: "銘柄コードが不正です" }));
-    }
-    const key = symbol + "|" + range;
+    res.setHeader("Cache-Control", "no-store");
+    const spec = SYM_OK.test(symbol) && route.build(symbol, u);
+    if (!spec) { res.statusCode = 400; return res.end(JSON.stringify({ error: "銘柄コードが不正です" })); }
+    const key = u.pathname + "|" + u.search;
     const hit = cache.get(key);
-    if (hit && Date.now() - hit.t < 5 * 60e3) return res.end(hit.body);
+    if (hit && Date.now() - hit.t < route.ttl) return res.end(hit.body);
     try {
-      const body = JSON.stringify(toSeries(await fetchYahoo(symbol, range)));
+      const body = JSON.stringify(spec[1](await fetchYahoo(spec[0]), symbol));
       cache.set(key, { t: Date.now(), body });
       res.end(body);
     } catch (e) {
