@@ -35,6 +35,61 @@ def flatten_illumination(img: np.ndarray) -> np.ndarray:
     return cv2.divide(gray, bg, scale=255)
 
 
+def rule_mask(gray: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """罫線（長い横線・縦線）の画素マスクと、文字の二値画像を返す。
+    太い塊（大きな文字・塗りつぶし）や、文字の一画（短くて他の画素とつながった線分）は罫線に含めない。"""
+    bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    h, w = bw.shape
+    n_bw, lab_bw, st_bw, _ = cv2.connectedComponentsWithStats(bw, connectivity=8)
+    mask = np.zeros_like(bw)
+    for horizontal in (True, False):
+        size = max((w if horizontal else h) // 30, 80)
+        k = cv2.getStructuringElement(cv2.MORPH_RECT, (size, 1) if horizontal else (1, size))
+        opened = cv2.morphologyEx(bw, cv2.MORPH_OPEN, k)
+        n, lab, st, cen = cv2.connectedComponentsWithStats(opened, connectivity=8)
+        for i in range(1, n):
+            length, thick = (st[i, cv2.CC_STAT_WIDTH], st[i, cv2.CC_STAT_HEIGHT]) if horizontal else (st[i, cv2.CC_STAT_HEIGHT], st[i, cv2.CC_STAT_WIDTH])
+            if thick > 14:
+                continue  # 太い塊は罫線ではない
+            if length < 200:
+                # 短い線は、表の枠など大きな図形につながっているときだけ罫線とみなす（文字の一画を消さないため）
+                j = lab_bw[int(cen[i][1]), int(cen[i][0])]
+                if j == 0 or max(st_bw[j, cv2.CC_STAT_WIDTH], st_bw[j, cv2.CC_STAT_HEIGHT]) < 200:
+                    continue
+            mask[lab == i] = 255
+    return mask, bw
+
+
+def remove_lines(img: np.ndarray) -> np.ndarray:
+    """表や枠の罫線（長い横線・縦線、点線）を白で消す。罫線が `山` `|` `中` のような断片文字として読まれるのを防ぐ。
+    文字が罫線に接している箇所は、画素が少し欠けることがある。"""
+    gray = to_gray(img)
+    solid, bw = rule_mask(gray)
+    lines = cv2.dilate(solid, np.ones((3, 3), np.uint8))
+    # 点線は、枠線とつながっていると「太い塊」に見えてしまうので、実線を取り除いてから探す
+    rest = cv2.bitwise_and(bw, cv2.bitwise_not(cv2.dilate(solid, np.ones((7, 7), np.uint8))))
+    lines = cv2.bitwise_or(lines, _dashed_lines(rest))
+    out = gray.copy()
+    out[lines > 0] = 255
+    return out
+
+
+def _dashed_lines(bw: np.ndarray, gap: int = 31, min_len: int = 100, max_thick: int = 12) -> np.ndarray:
+    """点線（細かい線分の連なり）の画素を返す。隙間をつないで「細くて長い」部分だけを点線とみなす。
+    文字は隙間をつなぐと太い塊になるため、細さの条件で区別できる。"""
+    mask = np.zeros_like(bw)
+    for horizontal in (True, False):
+        k = np.ones((1, gap), np.uint8) if horizontal else np.ones((gap, 1), np.uint8)
+        closed = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, k)
+        n, lab, st, _ = cv2.connectedComponentsWithStats(closed, connectivity=8)
+        for i in range(1, n):
+            w_, h_ = st[i, cv2.CC_STAT_WIDTH], st[i, cv2.CC_STAT_HEIGHT]
+            thin, long_ = (h_, w_) if horizontal else (w_, h_)
+            if thin <= max_thick and long_ >= min_len:
+                mask[lab == i] = 255
+    return cv2.dilate(mask, np.ones((3, 3), np.uint8))
+
+
 def binarize(img: np.ndarray, method: str) -> np.ndarray:
     """二値化（大津の方法：画像全体で最適なしきい値を1つ決める）。"""
     if method == "otsu":
@@ -96,7 +151,7 @@ def deskew(img: np.ndarray, vertical: bool = False) -> tuple[np.ndarray, float]:
 
 def preprocess(img: np.ndarray, pp: dict, vertical: bool = False) -> tuple[np.ndarray, dict]:
     """設定 pp（config の preprocess）に従い前処理する。(画像, 適用内容の記録) を返す。
-    順序: グレースケール → 傾き補正 → ノイズ除去 → 照明ムラ補正 → 二値化"""
+    順序: グレースケール → 傾き補正 → ノイズ除去 → 照明ムラ補正 → 罫線除去 → 二値化"""
     applied: dict = {}
     if not pp["enabled"]:
         return img, applied
@@ -113,6 +168,9 @@ def preprocess(img: np.ndarray, pp: dict, vertical: bool = False) -> tuple[np.nd
     if pp["flatten"]:
         out = flatten_illumination(out)
         applied["flatten"] = True
+    if pp.get("remove_lines"):
+        out = remove_lines(out)
+        applied["remove_lines"] = True
     if pp["binarize"] != "none":
         out = binarize(out, pp["binarize"])
         applied["binarize"] = pp["binarize"]

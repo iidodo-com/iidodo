@@ -2,6 +2,7 @@
 1ファイル・1ページの失敗では止まらず、error.log に記録して次へ進む。"""
 from __future__ import annotations
 
+import csv
 import io
 import logging
 import time
@@ -11,6 +12,7 @@ from pathlib import Path
 
 from pypdf import PdfWriter
 
+from . import cells as cells_mod
 from . import engine, loader, preprocess
 from .config import is_vertical
 from .errors import explain_exception
@@ -40,12 +42,27 @@ class Summary:
 
 
 def ocr_page(page: loader.PageImage, cfg: dict, want_pdf: bool) -> PageResult:
-    """1ページ分: 前処理 → OCR →（任意で）検索可能PDF。
+    """1ページ分: 前処理 → 罫線のある書類はマス目ごとに読む（なければ文章として読む）→（任意で）検索可能PDF。
     検索可能PDFには、OCRに渡した画像（前処理後）が埋め込まれる。"""
     t0 = time.perf_counter()
-    img, applied = preprocess.preprocess(page.image, cfg["preprocess"], is_vertical(cfg))
-    result = engine.recognize(img, cfg, page.dpi)
-    pdf = engine.make_searchable_pdf(img, cfg, page.dpi) if want_pdf else None
+    pp = dict(cfg["preprocess"])
+    drop_lines = bool(pp.get("remove_lines")) and pp["enabled"]
+    pp["remove_lines"] = False  # セル検出には罫線が必要なので、罫線除去は検出のあとで行う
+    img, applied = preprocess.preprocess(page.image, pp, is_vertical(cfg))
+    mode, found = cfg["layout"]["mode"], []
+    # 前処理を切っているときは、影やノイズで罫線を誤検出しやすいので、mode: cells と明示した場合だけセル検出する
+    if mode != "text" and not is_vertical(cfg) and (pp["enabled"] or mode == "cells"):
+        found = cells_mod.detect_cells(preprocess.to_gray(img))
+    use_cells = bool(found) and (len(found) >= cfg["layout"]["min_cells"] or mode == "cells")
+    clean = preprocess.remove_lines(img) if (drop_lines or use_cells) else img
+    if use_cells:
+        result = cells_mod.recognize_cells(preprocess.to_gray(img), preprocess.to_gray(clean), found, cfg, page.dpi)
+        applied["cells"] = len(found)
+    else:
+        result = engine.recognize(clean, cfg, page.dpi)
+    if drop_lines:
+        applied["remove_lines"] = True
+    pdf = engine.make_searchable_pdf(clean, cfg, page.dpi) if want_pdf else None
     return PageResult(page.page_no, result, pdf, applied, time.perf_counter() - t0)
 
 
@@ -79,6 +96,13 @@ def write_outputs(out_dir: Path, results: list[PageResult], cfg: dict) -> None:
         head = f"===== ページ {r.page_no} =====\n" if out["page_header"] else ""
         combined.append(head + r.ocr.text)
     (out_dir / "all.txt").write_text("\n\n".join(combined) + "\n", encoding="utf-8")
+    cell_rows = [[r.page_no, ln.row_id + 1, i, *ln.box, ln.text, round(ln.conf, 1)]
+                 for r in results for i, ln in enumerate((l for l in r.ocr.lines if l.is_cell), start=1)]
+    if cell_rows:  # セルモードで読んだ場合: マスごとの結果（表の行番号・位置・文字・信頼度）
+        with open(out_dir / "cells.csv", "w", encoding="utf-8-sig", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["ページ", "表の行", "セル番号", "x", "y", "幅", "高さ", "文字列", "信頼度"])
+            w.writerows(cell_rows)
     pdfs = [r.pdf_bytes for r in results if r.pdf_bytes]
     if out["searchable_pdf"] and pdfs:
         merge_pdfs(pdfs, out_dir / "searchable.pdf")
@@ -110,7 +134,8 @@ def process_file(src: Path, input_root: Path, cfg: dict, out_root: Path,
             rows = review_rows(src.name, r.page_no, r.ocr, threshold, cfg["review"]["word_level"])
             writer.write(rows)
             conf = r.ocr.mean_conf
-            print(f"{tag} {src.name} {label}  文字数{sum(len(l.text) for l in r.ocr.lines)}"
+            mode_note = f"  セル{r.applied['cells']}個" if r.applied.get("cells") else ""
+            print(f"{tag} {src.name} {label}{mode_note}  文字数{sum(len(l.text) for l in r.ocr.lines)}"
                   f"  平均信頼度{'-' if conf is None else f'{conf:.1f}'}  要確認{len(rows)}件  {r.seconds:.1f}秒")
     except Exception as e:  # noqa: BLE001  ファイル単位の失敗（読み込み不可など）
         cause, hint = explain_exception(e)

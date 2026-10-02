@@ -41,7 +41,16 @@ preprocess:
   deskew: true            # 傾き補正（±15度まで）
   denoise: nlmeans        # ノイズ除去: none / median（高速だが細い線を傷める）/ nlmeans（推奨・やや低速）
   flatten: true           # 照明ムラ・影の補正（スマホ撮影や、端が暗いスキャンに有効）
+  remove_lines: true      # 表・枠の罫線を消す（罫線が「山」「|」などの文字に化けるのを防ぐ）
   binarize: none          # 二値化: none / otsu（Tesseract自身が内部で二値化するため、通常は none のほうが良好）
+
+# --- レイアウト（表・枠のある書類の読み方） ---
+layout:
+  # auto  : 罫線で囲まれたマス目が min_cells 個以上あれば「セルモード」、なければ通常の文章として読む
+  # cells : 常にマス目ごとに読む（帳票・表向け。隣のマスの文字が混ざらない）
+  # text  : 常にページ全体を文章として読む（枠のない書類）
+  mode: auto
+  min_cells: 4
 
 # --- 要確認箇所の一覧（review.csv） ---
 review:

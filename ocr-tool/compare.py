@@ -21,7 +21,7 @@ from ocr_tool.config import load_config, validate
 from ocr_tool.errors import OcrToolError, explain_exception
 from ocr_tool.metrics import cer
 
-OFF = {"enabled": False, "grayscale": False, "deskew": False, "denoise": "none", "flatten": False, "binarize": "none"}
+OFF = {"enabled": False, "grayscale": False, "deskew": False, "denoise": "none", "flatten": False, "remove_lines": False, "binarize": "none"}
 
 
 def variants(base_pp: dict, quick: bool) -> dict[str, dict]:
@@ -49,7 +49,8 @@ def read_file(path: Path, cfg: dict) -> tuple[str, list[engine.PageOCR], float]:
     """ファイル全ページをOCRし、(全文, ページ結果, 秒) を返す。"""
     t0 = time.perf_counter()
     results = [pipeline.ocr_page(p, cfg, want_pdf=False).ocr for p in loader.load_pages(path, cfg)]
-    return "\n".join(r.text for r in results), results, time.perf_counter() - t0
+    # セルモードの区切り「 | 」は精度比較では除くため、行(セル)の文字列を直接つなぐ
+    return "\n".join(ln.text for r in results for ln in r.lines), results, time.perf_counter() - t0
 
 
 def main(argv=None) -> int:

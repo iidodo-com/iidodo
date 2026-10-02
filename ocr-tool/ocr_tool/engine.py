@@ -38,6 +38,8 @@ class Line:
     box: tuple[int, int, int, int]
     words: list[Word] = field(default_factory=list)
     new_paragraph: bool = False
+    row_id: int | None = None   # セルモード: 同じ値のセルは、表の同じ行として「 | 」でつないで出力する
+    is_cell: bool = False       # セルモード: 罫線で囲まれた1マスの読み取り結果
 
 
 @dataclass
@@ -48,10 +50,16 @@ class PageOCR:
     def text(self) -> str:
         """行を連結したページ全文。段落が変わる箇所に空行を入れる。"""
         parts: list[str] = []
+        prev_row = None
         for i, ln in enumerate(self.lines):
-            if i and ln.new_paragraph:
-                parts.append("")
-            parts.append(ln.text)
+            multi = "\n" in ln.text.strip()  # 複数行のマスは、行を崩さずそのまま出す
+            if ln.row_id is not None and ln.row_id == prev_row and not multi:
+                parts[-1] += " | " + ln.text.strip()  # 同じ表の行の1行マスは「 | 」でつなぐ
+            else:
+                if i and ln.new_paragraph:
+                    parts.append("")
+                parts.append(ln.text.strip() if ln.row_id is not None else ln.text)
+            prev_row = None if multi else ln.row_id
         return "\n".join(parts)
 
     @property
@@ -61,6 +69,14 @@ class PageOCR:
         if not total:
             return None
         return sum(ln.conf * len(ln.text) for ln in self.lines) / total
+
+
+_NOISE = re.compile(r"[\s|'\"「」・.,、。:;!！_~^`´‘’\-ー—―_]*")
+
+
+def is_noise(text: str) -> bool:
+    """記号やゴミ点だけの行（罫線の残りなど）か。"""
+    return bool(_NOISE.fullmatch(text))
 
 
 def clean_cjk_spaces(text: str) -> str:

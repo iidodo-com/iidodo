@@ -32,8 +32,10 @@ DEFAULTS: dict[str, Any] = {
         "deskew": True,
         "denoise": "nlmeans",
         "flatten": True,
+        "remove_lines": True,
         "binarize": "none",
     },
+    "layout": {"mode": "auto", "min_cells": 4},
     "review": {"threshold": 70, "word_level": False},
     "output": {"page_txt": True, "searchable_pdf": True, "page_header": True},
 }
@@ -41,6 +43,7 @@ DEFAULTS: dict[str, Any] = {
 _CHOICES = {
     ("preprocess", "denoise"): ("none", "median", "nlmeans"),
     ("preprocess", "binarize"): ("none", "otsu"),
+    ("layout", "mode"): ("auto", "text", "cells"),
 }
 
 
@@ -118,6 +121,7 @@ def validate(cfg: dict) -> dict:
         ("ocr", "timeout_sec", 1, 86400),
         ("pdf", "render_dpi", 72, 600),
         ("review", "threshold", 0, 100),
+        ("layout", "min_cells", 1, 1000),
     ]:
         v = cfg[section][key]
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not lo <= v <= hi:
@@ -131,7 +135,7 @@ def validate(cfg: dict) -> dict:
 
     bool_keys = [
         ("recursive",), ("ocr", "remove_cjk_spaces"),
-        ("preprocess", "enabled"), ("preprocess", "grayscale"), ("preprocess", "deskew"), ("preprocess", "flatten"),
+        ("preprocess", "enabled"), ("preprocess", "grayscale"), ("preprocess", "deskew"), ("preprocess", "flatten"), ("preprocess", "remove_lines"),
         ("review", "word_level"),
         ("output", "page_txt"), ("output", "searchable_pdf"), ("output", "page_header"),
     ]
