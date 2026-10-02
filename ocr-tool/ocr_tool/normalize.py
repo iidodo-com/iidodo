@@ -42,7 +42,12 @@ def parse_amount(text: str) -> int | None:
 
 
 def parse_date_jp(text: str) -> tuple[int, int, int] | None:
-    """日付を (西暦, 月, 日) にする。'令和8年9月25日' / 'R8.9.25' / '2026/9/25' / '2026-09-25' に対応。"""
+    """日付を (西暦, 月, 日) にする。月が1〜12、日が1〜31でなければ（誤読として）None。'令和8年9月25日' / 'R8.9.25' / '2026/9/25' / '2026-09-25' に対応。"""
+    d = _parse_date_raw(text)
+    return d if d and 1 <= d[1] <= 12 and 1 <= d[2] <= 31 else None
+
+
+def _parse_date_raw(text: str) -> tuple[int, int, int] | None:
     t = nfkc(text).replace(" ", "")
     m = re.search(r"(令和|平成|昭和|R|H|S)(\d{1,2}|元)[年.\-/](\d{1,2})[月.\-/](\d{1,2})", t)
     if m:

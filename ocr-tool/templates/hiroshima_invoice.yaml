@@ -20,9 +20,9 @@ fields:
   - {id: claim_date,     label: 請求日(手書き), type: date,   box: [314, 678, 544, 716], handwritten: true}
   - {id: bank,           label: 金融機関名,     type: text,   box: [692, 730, 994, 762]}
   - {id: branch,         label: 本支店名,       type: text,   box: [692, 765, 994, 797]}
-  - {id: deposit_type,   label: 預金種別,       type: text,   box: [692, 801, 994, 833]}
+  - {id: deposit_type,   label: 預金種別,       type: text,   box: [692, 801, 994, 833], choices: [普通預金, 当座預金, 貯蓄預金, 定期預金, 通知預金]}
   - {id: account_no,     label: 口座番号,       type: digits, box: [692, 835, 994, 865], pattern: '\d{7}'}
-  - {id: account_holder, label: 口座名義人,     type: text,   box: [692, 871, 994, 901]}
+  - {id: account_holder, label: 口座名義人(半角カナ), type: text, box: [692, 871, 994, 901], scale: 3}
 
 # 項目間の整合性チェック（読み取りだけでも誤読を発見できる）
 checks:

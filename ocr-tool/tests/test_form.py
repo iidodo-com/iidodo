@@ -133,12 +133,26 @@ def test_low_confidence_text_mismatch_is_review_not_ng():
 
 def test_consistency_check():
     tpl = Template("t", [], [{"name": "合計", "expr": "a == b + c"}], {})
-    ok = matching._checks([fr("a", 11000), fr("b", 11000), fr("c", 0)], tpl)[0]
-    ng = matching._checks([fr("a", 12000), fr("b", 11000), fr("c", 0)], tpl)[0]
-    unknown = matching._checks([fr("a", 12000), fr("b", None), fr("c", 0)], tpl)[0]
+    ok = matching._checks([fr("a", 11000), fr("b", 11000), fr("c", 0)], tpl)[0][0]
+    ng = matching._checks([fr("a", 12000), fr("b", 11000), fr("c", 0)], tpl)[0][0]
+    unknown = matching._checks([fr("a", 12000), fr("b", None), fr("c", 0)], tpl)[0][0]
     assert (ok.status, ng.status, unknown.status) == (matching.OK, matching.NG, matching.REVIEW)
     with pytest.raises(OcrToolError):
         matching._checks([], Template("t", [], [{"expr": "__import__('os')"}], {}))
+
+
+def test_verified_by_check_skips_low_confidence_flags():
+    tpl = Template("t", [], [{"name": "合計", "expr": "a == b + c"}], {})
+    rs = [fr("a", 11000, conf=16, problems=["読み取り方によって結果が揺れました（2/4件が同じ）"]), fr("b", 11000, conf=80), fr("c", 0, conf=40)]
+    j = {x.id: x for x in matching.judge_document(rs, tpl, None)}
+    assert j["a"].status == matching.SKIP and j["c"].status == matching.SKIP
+    rs[2] = fr("c", 1, conf=40)  # 計算が合わなければ、確認済みにならない
+    j = {x.id: x for x in matching.judge_document(rs, tpl, None)}
+    assert j["a"].status == matching.REVIEW
+
+
+def test_invalid_handwritten_date_is_none():
+    assert parse_date_jp("令和 9 年月 95") is None and parse_date_jp("2027-04-95") is None
 
 
 def test_find_reference_row():

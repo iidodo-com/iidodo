@@ -12,7 +12,7 @@ from .form import FieldResult, Template
 from .metrics import edit_distance
 from .normalize import normalize_digits, normalize_text, parse_amount, parse_date_jp
 
-OK, REVIEW, NG, EMPTY, HAND, SKIP = "一致", "要確認", "不一致", "未読取", "要目視", "対象外"
+OK, REVIEW, NG, EMPTY, HAND, SKIP = "一致", "要確認", "不一致", "未読取", "要目視", "読取OK"  # 読取OK=突合元なしで読み取れた（突合は未実施）
 # 書類全体の判定は、より注意が必要な方を優先する
 SEVERITY = {OK: 0, SKIP: 0, REVIEW: 1, HAND: 1, EMPTY: 2, NG: 3}
 
@@ -142,6 +142,7 @@ def judge_document(results: list[FieldResult], tpl: Template, ref_row: dict | No
     """1枚の帳票の全項目を判定する。ref_row が None のときは突合せず、読み取り品質だけで判定する。"""
     mapping = (tpl.match or {}).get("fields") or {}
     out: list[Judgement] = []
+    check_js, verified = _checks(results, tpl)  # 整合性チェックが成り立った項目は、読み取りの揺れや低信頼度を問題にしない
     for r in results:
         m = mapping.get(r.id)
         ref_raw = ref_row.get(m["column"], "") if (ref_row is not None and m) else ""
@@ -158,6 +159,10 @@ def judge_document(results: list[FieldResult], tpl: Template, ref_row: dict | No
             out.append(Judgement(r.id, r.label, r.text, "", ref_raw, EMPTY, "; ".join(reasons) or "読み取れませんでした", r.conf, r))
             continue
         if ref_row is None or not m:
+            if r.id in verified:
+                reasons = [x for x in reasons if "揺れ" not in x]
+                out.append(Judgement(r.id, r.label, r.text, shown, "", SKIP, "; ".join(reasons) or "項目間の計算で確認済み", r.conf, r))
+                continue
             low = r.conf is not None and r.conf < conf_threshold
             status = REVIEW if (reasons or low) else SKIP
             if low:
@@ -177,14 +182,14 @@ def judge_document(results: list[FieldResult], tpl: Template, ref_row: dict | No
         if why:
             reasons.insert(0, why)
         out.append(Judgement(r.id, r.label, r.text, shown, ref_raw, status, "; ".join(reasons), r.conf, r))
-    out.extend(_checks(results, tpl))
+    out.extend(check_js)
     return out
 
 
-def _checks(results: list[FieldResult], tpl: Template) -> list[Judgement]:
+def _checks(results: list[FieldResult], tpl: Template) -> tuple[list[Judgement], set[str]]:
     """項目間の整合性チェック（例: 金額 = 差引額 + 源泉所得税額）。読み取り単体でも誤読を発見できる。"""
     values = {r.id: r.value for r in results}
-    out = []
+    out, verified = [], set()
     for c in tpl.checks:
         expr, name = str(c.get("expr", "")), str(c.get("name", c.get("expr", "")))
         if not re.fullmatch(r"[a-z0-9_ +\-=()]+", expr):
@@ -196,7 +201,9 @@ def _checks(results: list[FieldResult], tpl: Template) -> list[Judgement]:
         ok = bool(eval(expr, {"__builtins__": {}}, {i: values[i] for i in ids}))  # noqa: S307  文字種を検証済みの式
         out.append(Judgement(f"check:{name}", f"整合性: {name}", "", "成立" if ok else "不成立", "", OK if ok else NG,
                              "" if ok else "項目間の計算が合いません（どれかの読み違い、または書類の誤記）", None))
-    return out
+        if ok:
+            verified |= ids
+    return out, verified
 
 
 def document_status(js: list[Judgement]) -> str:
