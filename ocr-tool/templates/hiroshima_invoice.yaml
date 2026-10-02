@@ -1,0 +1,53 @@
+# 帳票テンプレート: 広島市 請求書・領収証書
+# box は [左, 上, 右, 下]。帳票の外枠の幅を 1000 としたときの座標で、枠の左上が原点です。
+# スキャンの位置ずれ・拡大縮小があっても、枠を基準にするので追従します。
+# 位置は tools/show_zones.py で画像に重ねて確認・調整できます。
+name: 広島市 請求書・領収証書
+
+fields:
+  - {id: amount,         label: 請求金額,       type: amount, box: [319, 20, 997, 75]}
+  - {id: withholding,    label: 源泉所得税額,   type: amount, box: [314, 95, 482, 156]}
+  - {id: net_amount,     label: 差引額,         type: amount, box: [778, 95, 997, 156]}
+  - {id: subject,        label: 件名・概要,     type: text,   box: [47, 211, 415, 276]}
+  - {id: subject_month,  label: 件名の月(手書き), type: text,  box: [415, 211, 560, 276], handwritten: true}
+  - {id: fiscal_year,    label: 年度,           type: digits, box: [57, 369, 173, 416], pattern: '\d{1,2}'}
+  - {id: slip_no,        label: 伝票番号,       type: digits, box: [189, 369, 526, 416], pattern: '\d{10}-\d{3}'}
+  - {id: dept,           label: 所属名,         type: text,   box: [568, 369, 997, 416]}
+  - {id: creditor_code,  label: 債権者コード,   type: digits, box: [201, 421, 577, 451], pattern: '\d{10}'}
+  - {id: zip,            label: 郵便番号,       type: digits, box: [201, 456, 304, 484], pattern: '\d{3}-\d{4}'}
+  - {id: address,        label: 住所,           type: text,   box: [201, 488, 577, 524]}
+  - {id: name,           label: 氏名,           type: text,   box: [201, 559, 577, 660]}
+  - {id: claim_date,     label: 請求日(手書き), type: date,   box: [314, 678, 544, 716], handwritten: true}
+  - {id: bank,           label: 金融機関名,     type: text,   box: [692, 730, 994, 762]}
+  - {id: branch,         label: 本支店名,       type: text,   box: [692, 765, 994, 797]}
+  - {id: deposit_type,   label: 預金種別,       type: text,   box: [692, 801, 994, 833]}
+  - {id: account_no,     label: 口座番号,       type: digits, box: [692, 835, 994, 865], pattern: '\d{7}'}
+  - {id: account_holder, label: 口座名義人,     type: text,   box: [692, 871, 994, 901]}
+
+# 項目間の整合性チェック（読み取りだけでも誤読を発見できる）
+checks:
+  - {name: 請求金額 = 差引額 + 源泉所得税額, expr: "amount == net_amount + withholding"}
+
+# 突合元CSVとの対応。key は書類を特定する項目（突合元の key_column 列で行を探す）。
+# rule: amount(金額) / digits(数字) / date(日付) / text(文字列。類似度で判定) / contains(含む)
+match:
+  key: slip_no
+  key_column: 伝票番号
+  fields:
+    amount:         {column: 請求金額,   rule: amount}
+    withholding:    {column: 源泉所得税額, rule: amount}
+    net_amount:     {column: 差引額,     rule: amount}
+    subject:        {column: 件名,       rule: contains}
+    fiscal_year:    {column: 年度,       rule: digits}
+    slip_no:        {column: 伝票番号,   rule: digits}
+    dept:           {column: 所属名,     rule: text}
+    creditor_code:  {column: 債権者コード, rule: digits}
+    zip:            {column: 郵便番号,   rule: digits}
+    address:        {column: 住所,       rule: text}
+    name:           {column: 氏名,       rule: contains}
+    claim_date:     {column: 請求日,     rule: date}
+    bank:           {column: 金融機関名, rule: text, threshold_review: 0.9}
+    branch:         {column: 本支店名,   rule: text, threshold_review: 0.9}
+    deposit_type:   {column: 預金種別,   rule: text}
+    account_no:     {column: 口座番号,   rule: digits}
+    account_holder: {column: 口座名義人, rule: text, threshold_ok: 0.9, threshold_review: 0.6}

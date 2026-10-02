@@ -115,6 +115,20 @@ def setup_tesseract(cfg: dict) -> str:
     return version
 
 
+_LANGS_CACHE: set[str] | None = None
+
+
+def available_languages() -> set[str]:
+    """インストール済みのTesseract言語データ（結果はキャッシュ）。"""
+    global _LANGS_CACHE
+    if _LANGS_CACHE is None:
+        try:
+            _LANGS_CACHE = set(pytesseract.get_languages(config=""))
+        except Exception:  # noqa: BLE001
+            _LANGS_CACHE = set()
+    return _LANGS_CACHE
+
+
 def _resolve_psm(cfg: dict) -> int:
     psm = cfg["ocr"]["psm"]
     if psm == "auto":
@@ -136,11 +150,21 @@ def _tess_config(cfg: dict, dpi: int) -> str:
 def recognize(img: np.ndarray, cfg: dict, dpi: int) -> PageOCR:
     """1ページをOCRし、行・単語ごとの信頼度つきの結果を返す。"""
     ocr = cfg["ocr"]
-    data = pytesseract.image_to_data(
-        _to_pil(img), lang=ocr["language"], config=_tess_config(cfg, dpi),
-        output_type=Output.DICT, timeout=ocr["timeout_sec"],
-    )
-    return parse_tsv_data(data, ocr["remove_cjk_spaces"])
+    return recognize_with(img, ocr["language"], _resolve_psm(cfg), dpi, ocr["timeout_sec"], ocr["remove_cjk_spaces"])
+
+
+def recognize_with(img: np.ndarray, lang: str, psm: int, dpi: int, timeout: int = 300,
+                   remove_cjk_spaces: bool = True, whitelist: str | None = None,
+                   tessdata_dir: str | None = None) -> PageOCR:
+    """言語・psm・文字種制限・言語データの場所を直接指定してOCRする（帳票の項目ごとの読み取り用）。"""
+    config = f"--psm {psm} --dpi {int(dpi)}"
+    if tessdata_dir:
+        config += f' --tessdata-dir "{Path(tessdata_dir).as_posix()}"'  # shlexで解釈されるので / 区切りにする
+    if whitelist:
+        config += f" -c tessedit_char_whitelist={whitelist}"
+    data = pytesseract.image_to_data(_to_pil(img), lang=lang, config=config,
+                                     output_type=Output.DICT, timeout=timeout)
+    return parse_tsv_data(data, remove_cjk_spaces)
 
 
 def parse_tsv_data(data: dict, remove_cjk_spaces: bool = True) -> PageOCR:

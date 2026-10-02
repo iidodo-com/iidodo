@@ -22,6 +22,7 @@ DEFAULTS: dict[str, Any] = {
         "timeout_sec": 300,
         "tesseract_cmd": None,
         "tessdata_dir": None,
+        "second_tessdata_dir": None,
         "remove_cjk_spaces": True,
     },
     "pdf": {"render_dpi": 300},
