@@ -1,6 +1,7 @@
 """Tesseract呼び出し（pytesseract）。テキスト・行/単語ごとの信頼度・検索可能PDFを得る。"""
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import shutil
@@ -161,17 +162,35 @@ def recognize(img: np.ndarray, cfg: dict, dpi: int) -> PageOCR:
     return recognize_with(img, ocr["language"], _resolve_psm(cfg), dpi, ocr["timeout_sec"], ocr["remove_cjk_spaces"])
 
 
+@contextlib.contextmanager
+def _tessdata_env(tessdata_dir: str | None):
+    """呼び出しの間だけ TESSDATA_PREFIX を差し替える。
+    （--tessdata-dir オプションは、Windowsで引用符がそのままTesseractに渡って失敗するため使わない。
+    環境変数なら、パスに空白や日本語が含まれても動く）"""
+    if not tessdata_dir:
+        yield
+        return
+    old = os.environ.get("TESSDATA_PREFIX")
+    os.environ["TESSDATA_PREFIX"] = str(Path(tessdata_dir).resolve())
+    try:
+        yield
+    finally:
+        if old is None:
+            os.environ.pop("TESSDATA_PREFIX", None)
+        else:
+            os.environ["TESSDATA_PREFIX"] = old
+
+
 def recognize_with(img: np.ndarray, lang: str, psm: int, dpi: int, timeout: int = 300,
                    remove_cjk_spaces: bool = True, whitelist: str | None = None,
                    tessdata_dir: str | None = None) -> PageOCR:
     """言語・psm・文字種制限・言語データの場所を直接指定してOCRする（帳票の項目ごとの読み取り用）。"""
     config = f"--psm {psm} --dpi {int(dpi)}"
-    if tessdata_dir:
-        config += f' --tessdata-dir "{Path(tessdata_dir).as_posix()}"'  # shlexで解釈されるので / 区切りにする
     if whitelist:
         config += f" -c tessedit_char_whitelist={whitelist}"
-    data = pytesseract.image_to_data(_to_pil(img), lang=lang, config=config,
-                                     output_type=Output.DICT, timeout=timeout)
+    with _tessdata_env(tessdata_dir):
+        data = pytesseract.image_to_data(_to_pil(img), lang=lang, config=config,
+                                         output_type=Output.DICT, timeout=timeout)
     return parse_tsv_data(data, remove_cjk_spaces)
 
 
