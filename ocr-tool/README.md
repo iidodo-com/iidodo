@@ -212,7 +212,18 @@ python reconcile.py --template templates/hiroshima_invoice.yaml --input ./in --r
    - https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/jpn.traineddata （約14MB）
    - https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/jpn_vert.traineddata （縦書きを使うとき）
    - https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/eng.traineddata
-3. `config.yaml` の `second_tessdata_dir:` を `./tessdata_best` にする。
+3. `config.yaml` を開き、`second_tessdata_dir:` の行の **`null` の部分だけ** を `./tessdata_best` に書き換える（項目名は変えない）。
+
+   ```yaml
+   # 変更前
+     second_tessdata_dir: null
+   # 変更後
+     second_tessdata_dir: ./tessdata_best
+   ```
+
+   行頭の半角スペース2つ（インデント）は残してください。`./tessdata_best:` のように項目名を書き換えると、
+   「config.yaml に未知の項目があります」というエラーになります。
+4. ダウンロードしたファイルの大きさを確認する: `jpn.traineddata` は約14MB。数百バイトなら、ダウンロードに失敗しています（取り直してください）。
 
 ### 別の様式（帳票）に対応するには
 
