@@ -1,0 +1,3 @@
+# テスト用（実行には不要）
+-r requirements.txt
+pytest>=8.0

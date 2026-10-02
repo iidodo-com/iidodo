@@ -61,7 +61,7 @@ PowerShell で `ocr-tool` フォルダに移動して実行します。
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements.txt   # テストもするなら requirements-dev.txt
 ```
 
 `Activate.ps1` が「スクリプトの実行が無効」と言われたら、`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` を実行するか、
