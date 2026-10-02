@@ -24,6 +24,9 @@ ocr:
   tesseract_cmd: null
   # 日本語データ(jpn.traineddata)を置いたフォルダ。通常は null のままでよい
   tessdata_dir: null
+  # （帳票突合用・任意）2つ目の言語データのフォルダ。tessdata_best など別モデルを指定すると、
+  # 両方で読んで結果を比べるため精度が安定します（処理時間は約2倍）。reconcile.py だけが使います。
+  second_tessdata_dir: null
   # 日本語OCRが文字間に入れがちな不要な空白を取り除く
   remove_cjk_spaces: true
 
