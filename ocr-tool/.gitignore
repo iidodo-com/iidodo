@@ -1,0 +1,7 @@
+out/
+out_compare/
+__pycache__/
+.pytest_cache/
+.venv/
+# 合成サンプルは tools/make_synthetic_samples.py で再生成できる
+samples/synthetic/

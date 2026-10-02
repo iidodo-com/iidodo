@@ -1,0 +1,53 @@
+# ==============================================================
+# OCRツール設定ファイル
+# コマンドライン引数（--input / --output / --lang など）は、
+# ここの値より優先されます。
+# ==============================================================
+
+# --- 入出力 ---
+input_dir: ./in          # 読み取る画像・PDFを置くフォルダ
+output_dir: ./out        # 結果の出力先フォルダ
+recursive: false         # true にするとサブフォルダも対象にする
+
+# --- OCRエンジン（Tesseract） ---
+ocr:
+  # 言語。横書き: jpn / 縦書き: jpn_vert / 英数字も混在: jpn+eng
+  # ※ 横書きと縦書きが混在する文書は、言語を切り替えて2回実行してください
+  language: jpn
+  # ページ分割モード。auto なら横書き=3（自動）、縦書き=5（縦書き1ブロック）
+  # 手動指定する場合は 0〜13 の数字（例: 6 = 単一の均一なブロック）
+  psm: auto
+  dpi: 300                # 画像にdpi情報がないときの想定解像度
+  timeout_sec: 300        # 1ページあたりの制限時間（秒）
+  # Tesseract本体のパス。PATHに通していない（管理者権限なしで入れた）場合に指定
+  # 例: C:/Users/あなた/AppData/Local/Tesseract-OCR/tesseract.exe
+  tesseract_cmd: null
+  # 日本語データ(jpn.traineddata)を置いたフォルダ。通常は null のままでよい
+  tessdata_dir: null
+  # 日本語OCRが文字間に入れがちな不要な空白を取り除く
+  remove_cjk_spaces: true
+
+# --- PDFの画像化 ---
+pdf:
+  render_dpi: 300         # PDFを画像にするときの解像度（大きいほど高精度・低速）
+
+# --- 前処理 ---
+preprocess:
+  enabled: true           # false にすると以下の設定にかかわらず前処理をすべて省略
+  grayscale: true         # グレースケール化
+  deskew: true            # 傾き補正（±15度まで）
+  denoise: nlmeans        # ノイズ除去: none / median（高速だが細い線を傷める）/ nlmeans（推奨・やや低速）
+  flatten: true           # 照明ムラ・影の補正（スマホ撮影や、端が暗いスキャンに有効）
+  binarize: none          # 二値化: none / otsu（Tesseract自身が内部で二値化するため、通常は none のほうが良好）
+
+# --- 要確認箇所の一覧（review.csv） ---
+review:
+  threshold: 70           # この信頼度(0〜100)未満の行を「人が確認すべき箇所」として出力
+                          # ※ 合成サンプルでは70だと誤り行を1行も拾えず、90で約4割でした。README「既知の限界」参照
+  word_level: false       # true にすると単語単位の低信頼度も出力
+
+# --- 出力 ---
+output:
+  page_txt: true          # ページごとのテキスト(.txt)
+  searchable_pdf: true    # 検索可能PDFを作る
+  page_header: true       # 結合テキストにページ区切りの見出しを入れる
