@@ -14,6 +14,7 @@ Tesseract + OpenCV を使い、有料API・有料ソフトは使いません。*
 
 ```
 ocr-tool/
+├─ setup.bat / run.bat / run_vertical.bat / compare.bat   ダブルクリック用
 ├─ main.py                 実行入口
 ├─ compare.py              前処理あり/なしの精度比較
 ├─ config.yaml             設定（言語・入出力・前処理ON/OFFなど）
@@ -25,6 +26,24 @@ ocr-tool/
 ├─ tests/                  テスト
 ├─ in/  out/               既定の入力・出力フォルダ
 ```
+
+## かんたん手順（バッチファイル・PowerShell不要）
+
+> Windows上での動作は未確認です（作成環境がLinuxのため）。うまくいかない場合は、下の「セットアップ」の手動手順を試してください。
+
+1. **Tesseract をインストール**（下の「3. Tesseract本体」。日本語と縦書きにチェック）。標準的な場所（`%LOCALAPPDATA%\Tesseract-OCR` など）なら、`config.yaml` の編集は不要で自動検出されます。
+2. **`setup.bat` をダブルクリック**（初回だけ。仮想環境の作成とライブラリのインストール、Tesseractの確認をします）。
+3. 読み取りたい画像・PDFを **`in` フォルダに入れる**。
+4. **`run.bat` をダブルクリック** → 結果は `out` フォルダに出ます。
+
+| ファイル | 役割 |
+|---|---|
+| `setup.bat` | 初回セットアップ |
+| `run.bat` | 横書きを読み取り（`in` → `out`）。**フォルダを `run.bat` にドラッグ＆ドロップ**すると、そのフォルダの中身を読み取り、`そのフォルダ\out_ocr` に出力 |
+| `run_vertical.bat` | 縦書き用（`in` → `out_vertical`） |
+| `compare.bat` | `samples` フォルダで前処理あり/なしの精度比較 |
+
+---
 
 ## セットアップ（Windows 11 / Python 3.11以上 / 管理者権限なしを想定）
 
