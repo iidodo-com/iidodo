@@ -45,6 +45,7 @@ ocr-tool/
 | `run_vertical.bat` | 縦書き用（`in` → `out_vertical`） |
 | `compare.bat` | `samples` フォルダで前処理あり/なしの精度比較 |
 | `reconcile.bat` | 帳票突合（下の「帳票突合」参照） |
+| `setup_handwriting.bat` / `run_handwriting.bat` | 手書きモードの導入／手書き書類の読み取り（任意。下の「手書きモード」参照） |
 
 ---
 
@@ -161,6 +162,69 @@ python tools/make_synthetic_samples.py          # samples/synthetic/ に画像�
 ```powershell
 python -m pytest -q tests
 ```
+
+## 手書きモード（任意）
+
+Tesseract は印刷文字向けで、**手書きはほとんど読めません**（手書きサンプルでは `ガト共` のような出力でした）。
+手書きには、別の無料OCR **manga-ocr**（深層学習。1行ずつ読む）を使う「手書きモード」を追加できます。**導入が重い（約1.5GB）ので任意**です。通常の `run.bat` は、導入しなくても今までどおり使えます。
+
+### 準備
+
+1. `setup.bat` が済んでいること。
+2. **`setup_handwriting.bat`** を実行する（torch など約1.5GBをインストール。時間がかかります）。
+   - プロキシで pip が止まる場合: 手順は下の「オフラインで導入する場合」。
+3. **手書き用モデル**（約450MB）を用意する。次のどちらか:
+   - **A. 自動ダウンロード**: インターネットに直接つながる環境なら、何もしなくても初回の実行時に自動でダウンロードされます（文書は送信されません）。
+   - **B. 手元に置く**（プロキシ等で自動ダウンロードできない場合）: ブラウザで次の6ファイルを保存し、`ocr-tool\models\manga-ocr-base` フォルダに入れる。
+     - https://huggingface.co/kha-white/manga-ocr-base/resolve/main/config.json
+     - https://huggingface.co/kha-white/manga-ocr-base/resolve/main/preprocessor_config.json
+     - https://huggingface.co/kha-white/manga-ocr-base/resolve/main/special_tokens_map.json
+     - https://huggingface.co/kha-white/manga-ocr-base/resolve/main/tokenizer_config.json
+     - https://huggingface.co/kha-white/manga-ocr-base/resolve/main/vocab.txt
+     - https://huggingface.co/kha-white/manga-ocr-base/resolve/main/pytorch_model.bin （約424MB）
+
+     そして `config.yaml` の `handwriting:` を次のようにする（Bのときだけ）:
+
+     ```yaml
+     handwriting:
+       enabled: false
+       model_dir: ./models/manga-ocr-base
+     ```
+
+### 使い方
+
+- **手書きの書類を読む**: 手書きの画像・PDFを `in` に入れて **`run_handwriting.bat`** → `out_handwriting` に出力
+  （`all.txt` と、信頼度の低い行の `review.csv`。検索可能PDFは作りません）。
+- **帳票突合の手書き欄を手書き用モデルで読む**: `config.yaml` の `handwriting.enabled` を `true` にして `reconcile.bat`
+  （印刷の項目は今までどおりTesseract、`handwritten: true` の項目だけが手書きモデルで読まれます。判定は引き続き「要目視」）。
+
+### 精度（手元の手書きサンプル1枚・請求書の手書き欄での実測）
+
+**サンプルは少なく、筆跡によって大きく変わります。傾向として見てください。**
+
+| 手書きの内容 | Tesseract | 手書きモード |
+|---|---|---|
+| 「行政経営課」 | 読めない | **正解** |
+| 「カケ キクケコカコ」 | 読めない | `オケキカケコカコ`（近い） |
+| 「あえいうえおああ」 | 読めない | `あえぃうえぁあぁ`（近い） |
+| 氏名「木本 拓志」 | 読めない | `ホ、本ねぇ`（誤り） |
+| 英小文字 `abcdefghijklmnop` | 読めない | 誤り |
+| 電話番号 `090-7766-3368` | 読めない | `ｏ９ｏ－９９４６〜３３６：`（誤り） |
+| 請求書の手書き日付（令和8年9月25日） | `令和 9 年月 95` | `2021-09-25` や `令和？年９月２５日`（年が違う） |
+| 請求書の手書きの月「(8月分)」 | `(9 )` | `（８月３）`（近い） |
+
+- 読めない字を「**もっともらしい別の字**」で答えます。**数字（電話番号・年）は特に誤りやすい**ので、番号・金額・日付は必ず元の書類で確認してください。
+- 信頼度（モデルの確率）は、上のサンプルでは、**誤読した行（氏名・英字・電話番号）をおおむね低く出しました**（45〜52、うち最小値は0〜0.1）。ただし、これも保証ではありません。
+- 処理時間: 1行あたり約0.2〜3秒、モデルの読み込みに約10秒（CPU）。
+- 手書きの**全自動化は、現状では難しい**です。「候補を出して人が確認する」使い方を前提にしてください。
+
+### オフラインで導入する場合（プロキシで pip が使えない）
+
+Python 3.14（Windows 64bit）用のファイル一式を、`ocr-tool\wheels_hw` フォルダに置き、`setup_handwriting.bat` を実行します
+（`wheels_hw` に `.whl` があれば、ネットワークなしで導入します）。大きいファイルは分割してお渡しするので、
+`join_wheels_hw.bat` で結合してください（手順は配布時の案内に従います）。
+
+---
 
 ## 汎用の読み取り（表・枠のある書類も、テンプレートなしで）
 
@@ -281,7 +345,7 @@ python reconcile.py --template templates/hiroshima_invoice.yaml --input ./in --r
 
 ### 帳票突合の既知の限界
 
-1. **手書きは読めません。**「要目視」にして切り出し画像を出すだけです。手書きの自動読み取りが必要なら、手書き対応の別のOCR（日本語手書きに強い無料モデル等）を追加する必要があります（未検証・未実装）。
+1. **手書きは自動判定しません。**「要目視」にして切り出し画像を出します。`handwriting.enabled: true`（手書きモード。上の「手書きモード」）にすると、手書き欄の読み取り候補が表示されますが、誤読もあるため判定は「要目視」のままです。
 2. **半角カナの口座名義人**（ドット文字風の小さい字）は読めません（上の実測）。口座番号など他の項目で突合してください。
 3. **1枚の帳票でしか検証していません。** 別の様式・別のスキャナ品質では、`box` の調整や設定の見直しが必要になる可能性があります。
 4. 外枠の線が途切れた・薄い書類、枠が2つ以上に分かれた書式では、外枠の検出に失敗することがあります（失敗は `error.log` に記録されます）。
@@ -301,6 +365,7 @@ python reconcile.py --template templates/hiroshima_invoice.yaml --input ./in --r
 | `preprocess.enabled` | `false` で前処理を全部省略 |
 | `preprocess.grayscale / deskew / denoise / flatten / remove_lines / binarize` | 各ステップのON/OFFと方式（罫線除去は `remove_lines`） |
 | `layout.mode` / `layout.min_cells` | 表・枠のある書類の読み方（`auto` / `cells` / `text`） |
+| `ocr.engine` / `handwriting.enabled` / `handwriting.model_dir` | 手書きモード（`engine: handwriting` ＝ ページ全体を手書き用モデルで読む／`enabled` ＝ 帳票の手書き欄だけ手書き用モデル） |
 | `review.threshold` / `review.word_level` | 要確認とする信頼度、単語単位の出力 |
 | `output.searchable_pdf` など | 出力の種類 |
 

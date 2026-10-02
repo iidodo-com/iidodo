@@ -10,7 +10,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from ocr_tool import __version__, engine, formrun, logger
+from ocr_tool import __version__, engine, formrun, handwriting, logger
 from ocr_tool.config import load_config, validate
 from ocr_tool.errors import OcrToolError
 from ocr_tool.form import load_template
@@ -37,6 +37,8 @@ def main(argv: list[str] | None = None) -> int:
             cfg["ocr"]["language"] = args.lang
         cfg = validate(cfg)
         version = engine.setup_tesseract(cfg)
+        if cfg["handwriting"]["enabled"]:
+            handwriting.check(cfg)  # 手書き欄を手書き用モデルで読む設定のとき、準備できているか先に確認する
         out = Path(args.output)
         log_path = logger.setup_error_log(out)
         tpl = load_template(args.template)
