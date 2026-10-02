@@ -11,7 +11,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from ocr_tool import __version__, engine, logger, pipeline
+from ocr_tool import __version__, engine, handwriting, logger, pipeline
 from ocr_tool.config import load_config, validate
 from ocr_tool.errors import OcrToolError
 
@@ -22,6 +22,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--input", help="入力フォルダ（config.yaml の input_dir を上書き）")
     p.add_argument("--output", help="出力フォルダ（config.yaml の output_dir を上書き）")
     p.add_argument("--lang", help="言語（例: jpn / jpn_vert / jpn+eng）")
+    p.add_argument("--engine", choices=["tesseract", "handwriting"], help="読み取りエンジン（handwriting=手書き用。要 setup_handwriting.bat）")
     p.add_argument("--recursive", action="store_true", help="サブフォルダも対象にする")
     g = p.add_mutually_exclusive_group()
     g.add_argument("--preprocess", dest="preprocess", action="store_true", default=None, help="前処理を有効にする")
@@ -41,6 +42,8 @@ def build_config(args: argparse.Namespace) -> dict:
         cfg["output_dir"] = args.output
     if args.lang:
         cfg["ocr"]["language"] = args.lang
+    if args.engine:
+        cfg["ocr"]["engine"] = args.engine
     if args.recursive:
         cfg["recursive"] = True
     if args.preprocess is not None:
@@ -61,7 +64,10 @@ def main(argv: list[str] | None = None) -> int:
             s.reconfigure(errors="replace")
     try:
         cfg = build_config(parse_args(argv))
-        version = engine.setup_tesseract(cfg)
+        version = engine.setup_tesseract(cfg) if cfg["ocr"]["engine"] == "tesseract" else "（手書きモードでは使用しません）"
+        if cfg["ocr"]["engine"] == "handwriting":
+            handwriting.check(cfg)
+            cfg["output"]["searchable_pdf"] = False  # 手書きモードでは検索可能PDFを作らない
         log_path = logger.setup_error_log(Path(cfg["output_dir"]))
         print(f"OCRツール {__version__} / Tesseract {version} を使用します。")
         summary = pipeline.run(cfg)

@@ -23,6 +23,7 @@ DEFAULTS: dict[str, Any] = {
         "tesseract_cmd": None,
         "tessdata_dir": None,
         "second_tessdata_dir": None,
+        "engine": "tesseract",
         "remove_cjk_spaces": True,
     },
     "pdf": {"render_dpi": 300},
@@ -36,6 +37,7 @@ DEFAULTS: dict[str, Any] = {
         "binarize": "none",
     },
     "layout": {"mode": "auto", "min_cells": 4},
+    "handwriting": {"enabled": False, "model_dir": None},
     "review": {"threshold": 70, "word_level": False},
     "output": {"page_txt": True, "searchable_pdf": True, "page_header": True},
 }
@@ -44,6 +46,7 @@ _CHOICES = {
     ("preprocess", "denoise"): ("none", "median", "nlmeans"),
     ("preprocess", "binarize"): ("none", "otsu"),
     ("layout", "mode"): ("auto", "text", "cells"),
+    ("ocr", "engine"): ("tesseract", "handwriting"),
 }
 
 
@@ -136,7 +139,7 @@ def validate(cfg: dict) -> dict:
     bool_keys = [
         ("recursive",), ("ocr", "remove_cjk_spaces"),
         ("preprocess", "enabled"), ("preprocess", "grayscale"), ("preprocess", "deskew"), ("preprocess", "flatten"), ("preprocess", "remove_lines"),
-        ("review", "word_level"),
+        ("review", "word_level"), ("handwriting", "enabled"),
         ("output", "page_txt"), ("output", "searchable_pdf"), ("output", "page_header"),
     ]
     for path in bool_keys:

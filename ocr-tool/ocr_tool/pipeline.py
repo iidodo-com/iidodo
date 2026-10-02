@@ -13,7 +13,7 @@ from pathlib import Path
 from pypdf import PdfWriter
 
 from . import cells as cells_mod
-from . import engine, loader, preprocess
+from . import engine, handwriting, loader, preprocess
 from .config import is_vertical
 from .errors import explain_exception
 from .review import ReviewWriter, review_rows
@@ -45,6 +45,12 @@ def ocr_page(page: loader.PageImage, cfg: dict, want_pdf: bool) -> PageResult:
     """1ページ分: 前処理 → 罫線のある書類はマス目ごとに読む（なければ文章として読む）→（任意で）検索可能PDF。
     検索可能PDFには、OCRに渡した画像（前処理後）が埋め込まれる。"""
     t0 = time.perf_counter()
+    if cfg["ocr"]["engine"] == "handwriting":
+        # 手書きモード: 傾き補正・照明ムラ補正までかけ、行ごとに手書き用モデルで読む（検索可能PDFは作らない）
+        pp = {**cfg["preprocess"], "denoise": "none", "binarize": "none", "remove_lines": False}
+        img, applied = preprocess.preprocess(page.image, pp)
+        applied["engine"] = "handwriting"
+        return PageResult(page.page_no, handwriting.recognize_page(preprocess.to_gray(img), cfg), None, applied, time.perf_counter() - t0)
     pp = dict(cfg["preprocess"])
     drop_lines = bool(pp.get("remove_lines")) and pp["enabled"]
     pp["remove_lines"] = False  # セル検出には罫線が必要なので、罫線除去は検出のあとで行う

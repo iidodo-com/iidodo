@@ -27,6 +27,9 @@ ocr:
   # （帳票突合用・任意）2つ目の言語データのフォルダ。tessdata_best など別モデルを指定すると、
   # 両方で読んで結果を比べるため精度が安定します（処理時間は約2倍）。reconcile.py だけが使います。
   second_tessdata_dir: null
+  # 読み取りエンジン。tesseract=印刷文字（既定）/ handwriting=手書き（manga-ocr。下の handwriting の準備が必要）
+  # ※ コマンドの --engine handwriting でも切り替えられます（run_handwriting.bat）
+  engine: tesseract
   # 日本語OCRが文字間に入れがちな不要な空白を取り除く
   remove_cjk_spaces: true
 
@@ -43,6 +46,13 @@ preprocess:
   flatten: true           # 照明ムラ・影の補正（スマホ撮影や、端が暗いスキャンに有効）
   remove_lines: true      # 表・枠の罫線を消す（罫線が「山」「|」などの文字に化けるのを防ぐ）
   binarize: none          # 二値化: none / otsu（Tesseract自身が内部で二値化するため、通常は none のほうが良好）
+
+# --- 手書きモード（任意。setup_handwriting.bat で導入します） ---
+handwriting:
+  # true にすると、reconcile.py（帳票突合）の「手書き欄」を手書き用モデルで読みます（それ以外の項目は影響なし）
+  enabled: false
+  # 手書き用モデルを置いたフォルダ（例: ./models/manga-ocr-base）。null なら初回に自動ダウンロード（インターネット接続が必要）
+  model_dir: null
 
 # --- レイアウト（表・枠のある書類の読み方） ---
 layout:

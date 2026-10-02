@@ -1,0 +1,4 @@
+# 手書きモード用（任意。約1.5GB。setup_handwriting.bat が使います）
+manga-ocr>=0.1.14      # Apache-2.0。手書き・縦書きの日本語に対応した1行読み取りモデル
+torch>=2.2             # BSD-3-Clause（Windows版はCPU版が標準）
+transformers>=4.45     # Apache-2.0

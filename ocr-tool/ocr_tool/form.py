@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 import yaml
 
-from . import engine, preprocess
+from . import engine, handwriting, preprocess
 from .errors import OcrToolError
 from .normalize import normalize_digits, normalize_text, parse_amount, parse_date_jp
 
@@ -203,6 +203,21 @@ def _interpret(text: str, spec: FieldSpec):
     return _EDGE_NOISE.sub("", text) or None  # 文字列は、前後に付いたゴミ点などの記号を除く
 
 
+def _read_handwritten(gray: np.ndarray, spec: FieldSpec, box: tuple[int, int, int, int], cfg: dict) -> FieldResult:
+    """手書き欄を手書き用モデル(manga-ocr)で読む。印刷用のモデルより手書きに強いが、もっともらしい誤読もするため、
+    判定は常に「要目視」のまま（読み取り値は参考として表示する）。"""
+    x0, y0, x1, y1 = box
+    crop = gray[y0:y1, x0:x1]
+    reader = handwriting.get_reader(cfg["handwriting"]["model_dir"])
+    text, mean, mn, _ = handwriting.read_crop(crop, reader)
+    value = _interpret(text, spec) if text else None
+    problems = ["手書き用モデルで読み取り（信頼度は目安）"]
+    if text and mn < 50:
+        problems.append(f"一部の文字の自信が低い（最小 {mn:.0f}）。読めなかった文字は ？ などになります")
+    return FieldResult(spec.id, spec.label, text, value, mean if text else None, True, problems, crop, box,
+                       [(text, value, mean)] if text else [], spec.type == "text")
+
+
 def read_field(gray: np.ndarray, spec: FieldSpec, frame: tuple[int, int, int], cfg: dict, dpi: int) -> FieldResult:
     """1項目を、複数の読み方（画像の加工 × 言語データ）で読み、多数決で採用する。"""
     box = field_box_px(spec, frame, gray.shape)
@@ -210,6 +225,8 @@ def read_field(gray: np.ndarray, spec: FieldSpec, frame: tuple[int, int, int], c
     if x1 - x0 < 8 or y1 - y0 < 8:
         return FieldResult(spec.id, spec.label, "", None, None, spec.handwritten,
                            ["項目の範囲が画像の外です（枠の検出位置がずれた可能性）"], None, box)
+    if spec.handwritten and cfg.get("handwriting", {}).get("enabled"):
+        return _read_handwritten(gray, spec, box, cfg)
     variants = [_variants(gray, spec, frame)[0]] if spec.handwritten else _variants(gray, spec, frame)
     # 読み方 = (言語データの場所, 言語)。数字・金額は、日本語モデルが 8→6 のように誤読することがあるため、
     # 英語モデル(eng)でも読んで多数決にする（実サンプルと合成帳票で、engのほうが数字は正確なことを確認）
