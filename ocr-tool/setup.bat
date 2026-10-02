@@ -1,62 +1,61 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
-echo ==== OCRãƒ„ãƒ¼ãƒ« ã‚»ãƒƒãƒˆã‚¢ãƒƒãƒ— ====
+echo ==== OCRƒc[ƒ‹ ƒZƒbƒgƒAƒbƒv ====
 echo.
 
-rem --- Python ã‚’æŽ¢ã™ï¼ˆpy ãƒ©ãƒ³ãƒãƒ£ãƒ¼å„ªå…ˆï¼‰ ---
+rem --- Python ‚ð’T‚·ipy ƒ‰ƒ“ƒ`ƒƒ[—Dæj ---
 set "PYCMD="
 py -3 --version >nul 2>&1 && set "PYCMD=py -3"
 if not defined PYCMD (
   python --version >nul 2>&1 && set "PYCMD=python"
 )
 if not defined PYCMD (
-  echo [ã‚¨ãƒ©ãƒ¼] Python ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚
-  echo   python.org ã‹ã‚‰ Python 3.11 ä»¥ä¸Šã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã—ã¦ãã ã•ã„ã€‚
-  echo   ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ©ã§ã€ŒInstall Just for Meã€ã¨ã€ŒAdd python.exe to PATHã€ã‚’é¸ã¶ã¨ã€ç®¡ç†è€…æ¨©é™ãªã—ã§å…¥ã‚Šã¾ã™ã€‚
+  echo [ƒGƒ‰[] Python ‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñB
+  echo   python.org ‚©‚ç Python 3.11 ˆÈã‚ðƒCƒ“ƒXƒg[ƒ‹‚µ‚Ä‚­‚¾‚³‚¢B
+  echo   ƒCƒ“ƒXƒg[ƒ‰‚ÅuInstall Just for Mev‚ÆuAdd python.exe to PATHv‚ð‘I‚Ô‚ÆAŠÇ—ŽÒŒ ŒÀ‚È‚µ‚Å“ü‚è‚Ü‚·B
   pause
   exit /b 1
 )
 %PYCMD% -c "import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)"
 if errorlevel 1 (
-  echo [ã‚¨ãƒ©ãƒ¼] Python ã®ãƒãƒ¼ã‚¸ãƒ§ãƒ³ãŒå¤ã„ã§ã™ã€‚3.11 ä»¥ä¸Šã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã—ã¦ãã ã•ã„ã€‚
+  echo [ƒGƒ‰[] Python ‚Ìƒo[ƒWƒ‡ƒ“‚ªŒÃ‚¢‚Å‚·B3.11 ˆÈã‚ðƒCƒ“ƒXƒg[ƒ‹‚µ‚Ä‚­‚¾‚³‚¢B
   %PYCMD% --version
   pause
   exit /b 1
 )
 
-rem --- ä»®æƒ³ç’°å¢ƒã®ä½œæˆã¨ãƒ©ã‚¤ãƒ–ãƒ©ãƒªã®ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ« ---
+rem --- ‰¼‘zŠÂ‹«‚Ìì¬‚Æƒ‰ƒCƒuƒ‰ƒŠ‚ÌƒCƒ“ƒXƒg[ƒ‹ ---
 if not exist ".venv\Scripts\python.exe" (
-  echo ä»®æƒ³ç’°å¢ƒ .venv ã‚’ä½œæˆã—ã¾ã™...
+  echo ‰¼‘zŠÂ‹« .venv ‚ðì¬‚µ‚Ü‚·...
   %PYCMD% -m venv .venv
   if errorlevel 1 (
-    echo [ã‚¨ãƒ©ãƒ¼] ä»®æƒ³ç’°å¢ƒã‚’ä½œã‚Œã¾ã›ã‚“ã§ã—ãŸã€‚
+    echo [ƒGƒ‰[] ‰¼‘zŠÂ‹«‚ðì‚ê‚Ü‚¹‚ñ‚Å‚µ‚½B
     pause
     exit /b 1
   )
 )
 ".venv\Scripts\python.exe" -m pip install --upgrade pip >nul 2>&1
 if exist "wheels\" (
-  echo wheels ãƒ•ã‚©ãƒ«ãƒ€ã®ãƒ•ã‚¡ã‚¤ãƒ«ã‹ã‚‰ã‚ªãƒ•ãƒ©ã‚¤ãƒ³ã§ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã—ã¾ã™...
+  echo wheels ƒtƒHƒ‹ƒ_‚Ìƒtƒ@ƒCƒ‹‚©‚çƒIƒtƒ‰ƒCƒ“‚ÅƒCƒ“ƒXƒg[ƒ‹‚µ‚Ü‚·...
   ".venv\Scripts\python.exe" -m pip install --no-index --find-links wheels -r requirements.txt
 ) else (
-  echo ãƒ©ã‚¤ãƒ–ãƒ©ãƒªã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã—ã¾ã™ï¼ˆåˆå›žã¯ãƒ€ã‚¦ãƒ³ãƒ­ãƒ¼ãƒ‰ã®ãŸã‚æ•°åˆ†ã‹ã‹ã‚Šã¾ã™ï¼‰...
+  echo ƒ‰ƒCƒuƒ‰ƒŠ‚ðƒCƒ“ƒXƒg[ƒ‹‚µ‚Ü‚·i‰‰ñ‚Íƒ_ƒEƒ“ƒ[ƒh‚Ì‚½‚ß”•ª‚©‚©‚è‚Ü‚·j...
   ".venv\Scripts\python.exe" -m pip install -r requirements.txt
 )
 if errorlevel 1 (
-  echo [ã‚¨ãƒ©ãƒ¼] ãƒ©ã‚¤ãƒ–ãƒ©ãƒªã®ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã«å¤±æ•—ã—ã¾ã—ãŸã€‚
-  echo   407 Proxy Authentication Required ã¨å‡ºã‚‹å ´åˆ: ãƒ—ãƒ­ã‚­ã‚·ã®èªè¨¼ãŒå¿…è¦ã§ã™ã€‚
-  echo   æ¬¡ã‚’å®Ÿè¡Œã—ã¦ã‹ã‚‰ setup.bat ã‚’ã‚„ã‚Šç›´ã—ã¦ãã ã•ã„:
-  echo     set HTTPS_PROXY=http://ãƒ¦ãƒ¼ã‚¶ãƒ¼å:ãƒ‘ã‚¹ãƒ¯ãƒ¼ãƒ‰@ãƒ›ã‚¹ãƒˆ:ãƒãƒ¼ãƒˆ
-  echo   ã¾ãŸã¯æƒ…å ±ã‚·ã‚¹ãƒ†ãƒ éƒ¨é–€ã« PyPI ã¸ã®æŽ¥ç¶šè¨±å¯ã‚’ç›¸è«‡ã—ã¦ãã ã•ã„ã€‚
+  echo [ƒGƒ‰[] ƒ‰ƒCƒuƒ‰ƒŠ‚ÌƒCƒ“ƒXƒg[ƒ‹‚ÉŽ¸”s‚µ‚Ü‚µ‚½B
+  echo   407 Proxy Authentication Required ‚Æo‚éê‡: ƒvƒƒLƒV‚Ì”FØ‚ª•K—v‚Å‚·B
+  echo   ŽŸ‚ðŽÀs‚µ‚Ä‚©‚ç setup.bat ‚ð‚â‚è’¼‚µ‚Ä‚­‚¾‚³‚¢:
+  echo     set HTTPS_PROXY=http://ƒ†[ƒU[–¼:ƒpƒXƒ[ƒh@ƒzƒXƒg:ƒ|[ƒg
+  echo   ‚Ü‚½‚Íî•ñƒVƒXƒeƒ€•”–å‚É PyPI ‚Ö‚ÌÚ‘±‹–‰Â‚ð‘Š’k‚µ‚Ä‚­‚¾‚³‚¢B
   pause
   exit /b 1
 )
 
-rem --- Tesseract ã®ç¢ºèª ---
+rem --- Tesseract ‚ÌŠm”F ---
 echo.
-echo Tesseract ã¨æ—¥æœ¬èªžãƒ‡ãƒ¼ã‚¿ã‚’ç¢ºèªã—ã¾ã™...
+echo Tesseract ‚Æ“ú–{Œêƒf[ƒ^‚ðŠm”F‚µ‚Ü‚·...
 ".venv\Scripts\python.exe" check_env.py
 echo.
-echo ã‚»ãƒƒãƒˆã‚¢ãƒƒãƒ—å®Œäº†ã€‚æ¬¡ã¯ run.bat ã‚’å®Ÿè¡Œã—ã¦ãã ã•ã„ï¼ˆin ãƒ•ã‚©ãƒ«ãƒ€ã®ç”»åƒãƒ»PDFã‚’èª­ã¿å–ã‚Šã¾ã™ï¼‰ã€‚
+echo ƒZƒbƒgƒAƒbƒvŠ®—¹BŽŸ‚Í run.bat ‚ðŽÀs‚µ‚Ä‚­‚¾‚³‚¢iin ƒtƒHƒ‹ƒ_‚Ì‰æ‘œEPDF‚ð“Ç‚ÝŽæ‚è‚Ü‚·jB
 pause
