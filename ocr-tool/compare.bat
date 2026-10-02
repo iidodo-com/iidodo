@@ -1,14 +1,12 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
-rem samples ãƒ•ã‚©ãƒ«ãƒ€ã®ç”»åƒãƒ»PDFã§ã€å‰å‡¦ç†ã‚ã‚Š/ãªã—ã®ç²¾åº¦ã‚’æ¯”è¼ƒã—ã¾ã™ã€‚
+rem samples ƒtƒHƒ‹ƒ_‚Ì‰æ‘œEPDF‚ÅA‘Oˆ—‚ ‚è/‚È‚µ‚Ì¸“x‚ğ”äŠr‚µ‚Ü‚·B
 if not exist ".venv\Scripts\python.exe" (
-  echo å…ˆã« setup.bat ã‚’å®Ÿè¡Œã—ã¦ãã ã•ã„ã€‚
+  echo æ‚É setup.bat ‚ğÀs‚µ‚Ä‚­‚¾‚³‚¢B
   pause
   exit /b 1
 )
-set "PYTHONUTF8=1"
 ".venv\Scripts\python.exe" compare.py --input ./samples %*
 echo.
-echo çµæœã¯ out_compare\compare.csv ã«ã‚‚ä¿å­˜ã•ã‚Œã¦ã„ã¾ã™ã€‚
+echo Œ‹‰Ê‚Í out_compare\compare.csv ‚É‚à•Û‘¶‚³‚ê‚Ä‚¢‚Ü‚·B
 pause

@@ -1,16 +1,14 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
-rem ä½¿ã„æ–¹:
-rem   run.bat                ... in ãƒ•ã‚©ãƒ«ãƒ€ã‚’èª­ã¿å–ã‚Šã€out ãƒ•ã‚©ãƒ«ãƒ€ã«å‡ºåŠ›ï¼ˆæ¨ªæ›¸ãï¼‰
-rem   run.bat ãƒ•ã‚©ãƒ«ãƒ€       ... ãƒ•ã‚©ãƒ«ãƒ€ã‚’ run.bat ã«ãƒ‰ãƒ©ãƒƒã‚°ï¼†ãƒ‰ãƒ­ãƒƒãƒ—ã—ã¦ã‚‚å¯ï¼ˆå‡ºåŠ›ã¯ ãã®ãƒ•ã‚©ãƒ«ãƒ€\out_ocrï¼‰
-rem   run.bat --lang jpn_vert ... main.py ã®ã‚ªãƒ—ã‚·ãƒ§ãƒ³ã‚’ãã®ã¾ã¾æ¸¡ã›ã‚‹ï¼ˆç¸¦æ›¸ãç­‰ï¼‰
+rem g‚¢•û:
+rem   run.bat                ... in ƒtƒHƒ‹ƒ_‚ğ“Ç‚İæ‚èAout ƒtƒHƒ‹ƒ_‚Éo—Íi‰¡‘‚«j
+rem   run.bat ƒtƒHƒ‹ƒ_       ... ƒtƒHƒ‹ƒ_‚ğ run.bat ‚Éƒhƒ‰ƒbƒO•ƒhƒƒbƒv‚µ‚Ä‚à‰Âio—Í‚Í ‚»‚ÌƒtƒHƒ‹ƒ_\out_ocrj
+rem   run.bat --lang jpn_vert ... main.py ‚ÌƒIƒvƒVƒ‡ƒ“‚ğ‚»‚Ì‚Ü‚Ü“n‚¹‚éic‘‚«“™j
 if not exist ".venv\Scripts\python.exe" (
-  echo å…ˆã« setup.bat ã‚’å®Ÿè¡Œã—ã¦ãã ã•ã„ã€‚
+  echo æ‚É setup.bat ‚ğÀs‚µ‚Ä‚­‚¾‚³‚¢B
   pause
   exit /b 1
 )
-set "PYTHONUTF8=1"
 if not "%~1"=="" if exist "%~1\" (
   ".venv\Scripts\python.exe" main.py --input "%~1" --output "%~1\out_ocr"
   goto done
@@ -19,6 +17,6 @@ if not exist "in\" mkdir "in"
 ".venv\Scripts\python.exe" main.py --input ./in --output ./out %*
 :done
 echo.
-echo çµ‚äº†ã—ã¾ã—ãŸã€‚çµæœã¯ out ãƒ•ã‚©ãƒ«ãƒ€ï¼ˆã¾ãŸã¯ãƒ‰ãƒ­ãƒƒãƒ—ã—ãŸãƒ•ã‚©ãƒ«ãƒ€ã® out_ocrï¼‰ã«ã‚ã‚Šã¾ã™ã€‚
-echo   review.csv ... äººãŒç¢ºèªã™ã¹ãç®‡æ‰€ / error.log ... å¤±æ•—ã®è¨˜éŒ²
+echo I—¹‚µ‚Ü‚µ‚½BŒ‹‰Ê‚Í out ƒtƒHƒ‹ƒ_i‚Ü‚½‚Íƒhƒƒbƒv‚µ‚½ƒtƒHƒ‹ƒ_‚Ì out_ocrj‚É‚ ‚è‚Ü‚·B
+echo   review.csv ... l‚ªŠm”F‚·‚×‚«‰ÓŠ / error.log ... ¸”s‚Ì‹L˜^
 pause

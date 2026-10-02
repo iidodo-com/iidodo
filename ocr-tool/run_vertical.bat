@@ -1,15 +1,13 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
-rem ç¸¦æ›¸ãæ–‡æ›¸ç”¨ã€‚in ãƒ•ã‚©ãƒ«ãƒ€ã‚’èª­ã¿å–ã‚Šã€out_vertical ãƒ•ã‚©ãƒ«ãƒ€ã«å‡ºåŠ›ã—ã¾ã™ã€‚
+rem c‘‚«•¶‘—pBin ƒtƒHƒ‹ƒ_‚ğ“Ç‚İæ‚èAout_vertical ƒtƒHƒ‹ƒ_‚Éo—Í‚µ‚Ü‚·B
 if not exist ".venv\Scripts\python.exe" (
-  echo å…ˆã« setup.bat ã‚’å®Ÿè¡Œã—ã¦ãã ã•ã„ã€‚
+  echo æ‚É setup.bat ‚ğÀs‚µ‚Ä‚­‚¾‚³‚¢B
   pause
   exit /b 1
 )
-set "PYTHONUTF8=1"
 if not exist "in\" mkdir "in"
 ".venv\Scripts\python.exe" main.py --input ./in --output ./out_vertical --lang jpn_vert %*
 echo.
-echo çµ‚äº†ã—ã¾ã—ãŸã€‚çµæœã¯ out_vertical ãƒ•ã‚©ãƒ«ãƒ€ã«ã‚ã‚Šã¾ã™ã€‚
+echo I—¹‚µ‚Ü‚µ‚½BŒ‹‰Ê‚Í out_vertical ƒtƒHƒ‹ƒ_‚É‚ ‚è‚Ü‚·B
 pause
