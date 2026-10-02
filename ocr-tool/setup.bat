@@ -35,11 +35,20 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
   )
 )
-echo ライブラリをインストールします（初回はダウンロードのため数分かかります）...
 ".venv\Scripts\python.exe" -m pip install --upgrade pip >nul 2>&1
-".venv\Scripts\python.exe" -m pip install -r requirements.txt
+if exist "wheels\" (
+  echo wheels フォルダのファイルからオフラインでインストールします...
+  ".venv\Scripts\python.exe" -m pip install --no-index --find-links wheels -r requirements.txt
+) else (
+  echo ライブラリをインストールします（初回はダウンロードのため数分かかります）...
+  ".venv\Scripts\python.exe" -m pip install -r requirements.txt
+)
 if errorlevel 1 (
-  echo [エラー] ライブラリのインストールに失敗しました。ネットワーク接続やプロキシ設定を確認してください。
+  echo [エラー] ライブラリのインストールに失敗しました。
+  echo   407 Proxy Authentication Required と出る場合: プロキシの認証が必要です。
+  echo   次を実行してから setup.bat をやり直してください:
+  echo     set HTTPS_PROXY=http://ユーザー名:パスワード@ホスト:ポート
+  echo   または情報システム部門に PyPI への接続許可を相談してください。
   pause
   exit /b 1
 )
