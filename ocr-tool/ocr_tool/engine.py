@@ -112,6 +112,14 @@ def setup_tesseract(cfg: dict) -> str:
             "README.md の手順で jpn.traineddata（縦書きは jpn_vert.traineddata も）を tessdata フォルダに置いてください。"
             f"（現在認識できる言語: {', '.join(sorted(available)) or 'なし'}）",
         )
+    second = ocr.get("second_tessdata_dir")
+    if second:
+        missing2 = [l for l in ocr["language"].split("+") if not (Path(second) / f"{l}.traineddata").is_file()]
+        if not Path(second).is_dir() or missing2:
+            raise OcrToolError(
+                f"2つ目の言語データが見つかりません: {second}（{', '.join(missing2) or 'フォルダ'}）",
+                "config.yaml の ocr.second_tessdata_dir のフォルダが存在し、中に jpn.traineddata（と eng.traineddata）が"
+                "入っているか確認してください。使わないなら null に戻してください。")
     return version
 
 
