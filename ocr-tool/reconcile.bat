@@ -16,6 +16,11 @@ if exist "reference.csv" (
   ".venv\Scripts\python.exe" reconcile.py --template templates\hiroshima_invoice.yaml --input ./in --output ./out_form %*
 )
 echo.
-echo 終了しました。out_form\report.html をブラウザで開いて確認してください。
-if exist "out_form\report.html" start "" "out_form\report.html"
+echo 終了しました。
+if exist "out_form\report.html" (
+  echo out_form\report.html をブラウザで開いて確認してください。
+  start "" "out_form\report.html"
+) else (
+  echo レポートは作られませんでした。上の表示と out_form\error.log を確認してください。
+)
 pause
