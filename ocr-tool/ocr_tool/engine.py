@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+from pathlib import Path
 from dataclasses import dataclass, field
 
 import cv2
@@ -65,11 +67,27 @@ def clean_cjk_spaces(text: str) -> str:
     return _CJK_GAP.sub("", text)
 
 
+def find_tesseract_windows() -> str | None:
+    """PATHに無いとき、管理者権限なしで入れた場合の既定の場所などからtesseract.exeを探す。"""
+    candidates = [
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Tesseract-OCR" / "tesseract.exe",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Tesseract-OCR" / "tesseract.exe",
+        Path(os.environ.get("USERPROFILE", "")) / "Tesseract-OCR" / "tesseract.exe",
+        Path(os.environ.get("ProgramFiles", "")) / "Tesseract-OCR" / "tesseract.exe",
+        Path(os.environ.get("ProgramFiles(x86)", "")) / "Tesseract-OCR" / "tesseract.exe",
+    ]
+    return next((str(c) for c in candidates if c.name and c.is_file()), None)
+
+
 def setup_tesseract(cfg: dict) -> str:
     """Tesseractの場所・言語データを設定し、使えるか検査する。バージョン文字列を返す。"""
     ocr = cfg["ocr"]
     if ocr["tesseract_cmd"]:
         pytesseract.pytesseract.tesseract_cmd = str(ocr["tesseract_cmd"])
+    elif os.name == "nt" and shutil.which("tesseract") is None:
+        found = find_tesseract_windows()  # 見つかればconfigに書かなくても使える
+        if found:
+            pytesseract.pytesseract.tesseract_cmd = found
     if ocr["tessdata_dir"]:
         os.environ["TESSDATA_PREFIX"] = str(ocr["tessdata_dir"])
     try:
