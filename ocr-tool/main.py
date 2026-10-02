@@ -11,7 +11,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from ocr_tool import engine, logger, pipeline
+from ocr_tool import __version__, engine, logger, pipeline
 from ocr_tool.config import load_config, validate
 from ocr_tool.errors import OcrToolError
 
@@ -63,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
         cfg = build_config(parse_args(argv))
         version = engine.setup_tesseract(cfg)
         log_path = logger.setup_error_log(Path(cfg["output_dir"]))
-        print(f"Tesseract {version} を使用します。")
+        print(f"OCRツール {__version__} / Tesseract {version} を使用します。")
         summary = pipeline.run(cfg)
     except OcrToolError as e:
         print(f"エラー: {e.message}\n対処: {e.hint}", file=sys.stderr)

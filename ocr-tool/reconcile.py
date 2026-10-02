@@ -10,7 +10,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from ocr_tool import engine, formrun, logger
+from ocr_tool import __version__, engine, formrun, logger
 from ocr_tool.config import load_config, validate
 from ocr_tool.errors import OcrToolError
 from ocr_tool.form import load_template
@@ -41,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
         log_path = logger.setup_error_log(out)
         tpl = load_template(args.template)
         ref = load_reference(args.reference) if args.reference else None
-        print(f"Tesseract {version} を使用します。")
+        print(f"OCRツール {__version__} / Tesseract {version} を使用します。")
         summary = formrun.run(cfg, tpl, ref, out)
     except OcrToolError as e:
         print(f"エラー: {e.message}\n対処: {e.hint}", file=sys.stderr)
