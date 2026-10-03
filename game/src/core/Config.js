@@ -35,6 +35,10 @@ export const CONFIG = {
     sprintMul: 1.42,      // 走り続けると自動でダッシュ
     sprintAfter: 0.7,
     slamSpeed: 24,
+    // 特殊攻撃 (atk = PLAYER_ATTACKS の添字)
+    rush: { dur: 0.42, lunge: 8.5, hitAt: 0.32, swing: 'overhead', atk: 4 },     // ダッシュ/回避からの突進斬り
+    counter: { dur: 0.52, lunge: 0, hitAt: 0.22, swing: 'overhead', atk: 5 },    // ジャスト回避後: 敵へ瞬間移動する反撃
+    counterWindow: 2.8,
     comboLink: 0.45,      // 攻撃終了後、この時間内に押すと次段へ
   },
   camera: {

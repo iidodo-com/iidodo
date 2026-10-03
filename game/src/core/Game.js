@@ -36,6 +36,8 @@ import { FollowCamera } from '../camera/FollowCamera.js';
 import { VirtualPad } from '../ui/VirtualPad.js';
 import { Hud } from '../ui/Hud.js';
 import { Navigation } from '../ui/Navigation.js';
+import { Juice } from '../fx/Juice.js';
+import { Style } from '../systems/Style.js';
 
 /**
  * ゲーム全体のオーケストレーター。
@@ -74,6 +76,8 @@ export class Game {
     this.effects = new Effects(this);
     this.telegraphs = new Telegraph(this.scene, this.terrain);
     this.enemies = new EnemySystem(this);
+    this.juice = new Juice(this);
+    this.style = new Style(this);
     this.combat = new Combat(this);
     this.labels = new WorldLabels(this);
 
@@ -196,6 +200,20 @@ export class Game {
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.autosave('hide'); });
     window.addEventListener('pagehide', () => this.autosave('hide'));
     this.bus.on('player:hurt', ({ heavy }) => { this.hud.hitFlash(); this.cam.shake(heavy ? 0.5 : 0.28); this.hitStop(heavy ? 0.09 : 0.05); });
+    this.bus.on('area:changed', () => this.juice.reset());
+    this.bus.on('player:justDodge', () => {
+      this.juice.justDodge(); this.hud.pop('JUST DODGE!', '#7fe8ff'); this.cam.shake(0.1);
+    });
+    this.bus.on('enemy:execute', ({ enemy }) => {
+      this.juice.hit(true, true); this.juice.slowMo(0.45, 0.18); this.hud.pop('BREAK!', '#ffb43a'); this.cam.shake(0.5);
+    });
+    this.bus.on('style:rank', ({ idx }) => { if (idx >= 3) this.juice.burst([1, 0.8, 0.5], 0.12 + idx * 0.03, 0.4); });
+    this.bus.on('enemy:hit', ({ crit, downed, killed, enemy }) => {
+      this.juice.hit(crit || downed, crit);
+      if (killed && enemy.def.boss) { this.juice.slowMo(1.8, 0.16); this.juice.burst([1, 0.9, 0.7], 0.6, 1); }
+      else if (killed && !this.enemies.list.some((e) => e !== enemy && e.alive && e.aggro && !e.def.static)) this.juice.slowMo(0.55, 0.3);
+    });
+    this.bus.on('player:land', ({ hard }) => { if (hard) { this.juice.hit(true); this.cam.shake(0.35); } });
     this.bus.on('player:dead', () => {
       this.hud.showDeath(true);
       setTimeout(() => this._respawn(), 3200);
@@ -354,16 +372,20 @@ export class Game {
     this.playtime += dt;
     this._autoT += dt;
     if (this._autoT >= 45) { this._autoT = 0; this.autosave('timer'); }
+    this.juice.update(dt, this.post?.fx);
     if (this.hitStopT > 0) { this.hitStopT -= dt; dt *= 0.08; }
+    const rdt = dt, ws = this.juice.worldScale, pdt = rdt * this.juice.playerScale;
+    dt = rdt * ws;          // 世界 (敵・弾・粒子) の時間。ジャスト回避のスロー中は遅くなる
     TIME.value += dt;
     this.time += dt;
+    this.style.update(rdt);
 
     this.story.update(dt);
     this.audio.update(this);
     // 大型ボスと交戦中はカメラを引いて全体を見せる
     const big = this.enemies.list.find((e) => e.def.boss && e.alive && e.aggro && e.state !== 'return' && e.baseScale >= 2);
     this.cam.distScaleTarget = big ? 1.6 : 1;
-    this.player.update(dt, this.input, this.cam);
+    this.player.update(pdt, this.input, this.cam);
     this.enemies.update(dt, this);
     this.combat.update(dt);
     this.drops.update(dt);
@@ -374,7 +396,7 @@ export class Game {
     this.ambient.update(this.player.position);
 
     const look = this.input.consumeLook();
-    this.cam.update(dt, this.player.position, look);
+    this.cam.update(rdt, this.player.position, look);
     this.env.update(this.camera.position);
     this._updateLights();
 

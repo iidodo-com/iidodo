@@ -28,6 +28,7 @@ export class Player {
     this.facing = 0;            // 向き (rad)。前方向ベクトル = (sin f, cos f)
     this.vy = 0;
     this.grounded = true;
+    this.special = null; this.counterT = 0; this.justCd = 0; this.sinceDodge = 9; this.nearest = null;
     this.airJumps = 0; this.coyote = 0; this.jumpBuf = 0; this.jumpReleased = true;
     this.gliding = false; this.sprintT = 0; this.sprinting = false; this.slamPhase = 'dive'; this._wasGround = true; this._fallVy = 0;
 
@@ -183,6 +184,7 @@ export class Player {
     const wishLen = Math.hypot(wishX, wishZ);
 
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
+    this.counterT = Math.max(0, this.counterT - dt); this.justCd = Math.max(0, this.justCd - dt); this.sinceDodge += dt;
     this.invulnTimer = Math.max(0, this.invulnTimer - dt);
     this.attackBuffered = Math.max(0, this.attackBuffered - dt);
     this.jumpBuf = Math.max(0, this.jumpBuf - dt);
@@ -314,6 +316,18 @@ export class Player {
   // --- attack (3-hit combo) ---
   _startAttack(wishX, wishZ, wishLen) {
     const combo = CONFIG.player.combo;
+    this.special = null;
+    if (this.counterT > 0 && this._startCounter()) return;
+    if (this.grounded && (this.sprinting || this.sinceDodge < 0.4) && this.comboLinkTimer <= 0) {
+      this.special = 'rush'; this.comboIndex = 0; this.comboHasPrev = false;
+      this.state = 'attack'; this.stateTime = 0; this.swingFired = false;
+      if (wishLen > 0.2) this.facing = Math.atan2(wishX, wishZ);
+      const t = this.assist?.(this.position, this.facing, 9, 1.0);
+      if (t) this.facing = Math.atan2(t.pos.x - this.position.x, t.pos.z - this.position.z);
+      this.invulnTimer = Math.max(this.invulnTimer, 0.12);
+      this.bus.emit('player:rush', { pos: this.position.clone() });
+      return;
+    }
     if (this.comboLinkTimer > 0 && this.comboIndex < combo.length - 1 && this.comboHasPrev) {
       this.comboIndex++;
     } else {
@@ -329,8 +343,26 @@ export class Player {
     if (t) this.facing = Math.atan2(t.pos.x - this.position.x, t.pos.z - this.position.z);
   }
 
+  _startCounter() {
+    const cfg = CONFIG.player.counter;
+    const t = this.nearest?.(this.position, 16);
+    if (!t) return false;
+    this.counterT = 0; this.special = 'counter';
+    const from = this.position.clone();
+    const dx = t.pos.x - this.position.x, dz = t.pos.z - this.position.z, d = Math.hypot(dx, dz) || 1;
+    const stop = t.radius + 1.5, k = Math.max(0, d - stop) / d;
+    this.position.x += dx * k; this.position.z += dz * k;
+    this.terrain.resolveCollisions(this.position, CONFIG.player.radius);
+    this.facing = Math.atan2(dx, dz);
+    this.state = 'attack'; this.stateTime = 0; this.swingFired = false;
+    this.velocity.set(0, 0, 0); this.invulnTimer = Math.max(this.invulnTimer, cfg.dur + 0.1);
+    this.comboIndex = 0; this.comboHasPrev = false; this.comboLinkTimer = 0;
+    this.bus.emit('player:warp', { from, to: this.position.clone() });
+    return true;
+  }
+
   _updateAttack(dt, wishX, wishZ, wishLen, input) {
-    const cfg = CONFIG.player.combo[this.comboIndex];
+    const cfg = this.special ? CONFIG.player[this.special] : CONFIG.player.combo[this.comboIndex];
     this.stateTime += dt;
     const p = this.stateTime / cfg.dur;
 
@@ -342,7 +374,7 @@ export class Player {
     if (!this.swingFired && p >= cfg.hitAt) {
       this.swingFired = true;
       this.bus.emit('player:swing', {
-        combo: this.comboIndex,
+        combo: this.special ? cfg.atk : this.comboIndex,
         pos: this.position.clone(),
         dir: new THREE.Vector3(Math.sin(this.facing), 0, Math.cos(this.facing)),
       });
@@ -354,7 +386,7 @@ export class Player {
       return;
     }
     // 先行入力で次段へ (後半 40% 以降)
-    if (this.attackBuffered > 0 && p >= 0.6 && this.comboIndex < CONFIG.player.combo.length - 1) {
+    if (!this.special && this.attackBuffered > 0 && p >= 0.6 && this.comboIndex < CONFIG.player.combo.length - 1) {
       this.attackBuffered = 0;
       this.comboLinkTimer = 1; // 即連携
       this._startAttack(wishX, wishZ, wishLen);
@@ -363,6 +395,7 @@ export class Player {
     if (p >= 1) {
       this.state = 'free';
       this.velocity.set(0, 0, 0);
+      if (this.special) { this.special = null; this.comboIndex = 0; this.comboHasPrev = false; this.comboLinkTimer = 0; return; }
       // 3段目を振り切ったらコンボ終了、それ以外は受付猶予
       if (this.comboIndex >= CONFIG.player.combo.length - 1) { this.comboIndex = 0; this.comboHasPrev = false; this.comboLinkTimer = 0; }
       else this.comboLinkTimer = CONFIG.player.comboLink;
@@ -375,7 +408,7 @@ export class Player {
     if (wishLen > 0.1) this.dodgeDir.set(wishX / wishLen, 0, wishZ / wishLen);
     else this.dodgeDir.set(Math.sin(this.facing), 0, Math.cos(this.facing));
     this.facing = Math.atan2(this.dodgeDir.x, this.dodgeDir.z);
-    this.state = 'dodge'; this.stateTime = 0;
+    this.special = null; this.state = 'dodge'; this.stateTime = 0; this.sinceDodge = 0;
     this.invulnTimer = cfg.dodgeInvuln;
     this.comboLinkTimer = 0; this.comboIndex = 0; this.comboHasPrev = false;
     this.bus.emit('player:dodge', { pos: this.position.clone() });
@@ -388,7 +421,7 @@ export class Player {
     const sp = cfg.dodgeSpeed * (1 - 0.6 * p);
     this.velocity.set(this.dodgeDir.x * sp, 0, this.dodgeDir.z * sp);
     if (p >= 1) {
-      this.state = 'free';
+      this.state = 'free'; this.sinceDodge = 0;
       this.dodgeCd = cfg.dodgeCooldown;
       this.velocity.multiplyScalar(0.3);
     }
@@ -460,7 +493,7 @@ export class Player {
       this.bus.emit('player:dead', { pos: this.position.clone() });
       return true;
     }
-    this.state = 'hurt'; this.stateTime = 0; this.hurtDur = heavy ? 0.55 : 0.32; this.castDef = null;
+    this.special = null; this.state = 'hurt'; this.stateTime = 0; this.hurtDur = heavy ? 0.55 : 0.32; this.castDef = null;
     this.comboIndex = 0; this.comboHasPrev = false; this.comboLinkTimer = 0; this.attackBuffered = 0;
     return true;
   }
@@ -613,7 +646,7 @@ export class Player {
   }
 
   _animateSwing() {
-    const cfg = CONFIG.player.combo[this.comboIndex];
+    const cfg = this.special ? CONFIG.player[this.special] : CONFIG.player.combo[this.comboIndex];
     const p = clamp01(this.stateTime / cfg.dur);
     const wind = 0.25, strike = 0.55;
     const r = this.swordPivot.rotation;

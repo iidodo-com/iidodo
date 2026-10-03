@@ -101,6 +101,12 @@ export class Hud {
     this.bannerEl.classList.remove('show'); void this.bannerEl.offsetWidth; this.bannerEl.classList.add('show');
   }
 
+  /** 画面中央の大きな演出テキスト (ジャスト回避 / BREAK など) */
+  pop(text, color = '#fff') {
+    const el = document.getElementById('pop'); el.textContent = text; el.style.color = color;
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  }
+
   setArea(name) { this.area.textContent = name; }
 
   toast(msg, ms = 1800) {

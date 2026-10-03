@@ -33,6 +33,7 @@ export class Combat {
     this.mat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#c27bff').multiplyScalar(3.5) });
     game.bus.on('player:swing', (e) => this.onPlayerSwing(e));
     game.bus.on('player:skillCast', (e) => this.onSkill(e));
+    game.player.nearest = (pos, r) => { let b = null, bd = r; for (const e of game.enemies.list) { if (!e.alive || e.def.static) continue; const d = Math.hypot(e.pos.x - pos.x, e.pos.z - pos.z) - e.radius; if (d < bd) { bd = d; b = e; } } return b; };
     game.player.assist = (pos, facing, maxD = 4.8, arc = 1.9) => game.enemies.nearestFront(pos, facing, maxD, arc);
   }
 
@@ -52,11 +53,13 @@ export class Combat {
 
   /** プレイヤー → 敵 1 体へのダメージ適用 (通常攻撃/スキル共通)。結果を返す */
   hitEnemy(e, { mul, knockDir, knock, poise }) {
-    const st = this.game.player.stats;
+    const g = this.game, st = g.player.stats;
+    const execute = e.state === 'down';
     const { dmg, crit } = calcDamage({
-      atk: this.playerAtk(), def: e.def.def, mul, critRate: st.crit, critMul: st.critMul,
-      bonus: e.state === 'down' ? 1.35 : 1,
+      atk: this.playerAtk(), def: e.def.def, mul: mul * g.style.mult, critRate: st.crit, critMul: st.critMul,
+      bonus: execute ? 1.8 : 1,
     });
+    if (execute) { g.bus.emit('enemy:execute', { enemy: e, pos: e.centerPos }); }
     const kv = knockDir.clone().setY(0).normalize().multiplyScalar(knock);
     const res = e.receiveHit({ dmg, knock: kv, poiseDmg: poise * (crit ? 1.3 : 1) });
     if (res.blocked) { this.game.bus.emit('enemy:blocked', { enemy: e, pos: e.centerPos }); return res; }
@@ -127,7 +130,7 @@ export class Combat {
       hits++; downed ||= res.downed;
     }
     if (hits) {
-      g.hitStop(0.045 + (combo >= 2 ? 0.05 : 0) + (downed ? 0.04 : 0));
+      g.hitStop(0.045 + (combo >= 2 ? 0.05 : 0) + (combo >= 5 ? 0.06 : 0) + (downed ? 0.04 : 0));
       g.cam.shake(cfg.shake);
     }
   }
@@ -148,7 +151,14 @@ export class Combat {
   enemyHitsPlayer(enemy, atk, fromPos) {
     const p = this.game.player;
     if (p.state === 'dead') return false;
-    if (!p.canBeHit()) { this.game.bus.emit('player:dodged', { enemy }); return false; }
+    if (!p.canBeHit()) {
+      this.game.bus.emit('player:dodged', { enemy });
+      if (p.state === 'dodge' && p.justCd <= 0) {
+        p.justCd = 1.2; p.counterT = CONFIG.player.counterWindow; p.stats.mp = Math.min(p.stats.maxMp, p.stats.mp + 10);
+        this.game.bus.emit('player:justDodge', { enemy, pos: p.position.clone() });
+      }
+      return false;
+    }
     const { dmg } = calcDamage({ atk: enemy.def.atk * (enemy.atkMul || 1), def: p.stats.def, mul: atk.mul, variance: 0.1 });
     p.takeDamage(dmg, fromPos, { knock: atk.knock, heavy: atk.mul >= 1.3 });
     return true;

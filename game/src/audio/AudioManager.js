@@ -94,6 +94,11 @@ export class AudioManager {
       case 'hit': N(0.09, { vol: 0.4, type: 'lowpass', f0: 1800, f1: 300 }); T(150, 0.14, { to: 55, vol: 0.5, type: 'triangle' }); break;
       case 'crit': N(0.12, { vol: 0.5, type: 'lowpass', f0: 3000, f1: 400 }); T(180, 0.2, { to: 50, vol: 0.6, type: 'triangle' }); T(1200, 0.18, { to: 1800, vol: 0.2, type: 'square' }); T(1800, 0.25, { vol: 0.15, delay: 0.05 }); break;
       case 'hurt': T(240, 0.3, { to: 80, type: 'sawtooth', vol: 0.35, lp: 1200 }); N(0.2, { vol: 0.3, type: 'lowpass', f0: 1200, f1: 200 }); break;
+      case 'just': T(1200, 0.5, { to: 300, vol: 0.2, type: 'sine' }); [1568, 2093, 2637].forEach((f, i) => T(f, 0.5, { vol: 0.12, delay: 0.04 + i * 0.05, type: 'triangle' })); N(0.4, { vol: 0.14, type: 'highpass', f0: 6000, f1: 900 }); break;
+      case 'warp': N(0.22, { vol: 0.3, type: 'bandpass', f0: 600, f1: 5000, q: 1.2 }); T(300, 0.25, { to: 1600, vol: 0.18, type: 'sawtooth', lp: 3000 }); break;
+      case 'rush': N(0.2, { vol: 0.3, f0: 400, f1: 4500, q: 0.7 }); T(160, 0.2, { to: 420, vol: 0.14, type: 'sawtooth', lp: 1800 }); break;
+      case 'break': T(110, 0.6, { to: 35, vol: 0.7, type: 'sine' }); N(0.5, { vol: 0.5, type: 'lowpass', f0: 4000, f1: 200 }); T(1800, 0.3, { to: 600, vol: 0.2, type: 'square' }); break;
+      case 'rank': [523, 784, 1047].forEach((f, i) => T(f, 0.25, { vol: 0.16, type: 'square', delay: i * 0.05 })); break;
       case 'jump': N(0.12, { vol: 0.1, type: 'highpass', f0: 600, f1: 2500 }); break;
       case 'land': N(0.16, { vol: 0.14, type: 'lowpass', f0: 900, f1: 200 }); break;
       case 'dodge': N(0.2, { vol: 0.16, type: 'highpass', f0: 1200, f1: 4000 }); break;
@@ -192,6 +197,7 @@ export class AudioManager {
     on('enemy:hit', ({ crit }) => this.sfx(crit ? 'crit' : 'hit'));
     on('player:hurt', () => this.sfx('hurt'));
     on('player:dodge', () => this.sfx('dodge'));
+    on('player:justDodge', () => this.sfx('just')); on('player:warp', () => this.sfx('warp')); on('player:rush', () => this.sfx('rush')); on('enemy:execute', () => this.sfx('break')); on('style:rank', ({ idx }) => idx >= 1 && this.sfx('rank'));
     on('player:jump', () => this.sfx('jump')); on('player:land', ({ hard }) => this.sfx('land'));
     on('pickup', ({ kind }) => this.sfx(kind === 'gold' ? 'coin' : 'pickup'));
     on('player:levelup', () => this.sfx('levelup'));
