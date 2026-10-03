@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<title>AETHERIA — 3D Action RPG</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ctext y=%2726%27 font-size=%2726%27%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="hud-status">
+      <div class="bar hp"><div class="fill" id="hp-fill"></div><span id="hp-text">100 / 100</span></div>
+      <div class="bar mp"><div class="fill" id="mp-fill"></div><span id="mp-text">50 / 50</span></div>
+    </div>
+    <div id="hud-area">はじまりの平原</div>
+    <div id="hud-debug"></div>
+    <div id="toast"></div>
+  </div>
+
+  <!-- Touch controls (shown only on touch devices) -->
+  <div id="touch-ui" hidden>
+    <div id="stick-zone"><div id="stick-base"><div id="stick-knob"></div></div></div>
+    <div id="buttons">
+      <button class="btn skill" data-action="skill3">3</button>
+      <button class="btn skill" data-action="skill2">2</button>
+      <button class="btn skill" data-action="skill1">1</button>
+      <button class="btn interact" data-action="interact">調べる</button>
+      <button class="btn dodge" data-action="dodge">回避</button>
+      <button class="btn attack" data-action="attack">攻撃</button>
+    </div>
+  </div>
+
+  <!-- Start overlay: needed for pointer-lock / audio unlock / fullscreen gesture -->
+  <div id="start">
+    <h1>AETHERIA</h1>
+    <p class="sub">3D ACTION RPG — Phase 1 : Foundation</p>
+    <button id="start-btn">TAP / CLICK TO START</button>
+    <p class="help pc-only">WASD 移動 ／ マウス 視点 ／ 左クリック 攻撃 ／ Space 回避 ／ 1-3 スキル ／ E 調べる ／ Esc 視点解除</p>
+    <p class="help touch-only">左下スティックで移動 ／ 画面ドラッグで視点 ／ 右下ボタンで行動</p>
+  </div>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
