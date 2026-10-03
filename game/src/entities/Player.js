@@ -29,7 +29,11 @@ export class Player {
     this.grounded = true;
 
     // 暫定ステータス (Phase 3 でデータ駆動の Stats / レベルシステムに置換)
-    this.stats = { hp: 100, maxHp: 100, mp: 50, maxMp: 50 };
+    this.stats = { hp: 100, maxHp: 100, mp: 50, maxMp: 50, atk: 18, def: 5, crit: 0.08, critMul: 1.6 };
+    this.assist = null;         // (pos, facing) => 最寄りの敵 (Combat が設定)
+    this.hurtTimer = 0;
+    this.flashT = 0;
+    this.sinceHit = 99;         // 最後に被弾してからの秒数 (自然回復用)
 
     // 行動ステート
     this.state = 'free';        // 'free' | 'attack' | 'dodge'
@@ -136,7 +140,7 @@ export class Player {
     shape.moveTo(-0.045, 0); shape.lineTo(0.045, 0); shape.lineTo(0.045, 1.0); shape.lineTo(0, 1.2); shape.lineTo(-0.045, 1.0); shape.closePath();
     const bladeGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.02, bevelEnabled: false });
     bladeGeo.rotateX(Math.PI / 2); bladeGeo.translate(0, 0.01, 0.56);
-    add(sp, bladeGeo, M('#e8f0fa', { metalness: 0.9, roughness: 0.18, emissive: '#3aa9ff', emissiveIntensity: 0.6 }));
+    add(sp, bladeGeo, (() => { const m = M('#e8f0fa', { metalness: 0.9, roughness: 0.18, emissive: '#3aa9ff', emissiveIntensity: 0.6 }); m.userData.glow = true; return m; })());
     const core = new THREE.MeshBasicMaterial({ color: new THREE.Color('#9fe7ff').multiplyScalar(2.6) });
     add(sp, new THREE.BoxGeometry(0.014, 0.03, 0.85), core, 0, 0, 1.08);
 
@@ -158,6 +162,8 @@ export class Player {
     const cfg = CONFIG.player;
     cam.getBasis(this._basis);
     const b = this._basis;
+    this.sinceHit += dt;
+    if (this.state === 'dead') input.move.x = input.move.y = 0;
 
     // 入力 (カメラ基準の移動ベクトル)
     const mx = input.move.x, my = input.move.y;
@@ -178,6 +184,8 @@ export class Player {
       case 'free': this._updateFree(dt, wishX, wishZ, wishLen, input); break;
       case 'attack': this._updateAttack(dt, wishX, wishZ, wishLen, input); break;
       case 'dodge': this._updateDodge(dt); break;
+      case 'hurt': this._updateHurt(dt); break;
+      case 'dead': this.velocity.multiplyScalar(Math.exp(-8 * dt)); this.stateTime += dt; break;
     }
 
     // コンボ受付ウィンドウの減衰 (free 状態のみ)
@@ -192,6 +200,8 @@ export class Player {
     // MP 自然回復
     const s = this.stats;
     s.mp = Math.min(s.maxMp, s.mp + 2 * dt);
+    // 戦闘から離れたらゆっくり HP 回復
+    if (this.state !== 'dead' && this.sinceHit > 6) s.hp = Math.min(s.maxHp, s.hp + s.maxHp * 0.01 * dt);
   }
 
   _tryStartAction(input, wishX, wishZ, wishLen) {
@@ -239,6 +249,9 @@ export class Player {
     this.comboLinkTimer = 0;
     // 入力方向があればそちらへ即座に向く (敵ロックオン等は Phase 2 で追加)
     if (wishLen > 0.2) this.facing = Math.atan2(wishX, wishZ);
+    // 近くの敵がいれば自動で向き直る (攻撃アシスト)
+    const t = this.assist?.(this.position, this.facing);
+    if (t) this.facing = Math.atan2(t.pos.x - this.position.x, t.pos.z - this.position.z);
   }
 
   _updateAttack(dt, wishX, wishZ, wishLen, input) {
@@ -309,6 +322,41 @@ export class Player {
   /** 外部 (敵の攻撃) から呼ぶ。無敵中は無効。実ダメージ計算は Phase 2。 */
   canBeHit() { return !this.isInvulnerable; }
 
+  // --- damage ---
+  /** 被ダメージ。無敵中/死亡中は無効 (false)。from は攻撃元のワールド座標。 */
+  takeDamage(amount, from, { knock = 4, heavy = false } = {}) {
+    if (this.state === 'dead' || this.isInvulnerable) return false;
+    const s = this.stats;
+    s.hp = Math.max(0, s.hp - amount);
+    this.sinceHit = 0; this.flashT = 0.18;
+    this.invulnTimer = 0.45;          // 被弾後の短い無敵 (連続ヒット防止)
+    const kx = this.position.x - from.x, kz = this.position.z - from.z, kl = Math.hypot(kx, kz) || 1;
+    this.velocity.set((kx / kl) * knock, 0, (kz / kl) * knock);
+    this.bus.emit('player:hurt', { dmg: amount, heavy, pos: this.position.clone() });
+    if (s.hp <= 0) {
+      this.state = 'dead'; this.stateTime = 0;
+      this.bus.emit('player:dead', { pos: this.position.clone() });
+      return true;
+    }
+    this.state = 'hurt'; this.stateTime = 0; this.hurtDur = heavy ? 0.55 : 0.32;
+    this.comboIndex = 0; this.comboHasPrev = false; this.comboLinkTimer = 0; this.attackBuffered = 0;
+    return true;
+  }
+
+  _updateHurt(dt) {
+    this.stateTime += dt;
+    this.velocity.multiplyScalar(Math.exp(-7 * dt));
+    if (this.stateTime >= this.hurtDur) { this.state = 'free'; this.velocity.multiplyScalar(0.3); }
+  }
+
+  respawn(x, z) {
+    const s = this.stats;
+    s.hp = s.maxHp; s.mp = s.maxMp;
+    this.state = 'free'; this.stateTime = 0; this.invulnTimer = 2; this.sinceHit = 99;
+    this.velocity.set(0, 0, 0); this.rig.rotation.x = 0;
+    this.teleport(x, z);
+  }
+
   // --- physics ---
   _integrate(dt) {
     const cfg = CONFIG.player;
@@ -346,6 +394,13 @@ export class Player {
       this.rig.position.y = 0.9;
     }
 
+    // 被弾のけぞり / 倒れ
+    if (this.state === 'hurt') this.rig.rotation.x = -0.45 * Math.sin(Math.min(1, this.stateTime / this.hurtDur) * Math.PI);
+    else if (this.state === 'dead') {
+      this.rig.rotation.x = -Math.PI / 2 * ease(clamp01(this.stateTime / 0.6));
+      this.rig.position.y = 0.9 - 0.62 * ease(clamp01(this.stateTime / 0.6));
+    }
+
     // 回避ロール
     if (this.state === 'dodge') {
       const p = clamp01(this.stateTime / cfg.dodgeDuration);
@@ -353,20 +408,35 @@ export class Player {
       this.rig.position.y = 0.9 - Math.sin(p * Math.PI) * 0.25;
       this.legL.rotation.x = this.legR.rotation.x = 1.2;
       this._restSword();
-    } else {
+    } else if (this.state !== 'hurt' && this.state !== 'dead') {
       this.rig.rotation.x = 0;
     }
 
     // 剣
     if (this.state === 'attack') this._animateSwing();
-    else if (this.state !== 'dodge') {
+    else if (this.state !== 'dodge' && this.state !== 'dead') {
       const target = { x: 0.9, y: -0.15 };
       this.swordPivot.rotation.x += (target.x - this.swordPivot.rotation.x) * Math.min(1, dt * 12);
       this.swordPivot.rotation.y += (target.y - this.swordPivot.rotation.y) * Math.min(1, dt * 12);
       this.swordPivot.rotation.z = 0;
     }
     this._animateCape(dt, speed);
+    this._flash(dt);
     this._syncModel();
+  }
+
+  _flash(dt) {
+    if (!this._flashMats) {
+      this._flashMats = [];
+      this.root.traverse((o) => { if (o.isMesh && o.material.emissive && !o.material.userData.glow) this._flashMats.push(o.material); });
+    }
+    this.flashT = Math.max(0, this.flashT - dt);
+    const f = this.flashT / 0.18;
+    for (const m of this._flashMats) {
+      m.userData.baseEm ??= m.emissive.clone(); m.userData.baseEI ??= m.emissiveIntensity;
+      if (f > 0) { m.emissive.setRGB(1, 0.15, 0.08); m.emissiveIntensity = f * 1.6; }
+      else { m.emissive.copy(m.userData.baseEm); m.emissiveIntensity = m.userData.baseEI; }
+    }
   }
 
   _animateCape(dt, speed) {

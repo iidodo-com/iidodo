@@ -73,3 +73,23 @@ game/
 | 3 | EXP/レベル、装備強化、インベントリ、セーブ | `data/*.json`, `systems/Stats.js`, `save/SaveManager.js` (localStorage, versioned), `ui/Inventory.js` |
 | 4 | 階層/エリア定義、中ボス、宝箱、セーブポイント | `world/AreaLoader.js`, `data/areas.js` |
 | 5 | ラスボス2形態、エンディング、バランス | `bosses/*`, `ui/Ending.js` |
+
+
+## Phase 2: バトルと敵AI (実装済み)
+
+| 要素 | 実装 |
+|---|---|
+| データ | `data/enemies.js` (敵4種 / キャンプ配置 / プレイヤー攻撃判定)。バランスはここだけで調整 |
+| ダメージ | `systems/DamageCalc.js` 純関数: `atk × 倍率 × 40/(40+def) × 乱数±10% × (クリ 1.6)`、ダウン中の敵は ×1.35 |
+| 敵AI | `entities/Enemy.js`: idle → chase → windup(予兆) → attack → recover / hurt / down / dead / return(帰還・全回復) |
+| 攻撃種 | lunge(突進) / swing(扇形) / slam(範囲・スーパーアーマー) / bolt(遠距離弾・回避可) |
+| 予兆 | `fx/Telegraph.js`: 赤い扇形/円が内側から満ちて、満ちた瞬間に判定。狙いは発生の少し前に固定 |
+| 当たり判定 | `systems/Combat.js` の `sectorHit` (扇形 + 敵半径補正)。プレイヤーは `player:swing` で判定、弾は球判定 |
+| 攻撃権 | 近接2体・遠距離2体までしか同時に攻撃動作へ入れない (残りは周回して待機) |
+| 怯み/ダウン | 被弾で hurt、poise が 0 でダウン(約1.9秒)。ブルートは攻撃中スーパーアーマー |
+| 配置 | `systems/EnemySystem.js`: 5キャンプ16体、仲間への警戒共有、リーシュ、離れるとリスポーン(50秒) |
+| UI | `ui/WorldLabels.js`: 敵HP/ポイズバー、ダメージ数字(クリ/ダウン/被弾)。被弾フラッシュ、死亡画面 |
+| 演出 | ヒットストップ、カメラシェイク、火花、土煙、範囲攻撃の衝撃波 |
+| プレイヤー | `takeDamage` (回避無敵・被弾後の短い無敵)、のけぞり、死亡→復活、攻撃アシスト(近い敵へ自動で向く) |
+
+イベント: `enemy:hit {enemy,dmg,crit,pos,downed,killed}`, `enemy:died {enemy,pos,def}` (Phase 3 で EXP/ドロップに接続), `enemy:slam`, `enemy:bolt`, `player:hurt`, `player:dead`, `player:dodged`。
