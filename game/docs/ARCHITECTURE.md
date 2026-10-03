@@ -16,14 +16,28 @@ game/
 │  │  ├─ Input.js             PC/スマホ入力の正規化 (move / look / actions)
 │  │  ├─ EventBus.js          疎結合イベント (player:swing 等)
 │  │  └─ Noise.js             種付きノイズ / 乱数
-│  ├─ world/
-│  │  ├─ Terrain.js           高さマップ地形 + 木/岩 + コライダー
-│  │  └─ Sky.js               空ドーム + フォグ
+│  ├─ world/                  Terrain / Props / Vegetation / Water / Sky / Wind
+│  ├─ fx/                     Particles / SwordTrail / Effects / Ambient
 │  ├─ entities/Player.js      ダミーモデル + 行動ステートマシン
 │  ├─ camera/FollowCamera.js  三人称オービット (地形回避/シェイク付き)
 │  └─ ui/{VirtualPad,Hud}.js  タッチUI / HUD
 └─ docs/ARCHITECTURE.md
 ```
+
+## グラフィックス構成
+
+| 要素 | 実装 |
+|---|---|
+| レンダリング | HDR(HalfFloat) + MSAA → UnrealBloom (発光物のみ) → カラーグレード → ACES トーンマッピング (`core/PostFx.js`) |
+| 空・雲 | 大気散乱 Sky + fbm 雲レイヤー + 指数フォグ (`world/Sky.js`) |
+| 地形 | 頂点カラー + 3スケールのディテールテクスチャ (PBR)、砂浜/苔/雪の自動配色 (`world/Terrain.js`) |
+| 草・花 | 20mチャンクの InstancedMesh、風で揺れる頂点シェーダ、遠距離ディザ消去 (`world/Vegetation.js`, `Wind.js`) |
+| 木・岩・結晶 | ローポリ松/広葉樹/桜/紅葉、苔岩、発光結晶 (`world/Props.js`) |
+| 水 | 水深属性つき水面: フレネル反射・太陽反射・岸辺の泡 (`world/Water.js`) |
+| キャラ | 丸みのあるパーツ + アウトライン + 光る剣 + なびくマント (`entities/Player.js`) |
+| エフェクト | 剣の軌跡リボン / 土煙 / 火花 / 漂う光の粒 (`fx/*`) |
+
+画質は `?q=low|medium|high` で強制指定 (未指定はPC=high / スマホ=medium)。`core/Config.js` の `QUALITY` で調整。
 
 ## 設計方針
 
