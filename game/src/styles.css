@@ -259,3 +259,19 @@ body.cutscene::before { top: 0; } body.cutscene::after { bottom: 0; }
 
 body.plain::before, body.plain::after { display: none !important; }
 @media (max-height: 460px) { #minimap { width: 100px; height: 100px; top: calc(54px + var(--safe-t)); } #objective { max-width: 40vw; font-size: 12px; } }
+
+#style { position: absolute; right: calc(14px + var(--safe-r)); top: calc(204px + var(--safe-t)); width: 132px; text-align: right; opacity: 0; transition: opacity .25s; pointer-events: none; text-shadow: 0 2px 6px #000; }
+#style.show { opacity: 1; }
+#style .sr { font-size: 54px; font-weight: 900; font-style: italic; line-height: 1; color: #9fc0ff; -webkit-text-stroke: 1px rgba(0,0,0,.6); transform-origin: right center; }
+#style[data-rank="B"] .sr { color: #8fe8a0; } #style[data-rank="A"] .sr { color: #ffe27a; } #style[data-rank="S"] .sr { color: #ffb43a; }
+#style[data-rank="SS"] .sr { color: #ff7a4a; text-shadow: 0 0 14px #ff5a2a; } #style[data-rank="SSS"] .sr { color: #ff4aa8; text-shadow: 0 0 18px #ff2a8a, 0 0 32px #ffd23a; }
+#style .sr.pop { animation: srpop .45s cubic-bezier(.2,1.6,.4,1); }
+@keyframes srpop { 0% { transform: scale(2.2) rotate(-8deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+#style .sn { font-size: 12px; font-weight: 800; letter-spacing: .12em; color: #fff; font-style: italic; min-height: 14px; }
+#style .sb { height: 6px; border-radius: 3px; background: rgba(0,0,0,.5); margin: 3px 0 2px; overflow: hidden; border: 1px solid rgba(255,255,255,.35); }
+#style .sb i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6aa8ff, #ffe27a, #ff6ab0); }
+#style .sh { font-size: 15px; font-weight: 800; color: #ffd66a; min-height: 18px; }
+#pop { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); font-size: 34px; font-weight: 900; font-style: italic; letter-spacing: .08em; color: #fff; text-shadow: 0 0 14px currentColor, 0 3px 6px #000; opacity: 0; pointer-events: none; white-space: nowrap; }
+#pop.show { animation: popin 1.1s ease-out forwards; }
+@keyframes popin { 0% { opacity: 0; transform: translateX(-50%) scale(1.9); } 12% { opacity: 1; transform: translateX(-50%) scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) translateY(-20px) scale(1); } }
+@media (max-height: 460px) { #style { top: calc(166px + var(--safe-t)); } #style .sr { font-size: 38px; } }
