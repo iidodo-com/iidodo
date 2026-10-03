@@ -3,11 +3,13 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from '../core/Config.js';
 import { rng } from '../core/Noise.js';
 import { addWind } from './Wind.js';
+import { firstMesh } from '../core/Assets.js';
+import { fbm } from '../core/Noise.js';
 
 const up = new THREE.Vector3(0, 1, 0);
 
 /** 非インデックス化して、頂点ごとに fn で色を付ける */
-function colored(geo, fn) {
+function colored(geo, fn, keepUV = false) {
   const g = geo.index ? geo.toNonIndexed() : geo;
   const p = g.attributes.position;
   const arr = new Float32Array(p.count * 3);
@@ -17,7 +19,7 @@ function colored(geo, fn) {
     arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
-  g.deleteAttribute('uv');
+  if (!keepUV) g.deleteAttribute('uv');
   return g;
 }
 const hash3 = (x, y, z) => {
@@ -37,7 +39,7 @@ function jitter(geo, amt) {
 
 function trunkGeo(h, r0, r1) {
   const g = new THREE.CylinderGeometry(r1, r0, h, 7); g.translate(0, h / 2, 0);
-  return colored(g, (x, y, z, c) => { const t = y / h; c.setRGB(0.28 - t * 0.06, 0.18 - t * 0.04, 0.1); });
+  return colored(g, (x, y, z, c) => { const t = y / h; c.setRGB(0.28 - t * 0.06, 0.18 - t * 0.04, 0.1); }, true);
 }
 
 function pineFoliage() {
@@ -86,7 +88,8 @@ function radialTexture(color = '#7fe6ff') {
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
-export function buildProps(terrain) {
+export function buildProps(terrain, assets = null, quality = null) {
+  const detail = quality?.detail ?? 1;
   const group = terrain.group;
   const rand = rng(CONFIG.world.seed + 5);
   const lim = terrain.half * 0.86;
@@ -123,6 +126,15 @@ export function buildProps(terrain) {
     }
   };
 
+  // 幹: 樹皮の PBR テクスチャ (あれば)。無ければ頂点カラー
+  const B = assets?.bark;
+  const trunkMat = () => {
+    if (!(B?.diff && B?.nor)) return flat({});
+    const mat = new THREE.MeshStandardMaterial({ map: B.diff, normalMap: B.nor, normalScale: new THREE.Vector2(1.2, 1.2), color: '#d8c8b4', roughness: 0.92, flatShading: false });
+    for (const t of [B.diff, B.nor]) t.repeat.set(2, 3);
+    return mat;
+  };
+
   const mk = (geo, mat, n, tinted = false) => {
     const m = new THREE.InstancedMesh(geo, mat, n);
     m.userData.tinted = tinted;
@@ -133,7 +145,7 @@ export function buildProps(terrain) {
   // --- 松
   const pineMat = flat({}); addWind(pineMat, { strength: 0.012, heightStart: 1.0 });
   const pineLeaf = mk(pineFoliage(), pineMat, 340, true);
-  const pineTrunk = mk(trunkGeo(1.8, 0.3, 0.2), flat({}), 340);
+  const pineTrunk = mk(trunkGeo(1.8, 0.3, 0.2), trunkMat(), 340);
   const pineCols = ['#2d6a3e', '#25594a', '#3a7d3f', '#2f6f56'];
   scatter({
     count: 340, meshes: [pineLeaf, pineTrunk], minDist: 11, radius: (sc) => 0.32 * sc + 0.2,
@@ -144,7 +156,7 @@ export function buildProps(terrain) {
   // --- 広葉樹 (一部は桜・紅葉)
   const oakMat = flat({}); addWind(oakMat, { strength: 0.02, heightStart: 2.2 });
   const oakLeaf = mk(oakFoliage(), oakMat, 200, true);
-  const oakTrunk = mk(trunkGeo(3.0, 0.34, 0.2), flat({}), 200);
+  const oakTrunk = mk(trunkGeo(3.0, 0.34, 0.2), trunkMat(), 200);
   const oakCols = ['#68ad3c', '#7cb83f', '#58a044', '#8cc044'];
   scatter({
     count: 200, meshes: [oakLeaf, oakTrunk], minDist: 10, radius: (sc) => 0.34 * sc + 0.2,
@@ -158,12 +170,57 @@ export function buildProps(terrain) {
     },
   });
 
-  // --- 岩 (苔つき)
-  const rocks = mk(rockGeo(), flat({ roughness: 0.95 }), 110);
-  scatter({
-    count: 110, meshes: [rocks], minDist: 8, radius: (sc) => 0.8 * sc, yScale: 0.75, sink: 0.25,
-    scale: () => 0.7 + Math.pow(rand(), 2) * 2.2, maxSlope: 0.16,
-  });
+  // --- 岩: 写真測量の本物モデル (あれば) / 手続き生成の苔岩 (フォールバック)
+  const rockVariants = (assets?.rocks || []).map(firstMesh).filter(Boolean);
+  if (rockVariants.length) {
+    const perVariant = Math.round(34 * Math.max(detail, 0.5));
+    for (const v of rockVariants) {
+      const bb = v.geometry.boundingBox;
+      const size = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+      v.material.envMapIntensity = 0.8;
+      const m = mk(v.geometry, v.material, perVariant);
+      scatter({
+        count: perVariant, meshes: [m], minDist: 8, radius: (sc) => 0.4 * size * sc, yScale: 0.9, sink: 0.12,
+        scale: () => (0.9 + Math.pow(rand(), 2) * 1.8) * (1.6 / size), maxSlope: 0.16,
+      });
+    }
+  } else {
+    const rocks = mk(rockGeo(), flat({ roughness: 0.95 }), 110);
+    scatter({
+      count: 110, meshes: [rocks], minDist: 8, radius: (sc) => 0.8 * sc, yScale: 0.75, sink: 0.25,
+      scale: () => 0.7 + Math.pow(rand(), 2) * 2.2, maxSlope: 0.16,
+    });
+  }
+
+  // --- 下草: 写真測量のシダ・草の塊・黄色い花 (軽量化済みモデルを大量インスタンス)
+  const undergrowth = (gltf, { count, scale, wind = 0.5, clump = 0, minY = 0.6, tint = null, maxSlope = 0.09, shadow = false }) => {
+    const v = firstMesh(gltf);
+    if (!v) return;
+    const mat = v.material.clone();
+    mat.alphaTest = 0.5; mat.transparent = false; mat.side = THREE.DoubleSide; mat.depthWrite = true;
+    if (tint) mat.color.set(tint);
+    addWind(mat, { strength: wind, heightStart: 0, fade: (quality?.grassDist ?? 80) * 1.1 });
+    const n = Math.round(count * detail);
+    const m = new THREE.InstancedMesh(v.geometry, mat, n);
+    let placed = 0, tries = 0;
+    while (placed < n && tries++ < n * 40) {
+      const x = (rand() * 2 - 1) * lim * 0.95, z = (rand() * 2 - 1) * lim * 0.95;
+      if (clump && fbm(x * 0.06 + clump, z * 0.06, 31, 2) < 0.55) continue;
+      if (Math.hypot(x, z) < 3) continue;
+      const y = terrain.height(x, z);
+      if (y < wl + minY || y > 8 || terrain.slopeAt(x, z, y) > maxSlope) continue;
+      const sc = scale();
+      q.setFromAxisAngle(up, rand() * Math.PI * 2);
+      s.set(sc, sc * (0.85 + rand() * 0.3), sc); p.set(x, y - 0.02, z);
+      m4.compose(p, q, s); m.setMatrixAt(placed++, m4);
+    }
+    m.count = placed; m.instanceMatrix.needsUpdate = true;
+    m.castShadow = shadow; m.receiveShadow = true; m.frustumCulled = false;
+    group.add(m);
+  };
+  undergrowth(assets?.fern, { count: 380, scale: () => 0.8 + rand() * 0.9, clump: 5, minY: 0.8 });
+  undergrowth(assets?.grassClump, { count: 900, scale: () => 0.9 + rand() * 0.9, wind: 0.6, clump: 17 });
+  undergrowth(assets?.celandine, { count: 320, scale: () => 0.8 + rand() * 0.6, wind: 0.8, clump: 47, maxSlope: 0.06 });
 
   // --- 光る結晶 (ランドマーク / ブルームの見せ場)
   const crystalGeo = new THREE.OctahedronGeometry(1, 0); crystalGeo.scale(0.22, 1, 0.22); crystalGeo.translate(0, 1, 0);

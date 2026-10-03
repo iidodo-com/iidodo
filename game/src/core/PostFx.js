@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 // リニアHDR空間でのカラーグレード: 彩度・暖色ティント・ビネット
@@ -35,6 +36,15 @@ export class PostFx {
     this.composer = new EffectComposer(renderer, rt);
     this.composer.setPixelRatio(dpr);
     this.composer.addPass(new RenderPass(scene, camera));
+    if (q.ao) {
+      // 接地影 (木の根元・岩の足元の暗がり)。高画質のみ。
+      this.ao = new GTAOPass(scene, camera, size.x, size.y);
+      this.ao.output = GTAOPass.OUTPUT.Default;
+      this.ao.updateGtaoMaterial({ radius: 0.6, distanceExponent: 1.5, thickness: 1.5, scale: 1.1, samples: 12, distanceFallOff: 1, screenSpaceRadius: false });
+      this.ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+      this.ao.blendIntensity = 0.9;
+      this.composer.addPass(this.ao);
+    }
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), q.bloom, 0.6, 2.2);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new ShaderPass(Grade));

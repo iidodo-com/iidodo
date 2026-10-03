@@ -6,7 +6,7 @@ import { TIME } from './Wind.js';
  * 湖・池の水面。地形と同じ分割の板に「水深」を頂点属性として持たせ、
  * 浅瀬の透明化・岸辺の泡・フレネル反射・太陽のきらめきをシェーダで描く。
  */
-export function createWater(scene, terrain, sunDir) {
+export function createWater(scene, terrain, sunDir, colors = {}) {
   const { size, segments } = CONFIG.world;
   const geo = new THREE.PlaneGeometry(size, size, segments, segments);
   geo.rotateX(-Math.PI / 2);
@@ -20,7 +20,7 @@ export function createWater(scene, terrain, sunDir) {
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
       uTime: { value: 0 }, uSun: { value: sunDir.clone() },
       uShallow: { value: new THREE.Color('#5fd0c8') }, uDeep: { value: new THREE.Color('#0c4f86') },
-      uHorizon: { value: new THREE.Color('#b4d2ee') }, uZenith: { value: new THREE.Color('#4f8fd8') },
+      uHorizon: { value: (colors.horizon || new THREE.Color('#b4d2ee')).clone() }, uZenith: { value: (colors.zenith || new THREE.Color('#4f8fd8')).clone() },
       uLevel: { value: terrain.waterLevel },
     }]),
     vertexShader: `

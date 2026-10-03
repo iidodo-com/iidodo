@@ -28,6 +28,9 @@ game/
 
 | 要素 | 実装 |
 |---|---|
+| 外部アセット | Poly Haven (CC0): HDRI / PBR 地面テクスチャ / 樹皮 / 写真測量の岩・シダ・草塊 (`public/assets`, `core/Assets.js`, 出典は `public/assets/CREDITS.md`)。読込失敗時は手続き生成へ自動フォールバック |
+| 空・照明 | HDRI を背景 + IBL に使用し、最も明るい点から太陽方向、地平線の平均色からフォグ色を自動算出 (`world/Environment.js`) |
+| 接地影 | 高画質のみ GTAO (`core/PostFx.js`) |
 | レンダリング | HDR(HalfFloat) + MSAA → UnrealBloom (発光物のみ) → カラーグレード → ACES トーンマッピング (`core/PostFx.js`) |
 | 空・雲 | 大気散乱 Sky + fbm 雲レイヤー + 指数フォグ (`world/Sky.js`) |
 | 地形 | 頂点カラー + 3スケールのディテールテクスチャ (PBR)、砂浜/苔/雪の自動配色 (`world/Terrain.js`) |

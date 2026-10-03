@@ -47,9 +47,9 @@ export const CONFIG = {
 
 // 画質プリセット。URL に ?q=low|medium|high を付けると強制指定できる。
 const QUALITY = {
-  low:    { name: 'low',    post: false, msaa: 0, bloom: 0,    grass: 160, grassDist: 42, shadow: 1024, dpr: 1,    flowers: 500 },
-  medium: { name: 'medium', post: true,  msaa: 2, bloom: 0.45, grass: 380, grassDist: 58, shadow: 1024, dpr: 1.5,  flowers: 1000 },
-  high:   { name: 'high',   post: true,  msaa: 4, bloom: 0.55, grass: 800, grassDist: 85, shadow: 2048, dpr: 2,    flowers: 1800 },
+  low:    { name: 'low',    post: false, msaa: 0, bloom: 0,    grass: 160, grassDist: 42, shadow: 1024, dpr: 1,    flowers: 500, detail: 0.25, ao: false },
+  medium: { name: 'medium', post: true,  msaa: 2, bloom: 0.45, grass: 380, grassDist: 58, shadow: 1024, dpr: 1.5,  flowers: 1000, detail: 0.55, ao: false },
+  high:   { name: 'high',   post: true,  msaa: 4, bloom: 0.55, grass: 800, grassDist: 85, shadow: 2048, dpr: 2,    flowers: 1800, detail: 1, ao: true },
 };
 export function getQuality() {
   const q = new URLSearchParams(location.search).get('q');

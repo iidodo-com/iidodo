@@ -3,7 +3,7 @@ import { CONFIG, getQuality } from './Config.js';
 import { EventBus } from './EventBus.js';
 import { Input } from './Input.js';
 import { Terrain } from '../world/Terrain.js';
-import { createSky } from '../world/Sky.js';
+import { createEnvironment } from '../world/Environment.js';
 import { createWater } from '../world/Water.js';
 import { Vegetation } from '../world/Vegetation.js';
 import { TIME } from '../world/Wind.js';
@@ -22,7 +22,8 @@ import { Hud } from '../ui/Hud.js';
  * Phase 2 以降は systems 配列 (Enemies, Combat, ...) を足していく。
  */
 export class Game {
-  constructor(canvas) {
+  constructor(canvas, assets = null) {
+    this.assets = assets;
     this.canvas = canvas;
     this.bus = new EventBus();
     this.clock = new THREE.Clock();
@@ -34,12 +35,12 @@ export class Game {
     this.hud = new Hud();
     if (this.input.isTouch) this.pad = new VirtualPad(this.input);
 
-    this.sunDir = new THREE.Vector3(0.55, 0.62, 0.45).normalize();
-    this.terrain = new Terrain(this.scene);
-    this.skyFx = createSky(this.scene, this.sunDir);
+    this.env = createEnvironment(this.scene, this.renderer, assets);
+    this.sunDir = this.env.sunDir;
+    this.terrain = new Terrain(this.scene, assets, this.quality);
     this._initLights();
     this.terrain.build();
-    this.water = createWater(this.scene, this.terrain, this.sunDir);
+    this.water = createWater(this.scene, this.terrain, this.sunDir, this.env);
     this.vegetation = new Vegetation(this.scene, this.terrain, this.quality);
     this.ambient = new Ambient(this.scene, this.quality.name === 'low' ? 60 : 140);
 
@@ -67,15 +68,15 @@ export class Game {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.78;
+    this.renderer.toneMappingExposure = 0.72;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(CONFIG.camera.fov, 1, 0.1, 600);
     this.shadowSize = q.shadow;
   }
 
   _initLights() {
-    this.scene.add(new THREE.HemisphereLight('#bcd8ff', '#8a9a5a', 2.5));
-    const sun = new THREE.DirectionalLight('#fff0d2', 4.2);
+    this.scene.add(new THREE.HemisphereLight('#bcd8ff', '#8a9a5a', this.env.hdri ? 1.3 : 2.5));
+    const sun = new THREE.DirectionalLight('#fff0d2', this.env.hdri ? 3.6 : 4.2);
     sun.position.copy(this.sunDir).multiplyScalar(90);
     sun.castShadow = true;
     sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
@@ -138,7 +139,7 @@ export class Game {
 
     const look = this.input.consumeLook();
     this.cam.update(dt, this.player.position, look);
-    this.skyFx.update(this.camera.position);
+    this.env.update(this.camera.position);
 
     // 影カメラをプレイヤーに追従
     const p = this.player.position;
