@@ -4,7 +4,11 @@ import { EventBus } from './EventBus.js';
 import { Input } from './Input.js';
 import { Terrain } from '../world/Terrain.js';
 import { createEnvironment } from '../world/Environment.js';
-import { createWater } from '../world/Water.js';
+import { Water } from '../world/Water.js';
+import { AreaManager } from '../world/AreaManager.js';
+import { WorldObjects } from '../world/WorldObjects.js';
+import { createCloudSea } from '../world/Sky.js';
+import { AREAS } from '../data/areas.js';
 import { Vegetation } from '../world/Vegetation.js';
 import { TIME } from '../world/Wind.js';
 import { PostFx } from './PostFx.js';
@@ -49,10 +53,11 @@ export class Game {
     this.env = createEnvironment(this.scene, this.renderer, assets);
     this.sunDir = this.env.sunDir;
     this.terrain = new Terrain(this.scene, assets, this.quality);
+    this.terrain.configure(AREAS.plains);          // 実際の構築は AreaManager.load() が行う
     this._initLights();
-    this.terrain.build();
-    this.water = createWater(this.scene, this.terrain, this.sunDir, this.env);
+    this.water = new Water(this.scene, this.terrain, this.sunDir, this.env);
     this.vegetation = new Vegetation(this.scene, this.terrain, this.quality);
+    this.cloudSea = createCloudSea(this.scene);
     this.ambient = new Ambient(this.scene, this.quality.name === 'low' ? 60 : 140);
 
     this.player = new Player(this.scene, this.terrain, this.bus);
@@ -75,6 +80,9 @@ export class Game {
     this.drops = new Drops(this);
     this.saves = new SaveManager(this);
     this.menu = new Menu(this);
+    this.world = new WorldObjects(this);
+    this.areas = new AreaManager(this);
+    this.lightSpots = [];
     this._autoT = 0; this._lastSave = -99; this._potionCd = 0;
     this.post = this.quality.post ? new PostFx(this.renderer, this.scene, this.camera, this.quality) : null;
 
@@ -103,7 +111,8 @@ export class Game {
   }
 
   _initLights() {
-    this.scene.add(new THREE.HemisphereLight('#bcd8ff', '#8a9a5a', this.env.hdri ? 1.3 : 2.5));
+    this.hemi = new THREE.HemisphereLight('#bcd8ff', '#8a9a5a', this.env.hdri ? 1.3 : 2.5);
+    this.scene.add(this.hemi);
     const sun = new THREE.DirectionalLight('#fff0d2', this.env.hdri ? 3.6 : 4.2);
     sun.position.copy(this.sunDir).multiplyScalar(90);
     sun.castShadow = true;
@@ -116,12 +125,58 @@ export class Game {
     const fill = new THREE.DirectionalLight('#8fb0ff', 0.7);
     fill.position.copy(this.sunDir).multiplyScalar(-60);
     this.scene.add(fill);
-    this.sun = sun;
+    this.sun = sun; this.fill = fill;
     this.sunOffset = sun.position.clone();
+    // 洞窟/研究所用: プレイヤーのランタン + 近くの発光物 (水晶/ピラー) のポイントライト
+    this.lamp = new THREE.PointLight('#ffe2b0', 0, 24, 1.6); this.lamp.visible = false;
+    this.spots = Array.from({ length: 4 }, () => { const l = new THREE.PointLight('#8fd0ff', 0, 20, 1.8); l.visible = false; return l; });
+    this.scene.add(this.lamp, ...this.spots);
+  }
+
+  /** エリアの env 設定 (露出/フォグ/背景/ライト) を適用する */
+  applyEnvironment(area, props) {
+    const e = area.env, env = this.env, scene = this.scene;
+    this.renderer.toneMappingExposure = e.exposure;
+    if (scene.fog) {
+      scene.fog.density = e.fog.density;
+      if (e.fog.color === 'auto') scene.fog.color.copy(env.horizon).multiplyScalar(0.92); else scene.fog.color.set(e.fog.color);
+    }
+    scene.environmentIntensity = e.envIntensity;
+    if (env.hdri) {
+      if (e.bgColor) scene.background = new THREE.Color(e.bgColor);
+      else { scene.background = env.texture; scene.backgroundIntensity = e.bgIntensity; }
+    }
+    const day = e.sun > 0;
+    this.sun.intensity = e.sun; this.sun.visible = day; this.sun.castShadow = day;
+    this.sun.color.set(e.sunColor || '#fff0d2');
+    this.hemi.intensity = e.hemi; this.hemi.color.set(e.hemiSky || '#bcd8ff'); this.hemi.groundColor.set(e.hemiGround || '#8a9a5a');
+    this.fill.intensity = day ? 0.7 : 0.15;
+    this.lamp.visible = !!e.lamp; this.lamp.intensity = e.lamp ? 11 : 0;
+    this.lightSpots = props?.lightSpots || [];
+    const useSpots = !!(e.lamp || e.spotLights) && this.lightSpots.length > 0;
+    for (const l of this.spots) { l.visible = useSpots; l.intensity = useSpots ? 14 : 0; }
+    this.cloudSea.visible = !!e.cloudSea;
+    this.skyBelow = !!e.cloudSea;
+    this.ambient.points.visible = area.id !== 'cave' || true;
+  }
+
+  _updateLights() {
+    const p = this.player.position;
+    if (this.lamp.visible) this.lamp.position.set(p.x, p.y + 2.6, p.z);
+    if (this.spots[0].visible) {
+      const sp = this.lightSpots;
+      const order = sp.map((s, i) => [Math.hypot(s.x - p.x, s.z - p.z), i]).sort((a, b) => a[0] - b[0]);
+      this.spots.forEach((l, k) => {
+        const o = order[k];
+        if (!o || o[0] > 60) { l.intensity = 0; return; }
+        const s = sp[o[1]]; l.position.set(s.x, s.y, s.z); l.color.setHex(s.color); l.intensity = 14;
+      });
+    }
+    if (this.cloudSea.visible) { this.cloudSea.position.x = this.camera.position.x; this.cloudSea.position.z = this.camera.position.z; }
   }
 
   _bindEvents() {
-    this.bus.on('player:interact', () => this.hud.toast('調べるものがない'));
+    this.bus.on('player:interact', () => { if (!this.world.interact()) this.hud.toast('調べるものがない', 900); });
     this.bus.on('toast', (m) => this.hud.toast(m, 1400));
     this.bus.on('pickup', ({ text, color }) => this.hud.pickup(text, color));
     this.bus.on('player:levelup', ({ level }) => { this.hud.levelUp(level, 2); this.autosave('levelup'); });
@@ -144,6 +199,13 @@ export class Game {
     this.camera.fov = w / h < 1 ? CONFIG.camera.fov + 14 : CONFIG.camera.fov;
     this.camera.updateProjectionMatrix();
     PX.value = (h * this.renderer.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
+  }
+
+  /** はじめから: 所持品・成長・フラグを初期化して平原を読み込む */
+  async newGame() {
+    this.inventory.newGame(); this.progression.reset(); this.progression.recalc(true);
+    this.flags = {}; this.playtime = 0; this.player.skillCd = [0, 0, 0];
+    await this.areas.load('plains', { spawn: 'savepoint', fade: false });
   }
 
   /** ヒットストップ: 一瞬だけ時間を遅くして打撃の重さを出す */
@@ -193,7 +255,8 @@ export class Game {
 
   _respawn() {
     this.autosave('hide');
-    this.player.respawn(0, 0);
+    this.player.stats.hp = this.player.stats.maxHp; this.player.stats.mp = this.player.stats.maxMp;
+    this.areas.respawnAtSavepoint();
     this.cam.snapTo(this.player.position);
     this.enemies.resetAggro();
     this.hud.showDeath(false);
@@ -233,6 +296,7 @@ export class Game {
     this.enemies.update(dt, this);
     this.combat.update(dt);
     this.drops.update(dt);
+    this.world.update(dt);
     for (const s of this.systems) s.update(dt, this);
     this.effects.update(dt);
     this.vegetation.update(this.player.position);
@@ -241,6 +305,7 @@ export class Game {
     const look = this.input.consumeLook();
     this.cam.update(dt, this.player.position, look);
     this.env.update(this.camera.position);
+    this._updateLights();
 
     // 影カメラをプレイヤーに追従
     const p = this.player.position;

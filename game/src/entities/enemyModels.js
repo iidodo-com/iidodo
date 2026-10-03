@@ -15,11 +15,17 @@ function add(parent, geo, mat, x = 0, y = 0, z = 0, o = {}) {
 }
 
 /** 戻り値: { root, mats (被弾フラッシュ用), parts, height (HPバー位置) } */
-export function buildEnemyModel(id, assets) {
-  const builders = { gel: gel, goblin: goblin, wisp: wisp, brute: (a) => brute(a) };
-  const m = (builders[id] || gel)(assets);
+export function buildEnemyModel(def, assets) {
+  const builders = { gel, goblin, wisp, brute, bat, sentry, pylon };
+  const m = (builders[def.model] || gel)(assets);
+  const tint = def.tint ? new THREE.Color(def.tint) : null;
   m.mats = [];
-  m.root.traverse((o) => { if (o.isMesh && o.material.emissive && o.material !== outlineMat && !o.material.userData.noFlash) m.mats.push(o.material); });
+  m.root.traverse((o) => {
+    if (!o.isMesh || o.material === outlineMat || o.material.userData.noFlash || !o.material.emissive) return;
+    if (tint && !o.material.userData.tinted) { o.material.color.multiply(tint); o.material.userData.tinted = true; }
+    if (def.metal && o.material.metalness !== undefined) { o.material.metalness = Math.max(o.material.metalness, 0.7); o.material.roughness = Math.min(o.material.roughness, 0.45); }
+    m.mats.push(o.material);
+  });
   return m;
 }
 
@@ -74,7 +80,7 @@ function wisp() {
 function brute(assets) {
   const root = new THREE.Group();
   const rig = new THREE.Group(); rig.position.y = 1.3; root.add(rig);
-  const rockTex = assets?.ground?.rockD;
+  const rockTex = assets?.tex?.rock?.d;
   const stone = rockTex ? M('#a79c8e', { map: rockTex, roughness: 0.95 }) : M('#8a8478', { roughness: 0.95, flatShading: true });
   const moss = M('#4d7a35', { roughness: 0.9 });
   const glow = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff7a2a').multiplyScalar(3) }); glow.userData.noFlash = true;
@@ -90,4 +96,53 @@ function brute(assets) {
     rig.add(g); return g; };
   const armL = mkArm(-1), armR = mkArm(1);
   return { root, parts: { rig, legs, armL, armR }, height: 3.6 };
+}
+
+function bat() {
+  const root = new THREE.Group();
+  const rig = new THREE.Group(); root.add(rig);
+  const fur = M('#4a4a66', { roughness: 0.8 });
+  add(rig, new THREE.SphereGeometry(0.32, 14, 10), fur, 0, 0, 0, { s: [1, 0.9, 1.2], out: 0.05 });
+  add(rig, new THREE.SphereGeometry(0.22, 12, 10), fur, 0, 0.08, 0.34, { out: 0.05 });
+  for (const s of [-1, 1]) {
+    add(rig, new THREE.ConeGeometry(0.07, 0.22, 5), fur, s * 0.14, 0.3, 0.32, { r: [0, 0, -s * 0.2] });
+    add(rig, new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff6a6a').multiplyScalar(2.5) }), s * 0.09, 0.12, 0.52);
+  }
+  const wingShape = new THREE.Shape(); wingShape.moveTo(0, 0); wingShape.lineTo(1.1, 0.35); wingShape.lineTo(1.5, -0.1); wingShape.lineTo(1.1, -0.15); wingShape.lineTo(0.8, -0.4); wingShape.lineTo(0.4, -0.2); wingShape.closePath();
+  const wingGeo = new THREE.ShapeGeometry(wingShape); wingGeo.rotateX(-Math.PI / 2);
+  const wingMat = M('#3a3a58', { roughness: 0.9, side: THREE.DoubleSide });
+  const wingL = new THREE.Group(), wingR = new THREE.Group();
+  const wl = add(wingL, wingGeo, wingMat); wl.scale.x = -1;
+  add(wingR, wingGeo, wingMat);
+  wingL.position.set(-0.2, 0.05, 0); wingR.position.set(0.2, 0.05, 0);
+  rig.add(wingL, wingR);
+  return { root, parts: { rig, wingL, wingR }, height: 1.1 };
+}
+
+function sentry() {
+  const root = new THREE.Group();
+  const rig = new THREE.Group(); root.add(rig);
+  const metal = M('#9aa8b4', { roughness: 0.35, metalness: 0.85 });
+  const dark = M('#2c333a', { roughness: 0.5, metalness: 0.8 });
+  add(rig, new THREE.SphereGeometry(0.5, 20, 14), metal, 0, 1.0, 0, { out: 0.04 });
+  const ring = new THREE.Group(); ring.position.y = 1.0; rig.add(ring);
+  add(ring, new THREE.TorusGeometry(0.75, 0.07, 8, 28), dark, 0, 0, 0, { r: [Math.PI / 2, 0, 0] });
+  for (const a of [0, 2.1, 4.2]) add(ring, new THREE.BoxGeometry(0.1, 0.1, 0.3), dark, Math.cos(a) * 0.75, 0, Math.sin(a) * 0.75);
+  const eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff3a3a').multiplyScalar(3) }); eyeMat.userData.noFlash = true;
+  const eye = add(rig, new THREE.SphereGeometry(0.2, 12, 10), eyeMat, 0, 1.0, 0.38);
+  add(rig, new THREE.ConeGeometry(0.16, 0.5, 6), dark, 0, 0.45, 0, { r: [Math.PI, 0, 0] });
+  return { root, parts: { rig, ring, eye }, height: 2.4 };
+}
+
+function pylon() {
+  const root = new THREE.Group();
+  const rig = new THREE.Group(); root.add(rig);
+  const dark = M('#2d3640', { roughness: 0.45, metalness: 0.85 });
+  add(rig, new THREE.CylinderGeometry(0.9, 1.15, 0.7, 8), dark, 0, 0.35, 0, { out: 0.03 });
+  add(rig, new THREE.CylinderGeometry(0.3, 0.45, 1.6, 8), dark, 0, 1.4, 0);
+  const crystalMat = M('#3acfff', { roughness: 0.15, emissive: '#2fc0ff', emissiveIntensity: 2.5, flatShading: true });
+  const crystal = add(rig, new THREE.OctahedronGeometry(0.65, 0), crystalMat, 0, 2.7, 0, { s: [0.8, 1.5, 0.8] });
+  const halo = add(rig, new THREE.TorusGeometry(0.85, 0.05, 8, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color('#6af0ff').multiplyScalar(3) }), 0, 2.7, 0, { r: [Math.PI / 2, 0, 0] });
+  halo.material.userData.noFlash = true;
+  return { root, parts: { rig, crystal, halo }, height: 3.8 };
 }

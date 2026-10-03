@@ -1,13 +1,27 @@
 import * as THREE from 'three';
-import { CONFIG } from '../core/Config.js';
 import { TIME } from './Wind.js';
 
 /**
  * 湖・池の水面。地形と同じ分割の板に「水深」を頂点属性として持たせ、
  * 浅瀬の透明化・岸辺の泡・フレネル反射・太陽のきらめきをシェーダで描く。
  */
-export function createWater(scene, terrain, sunDir, colors = {}) {
-  const { size, segments } = CONFIG.world;
+export class Water {
+  constructor(scene, terrain, sunDir, env) {
+    this.scene = scene; this.terrain = terrain; this.sunDir = sunDir; this.env = env;
+    this.mesh = null;
+  }
+
+  /** 現在の terrain.configure() に合わせて作り直す (水のないエリアでは何も作らない) */
+  rebuild(area) {
+    if (this.mesh) { this.scene.remove(this.mesh); this.mesh.geometry.dispose(); this.mesh.material.dispose(); this.mesh = null; }
+    if (!this.terrain.hasWater || !area.water) return;
+    const k = area.water.reflect ?? 1;   // 洞窟など暗い場所では空の映り込みを弱める
+    this.mesh = createWater(this.scene, this.terrain, this.sunDir, { horizon: this.env.horizon.clone().multiplyScalar(k), zenith: this.env.zenith.clone().multiplyScalar(k), ...area.water });
+  }
+}
+
+function createWater(scene, terrain, sunDir, colors = {}) {
+  const size = terrain.size, segments = Math.round(size / 1.4);
   const geo = new THREE.PlaneGeometry(size, size, segments, segments);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -19,7 +33,7 @@ export function createWater(scene, terrain, sunDir, colors = {}) {
     transparent: true, depthWrite: false, fog: true,
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
       uTime: { value: 0 }, uSun: { value: sunDir.clone() },
-      uShallow: { value: new THREE.Color('#5fd0c8') }, uDeep: { value: new THREE.Color('#0c4f86') },
+      uShallow: { value: new THREE.Color(colors.shallow || '#5fd0c8') }, uDeep: { value: new THREE.Color(colors.deep || '#0c4f86') },
       uHorizon: { value: (colors.horizon || new THREE.Color('#b4d2ee')).clone() }, uZenith: { value: (colors.zenith || new THREE.Color('#4f8fd8')).clone() },
       uLevel: { value: terrain.waterLevel },
     }]),

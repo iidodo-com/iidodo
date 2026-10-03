@@ -53,3 +53,34 @@ export function createSky(scene, sunDir) {
     update(camPos) { clouds.position.x = camPos.x; clouds.position.z = camPos.z; },
   };
 }
+
+
+/** 空中城の足元に広がる雲海 (カメラ追従の板)。darker=false で明るい白い雲 */
+export function createCloudSea(scene, y = -18) {
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, fog: false,
+    uniforms: { uTime: TIME },
+    vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+    fragmentShader: `
+      uniform float uTime; varying vec3 vW;
+      float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+      float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+        return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
+      float fbm(vec2 p){ float s=0., a=.5; for(int i=0;i<5;i++){ s+=a*n(p); p=p*2.03+vec2(7.1,3.3); a*=.5; } return s; }
+      void main(){
+        vec2 p = vW.xz * 0.006 + vec2(uTime * 0.01, uTime * 0.004);
+        float d = fbm(p), lit = fbm(p + vec2(0.05, 0.04));
+        float shade = clamp(0.55 + (d - lit) * 4.0, 0.0, 1.0);
+        vec3 col = mix(vec3(0.62, 0.7, 0.86), vec3(2.3, 2.25, 2.2), shade);
+        float dist = length(vW.xz - cameraPosition.xz);
+        float a = smoothstep(0.28, 0.6, d) * smoothstep(1100.0, 300.0, dist);
+        gl_FragColor = vec4(col, 0.35 + a * 0.6);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2600, 2600), mat);
+  m.rotation.x = -Math.PI / 2; m.position.y = y; m.frustumCulled = false; m.renderOrder = -1; m.visible = false;
+  scene.add(m);
+  return m;
+}

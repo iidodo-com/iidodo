@@ -12,6 +12,8 @@ export class WorldLabels {
     this.nums = [];             // 浮かぶダメージ数字 {el, pos, t, life}
     this.numPool = [];
     this._v = new THREE.Vector3();
+    this.bossEl = document.getElementById('boss-bar');
+    this.bossName = this.bossEl.querySelector('.bn'); this.bossFill = this.bossEl.querySelector('.bf');
     game.bus.on('enemy:hit', ({ enemy, dmg, crit, pos, downed }) => {
       this.floatText(pos, String(dmg), crit ? 'crit' : 'hit');
       if (downed) this.floatText(enemy.headPos, 'DOWN!', 'down');
@@ -36,9 +38,18 @@ export class WorldLabels {
   update(dt) {
     const g = this.game, pp = g.player.position, now = g.time;
 
+    // 中ボスのHPバー (画面上部)
+    const boss = g.enemies.list.find((e) => e.def.boss && e.alive && e.aggro && e.state !== 'return');
+    this.bossEl.classList.toggle('show', !!boss);
+    if (boss) {
+      this.bossName.textContent = boss.def.name;
+      this.bossFill.style.width = `${(boss.hp / boss.maxHp) * 100}%`;
+      this.bossEl.classList.toggle('enraged', boss.enraged);
+    }
+
     for (const e of g.enemies.list) {
       const dist = Math.hypot(e.pos.x - pp.x, e.pos.z - pp.z);
-      const show = e.alive && dist < 32 && (e.aggro || now - e.lastHit < 4) && e.root.visible;
+      const show = e.alive && !e.def.boss && dist < 32 && (e.aggro || now - e.lastHit < 4) && e.root.visible;
       let b = this.bars.get(e.id);
       if (!show) { if (b) b.el.style.display = 'none'; if (!e.alive || e.removed) { b?.el.remove(); this.bars.delete(e.id); } continue; }
       if (!b) {

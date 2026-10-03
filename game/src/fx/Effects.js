@@ -18,10 +18,14 @@ export class Effects {
     game.bus.on('exp:gain', () => {});
     game.bus.on('enemy:hit', ({ pos, crit, killed }) => this.hitSparks(pos, crit, killed));
     game.bus.on('enemy:died', ({ pos }) => { this.burstDust(pos, 18, 1.0); });
+    game.bus.on('enemy:enrage', ({ pos, radius }) => { this.shockwave(pos, radius); this.hitSparks({ x: pos.x, y: pos.y + 2, z: pos.z }, true, true); });
     game.bus.on('enemy:slam', ({ pos, radius }) => this.shockwave(pos, radius));
     game.bus.on('player:hurt', ({ pos }) => this.hurtSparks(pos));
     game.bus.on('player:swing', ({ combo, pos, dir }) => this.slashSparks(pos, dir, combo));
   }
+
+  /** エリア切替時に残っている粒子/軌跡を消す */
+  reset() { this.dust.n = 0; this.sparks.n = 0; this.trail.samples.length = 0; this.trail.mesh.visible = false; }
 
   burstDust(pos, n, spread = 0.6) {
     const t = this.game.terrain;

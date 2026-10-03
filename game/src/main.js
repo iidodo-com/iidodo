@@ -16,7 +16,10 @@ async function boot() {
   btn.textContent = 'はじめから';
   cont.hidden = !game.saves.hasAny();
 
-  const begin = async () => {
+  const begin = async (loader) => {
+    btn.disabled = cont.disabled = true; btn.textContent = '読み込み中…';
+    const ok = await loader();
+    if (!ok) { btn.disabled = cont.disabled = false; btn.textContent = 'はじめから'; game.hud.toast('読み込めなかった'); return; }
     startEl.classList.add('hidden');
     if (game.input.isTouch) {
       // スマホ: フルスクリーン + 横向き固定 (対応ブラウザのみ。失敗しても続行)
@@ -30,12 +33,12 @@ async function boot() {
 
   btn.addEventListener('click', () => {
     if (game.saves.hasAny() && !confirm('新しく始めると、次のオートセーブで現在のオートセーブが上書きされます。よろしいですか？')) return;
-    begin();
+    begin(() => game.newGame().then(() => true));
   });
   cont.addEventListener('click', () => {
     const slot = game.saves.latestSlot();
-    if (slot === null || !game.saves.load(slot)) { game.hud.toast('セーブデータを読み込めなかった'); return; }
-    begin();
+    if (slot === null) return;
+    begin(() => game.saves.load(slot));
   });
 
   // Esc でポインタロックが外れたらポーズメニューを開く (PC)

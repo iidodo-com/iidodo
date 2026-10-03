@@ -1,4 +1,5 @@
 import { ALLOC, SKILLS, MAX_LEVEL } from '../data/skills.js';
+import { AREAS, AREA_ORDER } from '../data/areas.js';
 import {
   CONSUMABLES, MATERIALS, GEMS, KEY_ITEMS, EQUIPMENT, RECIPES, SHOP, SLOT_NAME, RARITY, MAX_PLUS,
   itemInfo, equipStats, enhanceCost,
@@ -10,7 +11,8 @@ const statText = (st) => Object.entries(st).filter(([, v]) => v).map(([k, v]) =>
 const fmtTime = (s) => `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`;
 const matList = (m, inv) => Object.entries(m).map(([id, n]) => `<span class="${inv.count(id) >= n ? 'ok' : 'need'}">${MATERIALS[id].icon}${MATERIALS[id].name}×${n} (${inv.count(id)})</span>`).join(' ');
 
-const TABS = [['status', 'ステータス'], ['equip', '装備'], ['items', 'アイテム'], ['shop', 'ショップ'], ['forge', '強化・合成'], ['skills', 'スキル'], ['save', 'セーブ']];
+const TABS_BASE = [['status', 'ステータス'], ['equip', '装備'], ['items', 'アイテム'], ['skills', 'スキル'], ['save', 'セーブ']];
+const TABS_SP = [['rest', '休息'], ['shop', 'ショップ'], ['forge', '強化・合成'], ['warp', 'ワープ'], ...TABS_BASE];
 
 /**
  * ポーズメニュー (DOM)。ゲーム状態は触らず、Inventory / Progression / SaveManager の API を呼ぶだけ。
@@ -22,6 +24,7 @@ export class Menu {
     this.el = document.getElementById('menu');
     this.tab = 'status';
     this.opened = false;
+    this.sp = false;      // セーブポイントから開いている間 true (ショップ・強化・ワープが使える)
     this.el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
       if (b && !b.disabled) this.act(b.dataset.act, b.dataset);
@@ -32,9 +35,13 @@ export class Menu {
   }
 
   toggle() { this.opened ? this.close() : this.open(); }
-  open(tab) {
+  /** セーブポイントを調べた時: 休息・ショップ・強化合成・ワープが使えるメニューを開く */
+  openSavepoint() { this.open('rest', true); }
+
+  open(tab, atSavepoint = false) {
     if (this.opened || this.game.player.state === 'dead') return;
-    if (tab) this.tab = tab;
+    this.sp = atSavepoint;
+    this.tab = tab || (TABS_BASE.some(([k]) => k === this.tab) ? this.tab : 'status');
     this.opened = true; this.game.paused = true;
     document.exitPointerLock?.();
     this.el.classList.remove('hidden');
@@ -42,7 +49,7 @@ export class Menu {
   }
   close() {
     if (!this.opened) return;
-    this.opened = false; this.game.paused = false;
+    this.opened = false; this.sp = false; this.game.paused = false;
     this.el.classList.add('hidden');
     this.game.clock.getDelta();
     this.game.autosave('menu');
@@ -54,6 +61,15 @@ export class Menu {
     const g = this.game, inv = g.inventory, pr = g.progression, say = (m) => g.hud.toast(m, 1600);
     switch (a) {
       case 'close': this.close(); return;
+      case 'rest': {
+        const st = g.player.stats; st.hp = st.maxHp; st.mp = st.maxMp;
+        g.enemies.respawnAll();
+        g.flags.lastSave = { area: g.areas.current };
+        g.saves.save('auto'); g.bus.emit('player:healed');
+        say('休息した。HP/MPが全回復し、敵が復活した（オートセーブ済み）');
+        break;
+      }
+      case 'warp': { this.close(); g.areas.load(d.area, { spawn: 'savepoint' }); return; }
       case 'tab': this.tab = d.tab; break;
       case 'alloc': pr.allocate(d.key); break;
       case 'respec': if (!pr.respec()) say('ゴールドが足りない'); break;
@@ -69,7 +85,8 @@ export class Menu {
       case 'craft': if (inv.craft(d.id)) say(`${GEMS[d.id].name} を合成した！`); break;
       case 'save': say(g.saves.save(d.slot) ? `スロット${d.slot}にセーブした` : 'セーブに失敗した'); break;
       case 'load':
-        if (g.saves.load(d.slot)) { say('ロードした'); this.close(); } else say('データがない');
+        this.close();
+        g.saves.load(d.slot).then((ok) => g.hud.toast(ok ? 'ロードした' : 'データがない', 1600));
         return;
       case 'del': if (confirm('このセーブデータを削除しますか？')) g.saves.delete(d.slot); break;
     }
@@ -79,7 +96,9 @@ export class Menu {
   // ---------------------------------------------------------------- render
   render() {
     const g = this.game, inv = g.inventory;
-    const body = { status: () => this.status(), equip: () => this.equip(), items: () => this.items(), shop: () => this.shop(), forge: () => this.forge(), skills: () => this.skills(), save: () => this.save() }[this.tab]();
+    const TABS = this.sp ? TABS_SP : TABS_BASE;
+    if (!TABS.some(([k]) => k === this.tab)) this.tab = 'status';
+    const body = { status: () => this.status(), equip: () => this.equip(), items: () => this.items(), shop: () => this.shop(), forge: () => this.forge(), skills: () => this.skills(), save: () => this.save(), rest: () => this.rest(), warp: () => this.warp() }[this.tab]();
     const prev = this.el.querySelector('.mbody')?.scrollTop || 0;
     this.el.innerHTML = `
       <div class="panel">
@@ -88,6 +107,22 @@ export class Menu {
         <div class="mfoot"><span>Lv ${g.progression.level} ／ プレイ時間 ${fmtTime(g.playtime)}</span><span class="gold">${inv.gold} G</span></div>
       </div>`;
     this.el.querySelector('.mbody').scrollTop = prev;
+  }
+
+  rest() {
+    const g = this.game, a = g.areas.area;
+    return `<div class="card"><h4>${a ? a.name : ''} のセーブポイント</h4>
+      <div class="sub" style="font-size:13px;opacity:.9;margin:6px 0 12px">休息するとHP・MPが全回復し、倒した敵が（撃破済みのボスを除いて）復活する。同時にオートセーブされる。ここではショップ・装備の強化・宝珠の合成・ワープが使える。</div>
+      <button class="btn2" data-act="rest">休息する</button></div>`;
+  }
+
+  warp() {
+    const g = this.game, ar = g.areas;
+    return `<div class="card"><h4>ワープ (解放済みエリアのセーブポイントへ)</h4>${AREA_ORDER.map((id) => {
+      const a = AREAS[id], ok = !!g.flags.unlocked?.[id], here = ar.current === id;
+      return `<div class="row"><div class="grow"><b>${a.name}</b> <span class="pill">推奨 Lv ${a.level[0]}-${a.level[1]}</span>${here ? '<span class="pill">現在地</span>' : ''}<div class="sub">${ok ? (g.flags.boss?.[id] ? '守護者を撃破済み' : '守護者が待ち構えている') : '未到達'}</div></div>
+        <button class="btn2" data-act="warp" data-area="${id}" ${ok && !here ? '' : 'disabled'}>ワープ</button></div>`;
+    }).join('')}</div>`;
   }
 
   status() {
@@ -164,11 +199,12 @@ export class Menu {
 
   shop() {
     const inv = this.game.inventory;
-    return `<div class="card"><h4>ショップ <span class="pill">所持 ${inv.gold} G</span></h4>${SHOP.map((id) => {
+    const hi = this.game.areas.highestIndex();
+    return `<div class="card"><h4>ショップ <span class="pill">所持 ${inv.gold} G</span></h4>${SHOP.filter((e) => e.minArea <= hi).map(({ id }) => {
       const i = itemInfo(id), owned = i.kind === 'equipment' ? inv.equipment.filter((e) => e.base === id).length : inv.count(id);
       const extra = i.kind === 'equipment' ? statText(i.stats) : i.desc;
       return `<div class="row"><span class="ic">${i.icon}</span><div class="grow"><b style="color:${i.rarity ? RARITY[i.rarity] : '#fff'}">${i.name}</b> <span class="pill">所持 ${owned}</span><div class="sub">${extra}</div></div><button class="btn2" data-act="buy" data-id="${id}" ${inv.gold >= i.price ? '' : 'disabled'}>${i.price} G</button></div>`;
-    }).join('')}</div><div class="sub" style="margin-top:8px;opacity:.6">※ 現在はどこでも利用可能。Phase 4 でセーブポイントの商人に移す予定。</div>`;
+    }).join('')}</div><div class="sub" style="margin-top:8px;opacity:.6">※ 新しいエリアへ進むと品揃えが増える。</div>`;
   }
 
   forge() {

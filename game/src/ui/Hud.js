@@ -17,6 +17,9 @@ export class Hud {
     this.skEls.forEach(([, t]) => { if (t && !t.querySelector('.cd')) t.appendChild(Object.assign(document.createElement('i'), { className: 'cd' })); });
     this.potBar = document.getElementById('potion-cnt'); this.potTouch = document.getElementById('potion-cnt-t');
     this._skCache = [];
+    this.promptEl = document.getElementById('prompt'); this.fadeEl = document.getElementById('fade');
+    this.bannerEl = document.getElementById('area-banner');
+    this.interactBtn = document.querySelector('.btn.interact');
     this.deathEl = document.getElementById('death');
     this._frames = 0; this._acc = 0; this.fps = 0;
   }
@@ -72,6 +75,29 @@ export class Hud {
   levelUp(level, points) {
     this.lvUp.querySelector('.sub').textContent = `Lv ${level} に上がった！ 割り振りポイント +${points}（メニュー → ステータス）`;
     this.lvUp.classList.remove('show'); void this.lvUp.offsetWidth; this.lvUp.classList.add('show');
+  }
+
+  /** 調べられる対象の案内 (画面下)。null で非表示 */
+  setPrompt(text) {
+    if (text === this._prompt) return; this._prompt = text;
+    const touch = document.body.classList.contains('touch');
+    this.promptEl.textContent = text ? (touch ? `「調べる」: ${text}` : `[E] ${text}`) : '';
+    this.promptEl.classList.toggle('show', !!text);
+    this.interactBtn?.classList.toggle('hot', !!text);
+  }
+
+  /** 暗転。on=true で暗くなり、完了時に resolve */
+  fade(on) {
+    return new Promise((res) => {
+      this.fadeEl.classList.toggle('on', on);
+      setTimeout(res, on ? 480 : 520);
+    });
+  }
+
+  banner(title, sub) {
+    this.bannerEl.querySelector('.t').textContent = title;
+    this.bannerEl.querySelector('.s').textContent = sub;
+    this.bannerEl.classList.remove('show'); void this.bannerEl.offsetWidth; this.bannerEl.classList.add('show');
   }
 
   setArea(name) { this.area.textContent = name; }

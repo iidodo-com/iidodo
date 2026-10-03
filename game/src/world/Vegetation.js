@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { CONFIG } from '../core/Config.js';
 import { fbm, rng } from '../core/Noise.js';
 import { addWind } from './Wind.js';
 
@@ -35,10 +34,28 @@ function bladeGeometry() {
  */
 export class Vegetation {
   constructor(scene, terrain, q) {
-    this.chunks = [];
+    this.scene = scene; this.terrain = terrain; this.q = q;
+    this.chunks = []; this.extra = [];
     this.far = q.grassDist;
-    const rand = rng(CONFIG.world.seed + 77);
-    const half = terrain.half, n = Math.floor(CONFIG.world.size / CHUNK);
+  }
+
+  dispose() {
+    for (const c of this.chunks) { this.scene.remove(c.mesh); c.mesh.dispose(); }
+    for (const m of this.extra) { this.scene.remove(m); m.geometry.dispose(); m.dispose?.(); }
+    this.chunks = []; this.extra = [];
+  }
+
+  /** エリアの vegetation 設定 (草の密度・花の量) に従って生成 */
+  rebuild(area) {
+    this.dispose();
+    const veg = area.vegetation || { grass: 0, flowers: 0 };
+    if (veg.grass <= 0 && veg.flowers <= 0) return;
+    this._build(this.scene, this.terrain, { ...this.q, grass: Math.round(this.q.grass * veg.grass), flowers: Math.round(this.q.flowers * veg.flowers) }, area);
+  }
+
+  _build(scene, terrain, q, area) {
+    const rand = rng(area.terrain.seed + 77);
+    const half = terrain.half, n = Math.floor(terrain.size / CHUNK);
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
     addWind(mat, { strength: 0.55, fade: this.far });
     const blade = bladeGeometry();
@@ -46,9 +63,9 @@ export class Vegetation {
     const col = new THREE.Color();
     const wl = terrain.waterLevel;
 
-    for (let cx = 0; cx < n; cx++) for (let cz = 0; cz < n; cz++) {
+    if (q.grass > 0) for (let cx = 0; cx < n; cx++) for (let cz = 0; cz < n; cz++) {
       const x0 = -half + cx * CHUNK, z0 = -half + cz * CHUNK;
-      if (Math.max(Math.abs(x0 + CHUNK / 2), Math.abs(z0 + CHUNK / 2)) > half - 12) continue;
+      if (Math.max(Math.abs(x0 + CHUNK / 2), Math.abs(z0 + CHUNK / 2)) > half - 14) continue;
       const mesh = new THREE.InstancedMesh(blade, mat, q.grass);
       mesh.setColorAt(0, col.set(1, 1, 1));
       let placed = 0;
@@ -58,7 +75,7 @@ export class Vegetation {
         if (y < wl + 0.35 || y > 10) continue;
         const slope = terrain.slopeAt(x, z, y);
         if (slope > 0.075) continue;
-        const patch = fbm(x * 0.05 + 9, z * 0.05, 5, 3);
+        const patch = fbm(x * 0.05 + 9, z * 0.05, terrain.cfg.seed + 5, 3);
         if (patch < 0.3 && rand() < 0.7) continue; // 地面が覗く場所
         qt.setFromAxisAngle(up, rand() * Math.PI * 2);
         const h = (0.38 + rand() * 0.5) * (0.8 + patch * 0.7);
@@ -78,7 +95,7 @@ export class Vegetation {
       scene.add(mesh);
       this.chunks.push({ mesh, x: x0 + CHUNK / 2, z: z0 + CHUNK / 2 });
     }
-    this._buildFlowers(scene, terrain, q, rand);
+    if (q.flowers > 0) this._buildFlowers(scene, terrain, q, rand);
   }
 
   _buildFlowers(scene, terrain, q, rand) {
@@ -95,7 +112,7 @@ export class Vegetation {
     let placed = 0, tries = 0;
     while (placed < N && tries++ < N * 40) {
       const x = (rand() * 2 - 1) * lim, z = (rand() * 2 - 1) * lim;
-      const clump = fbm(x * 0.07 + 3, z * 0.07 + 8, 21, 2);
+      const clump = fbm(x * 0.07 + 3, z * 0.07 + 8, terrain.cfg.seed + 21, 2);
       if (clump < 0.58) continue;
       const y = terrain.height(x, z);
       if (y < terrain.waterLevel + 0.6 || y > 8 || terrain.slopeAt(x, z, y) > 0.06) continue;
@@ -112,6 +129,7 @@ export class Vegetation {
     if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
     addWind(stemMat, { strength: 0.9 }); addWind(headMat, { strength: 0.9 });
     scene.add(stems, heads);
+    this.extra.push(stems, heads);
   }
 
   update(playerPos) {

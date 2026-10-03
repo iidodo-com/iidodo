@@ -32,7 +32,9 @@ export class Enemy {
     this.radius = def.radius; this.hover = def.hover || 0;
     this.baseScale = def.scale || 1;
 
-    this.model = buildEnemyModel(def.id, game.assets);
+    this.model = buildEnemyModel(def, game.assets);
+    this.speedMul = 1; this.cdMul = 1; this.atkMul = 1; this.enraged = false;
+    this.cur = def.attacks[0]; this.hoverY = 0;
     this.root = this.model.root;
     this.model.height *= this.baseScale;
     game.scene.add(this.root);
@@ -40,6 +42,7 @@ export class Enemy {
     this._sync();
   }
 
+  get speed() { return this.def.speed * this.speedMul; }
   get isAttacking() { return this.state === 'windup' || this.state === 'attack'; }
   get targetable() { return this.alive; }
   get headPos() { return new THREE.Vector3(this.pos.x, this.pos.y + this.model.height, this.pos.z); }
@@ -54,6 +57,8 @@ export class Enemy {
     this.aggro = true;
     if (this.state === 'idle') { this.state = 'chase'; this.game.enemies?.alertCamp(this); }
     if (this.hp <= 0) { this._die(); return { killed: true, downed: false }; }
+    const en = this.def.enrage;
+    if (en && !this.enraged && this.hp <= this.maxHp * en.at) this._enrage(en);
 
     const armored = this.def.superArmor && (this.isAttacking || this.state === 'recover');
     this.poise -= poiseDmg * (this.def.superArmor ? 0.5 : 1);
@@ -67,6 +72,13 @@ export class Enemy {
       this.state = 'hurt'; this.t = 0;
     }
     return { killed: false, downed: false };
+  }
+
+  /** 中ボスの怒りモード: 移動/攻撃間隔/攻撃力が上がる */
+  _enrage(en) {
+    this.enraged = true; this.speedMul = en.speed; this.cdMul = en.cd; this.atkMul = en.atk;
+    this.flash = 0.4;
+    this.game.bus.emit('enemy:enrage', { enemy: this, pos: this.pos.clone(), radius: 6 });
   }
 
   _die() {
@@ -85,7 +97,8 @@ export class Enemy {
 
   // ------------------------------------------------------------ update
   update(dt) {
-    const g = this.game, p = g.player, d = this.def, a = d.attack;
+    const g = this.game, p = g.player, d = this.def, a = this.cur;
+    if (d.static) { this.t += dt; this.flash = Math.max(0, this.flash - dt); if (this.state === 'dead' && this.t >= 0.9) this.dispose(); if (!this.removed) this._animate(dt, 99); return; }
     this.t += dt; this.cd -= dt; this.flash = Math.max(0, this.flash - dt);
     const dx = p.position.x - this.pos.x, dz = p.position.z - this.pos.z;
     const dist = Math.hypot(dx, dz), toP = Math.atan2(dx, dz);
@@ -123,56 +136,65 @@ export class Enemy {
       this.wanderTarget.set(this.home.x + Math.cos(a) * r, 0, this.home.z + Math.sin(a) * r);
     }
     const tx = this.wanderTarget.x - this.pos.x, tz = this.wanderTarget.z - this.pos.z;
-    if (Math.hypot(tx, tz) > 0.6) this._move(Math.atan2(tx, tz), this.def.speed * 0.4, dt);
+    if (Math.hypot(tx, tz) > 0.6) this._move(Math.atan2(tx, tz), this.speed * 0.4, dt);
     else this._move(0, 0, dt);
     if (playerAlive && dist < this.def.detect) { this.aggro = true; this.state = 'chase'; this.t = 0; this.game.enemies?.alertCamp(this); }
   }
 
   _chase(dt, dist, toP, playerAlive) {
-    const g = this.game, d = this.def, a = d.attack;
+    const g = this.game, d = this.def;
     const homeDist = Math.hypot(this.pos.x - this.home.x, this.pos.z - this.home.z);
     if (!playerAlive || homeDist > 42 || dist > d.detect * 2.6) { this.state = 'return'; this.t = 0; this._move(0, 0, dt); return; }
     this._face(toP, dt, 8);
 
     if (d.ai === 'ranged') {
-      const [k0, k1] = d.keep;
-      if (dist < k0) this._move(toP + Math.PI, d.speed, dt);
-      else if (dist > k1) this._move(toP, d.speed, dt);
-      else this._move(toP + this.strafe * Math.PI / 2, d.speed * 0.5, dt);
-      if (this.cd <= 0 && dist < k1 + 3 && g.combat.tryToken(this)) this._startAttack(toP);
+      const [k0, k1] = d.keep, sp = this.speed;
+      if (dist < k0) this._move(toP + Math.PI, sp, dt);
+      else if (dist > k1) this._move(toP, sp, dt);
+      else this._move(toP + this.strafe * Math.PI / 2, sp * 0.5, dt);
+      if (this.cd <= 0 && dist < k1 + 3 && g.combat.tryToken(this)) this._startAttack(toP, d.attacks[0]);
       return;
     }
-    const want = a.range * 0.8;
-    if (dist > want) this._move(toP, d.speed, dt);
+    const want = d.attacks[0].range * 0.8;
+    if (dist > want) this._move(toP, this.speed, dt);
     else this._move(0, 0, dt);
-    if (this.cd <= 0 && dist <= a.range * 1.05) {
-      if (g.combat.tryToken(this)) { this._startAttack(toP); return; }
+    if (this.cd <= 0) {
+      const a = this._pickAttack(dist);
+      if (a && g.combat.tryToken(this)) { this._startAttack(toP, a); return; }
+      // トークンが取れない時は距離を保ちつつ周回して待機
+      if (a && dist < 7) this._move(toP + this.strafe * Math.PI / 2 + (dist < 3.5 ? Math.PI * 0.35 * -1 : 0), this.speed * 0.55, dt);
     }
-    // トークンが取れない時は距離を保ちつつ周回して待機
-    if (this.cd <= 0 && dist < 7) {
-      this._move(toP + this.strafe * Math.PI / 2 + (dist < 3.5 ? Math.PI * 0.35 * -1 : 0), d.speed * 0.55, dt);
-    }
+  }
+
+  /** 現在の距離で使える攻撃をランダムに選ぶ (射程内かつ最小射程以上) */
+  _pickAttack(dist) {
+    const ok = this.def.attacks.filter((a) => dist <= a.range * 1.05 && dist >= (a.minRange || 0));
+    return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
   }
 
   _return(dt) {
     const tx = this.home.x - this.pos.x, tz = this.home.z - this.pos.z;
-    this._move(Math.atan2(tx, tz), this.def.speed * 1.3, dt);
+    this._move(Math.atan2(tx, tz), this.speed * 1.3, dt);
     this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.25 * dt);
     this.poise = this.maxPoise;
-    if (Math.hypot(tx, tz) < 1.5) { this.state = 'idle'; this.aggro = false; this.hp = this.maxHp; this.wanderT = 0; }
+    if (Math.hypot(tx, tz) < 1.5) {
+      this.state = 'idle'; this.aggro = false; this.hp = this.maxHp; this.wanderT = 0;
+      if (this.enraged) { this.enraged = false; this.speedMul = this.cdMul = this.atkMul = 1; }
+    }
   }
 
-  _startAttack(toP) {
-    const a = this.def.attack;
+  _startAttack(toP, a) {
+    this.cur = a;
     this.state = 'windup'; this.t = 0; this.hitDone = false;
     this.atkDir = toP;
     const tg = this.game.telegraphs;
     if (a.kind === 'slam') this.telegraph = tg.show({ x: this.pos.x, z: this.pos.z, dir: 0, range: a.radius, arc: Math.PI });
+    else if (a.kind === 'volley') this.telegraph = tg.show({ x: this.pos.x, z: this.pos.z, dir: toP, range: a.range, arc: a.spread * (a.count - 1) / 2 + 0.08 });
     else this.telegraph = tg.show({ x: this.pos.x, z: this.pos.z, dir: toP, range: a.kind === 'lunge' ? a.range + 1.4 : a.range, arc: a.arc });
   }
 
   _windup(dt, toP, dist) {
-    const a = this.def.attack, p = clamp01(this.t / a.windup);
+    const a = this.cur, p = clamp01(this.t / a.windup);
     // 発生直前まで狙いを追従し、その後は固定 (避けられる猶予)
     if (a.kind !== 'slam' && p < 0.6) { this._face(toP, dt, 10); this.atkDir = this.facing; }
     this._move(0, 0, dt);
@@ -185,13 +207,14 @@ export class Enemy {
       if (a.kind === 'swing') { c.enemySector(this, a.range, a.arc, a); this.hitDone = true; }
       else if (a.kind === 'slam') { c.enemyCircle(this, a.radius, a); this.hitDone = true; this.game.bus.emit('enemy:slam', { enemy: this, pos: this.pos.clone(), radius: a.radius }); }
       else if (a.kind === 'bolt') { c.fireBolt(this, a); this.hitDone = true; }
+      else if (a.kind === 'volley') { c.fireVolley(this, a); this.hitDone = true; }
     }
   }
 
   _attack(dt) {
-    const a = this.def.attack;
+    const a = this.cur;
     if (a.kind === 'lunge') {
-      this._move(this.atkDir, a.lunge, dt, true);
+      this._move(this.atkDir, a.lunge * Math.min(1.3, this.speedMul), dt, true);
       if (!this.hitDone) {
         const p = this.game.player;
         const d = Math.hypot(p.position.x - this.pos.x, p.position.z - this.pos.z);
@@ -200,7 +223,7 @@ export class Enemy {
     } else this._move(0, 0, dt);
     if (this.t >= a.active) {
       this.state = 'recover'; this.t = 0;
-      this.cd = rr(a.cd[0], a.cd[1]);
+      this.cd = rr(a.cd[0], a.cd[1]) * this.cdMul;
     }
   }
 
@@ -229,8 +252,8 @@ export class Enemy {
 
   // ------------------------------------------------------------ visuals
   _animate(dt, dist) {
-    const id = this.def.id, P = this.model.parts, tm = this.game.time + this.phase;
-    const a = this.def.attack;
+    const id = this.def.model, P = this.model.parts, tm = this.game.time + this.phase;
+    const a = this.cur;
     const windP = this.state === 'windup' ? clamp01(this.t / a.windup) : 0;
     const atkP = this.state === 'attack' ? clamp01(this.t / a.active) : 0;
     const moving = Math.hypot(this.vel.x, this.vel.z) > 0.4;
@@ -263,6 +286,19 @@ export class Enemy {
       else if (this.state === 'attack') tilt = 0.35;
       P.rig.rotation.x += (tilt - P.rig.rotation.x) * Math.min(1, dt * 14);
       P.rig.position.y = baseY - drop + (moving ? Math.abs(Math.sin(this.walk * (big ? 1.6 : 3.4))) * 0.05 : 0);
+    } else if (id === 'bat') {
+      const flap = Math.sin(tm * (this.state === 'windup' ? 26 : 16)) * (this.state === 'down' ? 0.2 : 0.9);
+      P.wingL.rotation.z = flap; P.wingR.rotation.z = -flap;
+      P.rig.rotation.x = this.state === 'windup' ? 0.5 * windP : this.state === 'attack' ? -0.5 : Math.sin(tm * 3) * 0.06;
+      if (this.state === 'down') P.rig.rotation.z = Math.sin(tm * 10) * 0.2;
+    } else if (id === 'sentry') {
+      P.ring.rotation.y += dt * (this.state === 'windup' ? 9 : 2.4);
+      P.rig.position.y = Math.sin(tm * 2) * 0.12;
+      const k = 1 + windP * 0.5; P.eye.scale.setScalar(k);
+      P.rig.rotation.x = this.state === 'down' ? -0.6 : 0;
+    } else if (id === 'pylon') {
+      P.crystal.rotation.y += dt * 1.4; P.halo.rotation.z += dt * 2; P.crystal.position.y = 2.7 + Math.sin(tm * 2) * 0.12;
+      P.crystal.material.emissiveIntensity = 2.2 + Math.sin(tm * 4) * 0.6;
     } else if (id === 'wisp') {
       const hv = this.state === 'down' ? 0.1 : this.hover + Math.sin(tm * 2) * 0.15;
       P.rig.position.y += (hv - P.rig.position.y) * Math.min(1, dt * 8);
@@ -272,7 +308,11 @@ export class Enemy {
       P.orb.position.set(0.5, 0.95 + windP * 0.35, 0.25);
     }
 
-    r.position.set(this.pos.x, this.pos.y + (id === 'gel' && !moving ? 0 : 0), this.pos.z);
+    // 飛行する敵 (コウモリ/ドローン等) は地面から浮かせて表示。攻撃動作中は降下する
+    const flyId = id === 'bat';
+    const hoverT = flyId ? (this.state === 'windup' || this.state === 'attack' ? 0.7 : this.state === 'down' ? 0 : this.hover) : 0;
+    this.hoverY += (hoverT - this.hoverY) * Math.min(1, dt * 6);
+    r.position.set(this.pos.x, this.pos.y + this.hoverY + (flyId ? Math.sin(tm * 3) * 0.12 : 0), this.pos.z);
     if (id === 'gel' && moving) r.position.y = this.pos.y + Math.abs(Math.sin(this.walk * 2.2)) * 0.25;
     r.rotation.y = this.facing;
     r.scale.setScalar(scale * this.baseScale);
