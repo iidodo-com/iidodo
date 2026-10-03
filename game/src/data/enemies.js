@@ -33,6 +33,7 @@ export const PLAYER_ATTACKS = [
   { range: 2.7, arc: 1.15, mul: 1.0, knock: 3.5, poise: 10, shake: 0.12 },
   { range: 2.7, arc: 1.15, mul: 1.1, knock: 3.5, poise: 11, shake: 0.14 },
   { range: 3.4, arc: 1.6,  mul: 1.7, knock: 8,   poise: 24, shake: 0.3 },
+  { range: 4.2, arc: Math.PI, mul: 2.0, knock: 9, poise: 30, shake: 0.4 }, // 空中叩きつけ
 ];
 
 const A = (kind, o) => ({ kind, ...o });

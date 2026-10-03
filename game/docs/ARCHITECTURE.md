@@ -167,3 +167,7 @@ game/
 - 木は自作のローポリ (写真測量の木は Web 向けに重すぎるため不採用)。
 - BGM/SE はコードによる合成音のため、音色は簡素。
 - 難易度は計算とシミュレーションでの確認。長時間プレイでの調整余地あり (`data/enemies.js`)。
+
+## Navigation / Movement (追加)
+- `src/ui/Navigation.js`: 目的算出 (`objective()` = flags から次の行き先を決定)、マーカー一覧、地形画像 (エリアごとに 256px へ事前描画)、探索霧 (`flags.explored[area]` に '0'/'1' 文字列で保存)、ミニマップ/全体マップ描画。Game.update が `nav.update(dt)` を呼ぶ。
+- Player: `jump/airJumps/gliding/sprinting` と 'airslam' 状態 (PLAYER_ATTACKS[3])。`Player.airborne` を Combat が参照し、slam/rain をジャンプで回避可能にしている。

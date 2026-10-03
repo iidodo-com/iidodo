@@ -35,6 +35,7 @@ import { Player } from '../entities/Player.js';
 import { FollowCamera } from '../camera/FollowCamera.js';
 import { VirtualPad } from '../ui/VirtualPad.js';
 import { Hud } from '../ui/Hud.js';
+import { Navigation } from '../ui/Navigation.js';
 
 /**
  * ゲーム全体のオーケストレーター。
@@ -85,6 +86,7 @@ export class Game {
     this.drops = new Drops(this);
     this.saves = new SaveManager(this);
     this.menu = new Menu(this);
+    this.nav = new Navigation(this);
     this.world = new WorldObjects(this);
     this.areas = new AreaManager(this);
     this.cutscene = null;
@@ -343,6 +345,10 @@ export class Game {
   update(dt) {
     this.input.update();
     if (this.input.wasPressed('menu') && !this.cutscene) this.menu.toggle();
+    if (this.input.wasPressed('map') && !this.cutscene) {
+      if (this.menu.opened && this.menu.tab === 'map') this.menu.close();
+      else if (this.menu.opened) { this.menu.tab = 'map'; this.menu.render(); } else this.menu.open('map');
+    }
     if (this.paused) return;
     if (this.cutscene) { this._cutsceneStep(dt); return; }
     this.playtime += dt;
@@ -378,6 +384,7 @@ export class Game {
     this.sun.position.copy(p).add(this.sunOffset);
 
     this.labels.update(dt);
+    this.nav.update(dt);
     this.hud.setStats(this.player.stats);
     this.hud.setProgress(this.progression, this.inventory, this.inventory.count('potion_s') + this.inventory.count('potion_m'));
     this.hud.setSkills(this.player, this.progression.level, SKILLS);

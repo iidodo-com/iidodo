@@ -71,7 +71,7 @@ export class Input {
   // ---------- keyboard ----------
   _bindKeyboard() {
     const map = {
-      Space: 'dodge', KeyE: 'interact', KeyF: 'interact',
+      Space: 'jump', ShiftLeft: 'dodge', ShiftRight: 'dodge', KeyM: 'map', KeyE: 'interact', KeyF: 'interact',
       Digit1: 'skill1', Digit2: 'skill2', Digit3: 'skill3',
       KeyQ: 'potion', Tab: 'menu', KeyI: 'menu',
     };

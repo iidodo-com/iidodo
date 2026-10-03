@@ -12,6 +12,8 @@ export class Effects {
     this.trail = new SwordTrail(game.scene);
     this.stepTimer = 0;
     this._v = new THREE.Vector3();
+    game.bus.on('player:jump', ({ pos, air }) => this.burstDust(pos, air ? 6 : 8, 0.5));
+    game.bus.on('player:land', ({ pos, hard }) => { if (hard) { this.burstDust(pos, 16, 1.0); this.shockwave(pos, 3.4); } else this.burstDust(pos, 7, 0.5); });
     game.bus.on('player:dodge', ({ pos }) => this.burstDust(pos, 14, 0.9));
     game.bus.on('player:skillCast', ({ def, pos }) => this.skillFx(def, pos));
     game.bus.on('player:levelup', () => this.levelUpFx());
