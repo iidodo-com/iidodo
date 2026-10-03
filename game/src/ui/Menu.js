@@ -98,7 +98,9 @@ export class Menu {
         this.close();
         g.saves.load(d.slot).then((ok) => g.hud.toast(ok ? 'ロードした' : 'データがない', 1600));
         return;
-      case 'del': if (confirm('このセーブデータを削除しますか？')) g.saves.delete(d.slot); break;
+      case 'del':
+        if (this.delArm === d.slot) { g.saves.delete(d.slot); this.delArm = null; } else { this.delArm = d.slot; say('もう一度「削除」を押すと消去します'); }
+        break;
     }
     this.render();
   }
@@ -275,7 +277,7 @@ export class Menu {
       return `<div class="row"><div class="grow"><b>${s === 'auto' ? 'オートセーブ' : `スロット ${s}`}</b><div class="sub">${i ? `Lv ${i.level} ／ ${i.gold}G ／ ${fmtTime(i.playtime)} ／ ${new Date(i.savedAt).toLocaleString('ja-JP')}` : '— 空き —'}</div></div>
         ${s === 'auto' ? '' : `<button class="btn2" data-act="save" data-slot="${s}">セーブ</button>`}
         <button class="btn2" data-act="load" data-slot="${s}" ${i ? '' : 'disabled'}>ロード</button>
-        ${s === 'auto' ? '' : `<button class="btn2 warn" data-act="del" data-slot="${s}" ${i ? '' : 'disabled'}>削除</button>`}</div>`;
+        ${s === 'auto' ? '' : `<button class="btn2 warn" data-act="del" data-slot="${s}" ${i ? '' : 'disabled'}>${this.delArm === s ? '本当に削除' : '削除'}</button>`}</div>`;
     }).join('');
     return `<div class="card"><h4>セーブ / ロード</h4>${slots}</div><div class="sub" style="margin-top:8px;opacity:.7">オートセーブ: 約45秒ごと・レベルアップ・装備入手・メニューを閉じた時・タブを離れた時。データはこの端末のブラウザ (localStorage) に保存される。</div>`;
   }
