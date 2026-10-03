@@ -92,7 +92,7 @@ export function buildBiome(kind, terrain, assets, quality, area, out) {
   const rand = rng(area.terrain.seed + 555);
   const place = makePlacer(terrain, area, rand);
   const detail = quality?.detail ?? 1;
-  ({ ruins, cave, lab, sky })[kind]?.({ terrain, assets, area, rand, place, out, detail });
+  ({ ruins, cave, lab, sky, throne })[kind]?.({ terrain, assets, area, rand, place, out, detail });
 }
 
 function ruins({ terrain, assets, place, rand, detail }) {
@@ -195,4 +195,58 @@ function sky({ terrain, assets, area, place, rand, detail }) {
       terrain.group.add(m);
     }
   }
+}
+
+/** 王の間: 柱の回廊・赤い絨毯・火鉢・玉座 */
+function throne({ terrain, assets, area, out }) {
+  const group = terrain.group, h = (x, z) => terrain.height(x, z);
+  const marble = surface(assets, 'marble', { color: '#e6defa', roughness: 0.35 });
+  const gold = new THREE.MeshStandardMaterial({ color: '#d9ab3a', metalness: 1, roughness: 0.3 });
+  const cloth = new THREE.MeshStandardMaterial({ color: '#7a1530', roughness: 0.85 });
+  const dark = new THREE.MeshStandardMaterial({ color: '#2a2238', roughness: 0.5, metalness: 0.7 });
+  const cx = area.boss.x, cz = area.boss.z;
+  const add = (g, m, x, y, z, ry = 0) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); o.rotation.y = ry; o.castShadow = o.receiveShadow = true; group.add(o); return o; };
+
+  // 柱の回廊 (ボスの間を囲む) + 旗
+  const pil = pillarGeo({ h: 10, r: 0.85, broken: false, tone: 0.92 });
+  const banner = new THREE.PlaneGeometry(2.2, 6); banner.translate(0, -3, 0);
+  const bannerMat = new THREE.MeshStandardMaterial({ color: '#5a1a78', roughness: 0.8, side: THREE.DoubleSide, emissive: '#2a0a40', emissiveIntensity: 0.4 });
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2, x = cx + Math.cos(a) * 38, z = cz + Math.sin(a) * 38;
+    if (z > 28 && Math.abs(x) < 9) continue;                      // 入口側は開ける
+    add(pil, marble, x, h(x, z) - 0.1, z);
+    terrain.colliders.push({ x, z, r: 1.2 });
+    const bx = cx + Math.cos(a + Math.PI / 16) * 38, bz = cz + Math.sin(a + Math.PI / 16) * 38;
+    const bn = add(banner, bannerMat, bx, h(bx, bz) + 9.4, bz, -a + Math.PI / 2);
+    bn.castShadow = false;
+  }
+  // 絨毯: 入口 → 玉座
+  const segs = 17;
+  for (let i = 0; i < segs; i++) {
+    const z = 62 - i * 4.7;
+    add(new THREE.BoxGeometry(6.2, 0.08, 5), cloth, 0, h(0, z) + 0.06, z).castShadow = false;
+    for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.35, 0.1, 5), gold, sx * 3.2, h(sx * 3.2, z) + 0.07, z).castShadow = false;
+  }
+  // 火鉢 (炎は発光 + 動的ライトの候補)
+  const bowl = new THREE.CylinderGeometry(0.7, 0.35, 0.7, 10); const stand = new THREE.CylinderGeometry(0.12, 0.2, 1.4, 8);
+  const fire = new THREE.ConeGeometry(0.55, 1.5, 7);
+  const fireMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff9a3a').multiplyScalar(2.8) });
+  const spots = [];
+  for (let i = 0; i < 12; i++) {
+    const side = i % 2 ? 1 : -1, z = 60 - Math.floor(i / 2) * 15, x = side * 7;
+    const y = h(x, z);
+    add(stand, dark, x, y + 0.7, z); add(bowl, dark, x, y + 1.6, z); add(fire, fireMat, x, y + 2.5, z);
+    terrain.colliders.push({ x, z, r: 0.6 });
+    spots.push({ x, y: y + 3, z, color: 0xff9a4a });
+  }
+  out.lightSpots.push(...spots);
+  // 玉座: 段 + 椅子
+  const ty = h(cx, cz - 14);
+  for (let i = 0; i < 3; i++) add(new THREE.CylinderGeometry(9 - i * 2, 9.5 - i * 2, 0.6, 24), i % 2 ? marble : dark, cx, ty + 0.3 + i * 0.6, cz - 20);
+  const sy = ty + 1.8, sz = cz - 20;
+  add(new THREE.BoxGeometry(3.4, 1.2, 3), gold, cx, sy + 0.6, sz);
+  add(new THREE.BoxGeometry(3.4, 6.5, 0.8), dark, cx, sy + 3.2, sz - 1.3);
+  add(new THREE.BoxGeometry(3.8, 0.4, 0.9), gold, cx, sy + 6.6, sz - 1.3);
+  for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.6, 2, 3), dark, cx + sx * 2, sy + 1.4, sz);
+  terrain.colliders.push({ x: cx, z: sz, r: 3.2 });
 }

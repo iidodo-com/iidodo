@@ -152,7 +152,7 @@ export const AREAS = {
     env: { exposure: 0.7, fog: { color: 'auto', density: 0.0026 }, envIntensity: 1.0, bgIntensity: 1.15, sun: 3.6, hemi: 1.2, cloudSea: true },
     savepoint: { x: 0, z: 72 }, spring: { x: -34, z: 8 },
     entrance: { x: 0, z: 88, to: 'lab', toSpawn: 'exit' },
-    exit: { x: 0, z: -88, to: null, key: 'sky_key', lockedMsg: '王の間へ続く扉。強大な魔力の封印がかかっている……（最終決戦は次のフェーズで解放）' },
+    exit: { x: 0, z: -88, to: 'throne', key: 'sky_key', lockedMsg: '王の間へ続く扉。風の紋章に共鳴する、強大な魔力の封印がかかっている……' },
     boss: { id: 'wind_lord', x: 0, z: -64 },
     camps: [
       { x: -26, z: 48, types: ['harpy', 'harpy', 'sky_knight'] },
@@ -172,4 +172,55 @@ export const AREAS = {
   },
 };
 
-export const AREA_ORDER = ['plains', 'ruins', 'cave', 'lab', 'sky'];
+AREAS.throne = {
+  id: 'throne', index: 5, name: '王の間', level: [28, 32], size: 160, props: 'throne', final: true,
+  terrain: { seed: 1337, maxHeight: 1.4, noiseScale: 0.03, waterLevel: null, wall: -34, rockY: [999, 1000], snowY: [999, 1000], secondBias: 0 },
+  flat: [{ x: 0, z: 52, r: 8 }, { x: 0, z: 68, r: 6 }, { x: -24, z: 50, r: 5 }, { x: 0, z: -18, r: 32 }],
+  palette: { grassA: '#c9c0e0', grassB: '#e0d8f0', grassC: '#a89cc8', dirt: '#9a8ab8', rock: '#c8c0d8', snow: '#fff', sand: '#e8e0f4', wet: '#8a7aa8' },
+  ground: tex('tiles', 'marble', 'sandbrick', 'tiles', [[0.95, 0.9, 1.25], [0.7, 0.68, 1.1], [0.8, 0.78, 1.15], [0.85, 0.82, 1.2]], [0.14, 0.16, 0.14, 0.2]),
+  vegetation: { grass: 0, flowers: 0, undergrowth: 0 },
+  water: null,
+  env: { exposure: 0.74, fog: { color: '#4a3566', density: 0.0048 }, envIntensity: 0.7, bgIntensity: 0.6, sun: 2.6, hemi: 1.0, sunColor: '#ffb089', hemiSky: '#a58aff', hemiGround: '#40305a', cloudSea: true, spotLights: true },
+  savepoint: { x: 0, z: 52 }, spring: { x: -24, z: 50 },
+  entrance: { x: 0, z: 68, to: 'sky', toSpawn: 'exit' },
+  exit: null,
+  boss: { id: 'archon', x: 0, z: -22, trigger: 30 },
+  camps: [],
+  chests: [],
+};
+
+// 隠しダンジョン (クリア後に解放): 高難易度。敵は全体的に強化され、超ボスが待つ。
+AREAS.abyss = {
+  id: 'abyss', index: 6, name: '深淵の回廊', level: [32, 40], size: 220, props: 'cave', hidden: true,
+  enemyScale: { hp: 2.1, atk: 1.55, exp: 2.6 },
+  terrain: { seed: 6661, maxHeight: 7, noiseScale: 0.03, waterLevel: null, wall: 40, rockY: [999, 1000], snowY: [999, 1000] },
+  flat: zones([34, 6], [{ x: 0, z: -40, r: 8 }]),
+  palette: { grassA: '#3a2458', grassB: '#4d3070', grassC: '#2a1840', dirt: '#3a2f48', rock: '#4c4060', snow: '#b49cff', sand: '#34284a', wet: '#1c1030' },
+  ground: tex('dust', 'leafgravel', 'darkrock', 'gravel', [[0.42, 0.28, 0.7], [0.55, 0.4, 0.85], [1.4, 1.1, 2.0], [0.4, 0.3, 0.7]], [0.3, 0.18, 0.16, 0.25]),
+  vegetation: { grass: 0, flowers: 0, undergrowth: 0 },
+  water: null,
+  env: { exposure: 0.9, fog: { color: '#14081f', density: 0.015 }, envIntensity: 0.12, bgIntensity: 0, bgColor: '#07030d', sun: 0, hemi: 0.6, hemiSky: '#b07cff', hemiGround: '#20103a', lamp: true },
+  savepoint: { x: 0, z: 72 }, spring: { x: 34, z: 6 },
+  entrance: { x: 0, z: 88, to: 'throne', toSpawn: 'savepoint' },
+  exit: null,
+  boss: { id: 'abyss_lord', x: 0, z: -64 },
+  barrier: { x: 0, z: -40, width: 18, needs: 'levers' },
+  levers: [{ id: 'l1', x: -52, z: 10 }, { id: 'l2', x: 54, z: -20 }],
+  camps: [
+    { x: -26, z: 48, types: ['sky_knight', 'seraph', 'harpy'] },
+    { x: 28, z: 32, types: ['gargoyle', 'sentry', 'sentry'] },
+    { x: -38, z: 8, types: ['construct', 'construct', 'seraph'] },
+    { x: 34, z: -6, types: ['harpy', 'harpy', 'sky_knight', 'seraph'] },
+    { x: -34, z: -26, types: ['gargoyle', 'gargoyle', 'sky_knight'] },
+    { x: 40, z: -28, types: ['seraph', 'seraph', 'construct'] },
+  ],
+  chests: [
+    { id: 'c1', x: -56, z: 58, tier: 'gold', loot: { gold: [1200, 1600], items: [{ id: 'potion_l', n: 5 }, { id: 'sky_feather', n: 4 }] } },
+    { id: 'c2', x: 56, z: 54, tier: 'gold', loot: { gold: [1300, 1700], items: [{ id: 'lab_circuit', n: 4 }, { id: 'cave_crystal', n: 4 }] } },
+    { id: 'c3', x: -60, z: 16, tier: 'gold', loot: { gold: [1500, 1900], items: [{ id: 'gem_str2', n: 2 }, { id: 'gem_vit2', n: 2 }] } },
+    { id: 'c4', x: 60, z: -8, tier: 'gold', loot: { gold: [1700, 2100], items: [{ id: 'void_charm', n: 1 }] } },
+    { id: 'c5', x: -58, z: -40, tier: 'gold', loot: { gold: [2000, 2600], items: [{ id: 'void_plate', n: 1 }] } },
+  ],
+};
+
+export const AREA_ORDER = ['plains', 'ruins', 'cave', 'lab', 'sky', 'throne', 'abyss'];

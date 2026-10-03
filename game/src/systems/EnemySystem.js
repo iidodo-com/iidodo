@@ -57,6 +57,21 @@ export class EnemySystem {
     e.slot = slot; slot.enemy = e; this.list.push(e);
   }
 
+  /** ボスの周囲 (等間隔) に結界ピラーを召喚する。破壊状態は保存しない (戦闘中のみの存在) */
+  spawnPylonsAround(boss, n, radius = 14) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.PI / n;
+      const home = new THREE.Vector3(boss.home.x + Math.cos(a) * radius, 0, boss.home.z + Math.sin(a) * radius);
+      const slot = { kind: 'extra', camp: 900 + i, type: 'pylon', home, enemy: null, timer: 0, dead: false, boss };
+      this.slots.push(slot);
+      const e = new Enemy(this.game, ENEMIES.pylon, home, slot.camp);
+      e.slot = slot; slot.enemy = e; this.list.push(e); out.push(e);
+      this.game.bus.emit('enemy:summon', { enemy: e });
+    }
+    return out;
+  }
+
   clear() {
     for (const e of this.list) { if (!e.removed) e.dispose(); }
     this.list = []; this.slots = [];
@@ -66,6 +81,12 @@ export class EnemySystem {
     const s = enemy.slot, flags = this.game.flags;
     if (!s || !this.area) return;
     if (s.kind === 'boss') { s.dead = true; (flags.boss ||= {})[this.area.id] = true; this.game.bus.emit('boss:defeated', { area: this.area.id, enemy }); }
+    if (s.kind === 'extra') {
+      s.dead = true;
+      const boss = s.boss;
+      if (boss && boss.alive && boss.linked.every((p) => !p.alive)) boss.breakShield();
+      return;
+    }
     if (s.kind === 'pylon') {
       s.dead = true; (flags.pylons ||= {})[`${this.area.id}:${s.pid}`] = true;
       const all = this.area.pylons.every((p) => flags.pylons[`${this.area.id}:${p.id}`]);
@@ -73,10 +94,20 @@ export class EnemySystem {
     }
   }
 
+  /** 演出中: AI は動かさず、アニメーションと死亡処理だけ進める */
+  animateOnly(dt) {
+    for (const e of this.list) {
+      if (e.removed) continue;
+      e.flash = Math.max(0, e.flash - dt);
+      if (e.state === 'dead') e.update(dt); else { e.t += dt; e._animate(dt, 99); }
+    }
+  }
+
   /** 休息: 倒された敵も含めて (撃破済みボス/ピラー以外) 全員を初期配置に戻す */
   respawnAll() {
     for (const e of this.list) if (!e.removed) e.dispose();
     this.list = [];
+    this.slots = this.slots.filter((s) => s.kind !== 'extra');   // 召喚されたピラーは破棄 (ボスは第1形態から再戦)
     for (const s of this.slots) { s.enemy = null; s.timer = 0; if (!s.dead) this._spawn(s); }
   }
 

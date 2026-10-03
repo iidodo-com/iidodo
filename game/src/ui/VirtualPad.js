@@ -1,4 +1,5 @@
 import { CONFIG } from '../core/Config.js';
+import { SETTINGS } from '../core/Settings.js';
 
 /**
  * スマホ用タッチUI。
@@ -107,7 +108,7 @@ export class VirtualPad {
     });
     c.addEventListener('pointermove', (e) => {
       if (e.pointerId !== this.lookId) return;
-      this.input.addLook(e.clientX - this.lookLast.x, e.clientY - this.lookLast.y, CONFIG.camera.touchSens);
+      this.input.addLook(e.clientX - this.lookLast.x, e.clientY - this.lookLast.y, CONFIG.camera.touchSens * SETTINGS.touchSens);
       this.lookLast.x = e.clientX; this.lookLast.y = e.clientY;
     });
     const end = (e) => { if (e.pointerId === this.lookId) this.lookId = null; };

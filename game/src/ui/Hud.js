@@ -39,11 +39,11 @@ export class Hud {
   showDeath(on) { this.deathEl.classList.toggle('show', on); }
 
   setProgress(prog, inv, potions) {
-    const key = `${prog.level}|${prog.exp}|${inv.gold}|${potions}`;
+    const key = `${prog.level}|${prog.exp}|${inv.gold}|${potions}|${prog.ng}`;
     if (key === this._pk) return; this._pk = key;
-    this.lv.textContent = `Lv ${prog.level}`;
+    this.lv.textContent = `Lv ${prog.level}${prog.ng ? ` ★${prog.ng}` : ''}`;
     this.gold.textContent = `${inv.gold} G`;
-    this.expFill.style.width = prog.level >= 30 ? '100%' : `${(prog.exp / prog.expNeed) * 100}%`;
+    this.expFill.style.width = prog.level >= prog.maxLevel ? '100%' : `${(prog.exp / prog.expNeed) * 100}%`;
     this.potBar.textContent = potions; this.potTouch.textContent = potions;
   }
 
@@ -87,8 +87,9 @@ export class Hud {
   }
 
   /** 暗転。on=true で暗くなり、完了時に resolve */
-  fade(on) {
+  fade(on, color = 'black') {
     return new Promise((res) => {
+      this.fadeEl.classList.toggle('white', color === 'white');
       this.fadeEl.classList.toggle('on', on);
       setTimeout(res, on ? 480 : 520);
     });

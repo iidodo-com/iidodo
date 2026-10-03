@@ -30,6 +30,7 @@ export const KEY_ITEMS = {
   ruins_key: { name: '石の鍵', desc: '守護像の胸から出てきた鍵。廃墟の門を開ける。', icon: '🗝️' },
   cave_key: { name: '水晶の核', desc: 'クリスタルゴーレムの核。洞窟の扉を開ける。', icon: '🔮' },
   lab_key: { name: '認証コア', desc: 'センチネルの認証コア。転送ゲートを起動する。', icon: '💠' },
+  royal_crest: { name: '王の証', desc: 'ヴォイドが持っていた王の証。世界に光が戻った証。', icon: '👑' },
   sky_key: { name: '風の紋章', desc: 'ウィンドロードの紋章。王の間の封印と共鳴する。', icon: '🏵️' },
 };
 
@@ -78,6 +79,9 @@ export const EQUIPMENT = {
   sky_plate: { name: '天空の鎧', slot: 'armor', rarity: 'epic', stats: { def: 48, hp: 220 }, sockets: 3, price: 11000, desc: '空の騎士が纏った白銀の鎧。' },
   arc_ring: { name: '魔導の指輪', slot: 'accessory', rarity: 'rare', stats: { atk: 12, mp: 30 }, sockets: 1, price: 2400, desc: '魔力が脈打つ指輪。' },
   zephyr_charm: { name: '天風の護符', slot: 'accessory', rarity: 'epic', stats: { spd: 0.14, crit: 0.06 }, sockets: 1, price: 6000, desc: '風と共に走る者の護符。' },
+  void_blade: { name: '虚空の剣', slot: 'weapon', rarity: 'epic', stats: { atk: 118, crit: 0.14, spd: 0.04 }, sockets: 4, price: 30000, desc: '深淵の主から得た、闇を裂く剣。' },
+  void_plate: { name: '虚空の鎧', slot: 'armor', rarity: 'epic', stats: { def: 74, hp: 360 }, sockets: 4, price: 28000, desc: '深淵の闇を織り込んだ鎧。' },
+  void_charm: { name: '虚空の護符', slot: 'accessory', rarity: 'epic', stats: { spd: 0.2, crit: 0.12, atk: 20 }, sockets: 2, price: 22000, desc: '触れる者の限界を引き出す護符。' },
   power_ring: { name: '力の指輪', slot: 'accessory', rarity: 'uncommon', stats: { atk: 4 }, sockets: 1, price: 350, desc: '力が湧いてくる指輪。' },
   guard_ring: { name: '守りの指輪', slot: 'accessory', rarity: 'uncommon', stats: { def: 3, hp: 15 }, sockets: 1, price: 350, desc: '身を守る加護の指輪。' },
   wind_charm: { name: '疾風のお守り', slot: 'accessory', rarity: 'rare', stats: { spd: 0.08 }, sockets: 1, price: 500, desc: '足が軽くなるお守り。' },
@@ -127,6 +131,8 @@ export function equipStats(inst) {
 /** 敵ごとのドロップ。chance は 0-1、n は [最小, 最大] */
 const D = (gold, items) => ({ gold, items });
 export const DROPS = {
+  archon: D([5000, 6000], [{ id: 'royal_crest', chance: 1, n: [1, 1] }, { id: 'potion_l', chance: 1, n: [5, 6] }, { id: 'sky_feather', chance: 1, n: [5, 6] }]),
+  abyss_lord: D([6000, 7000], [{ id: 'void_blade', chance: 1, n: [1, 1] }, { id: 'void_plate', chance: 0.7, n: [1, 1] }, { id: 'void_charm', chance: 0.5, n: [1, 1] }, { id: 'lab_circuit', chance: 1, n: [5, 6] }]),
   goblin_king: D([200, 260], [{ id: 'plains_key', chance: 1, n: [1, 1] }, { id: 'goblin_dagger', chance: 0.5, n: [1, 1] }, { id: 'potion_m', chance: 1, n: [2, 3] }, { id: 'stone_core', chance: 1, n: [2, 3] }]),
   skeleton: D([20, 34], [{ id: 'ruin_shard', chance: 0.35, n: [1, 1] }, { id: 'goblin_fang', chance: 0.4, n: [1, 2] }, { id: 'potion_m', chance: 0.1, n: [1, 1] }]),
   wraith: D([24, 40], [{ id: 'wisp_dust', chance: 0.6, n: [1, 3] }, { id: 'ether', chance: 0.15, n: [1, 1] }, { id: 'ruin_shard', chance: 0.25, n: [1, 1] }]),

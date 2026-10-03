@@ -15,9 +15,11 @@ export class FollowCamera {
     this.yaw = 0;
     this.pitch = 0.35;
     this.distance = CONFIG.camera.distance;
+    this.distScale = 1; this.distScaleTarget = 1;      // 大型ボス戦でカメラを引く
     this.focus = new THREE.Vector3();
     this.curDist = this.distance;
     this.shakeAmp = 0;
+    this.cine = null;           // 演出用フック (Cinematic が設定)
     this._tmp = new THREE.Vector3();
   }
 
@@ -28,7 +30,10 @@ export class FollowCamera {
   shake(amp = 0.2) { this.shakeAmp = Math.max(this.shakeAmp, amp); }
 
   update(dt, target, look) {
+    if (this.cine) { this.cine(dt); return; }
     const c = CONFIG.camera;
+    this.distScale += (this.distScaleTarget - this.distScale) * (1 - Math.exp(-2 * dt));
+    const baseDist = this.distance * this.distScale;
     this.yaw -= look.x;
     this.pitch = THREE.MathUtils.clamp(this.pitch + look.y, c.pitchMin, c.pitchMax);
 
@@ -42,10 +47,10 @@ export class FollowCamera {
     const dx = Math.sin(this.yaw) * cp, dy = sp, dz = Math.cos(this.yaw) * cp;
 
     // 地形・距離の衝突回避: 注視点から外側へサンプルして最大安全距離を求める
-    let safe = this.distance;
+    let safe = baseDist;
     const steps = 10;
     for (let i = 1; i <= steps; i++) {
-      const d = (i / steps) * this.distance;
+      const d = (i / steps) * baseDist;
       const x = this.focus.x + dx * d, y = this.focus.y + dy * d, z = this.focus.z + dz * d;
       if (y < this.terrain.getHeightAt(x, z) + 0.6 || this._insideProp(x, y, z)) { safe = Math.max(c.minDistance, d - 0.5); break; }
     }

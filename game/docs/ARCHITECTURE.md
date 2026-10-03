@@ -143,3 +143,27 @@ game/
 イベント: `area:changed`, `boss:defeated`, `enemy:enrage`, `pylon:destroyed`, `chest:open`, `gate:open`, `barrier:open`。
 
 素材 (Poly Haven CC0) の追加分は `public/assets/CREDITS.md` を参照。
+
+## Phase 5: ラスボス戦・エンディング・仕上げ (実装済み)
+
+| 要素 | 実装 |
+|---|---|
+| 最終フロア | `AREAS.throne` 王の間 (柱の回廊・赤い絨毯・火鉢・玉座)。空中城の出口 (風の紋章) から入る |
+| ラスボス | `終焉の王 ヴォイド` (`data/enemies.js` の `archon`)。**第1形態**: 近接主体 (薙ぎ払い・突進・叩きつけ)。**第2形態** (HP50%): 変身演出 → 結界で無敵 + 結界ピラー3本を召喚 → 結界中は降り注ぐ魔弾 (`rain`) と全周弾幕 (`volley`)。ピラーを全て壊すと結界が砕けてダウン → 全技 (`phase2.attacks`) を使う。HP20% で怒り |
+| 新攻撃 | `rain`: プレイヤー周辺に着弾点を固定して予兆表示 → 同時着弾。`volley` は全周弾にも対応 |
+| 演出基盤 | `Game.cutscene` 中はロジックを止めアニメ/粒子/カメラだけ更新。`core/Cinematic.js` (キーフレームカメラ・周回)、`ui/Dialogue.js` (タイプライター会話、タップ/Enter/Space/E で送り) |
+| ストーリー | `systems/Story.js` + `data/story.js`: プロローグ → ボス前の会話 → 第2形態への変身 → 撃破後の会話 → 余韻の周回カメラと字幕 → スタッフロール → リザルト (タイム/レベル/撃破数/宝箱/戦闘不能/ランク) |
+| クリア後 | `onClear()` でクリア記録を保存。**強くてニューゲーム** (レベル・装備・所持品を引き継ぎ、鍵は没収。敵 HP×(1+0.9n)/攻撃×(1+0.6n)/EXP×(1+0.5n)、レベル上限 +5 (最大45)) と、**隠しダンジョン「深淵の回廊」** (敵が HP×2.1/攻撃×1.55、超ボス「深淵の主」、虚空シリーズの装備) |
+| サウンド | `audio/AudioManager.js`: Web Audio による合成 SE (30種) と BGM (エリア別・ボス・最終ボス・エンディング・タイトル)。素材ファイル不要。最初の操作で開始 |
+| 設定 | メニュー「設定」: BGM/効果音音量・ミュート・視点感度 (マウス/タッチ)・画質。`localStorage` に保存 (`core/Settings.js`)。「操作説明」タブ |
+| タイトル | つづきから / はじめから / 強くてニューゲーム (クリア済みセーブがある時のみ) |
+| 演出UI | レターボックス、字幕、スタッフロール (スキップ可)、ボス戦中のカメラ引き |
+
+セーブ: `flags` に `cleared / clears / bestTime / ng / stats{kills,deaths,chests}` を追加 (v2 のまま互換)。
+イベント: `boss:phase2`, `boss:shieldBroken`, `enemy:summon`, `enemy:blocked`, `enemy:impact`, `game:cleared`。
+
+## 既知の制約
+- キャラクター・敵は手続き生成のモデル (リグ付き glTF への差し替えは `entities/*` のモデル構築部分のみ)。
+- 木は自作のローポリ (写真測量の木は Web 向けに重すぎるため不採用)。
+- BGM/SE はコードによる合成音のため、音色は簡素。
+- 難易度は計算とシミュレーションでの確認。長時間プレイでの調整余地あり (`data/enemies.js`)。

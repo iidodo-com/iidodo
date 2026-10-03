@@ -59,6 +59,7 @@ export class Combat {
     });
     const kv = knockDir.clone().setY(0).normalize().multiplyScalar(knock);
     const res = e.receiveHit({ dmg, knock: kv, poiseDmg: poise * (crit ? 1.3 : 1) });
+    if (res.blocked) { this.game.bus.emit('enemy:blocked', { enemy: e, pos: e.centerPos }); return res; }
     this.game.bus.emit('enemy:hit', { enemy: e, dmg, crit, pos: e.centerPos, downed: res.downed, killed: res.killed });
     return res;
   }
@@ -181,6 +182,17 @@ export class Combat {
     let from;
     for (let i = 0; i < atk.count; i++) from = this._spawnBolt(enemy, atk, this._aimDir(enemy, (i - (atk.count - 1) / 2) * atk.spread));
     this.game.bus.emit('enemy:bolt', { pos: from });
+  }
+
+  /** 降り注ぐ魔弾: 予告した各地点で同時に着弾 (円形判定) */
+  fireRain(enemy, atk) {
+    const g = this.game, p = g.player;
+    let hit = false;
+    for (const pt of enemy.rainPts || []) {
+      if (!hit && Math.hypot(p.position.x - pt.x, p.position.z - pt.z) <= atk.radius + 0.45) { hit = this.enemyHitsPlayer(enemy, atk, { x: pt.x, y: 0, z: pt.z }); }
+      g.bus.emit('enemy:impact', { x: pt.x, z: pt.z, radius: atk.radius });
+    }
+    g.cam.shake(0.3);
   }
 
   clear() {

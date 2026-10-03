@@ -133,6 +133,44 @@ const more = {
       A('swing', { range: 4.8, arc: Math.PI, windup: 0.9, active: 0.2, recover: 1.0, cd: [2, 3], mul: 1.1, knock: 9 }),
     ],
   },
+  // ------------------------------------------------------------ 最終ボス / 隠しボス
+  archon: {
+    id: 'archon', model: 'archon', name: '終焉の王 ヴォイド', level: 32, boss: true, final: true, scale: 2.8,
+    hp: 9800, atk: 150, def: 90, speed: 4.4, radius: 1.9, detect: 0, leash: 90, poise: 1500, exp: 8000, gold: 5000, superArmor: true,
+    ai: 'melee', enrage: { at: 0.2, speed: 1.25, cd: 0.65, atk: 1.2 },
+    // 第1形態: 近接主体
+    attacks: [
+      A('swing', { range: 4.8, arc: 1.2, windup: 0.6, active: 0.2, recover: 0.8, cd: [1.0, 1.8], mul: 1.1, knock: 10 }),
+      A('lunge', { range: 9, arc: 0.5, windup: 0.75, active: 0.4, recover: 1.0, cd: [2, 3], mul: 1.3, lunge: 17, knock: 12, minRange: 4 }),
+      A('slam', { range: 5.8, radius: 6, arc: Math.PI, windup: 1.0, active: 0.2, recover: 1.2, cd: [2.2, 3.2], mul: 1.4, knock: 12 }),
+    ],
+    // 第2形態 (HP50%): 結界ピラーを壊すまで無敵。弾幕と降り注ぐ魔弾。結界破壊後は全技を使う
+    phase2: {
+      at: 0.5, pylons: 3, hover: 1.2,
+      shieldAttacks: [
+        A('rain', { range: 40, radius: 3.1, count: 7, spread: 11, windup: 1.5, active: 0.2, recover: 1.2, cd: [1.6, 2.4], mul: 1.1, knock: 8 }),
+        A('volley', { range: 40, arc: 3.2, windup: 1.1, active: 0.1, recover: 1.1, cd: [2.2, 3.2], mul: 0.65, speed: 15, knock: 4, count: 14, spread: 0.45 }),
+      ],
+      attacks: [
+        A('rain', { range: 40, radius: 3.1, count: 8, spread: 11, windup: 1.3, active: 0.2, recover: 1.0, cd: [1.6, 2.4], mul: 1.1, knock: 8 }),
+        A('volley', { range: 40, arc: 3.2, windup: 1.0, active: 0.1, recover: 1.0, cd: [2, 3], mul: 0.7, speed: 17, knock: 4, count: 16, spread: 0.4 }),
+        A('slam', { range: 6.5, radius: 6.8, arc: Math.PI, windup: 0.95, active: 0.2, recover: 1.1, cd: [2, 3], mul: 1.4, knock: 13 }),
+        A('swing', { range: 5.4, arc: Math.PI, windup: 0.8, active: 0.2, recover: 0.9, cd: [1.4, 2.2], mul: 1.2, knock: 11 }),
+        A('lunge', { range: 10, arc: 0.5, windup: 0.7, active: 0.4, recover: 0.9, cd: [2, 3], mul: 1.3, lunge: 18, knock: 12, minRange: 5 }),
+      ],
+    },
+  },
+  abyss_lord: {
+    id: 'abyss_lord', model: 'brute', name: '深淵の主', level: 36, boss: true, tint: '#8a4ae0', scale: 2.0, metal: true,
+    hp: 8200, atk: 170, def: 105, speed: 3.6, radius: 2.2, detect: 26, poise: 2400, exp: 12000, gold: 6500, superArmor: true,
+    ai: 'melee', enrage: { at: 0.45, speed: 1.35, cd: 0.55, atk: 1.3 },
+    attacks: [
+      A('slam', { range: 6, radius: 6.4, arc: Math.PI, windup: 1.0, active: 0.2, recover: 1.2, cd: [1.8, 2.8], mul: 1.4, knock: 13 }),
+      A('swing', { range: 5.6, arc: Math.PI, windup: 0.85, active: 0.2, recover: 0.95, cd: [1.6, 2.6], mul: 1.2, knock: 11 }),
+      A('rain', { range: 36, radius: 3.0, count: 6, spread: 10, windup: 1.3, active: 0.2, recover: 1.1, cd: [2, 3], mul: 1.1, knock: 8, minRange: 5 }),
+      A('volley', { range: 30, arc: 3.2, windup: 1.0, active: 0.1, recover: 1.0, cd: [2.2, 3.2], mul: 0.7, speed: 17, knock: 4, count: 12, spread: 0.52, minRange: 7 }),
+    ],
+  },
   // ------------------------------------------------------------ 空中城
   harpy: {
     id: 'harpy', model: 'bat', name: 'ハーピー', level: 25, hover: 2.6, tint: '#f4f0ff', scale: 1.5,

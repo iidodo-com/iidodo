@@ -19,7 +19,10 @@ export class Enemy {
     this.game = game; this.def = def; this.camp = camp;
     this.home = home.clone(); this.pos = home.clone();
     this.facing = Math.random() * Math.PI * 2;
-    this.maxHp = this.hp = def.hp;
+    // エリア補正 (隠しダンジョン) と周回難易度 (強くてニューゲーム) を反映
+    const ar = game.areas?.area?.enemyScale || { hp: 1, atk: 1, exp: 1 }, df = game.difficulty || { hp: 1, atk: 1, exp: 1 };
+    this.hpMul = ar.hp * df.hp; this.baseAtkMul = ar.atk * df.atk; this.expMul = ar.exp * df.exp;
+    this.maxHp = this.hp = Math.round(def.hp * this.hpMul);
     this.maxPoise = this.poise = def.poise;
     this.state = 'idle'; this.t = 0; this.cd = rr(0.5, 1.5);
     this.knock = new THREE.Vector3(); this.vel = new THREE.Vector3();
@@ -33,8 +36,9 @@ export class Enemy {
     this.baseScale = def.scale || 1;
 
     this.model = buildEnemyModel(def, game.assets);
-    this.speedMul = 1; this.cdMul = 1; this.atkMul = 1; this.enraged = false;
-    this.cur = def.attacks[0]; this.hoverY = 0;
+    this.speedMul = 1; this.cdMul = 1; this.atkMul = this.baseAtkMul; this.enraged = false;
+    this.attackList = def.attacks; this.cur = def.attacks[0]; this.hoverY = 0;
+    this.phase = 1; this.shield = false; this.linked = []; this.extraTg = []; this.frozen = false;
     this.root = this.model.root;
     this.model.height *= this.baseScale;
     game.scene.add(this.root);
@@ -52,11 +56,14 @@ export class Enemy {
   /** Combat から呼ぶ。{killed, downed} を返す */
   receiveHit({ dmg, knock, poiseDmg = 0 }) {
     if (!this.alive) return { killed: false, downed: false };
+    if (this.shield || this.state === 'phase2') { this.flash = 0.05; return { killed: false, downed: false, blocked: true }; }   // 結界/変身中は無敵
     this.hp = Math.max(0, this.hp - dmg);
     this.lastHit = this.game.time; this.flash = 0.12;
     this.aggro = true;
     if (this.state === 'idle') { this.state = 'chase'; this.game.enemies?.alertCamp(this); }
     if (this.hp <= 0) { this._die(); return { killed: true, downed: false }; }
+    const p2 = this.def.phase2;
+    if (p2 && this.phase === 1 && this.hp <= this.maxHp * p2.at) { this._startPhase2(p2); return { killed: false, downed: false }; }
     const en = this.def.enrage;
     if (en && !this.enraged && this.hp <= this.maxHp * en.at) this._enrage(en);
 
@@ -76,9 +83,51 @@ export class Enemy {
 
   /** 中ボスの怒りモード: 移動/攻撃間隔/攻撃力が上がる */
   _enrage(en) {
-    this.enraged = true; this.speedMul = en.speed; this.cdMul = en.cd; this.atkMul = en.atk;
+    this.enraged = true; this.speedMul = en.speed; this.cdMul = en.cd; this.atkMul = this.baseAtkMul * en.atk;
     this.flash = 0.4;
     this.game.bus.emit('enemy:enrage', { enemy: this, pos: this.pos.clone(), radius: 6 });
+  }
+
+  /** 第2形態への移行: 変身演出 (Story が制御) → 結界 + ピラー出現 */
+  _startPhase2(p2) {
+    this.phase = 2; this.hp = Math.round(this.maxHp * p2.at);
+    this._clearTelegraph(); this.state = 'phase2'; this.t = 0; this.vel.set(0, 0, 0); this.knock.set(0, 0, 0);
+    this.game.bus.emit('boss:phase2', { enemy: this });
+  }
+
+  /** Story の演出後に呼ぶ: 結界を張りピラーを召喚して戦闘再開 */
+  beginShieldPhase() {
+    const p2 = this.def.phase2;
+    this.shield = true; this.attackList = p2.shieldAttacks; this.hover = p2.hover || 0;
+    this.linked = this.game.enemies.spawnPylonsAround(this, p2.pylons);
+    this.state = 'chase'; this.t = 0; this.cd = 1.2;
+    this._applyPhaseVisuals();
+  }
+
+  /** 戦闘離脱時: 第1形態に戻し、召喚ピラーを片付ける */
+  _resetPhases() {
+    this.phase = 1; this.shield = false; this.attackList = this.def.attacks; this.hover = this.def.hover || 0;
+    for (const p of this.linked) if (!p.removed) { p.slot && (p.slot.dead = true); p.dispose(); }
+    this.linked = [];
+    const P = this.model.parts; if (P.wings) { P.wings.visible = false; P.halo.visible = false; }
+    if (this.shieldMesh) this.shieldMesh.visible = false;
+    this.game.enemies.slots = this.game.enemies.slots.filter((s) => s.kind !== 'extra');
+  }
+
+  breakShield() {
+    if (!this.shield) return;
+    this.shield = false; this.attackList = this.def.phase2.attacks;
+    this._clearTelegraph(); this.state = 'down'; this.t = 0; this.poise = 0;
+    this.game.bus.emit('boss:shieldBroken', { enemy: this });
+  }
+
+  _applyPhaseVisuals() {
+    const P = this.model.parts;
+    if (P.wings) { P.wings.visible = true; P.halo.visible = true; }
+    if (!this.shieldMesh) {
+      this.shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 20), new THREE.MeshBasicMaterial({ color: new THREE.Color('#6ad8ff').multiplyScalar(1.6), transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      this.root.add(this.shieldMesh);
+    }
   }
 
   _die() {
@@ -86,7 +135,7 @@ export class Enemy {
     this._clearTelegraph();
     this.game.bus.emit('enemy:died', { enemy: this, pos: this.pos.clone(), def: this.def });
   }
-  _clearTelegraph() { this.telegraph?.remove(); this.telegraph = null; }
+  _clearTelegraph() { this.telegraph?.remove(); this.telegraph = null; for (const t of this.extraTg) t.remove(); this.extraTg = []; }
 
   dispose() {
     this._clearTelegraph();
@@ -111,6 +160,7 @@ export class Enemy {
       case 'return': this._return(dt); break;
       case 'windup': this._windup(dt, toP, dist); break;
       case 'attack': this._attack(dt); break;
+      case 'phase2': this._move(0, 0, dt); break;
       case 'recover':
         this._face(toP, dt, 3);
         if (this.t >= a.recover) { this.state = 'chase'; this.t = 0; }
@@ -144,18 +194,18 @@ export class Enemy {
   _chase(dt, dist, toP, playerAlive) {
     const g = this.game, d = this.def;
     const homeDist = Math.hypot(this.pos.x - this.home.x, this.pos.z - this.home.z);
-    if (!playerAlive || homeDist > 42 || dist > d.detect * 2.6) { this.state = 'return'; this.t = 0; this._move(0, 0, dt); return; }
+    if (!playerAlive || homeDist > 42 || dist > (d.leash || d.detect * 2.6)) { this.state = 'return'; this.t = 0; this._move(0, 0, dt); return; }
     this._face(toP, dt, 8);
 
-    if (d.ai === 'ranged') {
-      const [k0, k1] = d.keep, sp = this.speed;
+    if (d.ai === 'ranged' || this.shield) {
+      const [k0, k1] = d.keep || [9, 16], sp = this.speed;
       if (dist < k0) this._move(toP + Math.PI, sp, dt);
       else if (dist > k1) this._move(toP, sp, dt);
       else this._move(toP + this.strafe * Math.PI / 2, sp * 0.5, dt);
-      if (this.cd <= 0 && dist < k1 + 3 && g.combat.tryToken(this)) this._startAttack(toP, d.attacks[0]);
+      if (this.cd <= 0 && dist < k1 + 3 && g.combat.tryToken(this)) this._startAttack(toP, this._pickAttack(dist) || this.attackList[0]);
       return;
     }
-    const want = d.attacks[0].range * 0.8;
+    const want = this.attackList[0].range * 0.8;
     if (dist > want) this._move(toP, this.speed, dt);
     else this._move(0, 0, dt);
     if (this.cd <= 0) {
@@ -168,7 +218,7 @@ export class Enemy {
 
   /** 現在の距離で使える攻撃をランダムに選ぶ (射程内かつ最小射程以上) */
   _pickAttack(dist) {
-    const ok = this.def.attacks.filter((a) => dist <= a.range * 1.05 && dist >= (a.minRange || 0));
+    const ok = this.attackList.filter((a) => dist <= a.range * 1.05 && dist >= (a.minRange || 0));
     return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
   }
 
@@ -179,7 +229,8 @@ export class Enemy {
     this.poise = this.maxPoise;
     if (Math.hypot(tx, tz) < 1.5) {
       this.state = 'idle'; this.aggro = false; this.hp = this.maxHp; this.wanderT = 0;
-      if (this.enraged) { this.enraged = false; this.speedMul = this.cdMul = this.atkMul = 1; }
+      if (this.enraged) { this.enraged = false; this.speedMul = this.cdMul = 1; this.atkMul = this.baseAtkMul; }
+      if (this.phase === 2) this._resetPhases();
     }
   }
 
@@ -188,7 +239,18 @@ export class Enemy {
     this.state = 'windup'; this.t = 0; this.hitDone = false;
     this.atkDir = toP;
     const tg = this.game.telegraphs;
-    if (a.kind === 'slam') this.telegraph = tg.show({ x: this.pos.x, z: this.pos.z, dir: 0, range: a.radius, arc: Math.PI });
+    if (a.kind === 'rain') {
+      // 降り注ぐ魔弾: プレイヤー周辺 (1つはプレイヤー位置そのもの) に落下地点を固定して予告
+      const pp = this.game.player.position; this.rainPts = [];
+      for (let i = 0; i < a.count; i++) {
+        const ang = Math.random() * Math.PI * 2, r = i === 0 ? 0 : 2.5 + Math.random() * a.spread;
+        const pt = { x: pp.x + Math.cos(ang) * r, z: pp.z + Math.sin(ang) * r };
+        const lim = this.game.terrain.half - 6; pt.x = Math.max(-lim, Math.min(lim, pt.x)); pt.z = Math.max(-lim, Math.min(lim, pt.z));
+        this.rainPts.push(pt);
+        this.extraTg.push(tg.show({ x: pt.x, z: pt.z, dir: 0, range: a.radius, arc: Math.PI }));
+      }
+    }
+    else if (a.kind === 'slam') this.telegraph = tg.show({ x: this.pos.x, z: this.pos.z, dir: 0, range: a.radius, arc: Math.PI });
     else if (a.kind === 'volley') this.telegraph = tg.show({ x: this.pos.x, z: this.pos.z, dir: toP, range: a.range, arc: a.spread * (a.count - 1) / 2 + 0.08 });
     else this.telegraph = tg.show({ x: this.pos.x, z: this.pos.z, dir: toP, range: a.kind === 'lunge' ? a.range + 1.4 : a.range, arc: a.arc });
   }
@@ -196,10 +258,12 @@ export class Enemy {
   _windup(dt, toP, dist) {
     const a = this.cur, p = clamp01(this.t / a.windup);
     // 発生直前まで狙いを追従し、その後は固定 (避けられる猶予)
-    if (a.kind !== 'slam' && p < 0.6) { this._face(toP, dt, 10); this.atkDir = this.facing; }
+    if (a.kind !== 'slam' && a.kind !== 'rain' && p < 0.6) { this._face(toP, dt, 10); this.atkDir = this.facing; }
+    else if (a.kind === 'rain' || a.kind === 'volley') this._face(toP, dt, 4);
     this._move(0, 0, dt);
     this.telegraph?.setPos(this.pos.x, this.pos.z, a.kind === 'slam' ? 0 : this.atkDir);
     this.telegraph?.setFill(p);
+    for (const t of this.extraTg) t.setFill(p);
     if (p >= 1) {
       this._clearTelegraph();
       this.state = 'attack'; this.t = 0; this.hitDone = false; this.facing = a.kind === 'slam' ? this.facing : this.atkDir;
@@ -208,6 +272,7 @@ export class Enemy {
       else if (a.kind === 'slam') { c.enemyCircle(this, a.radius, a); this.hitDone = true; this.game.bus.emit('enemy:slam', { enemy: this, pos: this.pos.clone(), radius: a.radius }); }
       else if (a.kind === 'bolt') { c.fireBolt(this, a); this.hitDone = true; }
       else if (a.kind === 'volley') { c.fireVolley(this, a); this.hitDone = true; }
+      else if (a.kind === 'rain') { c.fireRain(this, a); this.hitDone = true; }
     }
   }
 
@@ -270,22 +335,29 @@ export class Enemy {
       else if (this.state === 'hurt') { sy = 0.75; sxz = 1.2; }
       else if (moving) { const h = Math.abs(Math.sin(this.walk * 2.2)); sy = 0.9 + h * 0.25; sxz = 1.1 - h * 0.1; r.position.y = h * 0.25; }
       b.scale.set(sxz, sy, sxz);
-    } else if (id === 'goblin' || id === 'brute') {
-      const big = id === 'brute';
+    } else if (id === 'goblin' || id === 'brute' || id === 'archon') {
+      const big = id !== 'goblin';
       const sw = moving ? Math.sin(this.walk * (big ? 1.6 : 3.4)) * (big ? 0.4 : 0.8) : 0;
       P.legs[0].rotation.x = sw; P.legs[1].rotation.x = -sw;
       const R = P.armR, L = P.armL;
       if (this.state === 'windup') { R.rotation.x = -2.7 * windP; if (big) L.rotation.x = -2.7 * windP; }
       else if (this.state === 'attack') { const e = 1 - Math.pow(1 - atkP, 3); R.rotation.x = -2.7 + 3.3 * e; if (big) L.rotation.x = -2.7 + 3.3 * e; }
       else { R.rotation.x += (sw * 0.6 - R.rotation.x) * Math.min(1, dt * 10); L.rotation.x += (-sw * 0.6 - L.rotation.x) * Math.min(1, dt * 10); }
-      const baseY = big ? 1.3 : 0.62;
+      const baseY = id === 'archon' ? 1.15 : big ? 1.3 : 0.62;
       let tilt = 0, drop = 0;
       if (this.state === 'down') { tilt = -1.1; drop = big ? 0.55 : 0.3; }
       else if (this.state === 'hurt') tilt = -0.35;
       else if (this.state === 'windup') tilt = -0.2 * windP;
       else if (this.state === 'attack') tilt = 0.35;
       P.rig.rotation.x += (tilt - P.rig.rotation.x) * Math.min(1, dt * 14);
-      P.rig.position.y = baseY - drop + (moving ? Math.abs(Math.sin(this.walk * (big ? 1.6 : 3.4))) * 0.05 : 0);
+      const hov = this.phase === 2 ? (this.def.phase2.hover || 0) + Math.sin(tm * 2) * 0.15 : 0;
+      this.hoverY += (hov - this.hoverY) * Math.min(1, dt * 3);
+      P.rig.position.y = baseY - drop + this.hoverY + (moving && !hov ? Math.abs(Math.sin(this.walk * (big ? 1.6 : 3.4))) * 0.05 : 0);
+      if (id === 'archon') {
+        if (this.state === 'phase2') { R.rotation.x = -2.6; L.rotation.x = -2.6; P.rig.rotation.x = -0.15; }
+        if (P.wings.visible) { const f = Math.sin(tm * 3) * 0.25; P.wgL.rotation.z = -0.35 - f; P.wgR.rotation.z = 0.35 + f; P.halo.rotation.z += dt * 1.2; }
+        P.cape.rotation.x = 0.12 + (moving ? 0.35 : 0) + Math.sin(tm * 2) * 0.05;
+      }
     } else if (id === 'bat') {
       const flap = Math.sin(tm * (this.state === 'windup' ? 26 : 16)) * (this.state === 'down' ? 0.2 : 0.9);
       P.wingL.rotation.z = flap; P.wingR.rotation.z = -flap;
@@ -317,6 +389,13 @@ export class Enemy {
     r.rotation.y = this.facing;
     r.scale.setScalar(scale * this.baseScale);
     if (this.state === 'dead') r.position.y -= this.t * 0.4;
+
+    if (this.shieldMesh) {
+      this.shieldMesh.visible = this.shield;
+      const rad = (this.radius + 1.6) / (this.baseScale || 1);
+      const pulse = 1 + Math.sin(tm * 4) * 0.03;
+      this.shieldMesh.scale.setScalar(rad * pulse * 1.15); this.shieldMesh.position.y = this.model.height / this.baseScale * 0.5;
+    }
 
     // 被弾フラッシュ
     const f = this.flash / 0.12;

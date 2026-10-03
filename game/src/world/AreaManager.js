@@ -13,7 +13,7 @@ export class AreaManager {
     this.game = game;
     this.current = null;
     this.loading = false;
-    game.bus.on('boss:defeated', ({ area }) => game.hud.toast(`${AREAS[area].boss.id === 'wind_lord' ? '空の王を倒した！' : '守護者を倒した！ 鍵を手に入れよう'}`, 3000));
+    game.bus.on('boss:defeated', ({ area }) => !AREAS[area].final && game.hud.toast(`${AREAS[area].boss.id === 'wind_lord' ? '空の王を倒した！' : '守護者を倒した！ 鍵を手に入れよう'}`, 3000));
     game.bus.on('enemy:enrage', ({ enemy }) => game.hud.toast(`${enemy.def.name} が怒り狂った！`, 2200));
     game.bus.on('pylon:destroyed', ({ all }) => {
       game.hud.toast(all ? '障壁ピラーを全て破壊した！ 遠くで障壁が消えていく……' : '障壁ピラーを破壊した', 2400);
@@ -42,7 +42,8 @@ export class AreaManager {
       // --- 旧エリアの破棄
       g.enemies.clear(); g.drops.clear(); g.combat.clear(); g.world.clear(); g.effects.reset?.();
 
-      // --- 構築
+      // --- 構築 (敵の補正などが「新しいエリア」を参照できるよう、先に current を切り替える)
+      this.current = id;
       g.terrain.configure(area);
       const props = g.terrain.build();
       g.water.rebuild(area);
@@ -77,7 +78,7 @@ export class AreaManager {
   _spawnPoint(area, spawn) {
     if (spawn && typeof spawn === 'object') return { x: spawn.x, z: spawn.z, facing: Math.PI };
     if (spawn === 'entrance' && area.entrance) return { x: area.entrance.x, z: area.entrance.z - 8, facing: Math.PI };
-    if (spawn === 'exit') return { x: area.exit.x, z: area.exit.z + 8, facing: 0 };
+    if (spawn === 'exit' && area.exit) return { x: area.exit.x, z: area.exit.z + 8, facing: 0 };
     // セーブポイントを正面に見る位置 (カメラは北側 = 戦闘エリア側)
     return { x: area.savepoint.x, z: area.savepoint.z - 7, facing: 0 };
   }

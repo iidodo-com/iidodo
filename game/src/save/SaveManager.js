@@ -54,7 +54,7 @@ export class SaveManager {
   /** メニュー表示用の概要 */
   info(slot) {
     const d = this.read(slot);
-    return d && { level: d.player.level, gold: d.inventory.gold, playtime: d.playtime || 0, savedAt: d.savedAt };
+    return d && { level: d.player.level, gold: d.inventory.gold, playtime: d.playtime || 0, savedAt: d.savedAt, cleared: !!d.flags?.cleared, ng: d.flags?.ng || 0 };
   }
   latestSlot() {
     let best = null, t = -1;
@@ -69,6 +69,7 @@ export class SaveManager {
     const d = this.read(slot);
     if (!d) return false;
     const g = this.game;
+    g.flags = d.flags && typeof d.flags === 'object' ? d.flags : {};     // 周回数 (レベル上限) を先に反映
     g.inventory.fromJSON(d.inventory);
     g.progression.fromJSON(d.player);
     const st = g.player.stats;
