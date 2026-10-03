@@ -13,6 +13,10 @@ export class Effects {
     this.stepTimer = 0;
     this._v = new THREE.Vector3();
     game.bus.on('player:dodge', ({ pos }) => this.burstDust(pos, 14, 0.9));
+    game.bus.on('enemy:hit', ({ pos, crit, killed }) => this.hitSparks(pos, crit, killed));
+    game.bus.on('enemy:died', ({ pos }) => { this.burstDust(pos, 18, 1.0); });
+    game.bus.on('enemy:slam', ({ pos, radius }) => this.shockwave(pos, radius));
+    game.bus.on('player:hurt', ({ pos }) => this.hurtSparks(pos));
     game.bus.on('player:swing', ({ combo, pos, dir }) => this.slashSparks(pos, dir, combo));
   }
 
@@ -40,6 +44,41 @@ export class Effects {
         color: [1.6, 3.4, 4.6], gravity: 4, drag: 2,
       });
     }
+  }
+
+  hitSparks(pos, crit, big) {
+    const n = crit ? 26 : 14;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, e = Math.random() * 2 - 0.4, sp = 3 + Math.random() * (crit ? 7 : 4);
+      this.sparks.emit({
+        pos, vel: { x: Math.cos(a) * sp, y: e * sp * 0.6 + 1.5, z: Math.sin(a) * sp },
+        life: 0.25 + Math.random() * 0.3, size: crit ? 0.16 : 0.1, sizeEnd: 0,
+        color: crit ? [4, 3, 0.9] : [3.4, 2.4, 1.2], gravity: 9, drag: 1.5,
+      });
+    }
+  }
+
+  hurtSparks(pos) {
+    for (let i = 0; i < 12; i++) {
+      const a = Math.random() * Math.PI * 2;
+      this.sparks.emit({
+        pos: { x: pos.x, y: pos.y + 1.1, z: pos.z }, vel: { x: Math.cos(a) * 3, y: 1 + Math.random() * 3, z: Math.sin(a) * 3 },
+        life: 0.4, size: 0.12, sizeEnd: 0, color: [3.5, 0.5, 0.35], gravity: 8,
+      });
+    }
+  }
+
+  shockwave(pos, radius) {
+    const t = this.game.terrain;
+    for (let i = 0; i < 46; i++) {
+      const a = (i / 46) * Math.PI * 2;
+      this.dust.emit({
+        pos: { x: pos.x + Math.cos(a) * radius * 0.35, y: t.height(pos.x, pos.z) + 0.2, z: pos.z + Math.sin(a) * radius * 0.35 },
+        vel: { x: Math.cos(a) * radius * 1.9, y: 0.8 + Math.random(), z: Math.sin(a) * radius * 1.9 },
+        life: 0.55, size: 0.5, sizeEnd: 1.6, color: [0.66, 0.6, 0.5], drag: 3.5,
+      });
+    }
+    this.game.cam.shake(0.45);
   }
 
   update(dt) {

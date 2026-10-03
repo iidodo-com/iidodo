@@ -10,6 +10,10 @@ import { TIME } from '../world/Wind.js';
 import { PostFx } from './PostFx.js';
 import { Effects } from '../fx/Effects.js';
 import { Ambient } from '../fx/Ambient.js';
+import { Telegraph } from '../fx/Telegraph.js';
+import { EnemySystem } from '../systems/EnemySystem.js';
+import { Combat } from '../systems/Combat.js';
+import { WorldLabels } from '../ui/WorldLabels.js';
 import { PX } from '../fx/Particles.js';
 import { Player } from '../entities/Player.js';
 import { FollowCamera } from '../camera/FollowCamera.js';
@@ -47,7 +51,13 @@ export class Game {
     this.player = new Player(this.scene, this.terrain, this.bus);
     this.cam = new FollowCamera(this.camera, this.terrain);
     this.cam.snapTo(this.player.position);
+    this.time = 0;
+    this.hitStopT = 0;
     this.effects = new Effects(this);
+    this.telegraphs = new Telegraph(this.scene, this.terrain);
+    this.enemies = new EnemySystem(this);
+    this.combat = new Combat(this);
+    this.labels = new WorldLabels(this);
     this.post = this.quality.post ? new PostFx(this.renderer, this.scene, this.camera, this.quality) : null;
 
     this._bindEvents();
@@ -95,7 +105,11 @@ export class Game {
   _bindEvents() {
     this.bus.on('player:skill', ({ slot }) => this.hud.toast(`スキル${slot}: Phase 3 で実装予定`));
     this.bus.on('player:interact', () => this.hud.toast('調べるものがない'));
-    this.bus.on('player:dodge', () => {});
+    this.bus.on('player:hurt', ({ heavy }) => { this.hud.hitFlash(); this.cam.shake(heavy ? 0.5 : 0.28); this.hitStop(heavy ? 0.09 : 0.05); });
+    this.bus.on('player:dead', () => {
+      this.hud.showDeath(true);
+      setTimeout(() => this._respawn(), 3200);
+    });
   }
 
   _resize() {
@@ -107,6 +121,16 @@ export class Game {
     this.camera.fov = w / h < 1 ? CONFIG.camera.fov + 14 : CONFIG.camera.fov;
     this.camera.updateProjectionMatrix();
     PX.value = (h * this.renderer.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
+  }
+
+  /** ヒットストップ: 一瞬だけ時間を遅くして打撃の重さを出す */
+  hitStop(sec) { this.hitStopT = Math.max(this.hitStopT, sec); }
+
+  _respawn() {
+    this.player.respawn(0, 0);
+    this.cam.snapTo(this.player.position);
+    this.enemies.resetAggro();
+    this.hud.showDeath(false);
   }
 
   addSystem(sys) { this.systems.push(sys); }
@@ -129,9 +153,13 @@ export class Game {
   /** ロジック更新 (描画なし)。自動テストからは固定 dt で直接呼べる。 */
   update(dt) {
     this.input.update();
+    if (this.hitStopT > 0) { this.hitStopT -= dt; dt *= 0.08; }
     TIME.value += dt;
+    this.time += dt;
 
     this.player.update(dt, this.input, this.cam);
+    this.enemies.update(dt, this);
+    this.combat.update(dt);
     for (const s of this.systems) s.update(dt, this);
     this.effects.update(dt);
     this.vegetation.update(this.player.position);
@@ -146,6 +174,7 @@ export class Game {
     this.sun.target.position.copy(p);
     this.sun.position.copy(p).add(this.sunOffset);
 
+    this.labels.update(dt);
     this.hud.setStats(this.player.stats);
     this.hud.tick(dt, `x:${p.x.toFixed(0)} z:${p.z.toFixed(0)} ${this.player.state}`);
   }

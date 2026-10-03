@@ -143,7 +143,7 @@ export function buildProps(terrain, assets = null, quality = null) {
   };
 
   // --- 松
-  const pineMat = flat({}); addWind(pineMat, { strength: 0.012, heightStart: 1.0 });
+  const pineMat = flat({}); addWind(pineMat, { strength: 0.012, heightStart: 1.0, nearFade: 7 });
   const pineLeaf = mk(pineFoliage(), pineMat, 340, true);
   const pineTrunk = mk(trunkGeo(1.8, 0.3, 0.2), trunkMat(), 340);
   const pineCols = ['#2d6a3e', '#25594a', '#3a7d3f', '#2f6f56'];
@@ -154,7 +154,7 @@ export function buildProps(terrain, assets = null, quality = null) {
   });
 
   // --- 広葉樹 (一部は桜・紅葉)
-  const oakMat = flat({}); addWind(oakMat, { strength: 0.02, heightStart: 2.2 });
+  const oakMat = flat({}); addWind(oakMat, { strength: 0.02, heightStart: 2.2, nearFade: 7 });
   const oakLeaf = mk(oakFoliage(), oakMat, 200, true);
   const oakTrunk = mk(trunkGeo(3.0, 0.34, 0.2), trunkMat(), 200);
   const oakCols = ['#68ad3c', '#7cb83f', '#58a044', '#8cc044'];
