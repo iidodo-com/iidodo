@@ -1,5 +1,6 @@
 import { ALLOC, SKILLS, MAX_LEVEL } from '../data/skills.js';
 import { AREAS, AREA_ORDER } from '../data/areas.js';
+import { SETTINGS, saveSettings } from '../core/Settings.js';
 import {
   CONSUMABLES, MATERIALS, GEMS, KEY_ITEMS, EQUIPMENT, RECIPES, SHOP, SLOT_NAME, RARITY, MAX_PLUS,
   itemInfo, equipStats, enhanceCost,
@@ -11,7 +12,7 @@ const statText = (st) => Object.entries(st).filter(([, v]) => v).map(([k, v]) =>
 const fmtTime = (s) => `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`;
 const matList = (m, inv) => Object.entries(m).map(([id, n]) => `<span class="${inv.count(id) >= n ? 'ok' : 'need'}">${MATERIALS[id].icon}${MATERIALS[id].name}×${n} (${inv.count(id)})</span>`).join(' ');
 
-const TABS_BASE = [['status', 'ステータス'], ['equip', '装備'], ['items', 'アイテム'], ['skills', 'スキル'], ['save', 'セーブ']];
+const TABS_BASE = [['status', 'ステータス'], ['equip', '装備'], ['items', 'アイテム'], ['skills', 'スキル'], ['save', 'セーブ'], ['settings', '設定'], ['help', '操作説明']];
 const TABS_SP = [['rest', '休息'], ['shop', 'ショップ'], ['forge', '強化・合成'], ['warp', 'ワープ'], ...TABS_BASE];
 
 /**
@@ -30,6 +31,14 @@ export class Menu {
       if (b && !b.disabled) this.act(b.dataset.act, b.dataset);
     });
     document.getElementById('menu-btn').addEventListener('click', () => this.toggle());
+    // 設定スライダー: 再描画せずに値だけ更新 (操作中のフォーカスを保つ)
+    this.el.addEventListener('input', (e) => {
+      const k = e.target.dataset?.setting; if (!k) return;
+      SETTINGS[k] = e.target.type === 'checkbox' ? e.target.checked : parseFloat(e.target.value);
+      saveSettings(); this.game.audio.applySettings();
+      const v = e.target.closest('.slider-row')?.querySelector('.val'); if (v) v.textContent = k === 'sens' || k === 'touchSens' ? `×${SETTINGS[k].toFixed(2)}` : `${Math.round(SETTINGS[k] * 100)}%`;
+    });
+    this.el.addEventListener('change', (e) => { if (e.target.dataset?.setting === 'sfx') this.game.audio.sfx('hit'); });
     game.bus.on('inventory:changed', () => { if (this.opened) this.render(); });
     game.bus.on('stats:changed', () => { if (this.opened) this.render(); });
   }
@@ -39,7 +48,7 @@ export class Menu {
   openSavepoint() { this.open('rest', true); }
 
   open(tab, atSavepoint = false) {
-    if (this.opened || this.game.player.state === 'dead') return;
+    if (this.opened || this.game.cutscene || this.game.player.state === 'dead') return;
     this.sp = atSavepoint;
     this.tab = tab || (TABS_BASE.some(([k]) => k === this.tab) ? this.tab : 'status');
     this.opened = true; this.game.paused = true;
@@ -61,6 +70,7 @@ export class Menu {
     const g = this.game, inv = g.inventory, pr = g.progression, say = (m) => g.hud.toast(m, 1600);
     switch (a) {
       case 'close': this.close(); return;
+      case 'quality': g.autosave('hide'); location.search = `?q=${d.q}`; return;
       case 'rest': {
         const st = g.player.stats; st.hp = st.maxHp; st.mp = st.maxMp;
         g.enemies.respawnAll();
@@ -98,7 +108,7 @@ export class Menu {
     const g = this.game, inv = g.inventory;
     const TABS = this.sp ? TABS_SP : TABS_BASE;
     if (!TABS.some(([k]) => k === this.tab)) this.tab = 'status';
-    const body = { status: () => this.status(), equip: () => this.equip(), items: () => this.items(), shop: () => this.shop(), forge: () => this.forge(), skills: () => this.skills(), save: () => this.save(), rest: () => this.rest(), warp: () => this.warp() }[this.tab]();
+    const body = { status: () => this.status(), equip: () => this.equip(), items: () => this.items(), shop: () => this.shop(), forge: () => this.forge(), skills: () => this.skills(), save: () => this.save(), rest: () => this.rest(), warp: () => this.warp(), settings: () => this.settings(), help: () => this.help() }[this.tab]();
     const prev = this.el.querySelector('.mbody')?.scrollTop || 0;
     this.el.innerHTML = `
       <div class="panel">
@@ -107,6 +117,32 @@ export class Menu {
         <div class="mfoot"><span>Lv ${g.progression.level} ／ プレイ時間 ${fmtTime(g.playtime)}</span><span class="gold">${inv.gold} G</span></div>
       </div>`;
     this.el.querySelector('.mbody').scrollTop = prev;
+  }
+
+  settings() {
+    const row = (label, key, min, max, step, fmt) => `<div class="slider-row"><label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${SETTINGS[key]}" data-setting="${key}"><span class="val">${fmt(SETTINGS[key])}</span></div>`;
+    const pct = (v) => `${Math.round(v * 100)}%`, mul = (v) => `×${v.toFixed(2)}`;
+    const cur = this.game.quality.name;
+    return `<div class="card"><h4>サウンド</h4>
+      ${row('BGM 音量', 'bgm', 0, 1, 0.05, pct)}${row('効果音 音量', 'sfx', 0, 1, 0.05, pct)}
+      <div class="slider-row"><label>ミュート</label><input type="checkbox" data-setting="mute" ${SETTINGS.mute ? 'checked' : ''}></div></div>
+      <div class="card" style="margin-top:12px"><h4>操作</h4>
+      ${row('視点感度 (マウス)', 'sens', 0.4, 2.5, 0.05, mul)}${row('視点感度 (タッチ)', 'touchSens', 0.4, 2.5, 0.05, mul)}</div>
+      <div class="card" style="margin-top:12px"><h4>画質 <span class="pill">現在: ${cur}</span></h4>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${['low', 'medium', 'high'].map((q) => `<button class="btn2" data-act="quality" data-q="${q}" ${q === cur ? 'disabled' : ''}>${{ low: '軽量 (low)', medium: '標準 (medium)', high: '高画質 (high)' }[q]}</button>`).join('')}</div>
+      <div class="sub" style="margin-top:6px">変更するとオートセーブして再読み込みする (「つづきから」で再開)。動作が重い時は軽量に。</div></div>`;
+  }
+
+  help() {
+    const rows = (a) => a.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+    return `<div class="grid2"><div class="card"><h4>PC</h4><table class="keytable">${rows([['W A S D', '移動'], ['マウス', '視点 (クリックで操作開始 / Esc でメニュー)'], ['左クリック', '攻撃 (3連コンボ)'], ['Space / 右クリック', '回避ロール (無敵)'], ['1 / 2 / 3', 'スキル'], ['Q', '回復薬をすぐ使う'], ['E', '調べる (宝箱・門・セーブポイント…)'], ['Tab / I', 'メニュー']])}</table></div>
+      <div class="card"><h4>スマホ</h4><table class="keytable">${rows([['左下スティック', '移動'], ['画面をドラッグ', '視点'], ['攻撃 / 回避', '右下ボタン'], ['1 2 3', 'スキル'], ['薬', '回復薬をすぐ使う'], ['調べる', '対象の近くで光る'], ['☰', 'メニュー']])}</table></div></div>
+      <div class="card" style="margin-top:12px"><h4>ヒント</h4><div class="sub" style="font-size:13px;opacity:.9;line-height:1.8">
+      ・敵の足元に出る赤い範囲は攻撃の予兆。満ちる前に回避ロールか距離を取ろう。<br>
+      ・セーブポイントでは休息・ショップ・強化・宝珠の合成・ワープができる。<br>
+      ・各エリアの中ボスを倒すと鍵が手に入り、次のエリアへの門が開く。<br>
+      ・洞窟はレバー、研究所はピラー破壊の仕掛けがボスの間を塞いでいる。<br>
+      ・クリア後は「強くてニューゲーム」と、隠しダンジョン「深淵の回廊」が遊べる。</div></div>`;
   }
 
   rest() {
@@ -130,10 +166,10 @@ export class Menu {
     const eq = { atk: 0, def: 0, hp: 0, mp: 0, crit: 0, spd: 0 };
     for (const s of ['weapon', 'armor', 'accessory']) { const i = inv.equippedInst(s); if (i) for (const [k, v] of Object.entries(equipStats(i))) eq[k] += v; }
     const line = (n, v, bonus) => `<div class="stat-line"><span>${n}</span><span><b>${v}</b>${bonus ? `<span class="bonus">装備 +${bonus}</span>` : ''}</span></div>`;
-    const need = pr.level >= MAX_LEVEL ? 0 : pr.expNeed;
+    const need = pr.level >= pr.maxLevel ? 0 : pr.expNeed;
     return `<div class="grid2">
       <div class="card"><h4>キャラクター</h4>
-        <div class="stat-line"><span>レベル</span><b>${pr.level}${pr.level >= MAX_LEVEL ? ' (MAX)' : ''}</b></div>
+        <div class="stat-line"><span>レベル</span><b>${pr.level}${pr.level >= pr.maxLevel ? ' (MAX)' : ''}${pr.ng ? ` ／ 周回 ${pr.ng + 1}` : ''}</b></div>
         <div class="expbar"><i style="width:${need ? (pr.exp / need) * 100 : 100}%"></i></div>
         <div class="sub" style="font-size:11px;opacity:.7">EXP ${pr.exp} / ${need || '—'}</div>
         <div style="height:8px"></div>

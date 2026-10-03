@@ -19,6 +19,7 @@ export class Effects {
     game.bus.on('enemy:hit', ({ pos, crit, killed }) => this.hitSparks(pos, crit, killed));
     game.bus.on('enemy:died', ({ pos }) => { this.burstDust(pos, 18, 1.0); });
     game.bus.on('enemy:enrage', ({ pos, radius }) => { this.shockwave(pos, radius); this.hitSparks({ x: pos.x, y: pos.y + 2, z: pos.z }, true, true); });
+    game.bus.on('enemy:impact', ({ x, z, radius }) => this.impact(x, z, radius));
     game.bus.on('enemy:slam', ({ pos, radius }) => this.shockwave(pos, radius));
     game.bus.on('player:hurt', ({ pos }) => this.hurtSparks(pos));
     game.bus.on('player:swing', ({ combo, pos, dir }) => this.slashSparks(pos, dir, combo));
@@ -75,6 +76,19 @@ export class Effects {
     for (let i = 0; i < 90; i++) {
       const a = Math.random() * Math.PI * 2, r = 0.5 + Math.random() * 1.2;
       this.sparks.emit({ pos: { x: p.x + Math.cos(a) * r, y: p.y + 0.1, z: p.z + Math.sin(a) * r }, vel: { x: 0, y: 4 + Math.random() * 6, z: 0 }, life: 1.1 + Math.random() * 0.5, size: 0.17, sizeEnd: 0, color: [4, 3.4, 1.1], drag: 0.8 });
+    }
+  }
+
+  /** 降り注ぐ魔弾の着弾エフェクト */
+  impact(x, z, radius) {
+    const t = this.game.terrain, y = t.height(x, z) + 0.2;
+    for (let i = 0; i < 18; i++) {
+      const a = Math.random() * Math.PI * 2, r = Math.random() * radius * 0.7;
+      this.sparks.emit({ pos: { x: x + Math.cos(a) * r, y, z: z + Math.sin(a) * r }, vel: { x: 0, y: 4 + Math.random() * 6, z: 0 }, life: 0.6, size: 0.22, sizeEnd: 0, color: [3.4, 1.2, 3.6], gravity: 6 });
+    }
+    for (let i = 0; i < 12; i++) {
+      const a = Math.random() * Math.PI * 2;
+      this.dust.emit({ pos: { x, y, z }, vel: { x: Math.cos(a) * radius * 1.5, y: 1, z: Math.sin(a) * radius * 1.5 }, life: 0.5, size: 0.4, sizeEnd: 1.2, color: [0.5, 0.4, 0.6], drag: 3 });
     }
   }
 

@@ -18,6 +18,7 @@ export class WorldLabels {
       this.floatText(pos, String(dmg), crit ? 'crit' : 'hit');
       if (downed) this.floatText(enemy.headPos, 'DOWN!', 'down');
     });
+    game.bus.on('enemy:blocked', ({ pos }) => this.floatText(pos, 'BLOCK', 'down'));
     game.bus.on('exp:gain', ({ exp, pos }) => this.floatText(new THREE.Vector3(pos.x, pos.y + 2.4, pos.z), `EXP +${exp}`, 'exp'));
     game.bus.on('player:hurt', ({ dmg, pos }) => this.floatText(new THREE.Vector3(pos.x, pos.y + 1.9, pos.z), String(dmg), 'hurt'));
   }

@@ -67,7 +67,7 @@ export class WorldObjects {
     this._spring(area.spring);
     (area.chests || []).forEach((c) => this._chest(area, c));
     if (area.entrance) this.entranceGate = this._gate(area, area.entrance, true);
-    this.gate = this._gate(area, area.exit, false);
+    this.gate = area.exit ? this._gate(area, area.exit, false) : { locked: false };
     (area.levers || []).forEach((l) => this._lever(area, l));
     if (area.barrier) this._barrier(area, area.barrier);
   }
@@ -204,7 +204,7 @@ export class WorldObjects {
           return;
         }
         if (!target) { gm.hud.toast(spec.lockedMsg, 3200); return; }
-        gm.areas.load(target.id, { spawn: isEntrance ? 'exit' : 'entrance' });
+        gm.areas.load(target.id, { spawn: spec.toSpawn || (isEntrance ? 'exit' : 'entrance') });
       },
     });
     return state;

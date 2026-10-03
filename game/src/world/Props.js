@@ -101,6 +101,7 @@ export function buildProps(terrain, assets = null, quality = null, area = null) 
     cave: { pine: 0, oak: 0, rocks: 1.0, undergrowth: 0, crystals: true, crystalCount: 26, crystalGlowOnly: true },
     lab: { pine: 0, oak: 0, rocks: 0.4, undergrowth: 0, crystals: false },
     sky: { pine: 0, oak: 0.55, rocks: 0.5, undergrowth: 0.3, crystals: false, sakura: true },
+    throne: { pine: 0, oak: 0, rocks: 0, undergrowth: 0, crystals: false },
   }[kind] || {};
   buildForest(terrain, assets, quality, area, forestOpts, out);
   if (kind !== 'forest') buildBiome(kind, terrain, assets, quality, area, out);

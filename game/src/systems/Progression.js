@@ -1,4 +1,4 @@
-import { ALLOC, MAX_LEVEL, POINTS_PER_LEVEL, baseStats, expToNext, expMultiplier } from '../data/skills.js';
+import { ALLOC, MAX_LEVEL as BASE_MAX_LEVEL, POINTS_PER_LEVEL, baseStats, expToNext, expMultiplier } from '../data/skills.js';
 import { EQUIPMENT, equipStats } from '../data/items.js';
 
 /**
@@ -18,16 +18,19 @@ export class Progression {
     this.alloc = { vit: 0, str: 0, def: 0, agi: 0 };
   }
 
-  get expNeed() { return this.level >= MAX_LEVEL ? Infinity : expToNext(this.level); }
+  /** 周回 (強くてニューゲーム) ごとに上限が +5 (最大 45) */
+  get ng() { return this.game.flags.ng || 0; }
+  get maxLevel() { return Math.min(45, BASE_MAX_LEVEL + 5 * this.ng); }
+  get expNeed() { return this.level >= this.maxLevel ? Infinity : expToNext(this.level); }
 
   gainExp(n) {
-    if (this.level >= MAX_LEVEL || n <= 0) return 0;
+    if (this.level >= this.maxLevel || n <= 0) return 0;
     this.exp += n;
     let ups = 0;
-    while (this.level < MAX_LEVEL && this.exp >= expToNext(this.level)) {
+    while (this.level < this.maxLevel && this.exp >= expToNext(this.level)) {
       this.exp -= expToNext(this.level); this.level++; this.points += POINTS_PER_LEVEL; ups++;
     }
-    if (this.level >= MAX_LEVEL) this.exp = 0;
+    if (this.level >= this.maxLevel) this.exp = 0;
     if (ups) {
       this.recalc(true);
       this.game.bus.emit('player:levelup', { level: this.level, ups });
@@ -79,7 +82,7 @@ export class Progression {
   toJSON() { return { level: this.level, exp: this.exp, points: this.points, alloc: this.alloc }; }
   fromJSON(d) {
     this.reset();
-    this.level = Math.min(MAX_LEVEL, Math.max(1, d.level | 0));
+    this.level = Math.min(this.maxLevel, Math.max(1, d.level | 0));
     this.exp = Math.max(0, d.exp | 0); this.points = Math.max(0, d.points | 0);
     for (const k of Object.keys(this.alloc)) this.alloc[k] = Math.max(0, d.alloc?.[k] | 0);
     this.recalc(false);

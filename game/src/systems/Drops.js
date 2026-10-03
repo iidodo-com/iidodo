@@ -23,7 +23,7 @@ export class Drops {
 
   onKill(enemy, pos, def) {
     const g = this.game;
-    const exp = g.progression.expFor(def);
+    const exp = Math.max(1, Math.round(g.progression.expFor(def) * (enemy.expMul || 1)));
     g.progression.gainExp(exp);
     g.bus.emit('exp:gain', { exp, pos });
     const table = DROPS[def.id]; if (!table) return;

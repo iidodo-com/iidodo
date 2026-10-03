@@ -16,7 +16,7 @@ function add(parent, geo, mat, x = 0, y = 0, z = 0, o = {}) {
 
 /** 戻り値: { root, mats (被弾フラッシュ用), parts, height (HPバー位置) } */
 export function buildEnemyModel(def, assets) {
-  const builders = { gel, goblin, wisp, brute, bat, sentry, pylon };
+  const builders = { gel, goblin, wisp, brute, bat, sentry, pylon, archon };
   const m = (builders[def.model] || gel)(assets);
   const tint = def.tint ? new THREE.Color(def.tint) : null;
   m.mats = [];
@@ -145,4 +145,44 @@ function pylon() {
   const halo = add(rig, new THREE.TorusGeometry(0.85, 0.05, 8, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color('#6af0ff').multiplyScalar(3) }), 0, 2.7, 0, { r: [Math.PI / 2, 0, 0] });
   halo.material.userData.noFlash = true;
   return { root, parts: { rig, crystal, halo }, height: 3.8 };
+}
+
+/** 終焉の王: 黒紫の鎧 + 大剣 + 輝く核。第2形態で翼と光輪が現れる (parts.wings / parts.halo は初期は非表示) */
+function archon() {
+  const root = new THREE.Group();
+  const rig = new THREE.Group(); rig.position.y = 1.15; root.add(rig);
+  const armor = M('#2a2038', { roughness: 0.35, metalness: 0.85 });
+  const trim = M('#c9a14a', { roughness: 0.3, metalness: 0.95 });
+  const cape = M('#4a1a5a', { roughness: 0.8, side: THREE.DoubleSide });
+  const glow = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff5a7a').multiplyScalar(3) }); glow.userData.noFlash = true;
+  add(rig, new THREE.CapsuleGeometry(0.36, 0.5, 6, 16), armor, 0, 0.3, 0, { s: [1.15, 1, 0.9], out: 0.03 });
+  add(rig, new THREE.SphereGeometry(0.34, 16, 12), trim, 0, 0.5, 0.12, { s: [1.2, 0.6, 0.7] });
+  add(rig, new THREE.SphereGeometry(0.13, 12, 10), glow, 0, 0.42, 0.34);                    // 胸の核
+  const head = new THREE.Group(); head.position.y = 1.12; rig.add(head);
+  add(head, new THREE.SphereGeometry(0.27, 16, 12), armor, 0, 0, 0, { s: [1, 1.12, 1], out: 0.04 });
+  add(head, new THREE.BoxGeometry(0.34, 0.07, 0.1), glow, 0, 0.03, 0.24);                   // 目の光
+  for (let i = -2; i <= 2; i++) add(head, new THREE.ConeGeometry(0.06, 0.38 - Math.abs(i) * 0.06, 5), trim, i * 0.12, 0.34, -0.02, { r: [0, 0, -i * 0.18] });  // 王冠
+  // 脚
+  const legs = [-1, 1].map((sx) => { const g = new THREE.Group(); g.position.set(sx * 0.2, -0.32, 0); add(g, new THREE.CapsuleGeometry(0.15, 0.55, 4, 10), armor, 0, -0.42, 0, { out: 0.03 }); add(g, new THREE.BoxGeometry(0.3, 0.12, 0.45), trim, 0, -0.9, 0.08); rig.add(g); return g; });
+  // 左腕 / 右腕 (大剣)
+  const armL = new THREE.Group(); armL.position.set(-0.62, 0.78, 0); add(armL, new THREE.CapsuleGeometry(0.13, 0.5, 4, 10), armor, 0, -0.35, 0, { out: 0.03 }); add(armL, new THREE.SphereGeometry(0.26, 12, 10), trim, -0.04, 0.06, 0, { s: [1, 0.7, 1] }); rig.add(armL);
+  const armR = new THREE.Group(); armR.position.set(0.62, 0.78, 0); armR.rotation.order = 'YXZ'; rig.add(armR);
+  add(armR, new THREE.CapsuleGeometry(0.13, 0.5, 4, 10), armor, 0, -0.35, 0, { out: 0.03 }); add(armR, new THREE.SphereGeometry(0.26, 12, 10), trim, 0.04, 0.06, 0, { s: [1, 0.7, 1] });
+  const swordMat = M('#d8d0ff', { metalness: 0.9, roughness: 0.2, emissive: '#7a3aff', emissiveIntensity: 0.9 });
+  const sw = add(armR, new THREE.BoxGeometry(0.16, 2.3, 0.05), swordMat, 0, -1.7, 0.2, { r: [0.4, 0, 0] });
+  add(sw, new THREE.BoxGeometry(0.7, 0.1, 0.14), trim, 0, 1.2, 0);
+  // マント
+  const capeG = new THREE.PlaneGeometry(1.2, 1.9, 1, 3); capeG.translate(0, -0.95, 0);
+  const cp = add(rig, capeG, cape, 0, 1.05, -0.4);
+  // 第2形態: 翼と光輪 (初期非表示)
+  const wings = new THREE.Group(); wings.visible = false; rig.add(wings);
+  const wingShape = new THREE.Shape(); wingShape.moveTo(0, 0); wingShape.bezierCurveTo(1.2, 1.4, 3.0, 1.8, 3.9, 0.6); wingShape.lineTo(3.2, 0.5); wingShape.lineTo(3.4, -0.2); wingShape.lineTo(2.4, -0.1); wingShape.lineTo(2.2, -0.8); wingShape.lineTo(1.2, -0.4); wingShape.closePath();
+  const wingMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#b06aff').multiplyScalar(2.4), transparent: true, opacity: 0.8, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }); wingMat.userData.noFlash = true;
+  const wgL = new THREE.Group(), wgR = new THREE.Group();
+  const wl = new THREE.Mesh(new THREE.ShapeGeometry(wingShape), wingMat); wl.scale.x = -1; wgL.add(wl);
+  wgR.add(new THREE.Mesh(new THREE.ShapeGeometry(wingShape), wingMat));
+  wgL.position.set(-0.3, 1.0, -0.4); wgR.position.set(0.3, 1.0, -0.4); wings.add(wgL, wgR);
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.05, 8, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffd27a').multiplyScalar(3) }));
+  halo.material.userData.noFlash = true; halo.position.set(0, 1.9, -0.1); halo.rotation.x = Math.PI / 2.4; halo.visible = false; rig.add(halo);
+  return { root, parts: { rig, legs, armL, armR, head, wings, wgL, wgR, halo, cape: cp }, height: 3.4 };
 }

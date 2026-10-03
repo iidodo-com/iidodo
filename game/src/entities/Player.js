@@ -59,6 +59,9 @@ export class Player {
     this.teleport(0, 0);
   }
 
+  /** 演出中: ロジックは動かさずアニメーションだけ進める */
+  idleAnim(dt) { this.velocity.set(0, 0, 0); this._animate(dt); }
+
   get isInvulnerable() { return this.invulnTimer > 0; }
   get moveMul() { return 1 + (this.stats.spdBonus || 0) + (this.buffs.cry > 0 ? SKILLS[1].spd : 0); }
   get isBusy() { return this.state !== 'free'; }

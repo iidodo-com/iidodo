@@ -9,6 +9,11 @@ import { AreaManager } from '../world/AreaManager.js';
 import { WorldObjects } from '../world/WorldObjects.js';
 import { createCloudSea } from '../world/Sky.js';
 import { AREAS } from '../data/areas.js';
+import { Dialogue } from '../ui/Dialogue.js';
+import { AudioManager } from '../audio/AudioManager.js';
+import { Cinematic } from './Cinematic.js';
+import { Story } from '../systems/Story.js';
+import { KEY_ITEMS } from '../data/items.js';
 import { Vegetation } from '../world/Vegetation.js';
 import { TIME } from '../world/Wind.js';
 import { PostFx } from './PostFx.js';
@@ -82,6 +87,11 @@ export class Game {
     this.menu = new Menu(this);
     this.world = new WorldObjects(this);
     this.areas = new AreaManager(this);
+    this.cutscene = null;
+    this.dialogue = new Dialogue();
+    this.cine = new Cinematic(this);
+    this.story = new Story(this);
+    this.audio = new AudioManager(); this.audio.bind(this);
     this.lightSpots = [];
     this._autoT = 0; this._lastSave = -99; this._potionCd = 0;
     this.post = this.quality.post ? new PostFx(this.renderer, this.scene, this.camera, this.quality) : null;
@@ -201,11 +211,41 @@ export class Game {
     PX.value = (h * this.renderer.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
   }
 
+  /** 周回 (強くてニューゲーム) による敵の強化倍率 */
+  get difficulty() {
+    const ng = this.flags.ng || 0;
+    return { hp: 1 + 0.9 * ng, atk: 1 + 0.6 * ng, exp: 1 + 0.5 * ng };
+  }
+
+  /** ラスボス撃破時: クリア記録を保存し、隠しダンジョンを解放する */
+  onClear() {
+    const f = this.flags;
+    f.cleared = true; f.clears = (f.clears || 0) + 1;
+    f.bestTime = Math.min(f.bestTime || Infinity, Math.floor(this.playtime));
+    (f.unlocked ||= {}).abyss = true;
+    this.bus.emit('game:cleared');
+    this.running = true;
+    this.saves.save('auto');
+  }
+
+  /** 強くてニューゲーム: レベル・装備・所持品を引き継ぎ、鍵を除いて最初から。敵が強化される */
+  async startNewGamePlus() {
+    const f = this.flags, keep = { ng: (f.ng || 0) + 1, clears: f.clears || 1, bestTime: f.bestTime, cleared: true, unlocked: { abyss: true }, stats: {} };
+    for (const id of Object.keys(KEY_ITEMS)) if (id !== 'ancient_map') this.inventory.items[id] && delete this.inventory.items[id];
+    this.inventory._changed();
+    this.flags = keep; this.playtime = 0; this.player.skillCd = [0, 0, 0];
+    this.progression.recalc(true);
+    await this.areas.load('plains', { spawn: 'savepoint', fade: false });
+    this.hud.toast(`強くてニューゲーム！ 周回 ${keep.ng + 1}: 敵が強化され、レベル上限が ${this.progression.maxLevel} に`, 4000);
+    this.saves.save('auto');
+  }
+
   /** はじめから: 所持品・成長・フラグを初期化して平原を読み込む */
   async newGame() {
     this.inventory.newGame(); this.progression.reset(); this.progression.recalc(true);
     this.flags = {}; this.playtime = 0; this.player.skillCd = [0, 0, 0];
     await this.areas.load('plains', { spawn: 'savepoint', fade: false });
+    this.story.pendingPrologue = true;
   }
 
   /** ヒットストップ: 一瞬だけ時間を遅くして打撃の重さを出す */
@@ -280,11 +320,31 @@ export class Game {
     this.input.endFrame();
   }
 
+  /** 演出中の更新: ゲームロジックは止め、見た目 (アニメ・粒子・カメラ・ライト) だけを進める */
+  _cutsceneStep(dt) {
+    this.input.consumeLook();
+    TIME.value += dt; this.time += dt;
+    this.cutscene.update?.(dt);
+    this.enemies.animateOnly(dt);
+    this.effects.update(dt);
+    this.player.idleAnim(dt);
+    this.world.update(dt);
+    this.cam.update(dt, this.player.position, { x: 0, y: 0 });
+    this.env.update(this.camera.position);
+    this._updateLights();
+    const p = this.player.position;
+    this.sun.target.position.copy(p); this.sun.position.copy(p).add(this.sunOffset);
+    this.ambient.update(p);
+    this.vegetation.update(p);
+    this.labels.update(dt);
+  }
+
   /** ロジック更新 (描画なし)。自動テストからは固定 dt で直接呼べる。 */
   update(dt) {
     this.input.update();
-    if (this.input.wasPressed('menu')) this.menu.toggle();
+    if (this.input.wasPressed('menu') && !this.cutscene) this.menu.toggle();
     if (this.paused) return;
+    if (this.cutscene) { this._cutsceneStep(dt); return; }
     this.playtime += dt;
     this._autoT += dt;
     if (this._autoT >= 45) { this._autoT = 0; this.autosave('timer'); }
@@ -292,6 +352,11 @@ export class Game {
     TIME.value += dt;
     this.time += dt;
 
+    this.story.update(dt);
+    this.audio.update(this);
+    // 大型ボスと交戦中はカメラを引いて全体を見せる
+    const big = this.enemies.list.find((e) => e.def.boss && e.alive && e.aggro && e.state !== 'return' && e.baseScale >= 2);
+    this.cam.distScaleTarget = big ? 1.6 : 1;
     this.player.update(dt, this.input, this.cam);
     this.enemies.update(dt, this);
     this.combat.update(dt);

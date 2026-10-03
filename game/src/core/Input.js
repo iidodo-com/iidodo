@@ -1,4 +1,5 @@
 import { CONFIG } from './Config.js';
+import { SETTINGS } from './Settings.js';
 
 /**
  * 入力の抽象化レイヤー。
@@ -95,7 +96,7 @@ export class Input {
     });
     window.addEventListener('mousemove', (e) => {
       if (!this.pointerLocked) return;
-      this.addLook(e.movementX, e.movementY, CONFIG.camera.mouseSens);
+      this.addLook(e.movementX, e.movementY, CONFIG.camera.mouseSens * SETTINGS.sens);
     });
     this.canvas.addEventListener('mousedown', (e) => {
       if (this.isTouchLike(e)) return;
