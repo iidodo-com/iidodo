@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../core/Config.js';
 import { PLAYER_ATTACKS } from '../data/enemies.js';
+import { SKILLS } from '../data/skills.js';
 import { calcDamage } from './DamageCalc.js';
 
 const angleDiff = (a, b) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
@@ -25,10 +26,14 @@ export class Combat {
   constructor(game) {
     this.game = game;
     this.projectiles = [];
+    this.pBolts = [];          // プレイヤーの貫通弾 (魔導閃)
+    this.boltGeo = new THREE.SphereGeometry(0.22, 12, 10);
+    this.boltMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#6fe6ff').multiplyScalar(4) });
     this.geo = new THREE.SphereGeometry(0.24, 12, 10);
     this.mat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#c27bff').multiplyScalar(3.5) });
     game.bus.on('player:swing', (e) => this.onPlayerSwing(e));
-    game.player.assist = (pos, facing) => game.enemies.nearestFront(pos, facing, 4.8, 1.25);
+    game.bus.on('player:skillCast', (e) => this.onSkill(e));
+    game.player.assist = (pos, facing, maxD = 4.8, arc = 1.9) => game.enemies.nearestFront(pos, facing, maxD, arc);
   }
 
   /** 同時に攻撃動作に入れる数を制限 (近接2・遠距離2)。取れなければ待機行動になる。 */
@@ -39,21 +44,85 @@ export class Combat {
     return n < 2;
   }
 
+  /** バフ込みの攻撃力 */
+  playerAtk() {
+    const p = this.game.player;
+    return p.stats.atk * (p.buffs.cry > 0 ? 1 + SKILLS[1].atk : 1);
+  }
+
+  /** プレイヤー → 敵 1 体へのダメージ適用 (通常攻撃/スキル共通)。結果を返す */
+  hitEnemy(e, { mul, knockDir, knock, poise }) {
+    const st = this.game.player.stats;
+    const { dmg, crit } = calcDamage({
+      atk: this.playerAtk(), def: e.def.def, mul, critRate: st.crit, critMul: st.critMul,
+      bonus: e.state === 'down' ? 1.35 : 1,
+    });
+    const kv = knockDir.clone().setY(0).normalize().multiplyScalar(knock);
+    const res = e.receiveHit({ dmg, knock: kv, poiseDmg: poise * (crit ? 1.3 : 1) });
+    this.game.bus.emit('enemy:hit', { enemy: e, dmg, crit, pos: e.centerPos, downed: res.downed, killed: res.killed });
+    return res;
+  }
+
+  // ---------------------------------------------------------- skills
+  onSkill({ def, pos, dir }) {
+    const g = this.game;
+    if (def.kind === 'aoe') {
+      let hits = 0;
+      for (const e of g.enemies.list) {
+        if (!e.alive) continue;
+        if (Math.hypot(e.pos.x - pos.x, e.pos.z - pos.z) > def.radius + e.radius) continue;
+        this.hitEnemy(e, { mul: def.mul, knockDir: new THREE.Vector3(e.pos.x - pos.x, 0, e.pos.z - pos.z), knock: def.knock, poise: def.poise });
+        hits++;
+      }
+      g.cam.shake(0.3);
+      if (hits) g.hitStop(0.07);
+    } else if (def.kind === 'projectile') {
+      const mesh = new THREE.Mesh(this.boltGeo, this.boltMat);
+      mesh.scale.set(1, 1, 2.6);
+      mesh.position.set(pos.x + dir.x * 0.9, pos.y + 1.1, pos.z + dir.z * 0.9);
+      mesh.rotation.y = Math.atan2(dir.x, dir.z);
+      g.scene.add(mesh);
+      this.pBolts.push({ mesh, def, dir: dir.clone(), life: def.range / def.speed, hit: new Set() });
+      g.cam.shake(0.12);
+    }
+  }
+
+  updatePlayerBolts(dt) {
+    const g = this.game, t = g.terrain;
+    for (let i = this.pBolts.length - 1; i >= 0; i--) {
+      const b = this.pBolts[i], m = b.mesh;
+      m.position.addScaledVector(b.dir, b.def.speed * dt);
+      b.life -= dt;
+      g.effects.sparks.emit({
+        pos: m.position, vel: { x: (Math.random() - 0.5) * 1.2, y: (Math.random() - 0.5) * 1.2, z: (Math.random() - 0.5) * 1.2 },
+        life: 0.35, size: 0.2, sizeEnd: 0, color: [0.8, 2.6, 4],
+      });
+      for (const e of g.enemies.list) {
+        if (!e.alive || b.hit.has(e)) continue;
+        if (Math.hypot(e.pos.x - m.position.x, e.pos.z - m.position.z) < e.radius + b.def.width * 0.5 && Math.abs(e.pos.y + 1 - m.position.y) < 2.2) {
+          b.hit.add(e);
+          this.hitEnemy(e, { mul: b.def.mul, knockDir: b.dir, knock: b.def.knock, poise: b.def.poise });
+          g.hitStop(0.05);
+        }
+      }
+      let dead = b.life <= 0 || m.position.y < t.height(m.position.x, m.position.z) + 0.1;
+      if (!dead) for (const c of t.colliders) {
+        const dx = m.position.x - c.x, dz = m.position.z - c.z;
+        if (dx * dx + dz * dz < (c.r + 0.15) ** 2 && m.position.y - t.height(c.x, c.z) < 3) { dead = true; break; }
+      }
+      if (dead) { g.scene.remove(m); this.pBolts.splice(i, 1); }
+    }
+  }
+
   // ---------------------------------------------------------- player → enemy
   onPlayerSwing({ combo, pos, dir }) {
     const g = this.game, cfg = PLAYER_ATTACKS[Math.min(combo, PLAYER_ATTACKS.length - 1)];
-    const st = g.player.stats, facing = Math.atan2(dir.x, dir.z);
+    const facing = Math.atan2(dir.x, dir.z);
     let hits = 0, downed = false;
     for (const e of g.enemies.list) {
       if (!e.alive) continue;
       if (!sectorHit(pos.x, pos.z, facing, cfg.range, cfg.arc, e.pos.x, e.pos.z, e.radius)) continue;
-      const { dmg, crit } = calcDamage({
-        atk: st.atk, def: e.def.def, mul: cfg.mul, critRate: st.crit, critMul: st.critMul,
-        bonus: e.state === 'down' ? 1.35 : 1,
-      });
-      const kv = new THREE.Vector3(e.pos.x - pos.x, 0, e.pos.z - pos.z).normalize().multiplyScalar(cfg.knock);
-      const res = e.receiveHit({ dmg, knock: kv, poiseDmg: cfg.poise * (crit ? 1.3 : 1) });
-      g.bus.emit('enemy:hit', { enemy: e, dmg, crit, pos: e.centerPos, downed: res.downed, killed: res.killed });
+      const res = this.hitEnemy(e, { mul: cfg.mul, knockDir: new THREE.Vector3(e.pos.x - pos.x, 0, e.pos.z - pos.z), knock: cfg.knock, poise: cfg.poise });
       hits++; downed ||= res.downed;
     }
     if (hits) {
@@ -96,6 +165,7 @@ export class Combat {
   }
 
   update(dt) {
+    this.updatePlayerBolts(dt);
     const g = this.game, p = g.player, terrain = g.terrain;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const b = this.projectiles[i], m = b.mesh;

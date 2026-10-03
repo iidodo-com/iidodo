@@ -93,3 +93,23 @@ game/
 | プレイヤー | `takeDamage` (回避無敵・被弾後の短い無敵)、のけぞり、死亡→復活、攻撃アシスト(近い敵へ自動で向く) |
 
 イベント: `enemy:hit {enemy,dmg,crit,pos,downed,killed}`, `enemy:died {enemy,pos,def}` (Phase 3 で EXP/ドロップに接続), `enemy:slam`, `enemy:bolt`, `player:hurt`, `player:dead`, `player:dodged`。
+
+## Phase 3: 育成・アイテム・セーブ (実装済み)
+
+| 要素 | 実装 |
+|---|---|
+| データ | `data/items.js` (消耗品/素材/宝珠/装備/レシピ/ドロップ/ショップ)、`data/skills.js` (スキル・成長曲線・割り振り) |
+| 経験値/レベル | `systems/Progression.js`: Lv上限30、自動上昇 + 2pt/Lv の割り振り (体力/腕力/耐久/敏捷)。格下の敵は経験値減。再配分は Lv×20G |
+| 最終ステータス | レベル基礎 + 割り振り + 装備(強化 +12%/段・宝珠込み)。`recalc()` で `player.stats` へ反映 |
+| スキル | 旋風斬(Lv3 全方位) / 闘気解放(Lv6 攻撃+35%・移速+20%) / 魔導閃(Lv9 貫通遠距離)。MP・クールダウン・先行入力・詠唱モーション・軌跡/VFX |
+| 所持品 | `systems/Inventory.js`: スタック品 + 装備インスタンス (強化値/宝珠スロット)。売買・強化 (最大+10)・素材から宝珠を合成して装着・取り外し(50G) |
+| ドロップ | `systems/Drops.js`: 撃破で EXP/ゴールド/素材/装備。光る玉が落ち、近づくと吸い寄せ自動取得。取得ログ表示 |
+| セーブ | `save/SaveManager.js`: localStorage、オート + 手動3スロット、バージョン付き、1世代前を `.bak` に退避し破損時は自動復旧、未来バージョンは拒否。`flags` は Phase 4 以降の拡張用 |
+| オートセーブ | 約45秒ごと / レベルアップ / 装備入手 / メニューを閉じた時 / タブを離れた時 / 復活時 |
+| メニュー | `ui/Menu.js`: ステータス・装備・アイテム・ショップ・強化合成・スキル・セーブ。開くとポーズ (PC: Tab/I/Esc、スマホ: ☰) |
+| 開始画面 | 「はじめから」「つづきから」(最新のセーブを選択) |
+
+操作: Q = 回復薬クイック使用 (ポーション→ハイポーション)。スキルは数字キー 1-3 / 画面ボタン。
+イベント: `exp:gain`, `player:levelup`, `player:skillCast`, `inventory:changed`, `stats:changed`, `pickup`, `toast`。
+
+セーブ形式 (v1): `{version, savedAt, playtime, player:{level,exp,points,alloc,hp,mp,x,z,cooldowns}, inventory:{gold,items,equipment,equipped,nextUid}, flags}`

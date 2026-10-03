@@ -13,6 +13,9 @@ export class Effects {
     this.stepTimer = 0;
     this._v = new THREE.Vector3();
     game.bus.on('player:dodge', ({ pos }) => this.burstDust(pos, 14, 0.9));
+    game.bus.on('player:skillCast', ({ def, pos }) => this.skillFx(def, pos));
+    game.bus.on('player:levelup', () => this.levelUpFx());
+    game.bus.on('exp:gain', () => {});
     game.bus.on('enemy:hit', ({ pos, crit, killed }) => this.hitSparks(pos, crit, killed));
     game.bus.on('enemy:died', ({ pos }) => { this.burstDust(pos, 18, 1.0); });
     game.bus.on('enemy:slam', ({ pos, radius }) => this.shockwave(pos, radius));
@@ -43,6 +46,31 @@ export class Effects {
         life: 0.3 + Math.random() * 0.3, size: 0.09 + Math.random() * 0.06, sizeEnd: 0,
         color: [1.6, 3.4, 4.6], gravity: 4, drag: 2,
       });
+    }
+  }
+
+  skillFx(def, pos) {
+    const y = pos.y + 0.9;
+    if (def.id === 'whirl') {
+      for (let i = 0; i < 60; i++) {
+        const a = (i / 60) * Math.PI * 2, r = def.radius * 0.9;
+        this.sparks.emit({ pos: { x: pos.x + Math.cos(a) * 0.8, y, z: pos.z + Math.sin(a) * 0.8 }, vel: { x: Math.cos(a) * r * 2.6, y: 0.5, z: Math.sin(a) * r * 2.6 }, life: 0.35, size: 0.16, sizeEnd: 0, color: [1.2, 3, 4.5], drag: 4 });
+      }
+      this.burstDust(pos, 10, 1.2);
+    } else if (def.id === 'cry') {
+      for (let i = 0; i < 50; i++) {
+        const a = Math.random() * Math.PI * 2, r = Math.random() * 1.1;
+        this.sparks.emit({ pos: { x: pos.x + Math.cos(a) * r, y: pos.y + 0.1, z: pos.z + Math.sin(a) * r }, vel: { x: 0, y: 3 + Math.random() * 4, z: 0 }, life: 0.7, size: 0.14, sizeEnd: 0, color: [4, 2.6, 0.7], drag: 1 });
+      }
+      this.game.cam.shake(0.2);
+    }
+  }
+
+  levelUpFx() {
+    const p = this.game.player.position;
+    for (let i = 0; i < 90; i++) {
+      const a = Math.random() * Math.PI * 2, r = 0.5 + Math.random() * 1.2;
+      this.sparks.emit({ pos: { x: p.x + Math.cos(a) * r, y: p.y + 0.1, z: p.z + Math.sin(a) * r }, vel: { x: 0, y: 4 + Math.random() * 6, z: 0 }, life: 1.1 + Math.random() * 0.5, size: 0.17, sizeEnd: 0, color: [4, 3.4, 1.1], drag: 0.8 });
     }
   }
 
@@ -95,7 +123,16 @@ export class Effects {
       const c = CONFIG.player.combo[pl.comboIndex], p = pl.stateTime / c.dur;
       rec = p > 0.12 && p < 0.8;
     }
+    if (pl.state === 'cast' && pl.castDef?.id === 'whirl') rec = pl.stateTime > 0.05;
     this.trail.update(pl.swordPivot, rec);
+    if (pl.buffs.cry > 0) {
+      this.auraT = (this.auraT || 0) - dt;
+      if (this.auraT <= 0) {
+        this.auraT = 0.07;
+        const a = Math.random() * Math.PI * 2;
+        this.sparks.emit({ pos: { x: pl.position.x + Math.cos(a) * 0.5, y: pl.position.y + 0.2, z: pl.position.z + Math.sin(a) * 0.5 }, vel: { x: 0, y: 1.8, z: 0 }, life: 0.6, size: 0.1, sizeEnd: 0, color: [3.6, 2.2, 0.6] });
+      }
+    }
     this.dust.update(dt);
     this.sparks.update(dt);
   }
