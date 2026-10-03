@@ -45,20 +45,27 @@ async function boot() {
     game.start();
   };
 
-  btn.addEventListener('click', () => {
-    if (game.saves.hasAny() && !confirm('新しく始めると、次のオートセーブで現在のオートセーブが上書きされます。よろしいですか？')) return;
-    begin(() => game.newGame().then(() => true));
-  });
+  // confirm() が使えない環境 (埋め込み表示) でも動くよう、確認は「もう一度押す」方式にする
+  const armed = (el, idle, run) => {
+    let t = 0;
+    return () => {
+      if (el.dataset.armed) { clearTimeout(t); delete el.dataset.armed; el.textContent = idle; run(); return; }
+      el.dataset.armed = '1'; el.textContent = 'もう一度押すと開始 (現在のオートセーブは上書きされます)';
+      t = setTimeout(() => { delete el.dataset.armed; el.textContent = idle; }, 4500);
+    };
+  };
+  const startNew = () => begin(() => game.newGame().then(() => true));
+  btn.addEventListener('click', () => (game.saves.hasAny() ? armed(btn, 'はじめから', startNew)() : startNew()));
   cont.addEventListener('click', () => {
     const slot = game.saves.latestSlot();
     if (slot === null) return;
     begin(() => game.saves.load(slot));
   });
-  ngp.addEventListener('click', () => {
+  ngp.addEventListener('click', armed(ngp, '強くてニューゲーム', () => {
     const slot = game.saves.latestSlot();
-    if (slot === null || !confirm('レベル・装備・所持品を引き継いで最初から始めます (敵が強化されます)。よろしいですか？')) return;
+    if (slot === null) return;
     begin(async () => (await game.saves.load(slot)) && (await game.startNewGamePlus(), true));
-  });
+  }));
 
   // Esc でポインタロックが外れたらポーズメニューを開く (PC)
   document.addEventListener('pointerlockchange', () => {
