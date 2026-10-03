@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CONFIG } from '../core/Config.js';
 import { rng } from '../core/Noise.js';
 import { addWind } from './Wind.js';
 import { firstMesh } from '../core/Assets.js';
 import { fbm } from '../core/Noise.js';
+import { buildBiome } from './PropsBiomes.js';
 
-const up = new THREE.Vector3(0, 1, 0);
+export const up = new THREE.Vector3(0, 1, 0);
 
 /** 非インデックス化して、頂点ごとに fn で色を付ける */
-function colored(geo, fn, keepUV = false) {
+export function colored(geo, fn, keepUV = false) {
   const g = geo.index ? geo.toNonIndexed() : geo;
   const p = g.attributes.position;
   const arr = new Float32Array(p.count * 3);
@@ -22,12 +22,12 @@ function colored(geo, fn, keepUV = false) {
   if (!keepUV) g.deleteAttribute('uv');
   return g;
 }
-const hash3 = (x, y, z) => {
+export const hash3 = (x, y, z) => {
   const s = Math.sin(Math.round(x * 40) * 12.9898 + Math.round(y * 40) * 78.233 + Math.round(z * 40) * 37.719) * 43758.5453;
   return s - Math.floor(s);
 };
 /** 同一位置の頂点は同じ変位 → 割れずに歪む */
-function jitter(geo, amt) {
+export function jitter(geo, amt) {
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
@@ -79,7 +79,7 @@ function rockGeo() {
   return ng;
 }
 
-function radialTexture(color = '#7fe6ff') {
+export function radialTexture(color = '#7fe6ff') {
   const cv = document.createElement('canvas'); cv.width = cv.height = 128;
   const x = cv.getContext('2d');
   const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
@@ -88,11 +88,32 @@ function radialTexture(color = '#7fe6ff') {
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
-export function buildProps(terrain, assets = null, quality = null) {
+/**
+ * エリアの props タイプに応じて配置物を構築する。
+ * 戻り値: { lightSpots: [{x,y,z,color}] }  (洞窟の水晶など、動的ライトを当てる候補位置)
+ */
+export function buildProps(terrain, assets = null, quality = null, area = null) {
+  const kind = area?.props || 'forest';
+  const out = { lightSpots: [] };
+  const forestOpts = {
+    forest: {},
+    ruins: { pine: 0.12, oak: 0.1, rocks: 1.2, undergrowth: 0.5, crystals: false },
+    cave: { pine: 0, oak: 0, rocks: 1.0, undergrowth: 0, crystals: true, crystalCount: 26, crystalGlowOnly: true },
+    lab: { pine: 0, oak: 0, rocks: 0.4, undergrowth: 0, crystals: false },
+    sky: { pine: 0, oak: 0.55, rocks: 0.5, undergrowth: 0.3, crystals: false, sakura: true },
+  }[kind] || {};
+  buildForest(terrain, assets, quality, area, forestOpts, out);
+  if (kind !== 'forest') buildBiome(kind, terrain, assets, quality, area, out);
+  return out;
+}
+
+function buildForest(terrain, assets, quality, area, opts, out) {
   const detail = quality?.detail ?? 1;
   const group = terrain.group;
-  const rand = rng(CONFIG.world.seed + 5);
+  const rand = rng(area.terrain.seed + 5);
   const lim = terrain.half * 0.86;
+  const zones = area.flat || [];
+  const blocked = (x, z) => zones.some((zn) => Math.hypot(x - zn.x, z - zn.z) < zn.r * 1.5 + 2);
   const wl = terrain.waterLevel;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
   const col = new THREE.Color();
@@ -104,7 +125,7 @@ export function buildProps(terrain, assets = null, quality = null) {
     let placed = 0, tries = 0;
     while (placed < count && tries++ < count * 30) {
       const x = (rand() * 2 - 1) * lim, z = (rand() * 2 - 1) * lim;
-      if (Math.hypot(x, z) < minDist) continue;
+      if (blocked(x, z)) continue;
       const y = terrain.height(x, z);
       if (y > maxY || y < wl + 0.7) continue;
       if (terrain.slopeAt(x, z, y) > maxSlope) continue;
@@ -144,26 +165,28 @@ export function buildProps(terrain, assets = null, quality = null) {
 
   // --- 松
   const pineMat = flat({}); addWind(pineMat, { strength: 0.012, heightStart: 1.0, nearFade: 7 });
-  const pineLeaf = mk(pineFoliage(), pineMat, 340, true);
-  const pineTrunk = mk(trunkGeo(1.8, 0.3, 0.2), trunkMat(), 340);
+  const pineN = Math.round(340 * (opts.pine ?? 1)), oakN = Math.round(200 * (opts.oak ?? 1));
+  const pineLeaf = mk(pineFoliage(), pineMat, Math.max(pineN, 1), true);
+  const pineTrunk = mk(trunkGeo(1.8, 0.3, 0.2), trunkMat(), Math.max(pineN, 1));
   const pineCols = ['#2d6a3e', '#25594a', '#3a7d3f', '#2f6f56'];
-  scatter({
-    count: 340, meshes: [pineLeaf, pineTrunk], minDist: 11, radius: (sc) => 0.32 * sc + 0.2,
+  if (pineN > 0) scatter({
+    count: pineN, meshes: [pineLeaf, pineTrunk], minDist: 11, radius: (sc) => 0.32 * sc + 0.2,
     scale: () => 0.8 + rand() * 0.9,
     colorFn: (c, r) => c.set(pineCols[Math.floor(r() * pineCols.length)]).multiplyScalar(0.85 + r() * 0.3),
   });
 
   // --- 広葉樹 (一部は桜・紅葉)
   const oakMat = flat({}); addWind(oakMat, { strength: 0.02, heightStart: 2.2, nearFade: 7 });
-  const oakLeaf = mk(oakFoliage(), oakMat, 200, true);
-  const oakTrunk = mk(trunkGeo(3.0, 0.34, 0.2), trunkMat(), 200);
+  const oakLeaf = mk(oakFoliage(), oakMat, Math.max(oakN, 1), true);
+  const oakTrunk = mk(trunkGeo(3.0, 0.34, 0.2), trunkMat(), Math.max(oakN, 1));
   const oakCols = ['#68ad3c', '#7cb83f', '#58a044', '#8cc044'];
-  scatter({
-    count: 200, meshes: [oakLeaf, oakTrunk], minDist: 10, radius: (sc) => 0.34 * sc + 0.2,
+  if (oakN > 0) scatter({
+    count: oakN, meshes: [oakLeaf, oakTrunk], minDist: 10, radius: (sc) => 0.34 * sc + 0.2,
     scale: () => 0.75 + rand() * 0.8,
     colorFn: (c, r) => {
       const t = r();
-      if (t < 0.14) c.set('#f6a9c8');            // 桜
+      if (opts.sakura) c.set(t < 0.5 ? '#f6e9f2' : t < 0.8 ? '#f6a9c8' : '#fff3c4');   // 空中城: 白・桜・金
+      else if (t < 0.14) c.set('#f6a9c8');            // 桜
       else if (t < 0.22) c.set('#e3922e');       // 紅葉
       else c.set(oakCols[Math.floor(r() * oakCols.length)]);
       c.multiplyScalar(0.9 + r() * 0.25);
@@ -173,7 +196,7 @@ export function buildProps(terrain, assets = null, quality = null) {
   // --- 岩: 写真測量の本物モデル (あれば) / 手続き生成の苔岩 (フォールバック)
   const rockVariants = (assets?.rocks || []).map(firstMesh).filter(Boolean);
   if (rockVariants.length) {
-    const perVariant = Math.round(34 * Math.max(detail, 0.5));
+    const perVariant = Math.round(34 * Math.max(detail, 0.5) * (opts.rocks ?? 1));
     for (const v of rockVariants) {
       const bb = v.geometry.boundingBox;
       const size = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
@@ -200,7 +223,7 @@ export function buildProps(terrain, assets = null, quality = null) {
     mat.alphaTest = 0.5; mat.transparent = false; mat.side = THREE.DoubleSide; mat.depthWrite = true;
     if (tint) mat.color.set(tint);
     addWind(mat, { strength: wind, heightStart: 0, fade: (quality?.grassDist ?? 80) * 1.1 });
-    const n = Math.round(count * detail);
+    const n = Math.round(count * detail * (opts.undergrowth ?? 1));
     const m = new THREE.InstancedMesh(v.geometry, mat, n);
     let placed = 0, tries = 0;
     while (placed < n && tries++ < n * 40) {
@@ -227,11 +250,12 @@ export function buildProps(terrain, assets = null, quality = null) {
   const crystalCols = ['#4fd8ff', '#b07cff', '#5dffc0'];
   const glowTex = radialTexture('#9fe9ff');
   let clusters = 0, tries = 0;
-  const spots = [[16, -12]]; // 1つ目は初期位置の近くに置いて目に入るように
-  while (clusters < 9 && tries++ < 400) {
+  const wantCrystals = opts.crystals === false ? 0 : (opts.crystalCount ?? 9);
+  const spots = opts.crystalCount ? [] : [[-6, 52]]; // 平原: 最初のセーブポイント付近に 1 つ置いて目に入るように
+  while (clusters < wantCrystals && tries++ < 600) {
     let x, z;
     if (spots.length) [x, z] = spots.shift();
-    else { x = (rand() * 2 - 1) * lim; z = (rand() * 2 - 1) * lim; if (Math.hypot(x, z) < 22) continue; }
+    else { x = (rand() * 2 - 1) * lim; z = (rand() * 2 - 1) * lim; if (blocked(x, z)) continue; }
     const y = terrain.height(x, z);
     if (y > 9 || y < wl + 0.8 || terrain.slopeAt(x, z, y) > 0.1) continue;
     const cc = new THREE.Color(crystalCols[clusters % crystalCols.length]);
@@ -256,6 +280,7 @@ export function buildProps(terrain, assets = null, quality = null) {
     g.add(glow);
     group.add(g);
     terrain.colliders.push({ x, z, r: 0.9 });
+    out.lightSpots.push({ x, y: y + 1.6, z, color: cc.getHex() });
     clusters++;
   }
 }

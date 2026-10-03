@@ -147,21 +147,46 @@ export class Combat {
     const p = this.game.player;
     if (p.state === 'dead') return false;
     if (!p.canBeHit()) { this.game.bus.emit('player:dodged', { enemy }); return false; }
-    const { dmg } = calcDamage({ atk: enemy.def.atk, def: p.stats.def, mul: atk.mul, variance: 0.1 });
+    const { dmg } = calcDamage({ atk: enemy.def.atk * (enemy.atkMul || 1), def: p.stats.def, mul: atk.mul, variance: 0.1 });
     p.takeDamage(dmg, fromPos, { knock: atk.knock, heavy: atk.mul >= 1.3 });
     return true;
   }
 
   // ---------------------------------------------------------- projectiles
-  fireBolt(enemy, atk) {
-    const g = this.game, p = g.player;
-    const from = new THREE.Vector3(enemy.pos.x + Math.sin(enemy.facing) * 0.6, enemy.pos.y + 1.0, enemy.pos.z + Math.cos(enemy.facing) * 0.6);
-    const to = new THREE.Vector3(p.position.x, p.position.y + 1.0, p.position.z);
-    const vel = to.sub(from).normalize().multiplyScalar(atk.speed);
+  _spawnBolt(enemy, atk, dir) {
+    const g = this.game;
+    const from = new THREE.Vector3(enemy.pos.x + dir.x * 0.6, enemy.pos.y + 1.0 + (enemy.def.hover || 0) * 0.5, enemy.pos.z + dir.z * 0.6);
     const mesh = new THREE.Mesh(this.geo, this.mat);
     mesh.position.copy(from); g.scene.add(mesh);
-    this.projectiles.push({ mesh, vel, life: 3.2, enemy, atk });
-    g.bus.emit('enemy:bolt', { pos: from });
+    this.projectiles.push({ mesh, vel: dir.clone().multiplyScalar(atk.speed), life: 3.2, enemy, atk });
+    return from;
+  }
+
+  _aimDir(enemy, yaw = 0) {
+    const p = this.game.player;
+    const from = new THREE.Vector3(enemy.pos.x, enemy.pos.y + 1.0 + (enemy.def.hover || 0) * 0.5, enemy.pos.z);
+    const to = new THREE.Vector3(p.position.x, p.position.y + 1.0, p.position.z);
+    const d = to.sub(from).normalize();
+    if (yaw) { const c = Math.cos(yaw), s = Math.sin(yaw); const x = d.x * c - d.z * s, z = d.x * s + d.z * c; d.x = x; d.z = z; }
+    return d;
+  }
+
+  fireBolt(enemy, atk) {
+    const from = this._spawnBolt(enemy, atk, this._aimDir(enemy));
+    this.game.bus.emit('enemy:bolt', { pos: from });
+  }
+
+  /** 扇状に複数の弾を撃つ (中ボスの弾幕) */
+  fireVolley(enemy, atk) {
+    let from;
+    for (let i = 0; i < atk.count; i++) from = this._spawnBolt(enemy, atk, this._aimDir(enemy, (i - (atk.count - 1) / 2) * atk.spread));
+    this.game.bus.emit('enemy:bolt', { pos: from });
+  }
+
+  clear() {
+    for (const b of this.projectiles) this.game.scene.remove(b.mesh);
+    for (const b of this.pBolts) this.game.scene.remove(b.mesh);
+    this.projectiles = []; this.pBolts = [];
   }
 
   update(dt) {

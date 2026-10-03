@@ -412,11 +412,17 @@ export class Player {
     if (this.stateTime >= this.hurtDur) { this.state = 'free'; this.velocity.multiplyScalar(0.3); }
   }
 
-  respawn(x, z) {
-    const s = this.stats;
-    s.hp = s.maxHp; s.mp = s.maxMp;
+  /** 死亡後の復帰: 全回復して指定位置へ */
+  respawn(x, z, facing) {
+    this.stats.hp = this.stats.maxHp; this.stats.mp = this.stats.maxMp;
+    this.respawnAt(x, z, facing);
+  }
+
+  /** 状態を通常に戻して指定位置・向きへ (エリア遷移でも使用。回復はしない) */
+  respawnAt(x, z, facing = this.facing) {
     this.state = 'free'; this.stateTime = 0; this.invulnTimer = 2; this.sinceHit = 99;
-    this.velocity.set(0, 0, 0); this.rig.rotation.x = 0;
+    this.velocity.set(0, 0, 0); this.rig.rotation.x = 0; this.rig.position.y = 0.9; this.castDef = null; this.skillBuf = null;
+    this.facing = facing;
     this.teleport(x, z);
   }
 

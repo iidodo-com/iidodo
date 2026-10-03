@@ -1,8 +1,7 @@
 import * as THREE from 'three';
-import { CAMPS, ENEMIES } from '../data/enemies.js';
+import { ENEMIES } from '../data/enemies.js';
 import { Enemy } from '../entities/Enemy.js';
 import { rng } from '../core/Noise.js';
-import { CONFIG } from '../core/Config.js';
 
 const angleDiff = (a, b) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
 
@@ -12,39 +11,45 @@ export class EnemySystem {
     this.game = game;
     this.list = [];
     this.slots = [];
-    this.rand = rng(CONFIG.world.seed + 303);
-    this._buildCamps();
-    game.bus.on('enemy:died', () => {});
+    this.area = null;
+    this.rand = rng(303);
+    game.bus.on('enemy:died', ({ enemy }) => this._onDied(enemy));
   }
 
   _validGround(x, z) {
     const t = this.game.terrain;
     const y = t.height(x, z);
-    return y > t.waterLevel + 0.9 && y < 9 && t.slopeAt(x, z, y) < 0.07 && Math.hypot(x, z) > 18 && Math.abs(x) < 105 && Math.abs(z) < 105;
+    const lim = t.half - 12;
+    return y > t.waterLevel + 0.9 && y < 12 && t.slopeAt(x, z, y) < 0.09 && Math.abs(x) < lim && Math.abs(z) < lim;
   }
 
-  _buildCamps() {
-    CAMPS.forEach((camp, ci) => {
-      let cx = 0, cz = 0, ok = false;
-      const baseAng = (ci / CAMPS.length) * Math.PI * 2 + this.rand() * 0.6;
-      for (let tries = 0; tries < 80 && !ok; tries++) {
-        const ang = baseAng + (this.rand() - 0.5) * 0.9, d = camp.dist + (this.rand() - 0.5) * 12;
-        cx = Math.cos(ang) * d; cz = Math.sin(ang) * d;
-        ok = this._validGround(cx, cz);
-      }
-      if (!ok) return;
+  /** エリアを切り替える: 既存の敵を破棄し、キャンプ・中ボス・ピラーを配置し直す */
+  setupArea(area) {
+    this.clear();
+    this.area = area;
+    this.rand = rng(area.terrain.seed + 303);
+    const flags = this.game.flags;
+    area.camps.forEach((camp, ci) => {
       camp.types.forEach((type, i) => {
-        let x = cx, z = cz;
-        for (let tries = 0; tries < 30; tries++) {
-          const a = (i / camp.types.length) * Math.PI * 2 + this.rand(), r = 2.2 + this.rand() * 2.5;
-          x = cx + Math.cos(a) * r; z = cz + Math.sin(a) * r;
+        let x = camp.x, z = camp.z;
+        for (let tries = 0; tries < 40; tries++) {
+          const a = (i / camp.types.length) * Math.PI * 2 + this.rand(), r = 2.2 + this.rand() * 3 + tries * 0.15;
+          x = camp.x + Math.cos(a) * r; z = camp.z + Math.sin(a) * r;
           if (this._validGround(x, z)) break;
         }
-        const slot = { camp: ci, type, home: new THREE.Vector3(x, 0, z), enemy: null, timer: 0 };
-        this.slots.push(slot);
-        this._spawn(slot);
+        this._addSlot({ kind: 'camp', camp: ci, type, home: new THREE.Vector3(x, 0, z) });
       });
     });
+    if (area.boss && !flags.boss?.[area.id]) this._addSlot({ kind: 'boss', camp: 100, type: area.boss.id, home: new THREE.Vector3(area.boss.x, 0, area.boss.z) });
+    (area.pylons || []).forEach((p) => {
+      if (!flags.pylons?.[`${area.id}:${p.id}`]) this._addSlot({ kind: 'pylon', camp: 200 + this.slots.length, type: 'pylon', pid: p.id, home: new THREE.Vector3(p.x, 0, p.z) });
+    });
+  }
+
+  _addSlot(slot) {
+    slot.enemy = null; slot.timer = 0; slot.dead = false;
+    this.slots.push(slot);
+    this._spawn(slot);
   }
 
   _spawn(slot) {
@@ -52,10 +57,33 @@ export class EnemySystem {
     e.slot = slot; slot.enemy = e; this.list.push(e);
   }
 
+  clear() {
+    for (const e of this.list) { if (!e.removed) e.dispose(); }
+    this.list = []; this.slots = [];
+  }
+
+  _onDied(enemy) {
+    const s = enemy.slot, flags = this.game.flags;
+    if (!s || !this.area) return;
+    if (s.kind === 'boss') { s.dead = true; (flags.boss ||= {})[this.area.id] = true; this.game.bus.emit('boss:defeated', { area: this.area.id, enemy }); }
+    if (s.kind === 'pylon') {
+      s.dead = true; (flags.pylons ||= {})[`${this.area.id}:${s.pid}`] = true;
+      const all = this.area.pylons.every((p) => flags.pylons[`${this.area.id}:${p.id}`]);
+      this.game.bus.emit('pylon:destroyed', { all });
+    }
+  }
+
+  /** 休息: 倒された敵も含めて (撃破済みボス/ピラー以外) 全員を初期配置に戻す */
+  respawnAll() {
+    for (const e of this.list) if (!e.removed) e.dispose();
+    this.list = [];
+    for (const s of this.slots) { s.enemy = null; s.timer = 0; if (!s.dead) this._spawn(s); }
+  }
+
   /** 1 体が気付いたら同じキャンプの仲間も戦闘状態に */
   alertCamp(enemy) {
     for (const e of this.list) {
-      if (e !== enemy && e.camp === enemy.camp && e.alive && e.state === 'idle') { e.state = 'chase'; e.aggro = true; e.t = 0; }
+      if (e !== enemy && e.camp === enemy.camp && e.alive && !e.def.static && e.state === 'idle') { e.state = 'chase'; e.aggro = true; e.t = 0; }
     }
   }
 
@@ -96,7 +124,7 @@ export class EnemySystem {
       if (e.removed) { this.list.splice(i, 1); if (e.slot) { e.slot.enemy = null; e.slot.timer = 50; } }
     }
     for (const s of this.slots) {
-      if (s.enemy) continue;
+      if (s.enemy || s.dead || s.kind !== 'camp') continue;
       if (Math.hypot(s.home.x - pp.x, s.home.z - pp.z) > 45) s.timer -= dt;
       if (s.timer <= 0) this._spawn(s);
     }
@@ -104,6 +132,6 @@ export class EnemySystem {
 
   /** プレイヤー死亡時など: 全員を戦闘解除して帰還させる */
   resetAggro() {
-    for (const e of this.list) if (e.alive && e.state !== 'idle') { e._clearTelegraph(); e.state = 'return'; e.t = 0; }
+    for (const e of this.list) if (e.alive && !e.def.static && e.state !== 'idle') { e._clearTelegraph(); e.state = 'return'; e.t = 0; }
   }
 }

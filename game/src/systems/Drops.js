@@ -38,6 +38,22 @@ export class Drops {
     }
   }
 
+  /** 宝箱などの固定ロート: loot = {gold:[min,max], items:[{id,n}]} */
+  spawnLoot(pos, loot, color = '#ffd23a') {
+    if (loot.gold) this.spawn(pos, { gold: ri(loot.gold[0], loot.gold[1]) }, '#ffd23a');
+    for (const it of loot.items || []) {
+      const info = itemInfo(it.id);
+      const col = info.kind === 'equipment' ? '#c27bff' : info.kind === 'consumable' ? '#ff8fa3' : info.kind === 'gem' ? (GEMS[it.id]?.color || '#fff') : '#6fe6ff';
+      if (info.kind === 'equipment') for (let i = 0; i < it.n; i++) this.spawn(pos, { id: it.id, n: 1 }, col);
+      else this.spawn(pos, { id: it.id, n: it.n }, col);
+    }
+  }
+
+  clear() {
+    for (const o of this.orbs) this.game.scene.remove(o.mesh);
+    this.orbs = [];
+  }
+
   spawn(pos, payload, color) {
     const mesh = new THREE.Mesh(this.geo, this._mat(color));
     mesh.position.set(pos.x, pos.y + 0.8, pos.z);

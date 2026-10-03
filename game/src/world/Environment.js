@@ -11,7 +11,7 @@ export function createEnvironment(scene, renderer, assets) {
   if (!env) {
     const sun = new THREE.Vector3(0.55, 0.62, 0.45).normalize();
     const sky = createSky(scene, sun);
-    return { sunDir: sun, horizon: new THREE.Color('#b4d2ee'), zenith: new THREE.Color('#4f8fd8'), hdri: false, update: (p) => sky.update(p) };
+    return { sunDir: sun, horizon: new THREE.Color('#b4d2ee'), zenith: new THREE.Color('#4f8fd8'), hdri: false, texture: null, update: (p) => sky.update(p) };
   }
   const info = analyzeHdri(env);
   env.mapping = THREE.EquirectangularReflectionMapping;
@@ -25,5 +25,5 @@ export function createEnvironment(scene, renderer, assets) {
   const sun = info.sun.y > 0.25 ? info.sun.clone().normalize() : new THREE.Vector3(0.5, 0.65, 0.4).normalize();
   const fog = info.horizon.clone().multiplyScalar(0.92);
   scene.fog = new THREE.FogExp2(fog, 0.0040);
-  return { sunDir: sun, horizon: info.horizon, zenith: info.zenith, hdri: true, update() {} };
+  return { sunDir: sun, horizon: info.horizon, zenith: info.zenith, hdri: true, texture: env, update() {} };
 }

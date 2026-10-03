@@ -4,8 +4,9 @@
  *  - バージョン付き JSON。1世代前を .bak に退避し、破損時は自動で .bak から復旧する
  *  - flags: 将来 (宝箱・ボス撃破・解放済みエリア等) 用の汎用フラグ領域
  */
+import { AREAS } from '../data/areas.js';
 const PREFIX = 'aetheria.save.';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 const read = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
 
@@ -27,7 +28,7 @@ export class SaveManager {
       player: {
         ...g.progression.toJSON(),
         hp: g.player.stats.hp, mp: g.player.stats.mp,
-        x: g.player.position.x, z: g.player.position.z,
+        x: g.player.position.x, z: g.player.position.z, area: g.flags.area || 'plains',
         cooldowns: g.player.skillCd,
       },
       inventory: g.inventory.toJSON(),
@@ -63,8 +64,8 @@ export class SaveManager {
   hasAny() { return this.latestSlot() !== null; }
   delete(slot) { try { localStorage.removeItem(PREFIX + slot); localStorage.removeItem(PREFIX + slot + '.bak'); } catch { /* noop */ } }
 
-  /** データをゲームへ反映 */
-  load(slot) {
+  /** データをゲームへ反映 (エリアの読み込みを伴うので非同期)。成功なら true */
+  async load(slot) {
     const d = this.read(slot);
     if (!d) return false;
     const g = this.game;
@@ -76,9 +77,12 @@ export class SaveManager {
     g.player.skillCd = Array.isArray(d.player.cooldowns) ? d.player.cooldowns.map((v) => Math.max(0, +v || 0)) : [0, 0, 0];
     g.flags = d.flags && typeof d.flags === 'object' ? d.flags : {};
     g.playtime = d.playtime || 0;
-    const ok = Number.isFinite(d.player.x) && Number.isFinite(d.player.z);
-    g.player.teleport(ok ? d.player.x : 0, ok ? d.player.z : 0);
-    g.cam.snapTo(g.player.position);
+    // v1 (単一エリア時代) のセーブは位置を引き継がず、平原のセーブポイントから再開
+    const areaId = d.version >= 2 && AREAS[d.player.area] ? d.player.area : 'plains';
+    const pos = d.version >= 2 && Number.isFinite(d.player.x) && Number.isFinite(d.player.z) ? { x: d.player.x, z: d.player.z } : 'savepoint';
+    const keepHp = st.hp, keepMp = st.mp;
+    await g.areas.load(areaId, { spawn: pos, fade: g.running });
+    st.hp = keepHp; st.mp = keepMp;
     g.bus.emit('stats:changed');
     return true;
   }

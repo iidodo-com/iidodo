@@ -4,6 +4,19 @@ import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
 const BASE = `${import.meta.env.BASE_URL}assets/`;
 
+/** 地面テクスチャのプール (d=ベースカラー, n=法線)。エリア定義の ground.* がここのキーを指す */
+export const TEXFILES = {
+  forest: { d: 'grass_diff.jpg', n: 'grass_nor.jpg' }, dry: { d: 'dirt_diff.jpg' }, rock: { d: 'rock_diff.jpg', n: 'rock_nor.jpg' }, sand: { d: 'sand_diff.jpg' },
+  dust: { d: 'dust_d.jpg', n: 'dust_n.jpg' }, cobble: { d: 'cobble_d.jpg' }, boulder: { d: 'boulder_d.jpg', n: 'boulder_n.jpg' }, leafgravel: { d: 'leafgravel_d.jpg' },
+  darkrock: { d: 'darkrock_d.jpg', n: 'darkrock_n.jpg' }, gravel: { d: 'gravel_d.jpg' },
+  plate: { d: 'plate_d.jpg', n: 'plate_n.jpg' }, plate2: { d: 'plate2_d.jpg' }, grid: { d: 'grid_d.jpg', n: 'grid_n.jpg' }, tiles: { d: 'tiles_d.jpg' },
+  marble: { d: 'marble_d.jpg', n: 'marble_n.jpg' }, sandbrick: { d: 'sandbrick_d.jpg', n: 'sandbrick_n.jpg' },
+};
+const flatNormal = (() => {
+  const t = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1, THREE.RGBAFormat);
+  t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+})();
+
 /**
  * 外部アセットの読み込み。1つ失敗しても残りは使えるよう個別に try/catch し、
  * 失敗したものは null (= 各システムが手続き生成にフォールバック)。
@@ -24,24 +37,26 @@ export async function loadAssets(onProgress = () => {}) {
   }));
   const loadModel = (name) => safe(gltf.loadAsync(`${BASE}models/${name}.glb`));
 
-  const [env, grassD, grassN, dirtD, rockD, rockN, sandD, barkD, barkN, b3, b4, b5, fern, grassClump, celandine] = await Promise.all([
+  const assets = { env: null, tex: {}, bark: {}, rocks: [], fern: null, grassClump: null, celandine: null };
+
+  /** 指定した地面テクスチャを (未読込なら) 読み込む。失敗したキーは未登録のまま */
+  assets.ensureTex = async (keys) => {
+    await Promise.all([...new Set(keys)].filter((k) => TEXFILES[k] && !assets.tex[k]).map(async (k) => {
+      const f = TEXFILES[k];
+      const [d, n] = await Promise.all([loadTex(f.d), f.n ? loadTex(f.n, { srgb: false }) : Promise.resolve(flatNormal)]);
+      if (d) assets.tex[k] = { d, n: n || flatNormal };
+    }));
+  };
+
+  const [env, barkD, barkN, b3, b4, b5, fern, grassClump, celandine] = await Promise.all([
     safe(hdr.loadAsync(`${BASE}env/sky.hdr`)),
-    loadTex('grass_diff.jpg'), loadTex('grass_nor.jpg', { srgb: false }),
-    loadTex('dirt_diff.jpg'),
-    loadTex('rock_diff.jpg'), loadTex('rock_nor.jpg', { srgb: false }),
-    loadTex('sand_diff.jpg'),
     loadTex('bark_diff.jpg'), loadTex('bark_nor.jpg', { srgb: false }),
     loadModel('namaqualand_boulder_03'), loadModel('namaqualand_boulder_04'), loadModel('namaqualand_boulder_05'),
     loadModel('fern_02'), loadModel('grass_medium_01'), loadModel('celandine_01'),
+    assets.ensureTex(['forest', 'dry', 'rock', 'sand']),
   ]);
-
-  return {
-    env,
-    ground: { grassD, grassN, dirtD, rockD, rockN, sandD },
-    bark: { diff: barkD, nor: barkN },
-    rocks: [b3, b4, b5].filter(Boolean),
-    fern, grassClump, celandine,
-  };
+  Object.assign(assets, { env, bark: { diff: barkD, nor: barkN }, rocks: [b3, b4, b5].filter(Boolean), fern, grassClump, celandine });
+  return assets;
 }
 
 /** glTF 内の最初のメッシュから geometry / material を取り出す (InstancedMesh 用) */

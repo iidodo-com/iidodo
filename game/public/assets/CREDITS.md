@@ -11,3 +11,5 @@ Textures were resized / models were decimated for web delivery (see `tools/`).
 | Models `namaqualand_boulder_03/05` | Jenelle van Heerden (modeling), Dario Barresi (photography) |
 | Model `namaqualand_boulder_04` | Jenelle van Heerden |
 | Models `fern_02`, `grass_medium_01`, `celandine_01` | Rob Tuytel (photography/scanning), Rico Cilliers (modeling) |
+
+Additional area textures (Poly Haven, CC0): `rocks_ground_03`, `mossy_cobblestone`, `rock_boulder_dry`, `leaf_scattered_gravel`, `dark_rock`, `gravel_floor`, `metal_plate`, `metal_plate_02`, `rusty_metal_grid`, `large_floor_tiles_02`, `marble_01`, `white_sandstone_bricks`.

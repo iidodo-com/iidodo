@@ -64,7 +64,7 @@ export class Input {
 
   requestPointerLock() {
     if (this.isTouch) return;
-    this.canvas.requestPointerLock?.();
+    try { const r = this.canvas.requestPointerLock?.(); r?.catch?.(() => {}); } catch { /* noop */ }
   }
 
   // ---------- keyboard ----------

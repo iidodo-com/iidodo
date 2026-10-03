@@ -113,3 +113,33 @@ game/
 イベント: `exp:gain`, `player:levelup`, `player:skillCast`, `inventory:changed`, `stats:changed`, `pickup`, `toast`。
 
 セーブ形式 (v1): `{version, savedAt, playtime, player:{level,exp,points,alloc,hp,mp,x,z,cooldowns}, inventory:{gold,items,equipment,equipped,nextUid}, flags}`
+
+## Phase 4: マップ進行と階層構造 (実装済み)
+
+5 つのエリアを順に進む構造。地形・見た目・環境・敵・宝箱・仕掛けは `data/areas.js` に宣言的に定義し、`AreaManager` が読み込んで構築する。
+
+| # | エリア | 推奨Lv | 特徴 | 仕掛け | 中ボス |
+|---|---|---|---|---|---|
+| 1 | はじまりの平原 | 1-5 | 草原・湖・森 | 森の鍵で門が開く | ゴブリンキング |
+| 2 | 忘れられた廃墟 | 6-10 | 石畳・折れた柱・崩れた壁 | 石の鍵 | 石の守護像 |
+| 3 | 水晶の洞窟 | 11-16 | 暗闇+ランタン、発光キノコ/水晶、鍾乳石 | レバー2つで障壁解除 | クリスタルゴーレム (弾幕) |
+| 4 | 魔導研究所 | 17-23 | 金属床、魔導ピラー、導光ライン | 障壁ピラー3本を破壊 | アイアンセンチネル |
+| 5 | 空中城アルカディア | 24-30 | 大理石、浮遊岩、雲海 | 風の紋章 (最終扉は Phase 5 で解放) | ウィンドロード (4連携) |
+
+| 要素 | 実装 |
+|---|---|
+| エリア構築 | `world/AreaManager.js`: フェード→旧エリア破棄→地形/水/植生/配置物/敵/環境の再構築→配置→フェードイン。解放/ワープ/死亡復帰もここ |
+| 地形の再構築 | `Terrain.configure(area)` + `build()`。平坦ゾーン(セーブ/門/泉/ボスの間)・外周の壁(空中城は崖)・配色・4種の PBR テクスチャ(エリアごとに差し替え、`Assets.ensureTex` で遅延読込) |
+| 見た目 | `Props.js`(森) + `PropsBiomes.js`(廃墟/洞窟/研究所/空中城) / `Game.applyEnvironment`: 露出・フォグ・背景・太陽/半球光・ランタンと発光物のポイントライト・雲海 |
+| 調べる対象 | `world/WorldObjects.js`: セーブポイント / 回復の泉 / 宝箱(3段階) / 門 / レバー / 障壁。最寄りを `[E]`/「調べる」ボタンで使用。状態は `flags` に保存 |
+| セーブポイント | 休息(HP/MP全回復+敵復活+オートセーブ)、ショップ、強化・合成、ワープ。**ショップ/強化合成はここでのみ利用可** |
+| ショップ | 到達エリアに応じて品揃えが増える (`SHOP[].minArea`) |
+| 敵の拡張 | 24種。複数攻撃パターン (`attacks[]` + `minRange`)、弾幕 (`volley`)、飛行(コウモリ)、静止ターゲット(ピラー)、色替え (`model`/`tint`/`scale`) |
+| 中ボス | 画面上部の HP バー、HP50%で怒り (速度/攻撃間隔/攻撃力UP + 衝撃波)、撃破で鍵と装備をドロップ。撃破は永続 |
+| バランス | `data/enemies.js` の `atkScale(level)` で後半の攻撃力を補正。雑魚1発 ≒ 最大HPの10〜13%、ボス強攻撃 ≒ 22〜33% |
+| 死亡 | 現在エリアのセーブポイントで復活 (エリアは再読込しない) |
+
+セーブ形式 (v2): `player.area` と `flags` (`area / unlocked / boss / chests / gates / levers / barrier / pylons`) を追加。v1 は平原のセーブポイントから再開する。
+イベント: `area:changed`, `boss:defeated`, `enemy:enrage`, `pylon:destroyed`, `chest:open`, `gate:open`, `barrier:open`。
+
+素材 (Poly Haven CC0) の追加分は `public/assets/CREDITS.md` を参照。
