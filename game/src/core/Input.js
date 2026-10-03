@@ -72,6 +72,7 @@ export class Input {
     const map = {
       Space: 'dodge', KeyE: 'interact', KeyF: 'interact',
       Digit1: 'skill1', Digit2: 'skill2', Digit3: 'skill3',
+      KeyQ: 'potion', Tab: 'menu', KeyI: 'menu',
     };
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;

@@ -14,6 +14,13 @@ import { Telegraph } from '../fx/Telegraph.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { Combat } from '../systems/Combat.js';
 import { WorldLabels } from '../ui/WorldLabels.js';
+import { Inventory } from '../systems/Inventory.js';
+import { Progression } from '../systems/Progression.js';
+import { Drops } from '../systems/Drops.js';
+import { SaveManager } from '../save/SaveManager.js';
+import { Menu } from '../ui/Menu.js';
+import { SKILLS } from '../data/skills.js';
+import { CONSUMABLES } from '../data/items.js';
 import { PX } from '../fx/Particles.js';
 import { Player } from '../entities/Player.js';
 import { FollowCamera } from '../camera/FollowCamera.js';
@@ -58,6 +65,17 @@ export class Game {
     this.enemies = new EnemySystem(this);
     this.combat = new Combat(this);
     this.labels = new WorldLabels(this);
+
+    // Phase 3: 育成・所持品・セーブ
+    this.paused = false; this.playtime = 0; this.flags = {};
+    this.inventory = new Inventory(this.bus);
+    this.progression = new Progression(this);
+    this.inventory.newGame();
+    this.progression.recalc(true);
+    this.drops = new Drops(this);
+    this.saves = new SaveManager(this);
+    this.menu = new Menu(this);
+    this._autoT = 0; this._lastSave = -99; this._potionCd = 0;
     this.post = this.quality.post ? new PostFx(this.renderer, this.scene, this.camera, this.quality) : null;
 
     this._bindEvents();
@@ -103,8 +121,13 @@ export class Game {
   }
 
   _bindEvents() {
-    this.bus.on('player:skill', ({ slot }) => this.hud.toast(`スキル${slot}: Phase 3 で実装予定`));
     this.bus.on('player:interact', () => this.hud.toast('調べるものがない'));
+    this.bus.on('toast', (m) => this.hud.toast(m, 1400));
+    this.bus.on('pickup', ({ text, color }) => this.hud.pickup(text, color));
+    this.bus.on('player:levelup', ({ level }) => { this.hud.levelUp(level, 2); this.autosave('levelup'); });
+    this.bus.on('player:potion', () => this.usePotion());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.autosave('hide'); });
+    window.addEventListener('pagehide', () => this.autosave('hide'));
     this.bus.on('player:hurt', ({ heavy }) => { this.hud.hitFlash(); this.cam.shake(heavy ? 0.5 : 0.28); this.hitStop(heavy ? 0.09 : 0.05); });
     this.bus.on('player:dead', () => {
       this.hud.showDeath(true);
@@ -126,11 +149,55 @@ export class Game {
   /** ヒットストップ: 一瞬だけ時間を遅くして打撃の重さを出す */
   hitStop(sec) { this.hitStopT = Math.max(this.hitStopT, sec); }
 
+  /** オートセーブ。reason が 'hide'/'levelup' 以外は 3 秒以内の連続保存を抑制 */
+  autosave(reason = '') {
+    if (!this.running || this.player.state === 'dead') return;
+    if (reason !== 'hide' && reason !== 'levelup' && this.time - this._lastSave < 3) return;
+    if (this.saves.save('auto')) {
+      this._lastSave = this.time;
+      if (reason === 'timer') this.hud.pickup('💾 オートセーブ', '#9fb4d8');
+    }
+  }
+
+  /** 消耗品を使う。使えなければ false */
+  useConsumable(id) {
+    const c = CONSUMABLES[id], st = this.player.stats;
+    if (!c || this.inventory.count(id) < 1 || this.player.state === 'dead') return false;
+    if (c.heal && st.hp >= st.maxHp) return false;
+    if (c.mp && st.mp >= st.maxMp) return false;
+    this.inventory.remove(id, 1);
+    const pos = this.player.position;
+    if (c.heal) {
+      const h = Math.min(c.heal, st.maxHp - st.hp); st.hp += h;
+      this.labels.floatText({ x: pos.x, y: pos.y + 2, z: pos.z }, `+${Math.round(h)}`, 'heal');
+    }
+    if (c.mp) {
+      const m = Math.min(c.mp, st.maxMp - st.mp); st.mp += m;
+      this.labels.floatText({ x: pos.x, y: pos.y + 2, z: pos.z }, `MP +${Math.round(m)}`, 'mp');
+    }
+    for (let i = 0; i < 24; i++) {
+      const a = Math.random() * 6.28;
+      this.effects.sparks.emit({ pos: { x: pos.x + Math.cos(a) * 0.5, y: pos.y + 0.2, z: pos.z + Math.sin(a) * 0.5 }, vel: { x: 0, y: 2 + Math.random() * 2, z: 0 }, life: 0.8, size: 0.12, sizeEnd: 0, color: c.heal ? [0.8, 3.2, 1.2] : [0.8, 1.6, 3.6] });
+    }
+    return true;
+  }
+
+  /** クイック使用 (Q / 薬ボタン): ポーション → ハイポーションの順 */
+  usePotion() {
+    if (this._potionCd > this.time) return;
+    const id = ['potion_s', 'potion_m'].find((i) => this.inventory.count(i) > 0);
+    if (!id) { this.hud.toast('回復薬がない', 1200); return; }
+    if (this.player.stats.hp >= this.player.stats.maxHp) { this.hud.toast('HPは満タン', 1000); return; }
+    if (this.useConsumable(id)) this._potionCd = this.time + 0.6;
+  }
+
   _respawn() {
+    this.autosave('hide');
     this.player.respawn(0, 0);
     this.cam.snapTo(this.player.position);
     this.enemies.resetAggro();
     this.hud.showDeath(false);
+    this.autosave('hide');
   }
 
   addSystem(sys) { this.systems.push(sys); }
@@ -153,6 +220,11 @@ export class Game {
   /** ロジック更新 (描画なし)。自動テストからは固定 dt で直接呼べる。 */
   update(dt) {
     this.input.update();
+    if (this.input.wasPressed('menu')) this.menu.toggle();
+    if (this.paused) return;
+    this.playtime += dt;
+    this._autoT += dt;
+    if (this._autoT >= 45) { this._autoT = 0; this.autosave('timer'); }
     if (this.hitStopT > 0) { this.hitStopT -= dt; dt *= 0.08; }
     TIME.value += dt;
     this.time += dt;
@@ -160,6 +232,7 @@ export class Game {
     this.player.update(dt, this.input, this.cam);
     this.enemies.update(dt, this);
     this.combat.update(dt);
+    this.drops.update(dt);
     for (const s of this.systems) s.update(dt, this);
     this.effects.update(dt);
     this.vegetation.update(this.player.position);
@@ -176,6 +249,8 @@ export class Game {
 
     this.labels.update(dt);
     this.hud.setStats(this.player.stats);
+    this.hud.setProgress(this.progression, this.inventory, this.inventory.count('potion_s') + this.inventory.count('potion_m'));
+    this.hud.setSkills(this.player, this.progression.level, SKILLS);
     this.hud.tick(dt, `x:${p.x.toFixed(0)} z:${p.z.toFixed(0)} ${this.player.state}`);
   }
 }

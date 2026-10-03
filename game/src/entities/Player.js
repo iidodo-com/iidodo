@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../core/Config.js';
+import { SKILLS } from '../data/skills.js';
 
 const ease = (t) => 1 - (1 - t) * (1 - t);
 const clamp01 = (t) => Math.min(Math.max(t, 0), 1);
@@ -30,6 +31,10 @@ export class Player {
 
     // 暫定ステータス (Phase 3 でデータ駆動の Stats / レベルシステムに置換)
     this.stats = { hp: 100, maxHp: 100, mp: 50, maxMp: 50, atk: 18, def: 5, crit: 0.08, critMul: 1.6 };
+    this.skillCd = [0, 0, 0];   // スキルのクールダウン残り (秒)
+    this.buffs = { cry: 0 };    // バフ残り時間
+    this.skillBuf = null;       // {slot, t} 先行入力
+    this.castDef = null;
     this.assist = null;         // (pos, facing) => 最寄りの敵 (Combat が設定)
     this.hurtTimer = 0;
     this.flashT = 0;
@@ -55,6 +60,7 @@ export class Player {
   }
 
   get isInvulnerable() { return this.invulnTimer > 0; }
+  get moveMul() { return 1 + (this.stats.spdBonus || 0) + (this.buffs.cry > 0 ? SKILLS[1].spd : 0); }
   get isBusy() { return this.state !== 'free'; }
 
   teleport(x, z) {
@@ -176,8 +182,12 @@ export class Player {
     this.attackBuffered = Math.max(0, this.attackBuffered - dt);
     if (input.wasPressed('attack')) this.attackBuffered = 0.35;
 
-    // スキル / 調べる (発動条件は Phase 2-3 で実装。ここでは通知のみ)
-    for (let i = 1; i <= 3; i++) if (input.wasPressed(`skill${i}`)) this.bus.emit('player:skill', { slot: i });
+    // スキル: クールダウン/バフの経過と入力
+    for (let i = 0; i < 3; i++) this.skillCd[i] = Math.max(0, this.skillCd[i] - dt);
+    this.buffs.cry = Math.max(0, this.buffs.cry - dt);
+    if (this.skillBuf) { this.skillBuf.t -= dt; if (this.skillBuf.t <= 0) this.skillBuf = null; }
+    for (let i = 1; i <= 3; i++) if (input.wasPressed(`skill${i}`)) this._requestSkill(i);
+    if (input.wasPressed('potion')) this.bus.emit('player:potion');
     if (input.wasPressed('interact')) this.bus.emit('player:interact', { pos: this.position });
 
     switch (this.state) {
@@ -185,6 +195,7 @@ export class Player {
       case 'attack': this._updateAttack(dt, wishX, wishZ, wishLen, input); break;
       case 'dodge': this._updateDodge(dt); break;
       case 'hurt': this._updateHurt(dt); break;
+      case 'cast': this._updateCast(dt); break;
       case 'dead': this.velocity.multiplyScalar(Math.exp(-8 * dt)); this.stateTime += dt; break;
     }
 
@@ -205,6 +216,10 @@ export class Player {
   }
 
   _tryStartAction(input, wishX, wishZ, wishLen) {
+    if (this.skillBuf) {
+      const slot = this.skillBuf.slot; this.skillBuf = null;
+      if (this._canCast(slot, false)) { this._startCast(slot, wishX, wishZ, wishLen); return true; }
+    }
     if (input.wasPressed('dodge') && this.dodgeCd <= 0) {
       this._startDodge(wishX, wishZ, wishLen);
       return true;
@@ -220,8 +235,9 @@ export class Player {
   _updateFree(dt, wishX, wishZ, wishLen, input) {
     if (this._tryStartAction(input, wishX, wishZ, wishLen)) return;
     const cfg = CONFIG.player;
-    const tx = wishLen > 0.01 ? (wishX / Math.max(wishLen, 1)) * cfg.walkSpeed * Math.min(wishLen, 1) : 0;
-    const tz = wishLen > 0.01 ? (wishZ / Math.max(wishLen, 1)) * cfg.walkSpeed * Math.min(wishLen, 1) : 0;
+    const ws = cfg.walkSpeed * this.moveMul;
+    const tx = wishLen > 0.01 ? (wishX / Math.max(wishLen, 1)) * ws * Math.min(wishLen, 1) : 0;
+    const tz = wishLen > 0.01 ? (wishZ / Math.max(wishLen, 1)) * ws * Math.min(wishLen, 1) : 0;
     // 水中は歩行が遅くなる
     const wade = this.terrain.waterDepthAt(this.position.x, this.position.z) > 0.35 ? 0.62 : 1;
     const a = 1 - Math.exp(-cfg.accel * 0.35 * dt);
@@ -322,6 +338,53 @@ export class Player {
   /** 外部 (敵の攻撃) から呼ぶ。無敵中は無効。実ダメージ計算は Phase 2。 */
   canBeHit() { return !this.isInvulnerable; }
 
+  // --- skills ---
+  /** 発動可否。notify=true なら理由をトーストで知らせる */
+  _canCast(slot, notify = true) {
+    const def = SKILLS[slot - 1], st = this.stats;
+    const say = (m) => { if (notify) this.bus.emit('toast', m); };
+    if (!def) return false;
+    if ((st.level || 1) < def.unlock) { say(`${def.name}は Lv${def.unlock} で解放`); return false; }
+    if (this.skillCd[slot - 1] > 0) { say(`${def.name}: クールダウン中`); return false; }
+    if (st.mp < def.mp) { say('MPが足りない'); return false; }
+    return true;
+  }
+
+  _requestSkill(slot) {
+    if (this.state === 'dead') return;
+    if (!this._canCast(slot)) return;
+    if (this.state === 'free') this._startCast(slot, 0, 0, 0);
+    else this.skillBuf = { slot, t: 0.3 };       // 動作中なら先行入力として保持
+  }
+
+  _startCast(slot, wishX, wishZ, wishLen) {
+    const def = SKILLS[slot - 1];
+    this.stats.mp -= def.mp; this.skillCd[slot - 1] = def.cd;
+    this.castDef = def; this.state = 'cast'; this.stateTime = 0; this.castFired = false;
+    this.comboLinkTimer = 0; this.comboIndex = 0; this.comboHasPrev = false;
+    if (def.kind === 'projectile') {
+      const t = this.assist?.(this.position, this.facing, 9, 1.5);
+      if (t) this.facing = Math.atan2(t.pos.x - this.position.x, t.pos.z - this.position.z);
+      else if (wishLen > 0.2) this.facing = Math.atan2(wishX, wishZ);
+    }
+    this.velocity.set(0, 0, 0);
+  }
+
+  _updateCast(dt) {
+    const def = this.castDef;
+    this.stateTime += dt;
+    this.velocity.multiplyScalar(Math.exp(-10 * dt));
+    if (!this.castFired && this.stateTime >= def.hitAt) {
+      this.castFired = true;
+      if (def.kind === 'buff') this.buffs.cry = def.dur;
+      this.bus.emit('player:skillCast', {
+        def, pos: this.position.clone(),
+        dir: new THREE.Vector3(Math.sin(this.facing), 0, Math.cos(this.facing)),
+      });
+    }
+    if (this.stateTime >= def.cast) { this.state = 'free'; this.castDef = null; }
+  }
+
   // --- damage ---
   /** 被ダメージ。無敵中/死亡中は無効 (false)。from は攻撃元のワールド座標。 */
   takeDamage(amount, from, { knock = 4, heavy = false } = {}) {
@@ -338,7 +401,7 @@ export class Player {
       this.bus.emit('player:dead', { pos: this.position.clone() });
       return true;
     }
-    this.state = 'hurt'; this.stateTime = 0; this.hurtDur = heavy ? 0.55 : 0.32;
+    this.state = 'hurt'; this.stateTime = 0; this.hurtDur = heavy ? 0.55 : 0.32; this.castDef = null;
     this.comboIndex = 0; this.comboHasPrev = false; this.comboLinkTimer = 0; this.attackBuffered = 0;
     return true;
   }
@@ -408,13 +471,23 @@ export class Player {
       this.rig.position.y = 0.9 - Math.sin(p * Math.PI) * 0.25;
       this.legL.rotation.x = this.legR.rotation.x = 1.2;
       this._restSword();
-    } else if (this.state !== 'hurt' && this.state !== 'dead') {
+    } else if (this.state !== 'hurt' && this.state !== 'dead' && this.state !== 'cast') {
       this.rig.rotation.x = 0;
     }
 
+    // スキル詠唱モーション
+    this.rig.rotation.y = 0;
+    if (this.state === 'cast' && this.castDef) {
+      const d = this.castDef, p = clamp01(this.stateTime / d.cast), r = this.swordPivot.rotation;
+      if (d.id === 'whirl') { this.rig.rotation.y = Math.PI * 2 * ease(p); r.set(0.05, -1.1, 0); this.armL.rotation.x = -1.2; }
+      else if (d.id === 'cry') { r.set(-2.5 * ease(Math.min(1, p * 2)), 0, 0); this.armL.rotation.x = -2.8 * ease(Math.min(1, p * 2)); this.rig.position.y = 0.9 + 0.06 * Math.sin(p * Math.PI); }
+      else { r.set(p < 0.5 ? -0.3 : -0.05, 0, 0); this.rig.rotation.x = p > 0.5 ? 0.18 : -0.1; }
+    }
+
     // 剣
-    if (this.state === 'attack') this._animateSwing();
-    else if (this.state !== 'dodge' && this.state !== 'dead') {
+    if (this.state === 'cast') { /* 上で設定済み */ }
+    else if (this.state === 'attack') this._animateSwing();
+    else if (this.state !== 'dodge' && this.state !== 'dead' && this.state !== 'cast') {
       const target = { x: 0.9, y: -0.15 };
       this.swordPivot.rotation.x += (target.x - this.swordPivot.rotation.x) * Math.min(1, dt * 12);
       this.swordPivot.rotation.y += (target.y - this.swordPivot.rotation.y) * Math.min(1, dt * 12);

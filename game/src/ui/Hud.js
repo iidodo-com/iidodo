@@ -10,6 +10,13 @@ export class Hud {
     this.toastEl = document.getElementById('toast');
     this.toastTimer = 0;
     this.flashEl = document.getElementById('hit-flash');
+    this.lv = document.getElementById('lv-badge'); this.gold = document.getElementById('gold-text');
+    this.expFill = document.getElementById('exp-fill'); this.buffEl = document.getElementById('buff-text');
+    this.logEl = document.getElementById('pickup-log'); this.lvUp = document.getElementById('levelup');
+    this.skEls = [1, 2, 3].map((n) => [document.querySelector(`#skillbar .sk[data-slot="${n}"]`), document.querySelector(`.btn.skill[data-action="skill${n}"]`)]);
+    this.skEls.forEach(([, t]) => { if (t && !t.querySelector('.cd')) t.appendChild(Object.assign(document.createElement('i'), { className: 'cd' })); });
+    this.potBar = document.getElementById('potion-cnt'); this.potTouch = document.getElementById('potion-cnt-t');
+    this._skCache = [];
     this.deathEl = document.getElementById('death');
     this._frames = 0; this._acc = 0; this.fps = 0;
   }
@@ -27,6 +34,45 @@ export class Hud {
     requestAnimationFrame(() => requestAnimationFrame(() => this.flashEl.classList.remove('on')));
   }
   showDeath(on) { this.deathEl.classList.toggle('show', on); }
+
+  setProgress(prog, inv, potions) {
+    const key = `${prog.level}|${prog.exp}|${inv.gold}|${potions}`;
+    if (key === this._pk) return; this._pk = key;
+    this.lv.textContent = `Lv ${prog.level}`;
+    this.gold.textContent = `${inv.gold} G`;
+    this.expFill.style.width = prog.level >= 30 ? '100%' : `${(prog.exp / prog.expNeed) * 100}%`;
+    this.potBar.textContent = potions; this.potTouch.textContent = potions;
+  }
+
+  setSkills(player, level, skills) {
+    skills.forEach((sk, i) => {
+      const cd = player.skillCd[i], locked = level < sk.unlock, nomp = !locked && player.stats.mp < sk.mp;
+      const key = `${locked}|${nomp}|${Math.round(cd / sk.cd * 90)}`;
+      if (this._skCache[i] === key) return;
+      this._skCache[i] = key;
+      const frac = cd > 0 ? `${(cd / sk.cd) * 360}deg` : '0deg';
+      for (const el of this.skEls[i]) {
+        if (!el) continue;
+        el.style.setProperty('--cd', frac);
+        el.classList.toggle('locked', locked); el.classList.toggle('nomp', nomp);
+        const lk = el.querySelector('.lock'); if (lk) lk.textContent = `Lv${sk.unlock}`;
+      }
+    });
+    const b = player.buffs.cry;
+    this.buffEl.textContent = b > 0 ? `闘気 ${Math.ceil(b)}s` : '';
+  }
+
+  pickup(text, color) {
+    const d = document.createElement('div'); d.textContent = text; if (color) d.style.color = color;
+    this.logEl.appendChild(d);
+    while (this.logEl.children.length > 6) this.logEl.firstChild.remove();
+    setTimeout(() => d.remove(), 3300);
+  }
+
+  levelUp(level, points) {
+    this.lvUp.querySelector('.sub').textContent = `Lv ${level} に上がった！ 割り振りポイント +${points}（メニュー → ステータス）`;
+    this.lvUp.classList.remove('show'); void this.lvUp.offsetWidth; this.lvUp.classList.add('show');
+  }
 
   setArea(name) { this.area.textContent = name; }
 
