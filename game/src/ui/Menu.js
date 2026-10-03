@@ -12,7 +12,7 @@ const statText = (st) => Object.entries(st).filter(([, v]) => v).map(([k, v]) =>
 const fmtTime = (s) => `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`;
 const matList = (m, inv) => Object.entries(m).map(([id, n]) => `<span class="${inv.count(id) >= n ? 'ok' : 'need'}">${MATERIALS[id].icon}${MATERIALS[id].name}×${n} (${inv.count(id)})</span>`).join(' ');
 
-const TABS_BASE = [['status', 'ステータス'], ['equip', '装備'], ['items', 'アイテム'], ['skills', 'スキル'], ['save', 'セーブ'], ['settings', '設定'], ['help', '操作説明']];
+const TABS_BASE = [['map', 'マップ'], ['status', 'ステータス'], ['equip', '装備'], ['items', 'アイテム'], ['skills', 'スキル'], ['save', 'セーブ'], ['settings', '設定'], ['help', '操作説明']];
 const TABS_SP = [['rest', '休息'], ['shop', 'ショップ'], ['forge', '強化・合成'], ['warp', 'ワープ'], ...TABS_BASE];
 
 /**
@@ -110,7 +110,7 @@ export class Menu {
     const g = this.game, inv = g.inventory;
     const TABS = this.sp ? TABS_SP : TABS_BASE;
     if (!TABS.some(([k]) => k === this.tab)) this.tab = 'status';
-    const body = { status: () => this.status(), equip: () => this.equip(), items: () => this.items(), shop: () => this.shop(), forge: () => this.forge(), skills: () => this.skills(), save: () => this.save(), rest: () => this.rest(), warp: () => this.warp(), settings: () => this.settings(), help: () => this.help() }[this.tab]();
+    const body = { status: () => this.status(), equip: () => this.equip(), items: () => this.items(), shop: () => this.shop(), forge: () => this.forge(), skills: () => this.skills(), save: () => this.save(), rest: () => this.rest(), warp: () => this.warp(), map: () => this.game.nav.mapHtml(), settings: () => this.settings(), help: () => this.help() }[this.tab]();
     const prev = this.el.querySelector('.mbody')?.scrollTop || 0;
     this.el.innerHTML = `
       <div class="panel">
@@ -119,6 +119,7 @@ export class Menu {
         <div class="mfoot"><span>Lv ${g.progression.level} ／ プレイ時間 ${fmtTime(g.playtime)}</span><span class="gold">${inv.gold} G</span></div>
       </div>`;
     this.el.querySelector('.mbody').scrollTop = prev;
+    if (this.tab === 'map') this.game.nav.drawFull(this.el.querySelector('#fullmap'));
   }
 
   settings() {
@@ -137,8 +138,8 @@ export class Menu {
 
   help() {
     const rows = (a) => a.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
-    return `<div class="grid2"><div class="card"><h4>PC</h4><table class="keytable">${rows([['W A S D', '移動'], ['マウス', '視点 (クリックで操作開始 / Esc でメニュー)'], ['左クリック', '攻撃 (3連コンボ)'], ['Space / 右クリック', '回避ロール (無敵)'], ['1 / 2 / 3', 'スキル'], ['Q', '回復薬をすぐ使う'], ['E', '調べる (宝箱・門・セーブポイント…)'], ['Tab / I', 'メニュー']])}</table></div>
-      <div class="card"><h4>スマホ</h4><table class="keytable">${rows([['左下スティック', '移動'], ['画面をドラッグ', '視点'], ['攻撃 / 回避', '右下ボタン'], ['1 2 3', 'スキル'], ['薬', '回復薬をすぐ使う'], ['調べる', '対象の近くで光る'], ['☰', 'メニュー']])}</table></div></div>
+    return `<div class="grid2"><div class="card"><h4>PC</h4><table class="keytable">${rows([['W A S D', '移動'], ['マウス', '視点 (クリックで操作開始 / Esc でメニュー)'], ['左クリック', '攻撃 (3連コンボ)'], ['Space', 'ジャンプ (空中でもう一度=2段ジャンプ / 落下中に長押し=滑空)'], ['空中で左クリック', '叩きつけ攻撃 (範囲ダメージ)'], ['Shift / 右クリック', '回避ロール (無敵)'], ['走り続ける', '自動でダッシュ'], ['M', '全体マップ'], ['1 / 2 / 3', 'スキル'], ['Q', '回復薬をすぐ使う'], ['E', '調べる (宝箱・門・セーブポイント…)'], ['Tab / I', 'メニュー']])}</table></div>
+      <div class="card"><h4>スマホ</h4><table class="keytable">${rows([['左下スティック', '移動'], ['画面をドラッグ', '視点'], ['攻撃 / 回避 / ジャンプ', '右下ボタン (空中でもう一度ジャンプ・長押しで滑空・空中で攻撃=叩きつけ)'], ['ミニマップ', 'タップで全体マップ'], ['1 2 3', 'スキル'], ['薬', '回復薬をすぐ使う'], ['調べる', '対象の近くで光る'], ['☰', 'メニュー']])}</table></div></div>
       <div class="card" style="margin-top:12px"><h4>ヒント</h4><div class="sub" style="font-size:13px;opacity:.9;line-height:1.8">
       ・敵の足元に出る赤い範囲は攻撃の予兆。満ちる前に回避ロールか距離を取ろう。<br>
       ・セーブポイントでは休息・ショップ・強化・宝珠の合成・ワープができる。<br>

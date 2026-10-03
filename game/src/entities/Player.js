@@ -28,6 +28,8 @@ export class Player {
     this.facing = 0;            // 向き (rad)。前方向ベクトル = (sin f, cos f)
     this.vy = 0;
     this.grounded = true;
+    this.airJumps = 0; this.coyote = 0; this.jumpBuf = 0; this.jumpReleased = true;
+    this.gliding = false; this.sprintT = 0; this.sprinting = false; this.slamPhase = 'dive'; this._wasGround = true; this._fallVy = 0;
 
     // 暫定ステータス (Phase 3 でデータ駆動の Stats / レベルシステムに置換)
     this.stats = { hp: 100, maxHp: 100, mp: 50, maxMp: 50, atk: 18, def: 5, crit: 0.08, critMul: 1.6 };
@@ -183,6 +185,8 @@ export class Player {
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     this.invulnTimer = Math.max(0, this.invulnTimer - dt);
     this.attackBuffered = Math.max(0, this.attackBuffered - dt);
+    this.jumpBuf = Math.max(0, this.jumpBuf - dt);
+    if (input.wasPressed('jump') && this.state !== 'dead') this.jumpBuf = cfg.jumpBuffer;
     if (input.wasPressed('attack')) this.attackBuffered = 0.35;
 
     // スキル: クールダウン/バフの経過と入力
@@ -197,6 +201,7 @@ export class Player {
       case 'free': this._updateFree(dt, wishX, wishZ, wishLen, input); break;
       case 'attack': this._updateAttack(dt, wishX, wishZ, wishLen, input); break;
       case 'dodge': this._updateDodge(dt); break;
+      case 'airslam': this._updateAirSlam(dt); break;
       case 'hurt': this._updateHurt(dt); break;
       case 'cast': this._updateCast(dt); break;
       case 'dead': this.velocity.multiplyScalar(Math.exp(-8 * dt)); this.stateTime += dt; break;
@@ -227,6 +232,11 @@ export class Player {
       this._startDodge(wishX, wishZ, wishLen);
       return true;
     }
+    if (this.attackBuffered > 0 && this.airborne) {
+      this.attackBuffered = 0;
+      this._startAirSlam();
+      return true;
+    }
     if (this.attackBuffered > 0) {
       this.attackBuffered = 0;
       this._startAttack(wishX, wishZ, wishLen);
@@ -238,7 +248,20 @@ export class Player {
   _updateFree(dt, wishX, wishZ, wishLen, input) {
     if (this._tryStartAction(input, wishX, wishZ, wishLen)) return;
     const cfg = CONFIG.player;
-    const ws = cfg.walkSpeed * this.moveMul;
+    // ジャンプ / 二段ジャンプ / 滑空
+    this.coyote = this.grounded ? cfg.coyote : Math.max(0, this.coyote - dt);
+    if (this.grounded) { this.airJumps = 0; this.jumpReleased = false; }
+    if (!input.isDown('jump')) this.jumpReleased = true;
+    if (this.jumpBuf > 0) {
+      if (this.coyote > 0) { this._jump(cfg.jumpVel, false); }
+      else if (this.airJumps < cfg.airJumps) { this.airJumps++; this._jump(cfg.airJumpVel, true); }
+    }
+    this.gliding = !this.grounded && this.jumpReleased === false ? false : (!this.grounded && this.vy < 0 && input.isDown('jump') && this.airborne);
+    // 走り続けると自動ダッシュ
+    const onGround = this.grounded || this.coyote > 0;
+    if (wishLen > 0.75 && onGround) this.sprintT += dt; else if (wishLen < 0.3) this.sprintT = 0;
+    this.sprinting = this.sprintT > cfg.sprintAfter && onGround;
+    const ws = cfg.walkSpeed * this.moveMul * (this.sprinting ? cfg.sprintMul : 1) * (this.gliding ? cfg.glideSpeed : 1);
     const tx = wishLen > 0.01 ? (wishX / Math.max(wishLen, 1)) * ws * Math.min(wishLen, 1) : 0;
     const tz = wishLen > 0.01 ? (wishZ / Math.max(wishLen, 1)) * ws * Math.min(wishLen, 1) : 0;
     // 水中は歩行が遅くなる
@@ -247,6 +270,39 @@ export class Player {
     this.velocity.x += (tx * wade - this.velocity.x) * a;
     this.velocity.z += (tz * wade - this.velocity.z) * a;
     if (wishLen > 0.1) this._turnToward(Math.atan2(wishX, wishZ), dt);
+  }
+
+  _jump(v, air) {
+    this.vy = v; this.grounded = false; this.coyote = 0; this.jumpBuf = 0; this.jumpReleased = false;
+    this.position.y += 0.03; this.sprintT *= 0.5;
+    this.bus.emit('player:jump', { pos: this.position.clone(), air });
+  }
+
+  /** 地面から十分離れているか (衝撃波回避・空中攻撃の判定用) */
+  get airborne() { return this.position.y - this.terrain.getHeightAt(this.position.x, this.position.z) > 0.9; }
+
+  // --- 空中叩きつけ ---
+  _startAirSlam() {
+    this.state = 'airslam'; this.stateTime = 0; this.slamPhase = 'dive'; this.gliding = false;
+    this.comboLinkTimer = 0; this.comboIndex = 0; this.comboHasPrev = false;
+    this.velocity.set(0, 0, 0); this.vy = -CONFIG.player.slamSpeed;
+    const t = this.assist?.(this.position, this.facing);
+    if (t) this.facing = Math.atan2(t.pos.x - this.position.x, t.pos.z - this.position.z);
+  }
+
+  _updateAirSlam(dt) {
+    this.stateTime += dt;
+    if (this.slamPhase === 'dive') {
+      this.velocity.set(Math.sin(this.facing) * 2.5, 0, Math.cos(this.facing) * 2.5);
+      this.vy = -CONFIG.player.slamSpeed;
+      if (this.grounded) {
+        this.slamPhase = 'land'; this.stateTime = 0; this.velocity.set(0, 0, 0);
+        this.bus.emit('player:swing', { combo: 3, pos: this.position.clone(), dir: new THREE.Vector3(Math.sin(this.facing), 0, Math.cos(this.facing)) });
+      } else if (this.stateTime > 2) this.state = 'free';
+    } else {
+      this.velocity.set(0, 0, 0);
+      if (this.stateTime > 0.32) this.state = 'free';
+    }
   }
 
   _turnToward(target, dt) {
@@ -425,6 +481,7 @@ export class Player {
   respawnAt(x, z, facing = this.facing) {
     this.state = 'free'; this.stateTime = 0; this.invulnTimer = 2; this.sinceHit = 99;
     this.velocity.set(0, 0, 0); this.rig.rotation.x = 0; this.rig.position.y = 0.9; this.castDef = null; this.skillBuf = null;
+    this.vy = 0; this._fallVy = 0; this._wasGround = true; this.gliding = false; this.sprintT = 0; this.airJumps = 0;
     this.facing = facing;
     this.teleport(x, z);
   }
@@ -440,6 +497,8 @@ export class Player {
     const ground = this.terrain.getHeightAt(this.position.x, this.position.z);
     if (this.position.y > ground + 0.02) {
       this.vy -= cfg.gravity * dt;
+      if (this.gliding && this.state === 'free') this.vy = Math.max(this.vy, -cfg.glideFall);
+      this._fallVy = Math.min(this._fallVy, this.vy);
       this.position.y += this.vy * dt;
       if (this.position.y <= ground) { this.position.y = ground; this.vy = 0; }
       this.grounded = this.position.y <= ground + 0.02;
@@ -447,6 +506,13 @@ export class Player {
       // 登り坂は即座に追従 (スナップ)
       this.position.y = ground; this.vy = 0; this.grounded = true;
     }
+    if (this.grounded && !this._wasGround) {
+      const hard = this._fallVy < -16;
+      if (this._fallVy < -6) this.bus.emit('player:land', { pos: this.position.clone(), hard });
+      this.gliding = false;
+    }
+    if (this.grounded) this._fallVy = 0;
+    this._wasGround = this.grounded;
   }
 
   // --- visuals ---
@@ -493,9 +559,21 @@ export class Player {
       else { r.set(p < 0.5 ? -0.3 : -0.05, 0, 0); this.rig.rotation.x = p > 0.5 ? 0.18 : -0.1; }
     }
 
+    // 空中ポーズ (ジャンプ / 滑空 / 叩きつけ)
+    if (!this.grounded && (this.state === 'free' || this.state === 'airslam')) {
+      const rise = this.vy > 0;
+      this.legL.rotation.x = this.state === 'airslam' ? 0.3 : (rise ? -0.7 : 0.5);
+      this.legR.rotation.x = this.state === 'airslam' ? 0.3 : (rise ? 0.4 : -0.3);
+      this.armL.rotation.x = this.state === 'airslam' ? -2.6 : (this.gliding ? -1.3 : rise ? -2.2 : -0.6);
+      this.rig.rotation.x = this.state === 'airslam' ? 0.5 : (this.gliding ? 0.6 : 0);
+      this.rig.position.y = 0.9;
+    }
+    if (this.state === 'airslam') this.swordPivot.rotation.set(this.slamPhase === 'dive' ? 0.35 : 0.5, 0, 0);
+
     // 剣
     if (this.state === 'cast') { /* 上で設定済み */ }
     else if (this.state === 'attack') this._animateSwing();
+    else if (this.state === 'airslam') { /* 上で設定済み */ }
     else if (this.state !== 'dodge' && this.state !== 'dead' && this.state !== 'cast') {
       const target = { x: 0.9, y: -0.15 };
       this.swordPivot.rotation.x += (target.x - this.swordPivot.rotation.x) * Math.min(1, dt * 12);

@@ -140,6 +140,7 @@ export class Combat {
   }
   enemyCircle(enemy, radius, atk) {
     const p = this.game.player;
+    if (p.airborne) return; // 衝撃波はジャンプで回避
     if (Math.hypot(p.position.x - enemy.pos.x, p.position.z - enemy.pos.z) <= radius + CONFIG.player.radius)
       this.enemyHitsPlayer(enemy, atk, enemy.pos);
   }
@@ -189,7 +190,7 @@ export class Combat {
     const g = this.game, p = g.player;
     let hit = false;
     for (const pt of enemy.rainPts || []) {
-      if (!hit && Math.hypot(p.position.x - pt.x, p.position.z - pt.z) <= atk.radius + 0.45) { hit = this.enemyHitsPlayer(enemy, atk, { x: pt.x, y: 0, z: pt.z }); }
+      if (!hit && !p.airborne && Math.hypot(p.position.x - pt.x, p.position.z - pt.z) <= atk.radius + 0.45) { hit = this.enemyHitsPlayer(enemy, atk, { x: pt.x, y: 0, z: pt.z }); }
       g.bus.emit('enemy:impact', { x: pt.x, z: pt.z, radius: atk.radius });
     }
     g.cam.shake(0.3);

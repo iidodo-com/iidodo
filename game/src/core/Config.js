@@ -25,6 +25,16 @@ export const CONFIG = {
       { dur: 0.36, lunge: 1.6, hitAt: 0.45, swing: 'left' },
       { dur: 0.55, lunge: 2.6, hitAt: 0.5,  swing: 'overhead' },
     ],
+    jumpVel: 10.5,        // 1段目ジャンプ初速 (約2m)
+    airJumpVel: 9.0,      // 空中ジャンプ
+    airJumps: 1,
+    coyote: 0.1,          // 崖を離れてもジャンプできる猶予
+    jumpBuffer: 0.14,
+    glideFall: 2.4,       // 滑空中の最大落下速度
+    glideSpeed: 1.15,
+    sprintMul: 1.42,      // 走り続けると自動でダッシュ
+    sprintAfter: 0.7,
+    slamSpeed: 24,
     comboLink: 0.45,      // 攻撃終了後、この時間内に押すと次段へ
   },
   camera: {

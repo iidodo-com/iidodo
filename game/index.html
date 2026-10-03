@@ -29,6 +29,9 @@
       <div class="sk" data-slot="3"><span class="key">3</span><span class="nm">魔導閃</span><i class="cd"></i><em class="lock"></em></div>
       <div class="sk potion" data-slot="q"><span class="key">Q</span><span class="nm">薬</span><em class="cnt" id="potion-cnt"></em></div>
     </div>
+    <canvas id="minimap"></canvas>
+    <div id="objective"></div>
+    <div id="nav-marker"><span class="arr">▶</span><span class="nd"></span></div>
     <div id="hud-area">はじまりの平原</div>
     <div id="hud-debug"></div>
     <div id="toast"></div>
@@ -55,6 +58,7 @@
       <button class="btn skill" data-action="skill1">1</button>
       <button class="btn interact" data-action="interact">調べる</button>
       <button class="btn potion" data-action="potion">薬<em id="potion-cnt-t"></em></button>
+      <button class="btn jump" data-action="jump">ジャンプ</button>
       <button class="btn dodge" data-action="dodge">回避</button>
       <button class="btn attack" data-action="attack">攻撃</button>
     </div>
@@ -69,7 +73,7 @@
       <button id="ngp-btn" hidden>強くてニューゲーム</button>
       <button id="start-btn">はじめから</button>
     </div>
-    <p class="help pc-only">WASD 移動 ／ マウス 視点 ／ 左クリック 攻撃 ／ Space 回避 ／ 1-3 スキル ／ E 調べる ／ Esc 視点解除</p>
+    <p class="help pc-only">WASD 移動 ／ マウス 視点 ／ 左クリック 攻撃 ／ Space ジャンプ(空中で2段目・長押しで滑空・空中で攻撃=叩きつけ) ／ Shift 回避 ／ M マップ ／ 1-3 スキル ／ E 調べる ／ Esc 視点解除</p>
     <p class="help touch-only">左下スティックで移動 ／ 画面ドラッグで視点 ／ 右下ボタンで行動</p>
   </div>
 </div>
