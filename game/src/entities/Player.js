@@ -60,37 +60,93 @@ export class Player {
   }
 
   _buildModel() {
+    const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0, ...o });
+    const skin = M('#f3cba8', { roughness: 0.55 }), cloth = M('#2f63b8'), clothDk = M('#1f3f7c', { side: THREE.DoubleSide });
+    const pants = M('#2b3042'), leather = M('#6e4829', { roughness: 0.8 });
+    const metal = M('#dfe6f0', { metalness: 0.85, roughness: 0.28 }), gold = M('#e6b53f', { metalness: 1, roughness: 0.32 });
+    const hair = M('#6a3f22', { roughness: 0.5 }), red = M('#c52f3b', { roughness: 0.8, side: THREE.DoubleSide });
+    const eye = M('#14213d', { roughness: 0.15 });
+    const outlineMat = new THREE.MeshBasicMaterial({ color: '#0e1424', side: THREE.BackSide });
+
+    const add = (parent, geo, mat, x = 0, y = 0, z = 0, o = {}) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      if (o.s) m.scale.set(...o.s);
+      if (o.r) m.rotation.set(...o.r);
+      m.castShadow = true;
+      if (o.out) m.add(new THREE.Mesh(geo, outlineMat)).scale.setScalar(1 + o.out);
+      parent.add(m);
+      return m;
+    };
+
     this.root = new THREE.Group();
-    // rig: 回避ロールで回転させる中心(腰の高さ)
-    this.rig = new THREE.Group();
+    this.rig = new THREE.Group();            // 腰の高さ。回避ロールの回転中心
     this.rig.position.y = 0.9;
     this.root.add(this.rig);
+    const rig = this.rig;
 
-    const skin = '#e8c39e', cloth = '#2c5aa0', dark = '#23262e', metal = '#cfd6e0';
-    const body = box(0.7, 0.8, 0.4, cloth, 0, 0.1, 0);
-    const head = box(0.42, 0.42, 0.42, skin, 0, 0.72, 0);
-    const visor = box(0.34, 0.12, 0.05, dark, 0, 0.74, 0.22);
-    const hair = box(0.46, 0.14, 0.46, '#4a2f1a', 0, 0.97, -0.01);
-    this.legL = new THREE.Group(); this.legR = new THREE.Group();
-    this.legL.position.set(-0.17, -0.3, 0); this.legR.position.set(0.17, -0.3, 0);
-    this.legL.add(box(0.26, 0.6, 0.28, dark, 0, -0.3, 0));
-    this.legR.add(box(0.26, 0.6, 0.28, dark, 0, -0.3, 0));
-    this.armL = new THREE.Group(); this.armL.position.set(-0.48, 0.38, 0);
-    this.armL.add(box(0.2, 0.62, 0.22, cloth, 0, -0.28, 0));
+    // 胴体・鎧・ベルト・スカート・マフラー
+    add(rig, new THREE.CapsuleGeometry(0.25, 0.3, 6, 16), cloth, 0, 0.17, 0, { s: [1, 1, 0.8], out: 0.045 });
+    add(rig, new THREE.SphereGeometry(0.27, 18, 12), metal, 0, 0.3, 0.035, { s: [1.02, 0.52, 0.8] });
+    add(rig, new THREE.CylinderGeometry(0.27, 0.275, 0.09, 18), leather, 0, -0.1, 0, { s: [1, 1, 0.82] });
+    add(rig, new THREE.BoxGeometry(0.1, 0.08, 0.04), gold, 0, -0.1, 0.235);
+    add(rig, new THREE.CylinderGeometry(0.26, 0.4, 0.4, 20, 1, true), clothDk, 0, -0.31, 0, { s: [1, 1, 0.85] });
+    add(rig, new THREE.TorusGeometry(0.2, 0.065, 10, 20), red, 0, 0.5, 0, { r: [Math.PI / 2, 0, 0] });
 
-    // 右腕 + 剣 (swing 用の pivot)
-    this.swordPivot = new THREE.Group();
-    this.swordPivot.position.set(0.48, 0.38, 0);
-    this.swordPivot.rotation.order = 'YXZ';
-    this.swordPivot.add(box(0.2, 0.2, 0.22, cloth, 0, 0, 0.0));
-    const blade = box(0.09, 0.05, 1.25, metal, 0, 0, 0.85);
-    const guard = box(0.32, 0.07, 0.07, '#b08a2e', 0, 0, 0.28);
-    const grip = box(0.07, 0.07, 0.28, '#5b3f26', 0, 0, 0.1);
-    this.swordPivot.add(blade, guard, grip);
+    // 頭: 顔・目・髪・前髪・ポニーテール
+    const head = new THREE.Group(); head.position.y = 0.76; rig.add(head);
+    add(head, new THREE.SphereGeometry(0.23, 22, 16), skin, 0, 0, 0, { s: [1, 1.05, 1], out: 0.05 });
+    for (const sx of [-1, 1]) {
+      add(head, new THREE.SphereGeometry(0.036, 10, 8), eye, sx * 0.085, 0.0, 0.205, { s: [1, 1.5, 0.55] });
+      add(head, new THREE.SphereGeometry(0.012, 6, 6), new THREE.MeshBasicMaterial({ color: '#ffffff' }), sx * 0.075, 0.025, 0.222);
+    }
+    add(head, new THREE.SphereGeometry(0.262, 22, 14, 0, Math.PI * 2, 0, 1.95), hair, 0, 0.03, -0.03, { out: 0.045 });
+    for (let i = -2; i <= 2; i++) {
+      add(head, new THREE.ConeGeometry(0.07, 0.2, 6), hair, i * 0.075, 0.15 - Math.abs(i) * 0.02, 0.2, { r: [Math.PI - 0.35, 0, i * 0.18] });
+    }
+    add(head, new THREE.CapsuleGeometry(0.055, 0.26, 4, 10), hair, 0, -0.1, -0.27, { r: [0.55, 0, 0] });
+    add(head, new THREE.SphereGeometry(0.05, 8, 8), red, 0, 0.1, -0.26);
 
-    this.rig.add(body, head, visor, hair, this.legL, this.legR, this.armL, this.swordPivot);
-    this._restSword();
-    this.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    // 脚 (腰を支点に振る)
+    const leg = (sx) => {
+      const g = new THREE.Group(); g.position.set(sx * 0.14, -0.3, 0);
+      add(g, new THREE.CapsuleGeometry(0.1, 0.3, 4, 10), pants, 0, -0.2, 0, { out: 0.05 });
+      add(g, new THREE.CylinderGeometry(0.115, 0.135, 0.24, 12), leather, 0, -0.47, 0, { out: 0.05 });
+      add(g, new THREE.BoxGeometry(0.2, 0.1, 0.32), leather, 0, -0.57, 0.06);
+      rig.add(g); return g;
+    };
+    this.legL = leg(-1); this.legR = leg(1);
+
+    // 左腕
+    this.armL = new THREE.Group(); this.armL.position.set(-0.37, 0.4, 0); rig.add(this.armL);
+    add(this.armL, new THREE.CapsuleGeometry(0.075, 0.28, 4, 10), cloth, 0, -0.2, 0, { out: 0.05 });
+    add(this.armL, new THREE.SphereGeometry(0.09, 10, 8), leather, 0, -0.42, 0);
+    add(this.armL, new THREE.SphereGeometry(0.15, 14, 10), metal, -0.03, 0.05, 0, { s: [1, 0.7, 1] });
+
+    // 右腕 + 剣 (swordPivot を回して振る。+Z が前)
+    const sp = this.swordPivot = new THREE.Group();
+    sp.position.set(0.37, 0.4, 0); sp.rotation.order = 'YXZ'; rig.add(sp);
+    add(sp, new THREE.CapsuleGeometry(0.075, 0.26, 4, 10), cloth, 0, 0, 0.17, { r: [Math.PI / 2, 0, 0], out: 0.05 });
+    add(sp, new THREE.SphereGeometry(0.15, 14, 10), metal, 0.03, 0.05, 0, { s: [1, 0.7, 1] });
+    add(sp, new THREE.SphereGeometry(0.09, 10, 8), leather, 0, 0, 0.36);
+    add(sp, new THREE.CylinderGeometry(0.035, 0.035, 0.24, 8), leather, 0, 0, 0.38, { r: [Math.PI / 2, 0, 0] });
+    add(sp, new THREE.BoxGeometry(0.32, 0.05, 0.06), gold, 0, 0, 0.54);
+    add(sp, new THREE.SphereGeometry(0.045, 8, 8), gold, 0, 0, 0.26);
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.045, 0); shape.lineTo(0.045, 0); shape.lineTo(0.045, 1.0); shape.lineTo(0, 1.2); shape.lineTo(-0.045, 1.0); shape.closePath();
+    const bladeGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.02, bevelEnabled: false });
+    bladeGeo.rotateX(Math.PI / 2); bladeGeo.translate(0, 0.01, 0.56);
+    add(sp, bladeGeo, M('#e8f0fa', { metalness: 0.9, roughness: 0.18, emissive: '#3aa9ff', emissiveIntensity: 0.6 }));
+    const core = new THREE.MeshBasicMaterial({ color: new THREE.Color('#9fe7ff').multiplyScalar(2.6) });
+    add(sp, new THREE.BoxGeometry(0.014, 0.03, 0.85), core, 0, 0, 1.08);
+
+    // マント (なびく)
+    this.capePivot = new THREE.Group(); this.capePivot.position.set(0, 0.46, -0.2); rig.add(this.capePivot);
+    const capeGeo = new THREE.PlaneGeometry(0.66, 1.0, 3, 6); capeGeo.translate(0, -0.5, 0);
+    this.cape = add(this.capePivot, capeGeo, red, 0, 0, 0);
+    this.capeBase = capeGeo.attributes.position.array.slice();
+
+    this.root.traverse((o) => { if (o.isMesh && o.material !== outlineMat) o.castShadow = true; });
   }
 
   _restSword() {
@@ -156,9 +212,11 @@ export class Player {
     const cfg = CONFIG.player;
     const tx = wishLen > 0.01 ? (wishX / Math.max(wishLen, 1)) * cfg.walkSpeed * Math.min(wishLen, 1) : 0;
     const tz = wishLen > 0.01 ? (wishZ / Math.max(wishLen, 1)) * cfg.walkSpeed * Math.min(wishLen, 1) : 0;
+    // 水中は歩行が遅くなる
+    const wade = this.terrain.waterDepthAt(this.position.x, this.position.z) > 0.35 ? 0.62 : 1;
     const a = 1 - Math.exp(-cfg.accel * 0.35 * dt);
-    this.velocity.x += (tx - this.velocity.x) * a;
-    this.velocity.z += (tz - this.velocity.z) * a;
+    this.velocity.x += (tx * wade - this.velocity.x) * a;
+    this.velocity.z += (tz * wade - this.velocity.z) * a;
     if (wishLen > 0.1) this._turnToward(Math.atan2(wishX, wishZ), dt);
   }
 
@@ -307,7 +365,21 @@ export class Player {
       this.swordPivot.rotation.y += (target.y - this.swordPivot.rotation.y) * Math.min(1, dt * 12);
       this.swordPivot.rotation.z = 0;
     }
+    this._animateCape(dt, speed);
     this._syncModel();
+  }
+
+  _animateCape(dt, speed) {
+    const t = performance.now() * 0.001, k = Math.min(speed / CONFIG.player.walkSpeed, 2);
+    this.capePivot.rotation.x = 0.08 + k * 0.38 + (this.state === 'dodge' ? 0.5 : 0);
+    const pos = this.cape.geometry.attributes.position, base = this.capeBase;
+    for (let i = 0; i < pos.count; i++) {
+      const row = Math.round(-base[i * 3 + 1] / (1 / 6)); // 0(肩)..6(裾)
+      const w = row / 6;
+      pos.setZ(i, base[i * 3 + 2] - w * w * (0.05 + k * 0.1) + Math.sin(t * 7 + row * 0.9 + base[i * 3] * 4) * 0.035 * w * (0.4 + k));
+    }
+    pos.needsUpdate = true;
+    this.cape.geometry.computeVertexNormals();
   }
 
   _animateSwing() {

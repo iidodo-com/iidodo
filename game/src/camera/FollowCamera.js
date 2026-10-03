@@ -47,7 +47,7 @@ export class FollowCamera {
     for (let i = 1; i <= steps; i++) {
       const d = (i / steps) * this.distance;
       const x = this.focus.x + dx * d, y = this.focus.y + dy * d, z = this.focus.z + dz * d;
-      if (y < this.terrain.getHeightAt(x, z) + 0.6) { safe = Math.max(c.minDistance, d - 0.4); break; }
+      if (y < this.terrain.getHeightAt(x, z) + 0.6 || this._insideProp(x, y, z)) { safe = Math.max(c.minDistance, d - 0.5); break; }
     }
     // 近づく時は素早く、離れる時はゆっくり
     const rate = safe < this.curDist ? 30 : 4;
@@ -67,6 +67,17 @@ export class FollowCamera {
       this.shakeAmp *= Math.exp(-12 * dt);
     }
     this.camera.lookAt(this.focus);
+  }
+
+  /** 木・岩のコライダー内 (幹/岩の高さ以下) にカメラが入るか */
+  _insideProp(x, y, z) {
+    const base = this.terrain.getHeightAt(x, z);
+    if (y - base > 3.2) return false;
+    for (const c of this.terrain.colliders) {
+      const dx = x - c.x, dz = z - c.z, r = c.r + 0.35;
+      if (dx * dx + dz * dz < r * r) return true;
+    }
+    return false;
   }
 
   /** 移動入力の基準となる、水平方向の前/右ベクトル */
