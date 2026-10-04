@@ -269,22 +269,25 @@ function drawMargin() {
   const m = cur.margin || [], cv = $('margin'), { g, w, h } = setupCanvas(cv);
   $('mLegend').innerHTML = `<span><b style="background:${COL.up}"></b>買い残</span><span><b style="background:${COL.dn}"></b>売り残</span><span><b style="background:#facc15"></b>信用倍率</span>`;
   if (!m.length) { g.fillStyle = COL.tx; g.fillText('信用残高データなし', 10, 20); $('mTable').innerHTML = ''; return; }
-  const padR = 52, N = m.length, top = 8, bot = h - 14, bwid = (w - padR) / N;
+  const padR = 52, N = m.length, top = 8, bot = h - 14, bwid = Math.min((w - padR) / N, 40), x00 = (w - padR) - bwid * N;
   const mx = Math.max(...m.map(d => Math.max(d.buy, d.sell))) * 1.1;
   const y = v => bot - v / mx * (bot - top);
   g.font = '10px sans-serif'; g.fillStyle = COL.tx; g.fillText(fmtVol(mx), w - padR + 4, top + 8);
   m.forEach((d, i) => {
-    const x0 = i * bwid + 1;
+    const x0 = x00 + i * bwid + 1;
     g.fillStyle = COL.up + 'cc'; g.fillRect(x0, y(d.buy), bwid * 0.42, bot - y(d.buy));
     g.fillStyle = COL.dn + 'cc'; g.fillRect(x0 + bwid * 0.45, y(d.sell), bwid * 0.42, bot - y(d.sell));
   });
   const rat = m.map(d => d.sell ? d.buy / d.sell : null), rmx = Math.max(...rat.filter(v => v != null)) * 1.1;
   const ry = v => bot - v / rmx * (bot - top);
   g.strokeStyle = '#facc15'; g.lineWidth = 1.6; g.beginPath();
-  rat.forEach((v, i) => v == null ? 0 : i ? g.lineTo(i * bwid + bwid * 0.45, ry(v)) : g.moveTo(i * bwid + bwid * 0.45, ry(v))); g.stroke(); g.lineWidth = 1;
+  rat.forEach((v, i) => v == null ? 0 : i ? g.lineTo(x00 + i * bwid + bwid * 0.45, ry(v)) : g.moveTo(x00 + i * bwid + bwid * 0.45, ry(v))); g.stroke(); g.lineWidth = 1;
+  if (N === 1) { g.fillStyle = '#facc15'; g.beginPath(); g.arc(x00 + bwid * 0.45, ry(rat[0]), 3, 0, 7); g.fill(); }
   g.fillStyle = '#facc15'; g.fillText(fmt(rat[N - 1], 2) + '倍', w - padR + 4, ry(rat[N - 1]) + 3);
   g.fillStyle = COL.tx; g.textAlign = 'left';
-  g.fillText(m[0].t.slice(5), 2, h - 2); g.textAlign = 'right'; g.fillText(m[N - 1].t.slice(5), w - padR, h - 2);
+  if (N > 1) { g.fillText(m[0].t.slice(5), x00 + 2, h - 2); g.textAlign = 'right'; } else g.textAlign = 'right';
+  g.fillText(m[N - 1].t.slice(5), w - padR, h - 2);
+  if (N === 1) { g.textAlign = 'left'; g.fillText('週次の履歴は更新のたびに蓄積', 6, top + 8); }
 
   const rows = m.slice(-4).reverse().map((d, i, a) => {
     const prev = m[m.length - 1 - i - 1], r = d.sell ? d.buy / d.sell : null;
@@ -313,43 +316,117 @@ function renderQuote() {
   $('qPrice').textContent = fmt(b.c, dp);
   $('qChg').textContent = `${ch >= 0 ? '+' : ''}${fmt(ch, dp)} (${ch >= 0 ? '+' : ''}${fmt(ch / pv * 100, 2)}%)`;
   $('qChg').className = ch >= 0 ? 'up' : 'dn';
-  $('demoTag').textContent = cur.demo ? '※ デモ用の疑似データ' : '';
+  $('demoTag').textContent = statusText();
 }
 
 function renderAll() {
   hover = null; renderQuote(); renderAI(cur); drawChart(); drawMargin(); renderStats();
-  $('delBtn').hidden = !!cur.demo;
+  $('delBtn').hidden = !(cur.custom || cur.live);
+}
+
+// ---------- データ取得(スナップショット / 中継経由のライブ) ----------
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+const cfg = { proxy: store.get('kabusapo.proxy.v1', window.KABU_PROXY || ''), auto: store.get('kabusapo.auto.v1', true) };
+let snapshot = null, busy = false;
+
+function setStatus(t, cls = '') { const e = $('status'); e.textContent = t; e.className = 'status ' + cls; }
+const hhmm = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+
+// 週次の信用残高は公表が最新週のみのため、更新のたびに端末へ蓄積する
+function mergeMargin(code, latest) {
+  const all = store.get('kabusapo.margin.v1', {}), m = new Map((all[code] || []).map(d => [d.t, d]));
+  (latest || []).forEach(d => m.set(d.t, d));
+  const out = [...m.values()].sort((x, y) => x.t < y.t ? -1 : 1).slice(-52);
+  all[code] = out; store.set('kabusapo.margin.v1', all); return out;
+}
+function adopt(st) {
+  st.live = true; st.margin = mergeMargin(st.code, st.margin);
+  const i = stocks.findIndex(s => s.code === st.code);
+  i >= 0 ? stocks[i] = st : stocks.push(st);
+  return st;
+}
+async function fetchLive(code) {
+  const r = await fetch(`${cfg.proxy.replace(/\/$/, '')}/api/stock?code=${encodeURIComponent(code)}`);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return adopt(j);
+}
+async function refresh(quiet) {
+  if (busy) return;
+  if (window.KABU_ARTIFACT) { setStatus('この画面は公開時点のスナップショットです。最新にするには、Claude に「株サポを更新して」と依頼してください。', 'err'); return; }
+  if (!cfg.proxy) { setStatus('最新データの取得には ⚙ で中継URLの設定が必要です。いまはスナップショット表示です。', 'err'); return; }
+  busy = true; $('refBtn').classList.add('busy');
+  const watch = [...new Set([cur.code, ...store.get('kabusapo.watch.v1', [])])];
+  const keep = cur.code; let ok = 0, last = '';
+  await Promise.all(watch.map(c => fetchLive(c).then(() => ok++).catch(e => { last = e.message; })));
+  busy = false; $('refBtn').classList.remove('busy');
+  if (!ok) { setStatus('取得に失敗しました: ' + last, 'err'); return; }
+  const sel = stocks.find(s => s.code === keep) || stocks[0];
+  refreshSel(sel.code); cur = sel; renderAll();
+  setStatus(`最新取得 ${hhmm(new Date())}(${ok}/${watch.length}銘柄)`, 'ok');
+}
+
+function statusText() {
+  if (cur.demo) return '※ デモ用の疑似データ。⚙ で中継URLを設定すると実データになります。';
+  const t = cur.fetchedAt ? hhmm(cur.fetchedAt) : '手入力';
+  return `データ取得 ${t} / 日足は最終取引日 ${cur.daily[cur.daily.length - 1].t}` + (cur.intraDate ? ` / 5分足 ${cur.intraDate}` : '');
 }
 
 // ---------- 銘柄選択・追加 ----------
 function refreshSel(sel) {
-  $('stockSel').innerHTML = stocks.map(s => `<option value="${s.code}">${s.code} ${s.name}${s.demo ? '' : ' ★'}</option>`).join('');
+  $('stockSel').innerHTML = stocks.map(s => `<option value="${s.code}">${s.code} ${s.name}${s.custom ? ' ★' : ''}</option>`).join('');
   if (sel) $('stockSel').value = sel;
 }
-function parseCSV(txt, intra) {
+function parseCSV(txt) {
   return txt.trim().split(/\r?\n/).map(l => l.split(/[,\t]/).map(x => x.trim())).filter(r => r.length >= 5 && !isNaN(+r[1]))
     .map(r => ({ t: r[0].replace(/\//g, '-'), o: +r[1], h: +r[2], l: +r[3], c: +r[4], v: +(r[5] || 0) }));
 }
-function parseMargin(txt) {
+function parseMarginCSV(txt) {
   return txt.trim() ? txt.trim().split(/\r?\n/).map(l => l.split(/[,\t]/).map(x => x.trim())).filter(r => r.length >= 3 && !isNaN(+r[1]))
     .map(r => ({ t: r[0].replace(/\//g, '-'), buy: +r[1], sell: +r[2] })) : [];
 }
+const addErr = t => { $('addErr').textContent = t; };
 
 $('stockSel').onchange = e => { cur = stocks.find(s => s.code === e.target.value); renderAll(); };
-$('addBtn').onclick = () => $('dlg').showModal();
+$('addBtn').onclick = () => { addErr(''); $('liveHint').textContent = cfg.proxy ? '' : '※ ⚙ で中継URLを設定すると使えます。'; $('dlg').showModal(); };
+$('setBtn').onclick = () => { $('proxyUrl').value = cfg.proxy; $('autoRef').checked = cfg.auto; $('setMsg').textContent = ''; $('setDlg').showModal(); };
+$('refBtn').onclick = () => refresh();
+$('setSave').onclick = async () => {
+  const u = $('proxyUrl').value.trim();
+  if (u && !/^https?:\/\//.test(u)) { $('setMsg').textContent = 'https:// から始まるURLを入力してください。'; return; }
+  cfg.proxy = u; cfg.auto = $('autoRef').checked; store.set('kabusapo.proxy.v1', u); store.set('kabusapo.auto.v1', cfg.auto);
+  $('setDlg').close(); await refresh();
+};
+$('liveAdd').onclick = async () => {
+  const code = $('fCode').value.trim().toUpperCase();
+  if (!/^[0-9A-Z]{4}$/.test(code)) { addErr('証券コード(4桁)を入力してください。'); return; }
+  if (!cfg.proxy) { addErr('⚙ で中継URLを設定してください。'); return; }
+  addErr('取得中…');
+  try {
+    const st = await fetchLive(code); const w = store.get('kabusapo.watch.v1', []);
+    if (!w.includes(code)) store.set('kabusapo.watch.v1', [...w, code]);
+    cur = st; refreshSel(code); renderAll(); $('dlg').close(); setStatus(`${code} ${st.name} を追加しました`, 'ok');
+  } catch (e) { addErr('取得できませんでした: ' + e.message); }
+};
 $('addForm').onsubmit = e => {
   if (e.submitter && e.submitter.value === 'cancel') return;
-  const daily = parseCSV($('fDaily').value), intra = parseCSV($('fIntra').value), margin = parseMargin($('fMargin').value);
-  if (daily.length < 30) { alert('日足は30本以上必要です'); e.preventDefault(); return; }
-  const code = $('fCode').value.trim(), custom = loadCustom().filter(s => s.code !== code);
-  custom.push({ code, name: $('fName').value.trim(), daily, intra, margin });
-  saveCustom(custom); stocks = [...DEMO(), ...custom]; refreshSel(code);
-  cur = stocks.find(s => s.code === code); renderAll(); $('addForm').reset();
+  const daily = parseCSV($('fDaily').value), intra = parseCSV($('fIntra').value), margin = parseMarginCSV($('fMargin').value);
+  const code = $('fCode').value.trim(), name = $('fName').value.trim() || code;
+  if (daily.length < 30) { addErr('CSV取り込みは日足が30本以上必要です。'); e.preventDefault(); return; }
+  const custom = loadCustom().filter(s => s.code !== code);
+  custom.push({ code, name, daily, intra, margin, custom: true });
+  saveCustom(custom); $('addForm').reset(); init(code);
 };
+let delArm = 0;
 $('delBtn').onclick = () => {
-  if (!cur || cur.demo || !confirm(`${cur.name} を削除しますか?`)) return;
-  saveCustom(loadCustom().filter(s => s.code !== cur.code)); init();
-  $('dlg').close();
+  if (!cur || !cur.custom && !cur.live) return;
+  if (Date.now() - delArm > 4000) { delArm = Date.now(); $('delBtn').textContent = 'もう一度押すと削除します'; return; }
+  saveCustom(loadCustom().filter(s => s.code !== cur.code));
+  store.set('kabusapo.watch.v1', store.get('kabusapo.watch.v1', []).filter(c => c !== cur.code));
+  $('delBtn').textContent = 'この銘柄を削除'; delArm = 0; $('dlg').close(); init();
 };
 $('tfSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; tf = b.dataset.tf;
   [...$('tfSeg').children].forEach(x => x.classList.toggle('on', x === b));
@@ -363,9 +440,23 @@ cv.addEventListener('pointerdown', pos); cv.addEventListener('pointermove', e =>
 cv.addEventListener('pointerleave', () => { hover = null; drawChart(); });
 addEventListener('resize', () => { drawChart(); drawMargin(); });
 
-function init() {
-  stocks = [...DEMO(), ...loadCustom()];
-  cur = stocks[0]; refreshSel(cur.code); renderAll();
+async function loadSnapshot() {
+  if (window.__SNAPSHOT__) return window.__SNAPSHOT__;
+  try { const r = await fetch('data/latest.json', { cache: 'no-cache' }); if (r.ok) return await r.json(); } catch {}
+  return null;
 }
-init();
+function init(select) {
+  const custom = loadCustom().map(s => ({ ...s, custom: true }));
+  const base = snapshot && snapshot.stocks.length ? snapshot.stocks.map(s => ({ ...s, margin: mergeMargin(s.code, s.margin) })) : DEMO();
+  // 取得済みのライブ銘柄(この画面内)は維持する
+  const live = stocks.filter(s => s.live && !base.some(b => b.code === s.code) && !custom.some(c => c.code === s.code));
+  stocks = [...base.map(b => stocks.find(s => s.live && s.code === b.code) || b), ...live, ...custom];
+  cur = stocks.find(s => s.code === select) || stocks[0]; refreshSel(cur.code); renderAll();
+}
+(async () => {
+  snapshot = await loadSnapshot(); init();
+  if (snapshot) setStatus(`スナップショット表示(${hhmm(snapshot.fetchedAt)} 取得)`);
+  if (cfg.proxy) refresh(); else if (!snapshot) setStatus('デモ表示です。⚙ で中継URLを設定すると最新データを取得できます。');
+  setInterval(() => { if (cfg.proxy && cfg.auto && !document.hidden) refresh(true); }, 60000);
+})();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});

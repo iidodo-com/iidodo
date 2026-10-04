@@ -14,8 +14,11 @@
 <body>
 <header class="top">
   <select id="stockSel" aria-label="銘柄"></select>
+  <button id="refBtn" class="ghost" aria-label="最新データを取得" title="最新データを取得">↻</button>
   <button id="addBtn" class="ghost" aria-label="銘柄追加">＋</button>
+  <button id="setBtn" class="ghost" aria-label="設定">⚙</button>
 </header>
+<div class="status" id="status" role="status"></div>
 
 <main>
   <section class="quote">
@@ -52,25 +55,43 @@
     <table id="stats"></table>
   </section>
 
-  <p class="note">※ 表示は参考情報です。投資判断・売買は自己責任でお願いします。デモ銘柄は疑似データです。実データは「＋」からCSVで取り込めます。</p>
+  <p class="note">※ 表示は参考情報です。投資判断・売買は自己責任でお願いします。データは Yahoo!ファイナンス由来で、遅延や欠損があり得ます。信用残高は週1回(最新週のみ)の公表値で、履歴は更新のたびに端末へ蓄積されます。</p>
 </main>
 
 <dialog id="dlg">
   <form method="dialog" id="addForm">
-    <h3>銘柄を追加(CSV取り込み)</h3>
-    <label>コード<input id="fCode" required placeholder="例: 7203"></label>
-    <label>銘柄名<input id="fName" required placeholder="例: トヨタ自動車"></label>
+    <h3>銘柄を追加</h3>
+    <label>コード<input id="fCode" required placeholder="例: 7203" maxlength="4" autocapitalize="characters"></label>
+    <button type="button" id="liveAdd" class="wide">コードだけで追加(最新データを取得)</button>
+    <p class="hint" id="liveHint"></p>
+    <h3>CSV取り込み</h3>
+    <label>銘柄名<input id="fName" placeholder="例: トヨタ自動車"></label>
     <label>日足CSV <small>日付,始値,高値,安値,終値,出来高</small>
-      <textarea id="fDaily" rows="5" required placeholder="2026-09-01,3000,3050,2980,3020,12000000"></textarea></label>
+      <textarea id="fDaily" rows="5" placeholder="2026-09-01,3000,3050,2980,3020,12000000"></textarea></label>
     <label>信用残高CSV(任意) <small>日付,買残,売残</small>
       <textarea id="fMargin" rows="3" placeholder="2026-09-26,12500000,3200000"></textarea></label>
     <label>5分足CSV(任意・当日) <small>時刻,始値,高値,安値,終値,出来高</small>
       <textarea id="fIntra" rows="3" placeholder="09:00,3000,3010,2995,3005,150000"></textarea></label>
+    <p class="hint err" id="addErr"></p>
     <menu>
-      <button value="cancel" class="ghost" formnovalidate>キャンセル</button>
-      <button id="saveBtn" value="default">保存</button>
+      <button value="cancel" class="ghost" formnovalidate>閉じる</button>
+      <button id="saveBtn" value="default">CSVで保存</button>
     </menu>
     <button type="button" id="delBtn" class="ghost danger" hidden>この銘柄を削除</button>
+  </form>
+</dialog>
+
+<dialog id="setDlg">
+  <form method="dialog">
+    <h3>データ取得先</h3>
+    <p class="hint">ブラウザから株価サイトへ直接は接続できないため、中継(Cloudflare Worker)のURLを設定します。手順は README にあります。未設定のときは同梱のスナップショットを表示します。</p>
+    <label>中継URL<input id="proxyUrl" placeholder="https://kabusapo-proxy.xxxx.workers.dev" inputmode="url"></label>
+    <label class="chk"><input type="checkbox" id="autoRef" checked> 60秒ごとに自動更新(画面表示中のみ)</label>
+    <p class="hint" id="setMsg"></p>
+    <menu>
+      <button value="cancel" class="ghost" formnovalidate>閉じる</button>
+      <button type="button" id="setSave">保存して更新</button>
+    </menu>
   </form>
 </dialog>
 

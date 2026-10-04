@@ -1,0 +1,5 @@
+name = "kabusapo-proxy"
+main = "index.js"
+compatibility_date = "2024-09-01"
+# [vars]
+# ALLOWED_ORIGIN = "https://あなたのアプリのURL"   # 公開後はアプリのURLだけに絞るのがおすすめ
