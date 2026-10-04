@@ -38,6 +38,17 @@ DEFAULTS: dict[str, Any] = {
     },
     "layout": {"mode": "auto", "min_cells": 4},
     "handwriting": {"enabled": False, "model_dir": None},
+    "cloud": {
+        "allow_upload": False,
+        "google": {"api_key": None, "url": "https://vision.googleapis.com/v1/images:annotate"},
+        "azure": {"endpoint": None, "key": None, "api_version": "2024-02-01"},
+        "reconcile_engines": [],
+        "prefer_cloud": True,
+        "stop_at_free_limit": True,
+        "free_limit": {"google": 1000, "azure": 5000},
+        "timeout_sec": 60,
+        "usage_file": "./cloud_usage.json",
+    },
     "review": {"threshold": 70, "word_level": False},
     "output": {"page_txt": True, "searchable_pdf": True, "page_header": True},
 }
@@ -46,7 +57,7 @@ _CHOICES = {
     ("preprocess", "denoise"): ("none", "median", "nlmeans"),
     ("preprocess", "binarize"): ("none", "otsu"),
     ("layout", "mode"): ("auto", "text", "cells"),
-    ("ocr", "engine"): ("tesseract", "handwriting"),
+    ("ocr", "engine"): ("tesseract", "handwriting", "google", "azure"),
 }
 
 
@@ -125,6 +136,7 @@ def validate(cfg: dict) -> dict:
         ("pdf", "render_dpi", 72, 600),
         ("review", "threshold", 0, 100),
         ("layout", "min_cells", 1, 1000),
+        ("cloud", "timeout_sec", 5, 600),
     ]:
         v = cfg[section][key]
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not lo <= v <= hi:
@@ -133,13 +145,17 @@ def validate(cfg: dict) -> dict:
                 "数値以外や範囲外の値が入っていないか確認してください。",
             )
 
+    engines = cfg["cloud"]["reconcile_engines"]
+    if not isinstance(engines, list) or any(e not in ("google", "azure") for e in engines):
+        raise OcrToolError(f"config.yaml の cloud.reconcile_engines は google / azure のリストで指定してください（現在: {engines!r}）。",
+                           "例: reconcile_engines: [google, azure]（使わないなら []）")
     for section, key in _CHOICES:
         cfg[section][key] = _normalize_choice(section, key, cfg[section][key])
 
     bool_keys = [
         ("recursive",), ("ocr", "remove_cjk_spaces"),
         ("preprocess", "enabled"), ("preprocess", "grayscale"), ("preprocess", "deskew"), ("preprocess", "flatten"), ("preprocess", "remove_lines"),
-        ("review", "word_level"), ("handwriting", "enabled"),
+        ("review", "word_level"), ("handwriting", "enabled"), ("cloud", "allow_upload"), ("cloud", "prefer_cloud"), ("cloud", "stop_at_free_limit"),
         ("output", "page_txt"), ("output", "searchable_pdf"), ("output", "page_header"),
     ]
     for path in bool_keys:

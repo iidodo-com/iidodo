@@ -1,7 +1,8 @@
-# 日本語OCRツール（無料・完全ローカル）
+# 日本語OCRツール（無料。既定は完全ローカル）
 
 スキャンした紙の文書（PDF / JPG / PNG など）から日本語の文字を読み取り、**テキスト**と**検索可能PDF**にします。
-Tesseract + OpenCV を使い、有料API・有料ソフトは使いません。**画像や文書は外部に送信されません。**
+Tesseract + OpenCV を使い、有料API・有料ソフトは使いません。**既定では、画像や文書は外部に送信されません。**
+精度が必要な場合は、任意で **手書き用モデル**（手元で動作）や **クラウドOCR**（Google / Azure の無料枠。**画像が外部に送信されます**）も使えます。
 
 - 一括処理：フォルダ内の画像・PDFをまとめて処理（PDFは1ページずつ）
 - 前処理：グレースケール化・傾き補正・ノイズ除去・照明ムラ補正・二値化（個別にON/OFF）
@@ -162,6 +163,71 @@ python tools/make_synthetic_samples.py          # samples/synthetic/ に画像�
 ```powershell
 python -m pytest -q tests
 ```
+
+## クラウドOCR（任意）：Google Cloud Vision / Azure AI Vision
+
+ローカルの Tesseract では限界がある書類（手書き・低画質・複雑な表）を、**外部の読み取りサービス**に送って読む機能です。
+**無料枠の範囲で使う想定**で、2つのサービスを選べます（比較できます）。
+
+> ### ⚠ 必ずお読みください
+> - **書類の画像が Google / Microsoft のサーバーに送信されます。** 氏名・口座番号などの個人情報を含む書類は、送ってよいか確認してから使ってください（組織のルール・契約・相手方との取り決めなど）。
+> - 誤送信を防ぐため、`config.yaml` の **`cloud.allow_upload` を `true` にしたときだけ**動きます（既定は `false`）。
+> - **無料枠を超えると課金される場合があります**（特に Google）。このツールは**自分の利用回数**を数えて無料枠に達したら止まりますが、他の用途で同じアカウントを使った分は数えられません。クラウド側でも予算アラートを設定してください。
+> - **この機能は、私の環境にAPIキーがなく、実サービスでの動作確認をしていません（未確認）。** サービスの公式ドキュメントの応答形式を模した試験サーバーで、送受信・解析・エラー処理・無料枠の停止を検証しました。お手元で、実キーを使った確認が必要です。
+
+### 準備（どちらか、または両方）
+
+**Google Cloud Vision**（無料枠: 毎月最初の1,000枚。以降は有料 ※料金は公式で確認してください）
+1. Google Cloud コンソールでプロジェクトを作る。
+2. **請求先アカウント**を設定する（クレジットカード登録が必要。無料枠内なら課金されません）。**予算アラート**も設定する。
+3. 「Cloud Vision API」を**有効化**する。
+4. 「認証情報」→「APIキーを作成」→ **「APIの制限」で Cloud Vision API のみに制限**する。
+5. キーを環境変数に設定する（コマンドプロンプト）:
+   ```
+   setx GOOGLE_VISION_API_KEY "ここにキー"
+   ```
+   （設定後、コマンドプロンプトを開き直す。）
+
+**Azure AI Vision（Read）**（無料枠 Free F0: 月5,000回・毎分20回まで。超過は止まり、課金されません ※公式で確認してください）
+1. Azure アカウントを作る（無料アカウントはカード登録が必要）。
+2. Azure ポータルで「Computer Vision」（AI Vision）リソースを作る。**価格レベルは Free F0**、リージョンは Japan East など。
+3. 「キーとエンドポイント」から、キーとエンドポイント（`https://〜.cognitiveservices.azure.com/` など）をコピーする。
+4. 環境変数に設定する:
+   ```
+   setx AZURE_VISION_KEY "ここにキー"
+   setx AZURE_VISION_ENDPOINT "https://〜.cognitiveservices.azure.com"
+   ```
+5. 地域によっては、Image Analysis 4.0 の Read が使えない場合があります（エラーになったらリージョンを確認）。
+
+`config.yaml` の `cloud.allow_upload` を `true` にして、準備完了です。**APIキーは他人に見せない・共有しないでください**（`config.yaml` に直接書く場合は、そのファイルを他人に渡さないこと）。
+
+### 使い方
+
+```powershell
+# 1) ページ全体をクラウドで読む（検索可能PDFは作りません）
+run.bat --engine google
+run.bat --engine azure
+
+# 2) 帳票突合にクラウドを併用する（ページ全体を1回だけ送り、各項目に結果を割り当てる）
+reconcile.bat --cloud google
+reconcile.bat --cloud google,azure          # 2つとTesseractで読み比べ。食い違った項目は「要確認」になる
+
+# 3) 同じ書類で、エンジンを比べる（正解テキスト foo.gt.txt があれば CER も出す）
+python compare_engines.py --input ./samples --engines tesseract,google,azure
+```
+
+- **帳票突合での使われ方**: クラウドの読み取りを優先して採用し（`cloud.prefer_cloud`）、Tesseractなどの結果は「一致度」の確認に使います。
+  エンジン間で食い違った項目は「読み取りが揺れた」として「要確認」になるので、**1つのエンジンの誤読を見逃しにくく**なります。
+- **無料枠の消費**: 1ページあたり、使うクラウドごとに1回です（項目ごとには送りません）。月ごとの回数は `cloud_usage.json` に記録され、`cloud.free_limit` に達すると止まります（80%で警告）。
+- 費用の確認・上限: `cloud.free_limit` は、公式の最新の無料枠に合わせて書き換えてください。
+
+### 精度について（未確認）
+
+**クラウドOCRで精度がどれだけ上がるかは、私の環境では測定していません。** 一般には、手書き・低画質・かすれで Tesseract より高精度とされますが、
+このツールの書類・筆跡での数値は、お手元で `compare_engines.py` を実行して確認してください。結果（CERと全文）を見せていただければ、設定を調整します。
+手書きの数字・日付は、クラウドでも誤読があります。判定が「要目視」の項目は、引き続き元の書類で確認してください。
+
+---
 
 ## 手書きモード（任意）
 
@@ -365,6 +431,7 @@ python reconcile.py --template templates/hiroshima_invoice.yaml --input ./in --r
 | `preprocess.enabled` | `false` で前処理を全部省略 |
 | `preprocess.grayscale / deskew / denoise / flatten / remove_lines / binarize` | 各ステップのON/OFFと方式（罫線除去は `remove_lines`） |
 | `layout.mode` / `layout.min_cells` | 表・枠のある書類の読み方（`auto` / `cells` / `text`） |
+| `cloud.*` | クラウドOCR（`allow_upload` / APIキー / `reconcile_engines` / 無料枠の上限 など。上の「クラウドOCR」） |
 | `ocr.engine` / `handwriting.enabled` / `handwriting.model_dir` | 手書きモード（`engine: handwriting` ＝ ページ全体を手書き用モデルで読む／`enabled` ＝ 帳票の手書き欄だけ手書き用モデル） |
 | `review.threshold` / `review.word_level` | 要確認とする信頼度、単語単位の出力 |
 | `output.searchable_pdf` など | 出力の種類 |

@@ -28,7 +28,8 @@ ocr:
   # 両方で読んで結果を比べるため精度が安定します（処理時間は約2倍）。reconcile.py だけが使います。
   second_tessdata_dir: null
   # 読み取りエンジン。tesseract=印刷文字（既定）/ handwriting=手書き（manga-ocr。下の handwriting の準備が必要）
-  # ※ コマンドの --engine handwriting でも切り替えられます（run_handwriting.bat）
+  #   google / azure = クラウドOCR（★書類の画像が外部に送信されます。下の cloud の準備が必要）
+  # ※ コマンドの --engine handwriting などでも切り替えられます（run_handwriting.bat）
   engine: tesseract
   # 日本語OCRが文字間に入れがちな不要な空白を取り除く
   remove_cjk_spaces: true
@@ -53,6 +54,31 @@ handwriting:
   enabled: false
   # 手書き用モデルを置いたフォルダ（例: ./models/manga-ocr-base）。null なら初回に自動ダウンロード（インターネット接続が必要）
   model_dir: null
+
+# --- クラウドOCR（任意。Google Cloud Vision / Azure AI Vision。★画像が外部に送信されます） ---
+cloud:
+  # 送信の許可。false のままでは、クラウドは一切使われません（誤送信の防止）。
+  # 個人情報（氏名・口座番号など）を含む書類を送ってよいか確認してから true にしてください。
+  allow_upload: false
+  # APIキーは、config.yaml に書かず、環境変数に設定するのがおすすめです（README「クラウドOCR」参照）
+  #   Google: GOOGLE_VISION_API_KEY / Azure: AZURE_VISION_KEY と AZURE_VISION_ENDPOINT
+  google:
+    api_key: null
+    url: https://vision.googleapis.com/v1/images:annotate
+  azure:
+    endpoint: null
+    key: null
+    api_version: "2024-02-01"
+  # reconcile.py（帳票突合）で併用するクラウド。[google] [azure] [google, azure] のいずれか。使わないなら []
+  # （--cloud google,azure でも指定できます。ページ全体を1回だけ送り、各項目に結果を割り当てます）
+  reconcile_engines: []
+  # true: クラウドの読み取りがあれば、それを優先して採用する（Tesseractの結果は照合・揺れの検出に使う）
+  prefer_cloud: true
+  # このツールでの月ごとの利用回数が無料枠に達したら、送信を止める（他の用途の利用分は数えられません）
+  stop_at_free_limit: true
+  free_limit: {google: 1000, azure: 5000}   # 無料枠は変更されることがあります。公式の最新情報で確認して書き換えてください
+  timeout_sec: 60
+  usage_file: ./cloud_usage.json
 
 # --- レイアウト（表・枠のある書類の読み方） ---
 layout:

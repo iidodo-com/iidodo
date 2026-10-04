@@ -10,7 +10,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from ocr_tool import __version__, engine, formrun, handwriting, logger
+from ocr_tool import __version__, cloud, engine, formrun, handwriting, logger
 from ocr_tool.config import load_config, validate
 from ocr_tool.errors import OcrToolError
 from ocr_tool.form import load_template
@@ -25,6 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--output", default="./out_form", help="出力フォルダ（既定: ./out_form）")
     ap.add_argument("--reference", help="突合元CSV（なければ読み取りのみ）")
     ap.add_argument("--lang", help="言語（既定: config.yaml の ocr.language）")
+    ap.add_argument("--cloud", help="併用するクラウドOCR（google / azure / google,azure）。書類の画像が外部に送信されます")
     args = ap.parse_args(argv)
     for s in (sys.stdout, sys.stderr):
         if hasattr(s, "reconfigure"):
@@ -35,8 +36,13 @@ def main(argv: list[str] | None = None) -> int:
             cfg["input_dir"] = args.input
         if args.lang:
             cfg["ocr"]["language"] = args.lang
+        if args.cloud:
+            cfg["cloud"]["reconcile_engines"] = [x.strip() for x in args.cloud.split(",") if x.strip()]
         cfg = validate(cfg)
         version = engine.setup_tesseract(cfg)
+        if cfg["cloud"]["reconcile_engines"]:
+            cloud.check(cfg, cfg["cloud"]["reconcile_engines"])
+            print(f"※ クラウドOCR（{', '.join(cfg['cloud']['reconcile_engines'])}）を併用します。書類の画像が外部に送信されます。")
         if cfg["handwriting"]["enabled"]:
             handwriting.check(cfg)  # 手書き欄を手書き用モデルで読む設定のとき、準備できているか先に確認する
         out = Path(args.output)

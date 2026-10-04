@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import difflib
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,10 +15,11 @@ import cv2
 import numpy as np
 import yaml
 
-from . import engine, handwriting, preprocess
+from . import cloud, engine, handwriting, preprocess
 from .errors import OcrToolError
 from .normalize import normalize_digits, normalize_text, parse_amount, parse_date_jp
 
+log = logging.getLogger("ocr_tool")
 FRAME_UNITS = 1000.0  # テンプレートの座標は「枠の幅 = 1000」とした相対値
 
 
@@ -203,30 +205,98 @@ def _interpret(text: str, spec: FieldSpec):
     return _EDGE_NOISE.sub("", text) or None  # 文字列は、前後に付いたゴミ点などの記号を除く
 
 
-def _read_handwritten(gray: np.ndarray, spec: FieldSpec, box: tuple[int, int, int, int], cfg: dict) -> FieldResult:
-    """手書き欄を手書き用モデル(manga-ocr)で読む。印刷用のモデルより手書きに強いが、もっともらしい誤読もするため、
-    判定は常に「要目視」のまま（読み取り値は参考として表示する）。"""
+def _cloud_candidates(spec: FieldSpec, box: tuple[int, int, int, int], cloud_words: dict | None) -> list[tuple[str, object, float, str]]:
+    """クラウドが返した語のうち、この項目の範囲にあるものを、項目の読み取り候補にする（ページ全体を1回読んだ結果を使い回す）。"""
+    out = []
+    for words in (cloud_words or {}).values():
+        text, conf = cloud.text_in_box(words, box)
+        if text.strip():
+            out.append((text, _interpret(text, spec), conf or 0.0, "cloud"))
+    return out
+
+
+def _decide(spec: FieldSpec, cands: list[tuple[str, object, float, str]], crop: np.ndarray, box: tuple[int, int, int, int],
+            cfg: dict, notes: list[str] | None = None) -> FieldResult:
+    """複数の読み取り候補から、採用する値を決める。
+    - クラウドの候補があり cloud.prefer_cloud が true なら、クラウドの候補の中から採用する（精度が高い前提）
+    - それ以外は全候補から、文字列は「他の候補に一番近いもの」、数字・金額・日付は多数決で採用する
+    - 採用した値と他の候補の一致度が低ければ「読み取りが揺れた」とする（人が確認すべき項目）"""
+    problems: list[str] = list(notes or [])
+    readings = [(t, v, c) for t, v, c, _ in cands]
+    valid = [c for c in cands if c[1] is not None]
+    if not valid:
+        best = max(cands, key=lambda c: c[2]) if cands else ("", None, 0.0, "")
+        problems.append("読み取れませんでした" if not best[0] else "値として解釈できません")
+        return FieldResult(spec.id, spec.label, best[0], None, best[2] if best[0] else None, spec.handwritten, problems, crop, box,
+                           readings, spec.type == "text")
+    cl = [c for c in valid if c[3] == "cloud"]
+    pool = cl if (cl and cfg.get("cloud", {}).get("prefer_cloud", True)) else valid
+    if spec.type == "text":
+        # 文字列は、各候補が他の候補とどれだけ似ているか（平均類似度）が最大のもの＝「みんなに一番近い」ものを採用する。
+        # 1文字違いの候補が割れても、外れ値（例: 株→折）に引きずられない
+        norm_all = [normalize_text(str(v)) for _, v, _, _ in valid]
+        def agree(c: tuple) -> float:
+            n = normalize_text(str(c[1]))
+            others = [difflib.SequenceMatcher(None, n, m).ratio() for k, m in enumerate(norm_all) if valid[k] is not c]
+            return sum(others) / len(others) if others else 1.0
+        best = max(pool, key=lambda c: (round(agree(c), 4), c[2]))
+        agreement = agree(best)
+        n_same = sum(1 for m in norm_all if m == normalize_text(str(best[1])))
+    else:
+        # 数字・金額・日付は、同じ値が最も多い候補を採用する（同数なら信頼度の高いもの）
+        votes: dict = {}
+        for c in pool:
+            votes.setdefault(c[1], []).append(c)
+        best_key = max(votes, key=lambda k: (len(votes[k]), max(c[2] for c in votes[k])))
+        best = max(votes[best_key], key=lambda c: c[2])
+        n_same = sum(1 for c in valid if c[1] == best[1])
+        agreement = n_same / len(valid)
+    text, value, conf = best[0], best[1], best[2]
+    # 揺れの判定: 文字列は類似度が0.9未満のとき（1文字違い程度なら問題にしない）、数字は値が割れたとき
+    if (spec.type == "text" and agreement < 0.9) or (spec.type != "text" and agreement < 0.6):
+        problems.append(f"読み取り方によって結果が揺れました（{n_same}/{len(cands)}件が同じ）")
+    if spec.choices and isinstance(value, str):
+        # 選択肢のうち最も近いものに補正する（似ていなければそのまま）
+        nv = normalize_text(value)
+        near = max(spec.choices, key=lambda c: difflib.SequenceMatcher(None, nv, normalize_text(c)).ratio())
+        if difflib.SequenceMatcher(None, nv, normalize_text(near)).ratio() >= 0.6:
+            if near != value:
+                text, value = near, near
+        else:
+            problems.append(f"選択肢（{' / '.join(spec.choices)}）のどれにも似ていません")
+    if spec.pattern and not re.fullmatch(spec.pattern, str(value) if not isinstance(value, tuple) else "-".join(map(str, value))):
+        problems.append(f"形式が想定と違います（期待: {spec.pattern}、読み取り: {value}）")
+    return FieldResult(spec.id, spec.label, text, value, conf, spec.handwritten, problems, crop, box, readings, spec.type == "text")
+
+
+def _read_handwritten(gray: np.ndarray, spec: FieldSpec, box: tuple[int, int, int, int], cfg: dict,
+                      cloud_cands: list | None = None) -> FieldResult:
+    """手書き欄を手書き用モデル(manga-ocr)で読む（クラウドの候補があれば加える）。印刷用のモデルより手書きに強いが、
+    もっともらしい誤読もするため、判定は常に「要目視」のまま（読み取り値は参考として表示する）。"""
     x0, y0, x1, y1 = box
     crop = gray[y0:y1, x0:x1]
     reader = handwriting.get_reader(cfg["handwriting"]["model_dir"])
     text, mean, mn, _ = handwriting.read_crop(crop, reader)
-    value = _interpret(text, spec) if text else None
-    problems = ["手書き用モデルで読み取り（信頼度は目安）"]
-    if text and mn < 50:
-        problems.append(f"一部の文字の自信が低い（最小 {mn:.0f}）。読めなかった文字は ？ などになります")
-    return FieldResult(spec.id, spec.label, text, value, mean if text else None, True, problems, crop, box,
-                       [(text, value, mean)] if text else [], spec.type == "text")
+    cands = list(cloud_cands or [])
+    notes = ["手書き用モデルで読み取り（信頼度は目安）"]
+    if text:
+        cands.append((text, _interpret(text, spec), mean, "hw"))
+        if mn < 50:
+            notes.append(f"一部の文字の自信が低い（最小 {mn:.0f}）。読めなかった文字は ？ などになります")
+    return _decide(spec, cands, crop, box, cfg, notes)
 
 
-def read_field(gray: np.ndarray, spec: FieldSpec, frame: tuple[int, int, int], cfg: dict, dpi: int) -> FieldResult:
-    """1項目を、複数の読み方（画像の加工 × 言語データ）で読み、多数決で採用する。"""
+def read_field(gray: np.ndarray, spec: FieldSpec, frame: tuple[int, int, int], cfg: dict, dpi: int,
+               cloud_words: dict | None = None) -> FieldResult:
+    """1項目を、複数の読み方（画像の加工 × 言語データ ×（任意）クラウド）で読み、採用する値を決める。"""
     box = field_box_px(spec, frame, gray.shape)
     x0, y0, x1, y1 = box
     if x1 - x0 < 8 or y1 - y0 < 8:
         return FieldResult(spec.id, spec.label, "", None, None, spec.handwritten,
                            ["項目の範囲が画像の外です（枠の検出位置がずれた可能性）"], None, box)
+    cloud_c = _cloud_candidates(spec, box, cloud_words)
     if spec.handwritten and cfg.get("handwriting", {}).get("enabled"):
-        return _read_handwritten(gray, spec, box, cfg)
+        return _read_handwritten(gray, spec, box, cfg, cloud_c)
     variants = [_variants(gray, spec, frame)[0]] if spec.handwritten else _variants(gray, spec, frame)
     # 読み方 = (言語データの場所, 言語)。数字・金額は、日本語モデルが 8→6 のように誤読することがあるため、
     # 英語モデル(eng)でも読んで多数決にする（実サンプルと合成帳票で、engのほうが数字は正確なことを確認）
@@ -235,56 +305,12 @@ def read_field(gray: np.ndarray, spec: FieldSpec, frame: tuple[int, int, int], c
         readers.append((None, "eng"))
     if cfg["ocr"].get("second_tessdata_dir"):
         readers.append((cfg["ocr"]["second_tessdata_dir"], None))
-    cands = []  # (text, value, conf)
+    cands = []  # (text, value, conf, 読み取り元)
     for v in variants:
         for md, lg in readers:
             text, conf = _read_once(v, spec, cfg, dpi, md, lg)
-            cands.append((text, _interpret(text, spec), conf or 0.0))
-    crop = gray[y0:y1, x0:x1]
-    valid = [c for c in cands if c[1] is not None]
-    readings = [(t, v, c) for t, v, c in cands]
-    if not valid:
-        best = max(cands, key=lambda c: c[2])
-        return FieldResult(spec.id, spec.label, best[0], None, best[2] if best[0] else None, spec.handwritten,
-                           ["読み取れませんでした"] if not best[0] else ["値として解釈できません"], crop, box, readings)
-    if spec.type == "text":
-        # 文字列は、各読み方が他の読み方とどれだけ似ているか（平均類似度）が最大のもの＝「みんなに一番近い」ものを採用する。
-        # 1文字違いの読み方が割れても、外れ値（例: 株→折）に引きずられない
-        norm = [normalize_text(str(v)) for _, v, _ in valid]
-        def agree(i: int) -> float:
-            others = [difflib.SequenceMatcher(None, norm[i], norm[j]).ratio() for j in range(len(valid)) if j != i]
-            return sum(others) / len(others) if others else 1.0
-        scores = [agree(i) for i in range(len(valid))]
-        bi = max(range(len(valid)), key=lambda i: (round(scores[i], 4), valid[i][2]))
-        text, value, conf = valid[bi]
-        agreement = scores[bi]
-        n_same = sum(1 for n in norm if n == norm[bi])
-    else:
-        # 数字・金額・日付は、同じ値が最も多い読み方を採用する（同数なら信頼度の高いもの）
-        votes: dict = {}
-        for t, v, c in valid:
-            votes.setdefault(v, []).append((t, v, c))
-        best_key = max(votes, key=lambda k: (len(votes[k]), max(c for _, _, c in votes[k])))
-        text, value, conf = max(votes[best_key], key=lambda x: x[2])
-        agreement = len(votes[best_key]) / len(valid)
-        n_same = len(votes[best_key])
-    problems: list[str] = []
-    # 揺れの判定: 文字列は類似度が0.9未満のとき（1文字違い程度なら問題にしない）、数字は値が割れたとき
-    if (spec.type == "text" and agreement < 0.9) or (spec.type != "text" and agreement < 0.6):
-        problems.append(f"読み取り方によって結果が揺れました（{n_same}/{len(cands)}件が同じ）")
-    if spec.choices and isinstance(value, str):
-        # 選択肢のうち最も近いものに補正する（似ていなければそのまま）
-        nv = normalize_text(value)
-        best = max(spec.choices, key=lambda c: difflib.SequenceMatcher(None, nv, normalize_text(c)).ratio())
-        if difflib.SequenceMatcher(None, nv, normalize_text(best)).ratio() >= 0.6:
-            if best != value:
-                text, value = best, best
-        else:
-            problems.append(f"選択肢（{' / '.join(spec.choices)}）のどれにも似ていません")
-    if spec.pattern and not re.fullmatch(spec.pattern, str(value) if not isinstance(value, tuple) else "-".join(map(str, value))):
-        problems.append(f"形式が想定と違います（期待: {spec.pattern}、読み取り: {value}）")
-    return FieldResult(spec.id, spec.label, text, value, conf, spec.handwritten, problems, crop, box, readings,
-                       spec.type == "text")
+            cands.append((text, _interpret(text, spec), conf or 0.0, "tess"))
+    return _decide(spec, cands + cloud_c, gray[y0:y1, x0:x1], box, cfg)
 
 
 def read_form(image: np.ndarray, tpl: Template, cfg: dict, dpi: int) -> tuple[list[FieldResult], tuple[int, int, int], float]:
@@ -294,5 +320,16 @@ def read_form(image: np.ndarray, tpl: Template, cfg: dict, dpi: int) -> tuple[li
     img, applied = preprocess.preprocess(image, pp)
     gray = preprocess.to_gray(img)
     frame = detect_frame(gray)
-    results = [read_field(gray, f, frame, cfg, dpi) for f in tpl.fields]
+    cloud_words: dict = {}
+    for prov in cfg.get("cloud", {}).get("reconcile_engines", []):
+        # ページ全体を1回だけクラウドで読み、その語の位置を各項目に割り当てる（項目ごとに送ると無料枠をすぐ使い切るため）。
+        # 送る画像は、枠の検出に使った（傾き補正後の）画像と同じなので、座標がそのまま合う
+        try:
+            cloud_words[prov] = cloud.read_words(gray, cfg, prov)
+        except OcrToolError as e:
+            log.error("クラウドOCR(%s)の読み取りに失敗しました。この帳票はクラウドなしで続行します: %s", prov, e)
+            print(f"  警告: クラウドOCR（{prov}）が失敗したため、このページはクラウドなしで読みます: {e.message}")
+            if "無料枠" in e.message or "送信は許可されていません" in e.message:
+                raise
+    results = [read_field(gray, f, frame, cfg, dpi, cloud_words) for f in tpl.fields]
     return results, frame, applied.get("deskew_deg", 0.0)
