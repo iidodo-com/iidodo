@@ -1,5 +1,5 @@
-name = "kabusapo-proxy"
-main = "index.js"
+name = "kabusapo"
+main = "dist/kabusapo-worker.js"
 compatibility_date = "2024-09-01"
 # [vars]
-# ALLOWED_ORIGIN = "https://あなたのアプリのURL"   # 公開後はアプリのURLだけに絞るのがおすすめ
+# ALLOWED_ORIGIN = "https://あなたのURL"   # 別サイトからAPIだけ使う場合に絞る(通常は不要)

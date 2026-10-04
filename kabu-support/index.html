@@ -21,12 +21,20 @@
 <div class="status" id="status" role="status"></div>
 
 <main>
+  <p class="loadmsg">最新データを取得しています…</p>
   <section class="quote">
     <div class="name" id="qName"></div>
     <div class="price"><span id="qPrice"></span><span id="qChg"></span></div>
     <div class="demo" id="demoTag"></div>
   </section>
 
+  <nav class="tabs" id="tabs" role="tablist">
+    <button data-tab="tech" class="on" role="tab">テクニカル</button>
+    <button data-tab="fund" role="tab">ファンダ</button>
+    <button data-tab="bt" role="tab">戦略</button>
+  </nav>
+
+  <div id="tab-tech">
   <section class="ai card" id="ai"></section>
 
   <nav class="seg" id="tfSeg">
@@ -37,6 +45,7 @@
     <button data-n="30">30</button>
     <button data-n="60" class="on">60</button>
     <button data-n="120">120</button>
+    <button data-n="250">250</button>
   </nav>
 
   <div class="legend" id="legend"></div>
@@ -54,6 +63,23 @@
     <h2>指標サマリー</h2>
     <table id="stats"></table>
   </section>
+
+  </div>
+
+  <div id="tab-fund" hidden>
+    <section class="card" id="fundVerdict"></section>
+    <section class="card"><h2>ファンダメンタル評価</h2><div id="fundAxes"></div></section>
+    <section class="card"><h2>株価指標</h2><table id="fundTable"></table></section>
+    <section class="card"><h2>業績の推移(通期)</h2><div class="scroll"><table id="perfTable"></table></div></section>
+  </div>
+
+  <div id="tab-bt" hidden>
+    <section class="card" id="btAdopt"></section>
+    <section class="card" id="btPlan"></section>
+    <section class="card"><h2>資産曲線(R倍数の累計)</h2><div class="legend" id="btLegend"></div><canvas id="btCurve"></canvas></section>
+    <section class="card"><h2>検証した戦略の一覧</h2><div class="scroll"><table id="btTable"></table></div><button id="btMore" class="ghost wide">すべて表示</button></section>
+    <section class="card" id="btNotes"></section>
+  </div>
 
   <p class="note">※ 表示は参考情報です。投資判断・売買は自己責任でお願いします。データは Yahoo!ファイナンス由来で、遅延や欠損があり得ます。信用残高は週1回(最新週のみ)の公表値で、履歴は更新のたびに端末へ蓄積されます。</p>
 </main>
@@ -84,9 +110,10 @@
 <dialog id="setDlg">
   <form method="dialog">
     <h3>データ取得先</h3>
-    <p class="hint">ブラウザから株価サイトへ直接は接続できないため、中継(Cloudflare Worker)のURLを設定します。手順は README にあります。未設定のときは同梱のスナップショットを表示します。</p>
-    <label>中継URL<input id="proxyUrl" placeholder="https://kabusapo-proxy.xxxx.workers.dev" inputmode="url"></label>
-    <label class="chk"><input type="checkbox" id="autoRef" checked> 60秒ごとに自動更新(画面表示中のみ)</label>
+    <p class="hint" id="connInfo"></p>
+    <p class="hint">このアプリを Cloudflare Worker(README の手順)で開いている場合、設定は不要です。別の場所で開いている場合だけ、中継のURLを入力します。</p>
+    <label>中継URL(任意)<input id="proxyUrl" placeholder="https://kabusapo.xxxx.workers.dev" inputmode="url"></label>
+    <label class="chk"><input type="checkbox" id="autoRef" checked> 自動更新(場中は60秒ごと、場外は10分ごと。画面表示中のみ)</label>
     <p class="hint" id="setMsg"></p>
     <menu>
       <button value="cancel" class="ghost" formnovalidate>閉じる</button>
@@ -95,6 +122,7 @@
   </form>
 </dialog>
 
+<script src="lib/backtest.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
