@@ -320,20 +320,26 @@ function renderQuote() {
 }
 
 function renderAll() {
-  hover = null; renderQuote(); renderAI(cur); drawChart(); drawMargin(); renderStats();
+  hover = null; renderQuote(); renderAI(cur); renderStats(); renderTab();
   $('delBtn').hidden = !(cur.custom || cur.live);
 }
 
-// ---------- データ取得(スナップショット / 中継経由のライブ) ----------
+// ---------- データ取得(スナップショット / ライブ API) ----------
+const DEFAULT_CODES = ['7203', '6758', '8306', '9984', '7974'];
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 const cfg = { proxy: store.get('kabusapo.proxy.v1', window.KABU_PROXY || ''), auto: store.get('kabusapo.auto.v1', true) };
-let snapshot = null, busy = false;
+let snapshot = null, busy = false, api = null, lastRefresh = 0, activeTab = 'tech';   // api: null=接続なし, '.'=同一サーバー, それ以外=中継URL
 
+const watchList = () => store.get('kabusapo.watch.v1', null) || DEFAULT_CODES.slice();
 function setStatus(t, cls = '') { const e = $('status'); e.textContent = t; e.className = 'status ' + cls; }
 const hhmm = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+function marketOpen() {   // 東証の場中(JST 9:00-11:30, 12:30-15:30、平日)。祝日は考慮しない
+  const j = new Date(Date.now() + 9 * 3600e3), d = j.getUTCDay(), m = j.getUTCHours() * 60 + j.getUTCMinutes();
+  return d > 0 && d < 6 && ((m >= 540 && m < 690) || (m >= 750 && m <= 930));
+}
 
 // 週次の信用残高は公表が最新週のみのため、更新のたびに端末へ蓄積する
 function mergeMargin(code, latest) {
@@ -342,40 +348,237 @@ function mergeMargin(code, latest) {
   const out = [...m.values()].sort((x, y) => x.t < y.t ? -1 : 1).slice(-52);
   all[code] = out; store.set('kabusapo.margin.v1', all); return out;
 }
+const mergeDaily = (old, neu) => { const m = new Map(old.map(b => [b.t, b])); neu.forEach(b => m.set(b.t, b)); return [...m.values()].sort((x, y) => x.t < y.t ? -1 : 1); };
+
 function adopt(st) {
+  const i = stocks.findIndex(s => s.code === st.code), old = i >= 0 ? stocks[i] : null;
+  if (st.quick && old && old.daily.length > 400) { st.daily = mergeDaily(old.daily, st.daily); st.perf = old.perf; }
   st.live = true; st.margin = mergeMargin(st.code, st.margin);
-  const i = stocks.findIndex(s => s.code === st.code);
   i >= 0 ? stocks[i] = st : stocks.push(st);
   return st;
 }
-async function fetchLive(code) {
-  const r = await fetch(`${cfg.proxy.replace(/\/$/, '')}/api/stock?code=${encodeURIComponent(code)}`);
+async function fetchLive(code, quick) {
+  const r = await fetch(`${api.replace(/\/$/, '')}/api/stock?code=${encodeURIComponent(code)}${quick ? '&mode=quick' : ''}`);
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
   return adopt(j);
 }
-async function refresh(quiet) {
-  if (busy) return;
-  if (window.KABU_ARTIFACT) { setStatus('この画面は公開時点のスナップショットです。最新にするには、Claude に「株サポを更新して」と依頼してください。', 'err'); return; }
-  if (!cfg.proxy) { setStatus('最新データの取得には ⚙ で中継URLの設定が必要です。いまはスナップショット表示です。', 'err'); return; }
-  busy = true; $('refBtn').classList.add('busy');
-  const watch = [...new Set([cur.code, ...store.get('kabusapo.watch.v1', [])])];
-  const keep = cur.code; let ok = 0, last = '';
-  await Promise.all(watch.map(c => fetchLive(c).then(() => ok++).catch(e => { last = e.message; })));
-  busy = false; $('refBtn').classList.remove('busy');
-  if (!ok) { setStatus('取得に失敗しました: ' + last, 'err'); return; }
-  const sel = stocks.find(s => s.code === keep) || stocks[0];
-  refreshSel(sel.code); cur = sel; renderAll();
-  setStatus(`最新取得 ${hhmm(new Date())}(${ok}/${watch.length}銘柄)`, 'ok');
+async function detectApi() {
+  if (window.KABU_ARTIFACT || location.protocol === 'file:') return null;
+  if (cfg.proxy) return cfg.proxy.replace(/\/$/, '');
+  try { const r = await fetch('api/ping', { cache: 'no-store' }); if (r.ok && (await r.json()).ok) return '.'; } catch {}
+  return null;
 }
+const needFull = c => { const s = stocks.find(x => x.code === c); return !(s && s.live && s.daily.length > 400); };
+
+async function refresh() {
+  if (window.KABU_ARTIFACT) { setStatus('この画面は公開時点のスナップショットです。最新にするには、Claude に「株サポを更新して」と依頼してください。', 'err'); return; }
+  if (api == null) { setStatus('最新データの取得には接続先が必要です(⚙ または README の手順)。いまは同梱データの表示です。', 'err'); return; }
+  if (busy) return;
+  busy = true; $('refBtn').classList.add('busy');
+  const keep = cur && cur.code, codes = [...new Set([keep, ...watchList()].filter(Boolean))];
+  let ok = 0, last = '';
+  await Promise.all(codes.map(c => fetchLive(c, !needFull(c)).then(() => ok++).catch(e => { last = e.message; })));
+  busy = false; $('refBtn').classList.remove('busy');
+  if (!ok) {
+    if (!stocks.length) { stocks = DEMO(); selectStock(); }
+    setStatus('取得に失敗しました: ' + last, 'err'); document.body.classList.remove('loading'); return;
+  }
+  lastRefresh = Date.now();
+  const w = watchList();
+  stocks = stocks.filter(s => s.custom || w.includes(s.code) || s.code === keep && s.live);
+  stocks.sort((x, y) => (w.indexOf(x.code) + 1 || 99) - (w.indexOf(y.code) + 1 || 99));
+  selectStock(keep); document.body.classList.remove('loading');
+  setStatus(`最新取得 ${hhmm(new Date())}(${ok}/${codes.length}銘柄)・自動更新 ${cfg.auto ? (marketOpen() ? '60秒毎' : '10分毎(場外)') : 'OFF'}`, 'ok');
+}
+function selectStock(code) { cur = stocks.find(s => s.code === code) || stocks[0]; refreshSel(cur.code); renderAll(); }
 
 function statusText() {
-  if (cur.demo) return '※ デモ用の疑似データ。⚙ で中継URLを設定すると実データになります。';
+  if (cur.demo) return '※ デモ用の疑似データ。接続先を設定すると実データになります。';
   const t = cur.fetchedAt ? hhmm(cur.fetchedAt) : '手入力';
   return `データ取得 ${t} / 日足は最終取引日 ${cur.daily[cur.daily.length - 1].t}` + (cur.intraDate ? ` / 5分足 ${cur.intraDate}` : '');
 }
 
-// ---------- 銘柄選択・追加 ----------
+// ---------- ファンダメンタル分析 ----------
+const yen = m => m == null ? '-' : Math.abs(m) >= 1e6 ? fmt(m / 1e6, 2) + '兆円' : fmt(m / 100, 0) + '億円';
+const pct = (a, b) => (a != null && b != null && b > 0) ? (a / b - 1) * 100 : null;
+
+function fundAnalysis(s) {
+  const f = s.fund; if (!f) return null;
+  const P = (s.perf || []), a = P[0], b = P[1];
+  const sg = pct(a && a.sales, b && b.sales), og = pct(a && a.op, b && b.op);
+  const opm = a && a.sales ? a.op / a.sales * 100 : null;
+  const ax = [];
+  const add = (name, lv, why) => ax.push({ name, lv, why });   // lv: 1=良, 0=普通, -1=注意
+
+  // バリュー
+  { const per = f.per, pbr = f.pbr; let lv = 0, why = [];
+    if (per == null) { lv = -1; why.push('PER算出不可(赤字または予想なし)'); }
+    else if (per < 12) { why.push(`PER ${fmt(per, 1)}倍は割安圏`); lv++; } else if (per > 25) { why.push(`PER ${fmt(per, 1)}倍は割高圏`); lv--; } else why.push(`PER ${fmt(per, 1)}倍は標準的`);
+    if (pbr != null) { if (pbr < 1) { why.push(`PBR ${fmt(pbr, 2)}倍は解散価値割れ`); lv++; } else if (pbr > 4) { why.push(`PBR ${fmt(pbr, 2)}倍は高め`); lv--; } else why.push(`PBR ${fmt(pbr, 2)}倍`); }
+    add('バリュー', Math.max(-1, Math.min(1, lv)), why.join('。')); }
+  // 収益性
+  { let lv = 0, why = [];
+    if (f.roe != null) { if (f.roe >= 10) { lv++; why.push(`ROE ${fmt(f.roe, 1)}%(10%以上)`); } else if (f.roe < 5) { lv--; why.push(`ROE ${fmt(f.roe, 1)}%(5%未満)`); } else why.push(`ROE ${fmt(f.roe, 1)}%`); }
+    if (opm != null) { if (opm >= 10) { lv++; why.push(`営業利益率 ${fmt(opm, 1)}%`); } else if (opm < 3) { lv--; why.push(`営業利益率 ${fmt(opm, 1)}%(低い)`); } else why.push(`営業利益率 ${fmt(opm, 1)}%`); }
+    add('収益性', Math.max(-1, Math.min(1, lv)), why.join('。') || 'データなし'); }
+  // 安全性
+  { let lv = 0, why = '自己資本比率のデータなし';
+    if (f.equityRatio != null) { lv = f.equityRatio >= 40 ? 1 : f.equityRatio < 20 ? -1 : 0; why = `自己資本比率 ${fmt(f.equityRatio, 1)}%` + (lv > 0 ? '(40%以上で健全)' : lv < 0 ? '(20%未満で財務に注意。金融業は構造上低くなります)' : ''); }
+    add('安全性', lv, why); }
+  // 成長性(良い面と悪い面が混ざるときは「普通」)
+  { let pos = 0, neg = 0, why = [];
+    const tag = a && a.forecast ? '会社予想' : '直近期';
+    if (sg != null) { why.push(`売上高 ${tag}は前期比 ${sg >= 0 ? '+' : ''}${fmt(sg, 1)}%`); if (sg >= 5) pos++; else if (sg <= -5) neg++; }
+    if (og != null) { why.push(`営業利益 ${og >= 0 ? '+' : ''}${fmt(og, 1)}%`); if (og >= 10) pos++; else if (og <= -5) neg++; }
+    add('成長性', pos && !neg ? 1 : neg && !pos ? -1 : 0, why.join('。') || '業績データなし'); }
+  // 株主還元
+  { const y = f.divYield; add('株主還元', y != null && y >= 3 ? 1 : 0, y == null ? '配当データなし' : `配当利回り ${fmt(y, 2)}%` + (y >= 3 ? '(3%以上)' : y < 1 ? '(低め。成長投資型の可能性)' : '')); }
+  const score = ax.reduce((t, x) => t + x.lv, 0);
+  const label = score >= 3 ? '良好' : score >= 1 ? 'やや良好' : score > -1 ? '中立' : score > -3 ? 'やや注意' : '注意';
+  return { ax, score, label, sg, og, opm };
+}
+
+const LV = { 1: ['良', 'good'], 0: ['普通', 'mid'], '-1': ['注意', 'bad'] };
+function renderFund() {
+  const s = cur, F = fundAnalysis(s);
+  if (!F) {
+    $('fundVerdict').innerHTML = '<h2>ファンダメンタル</h2>この銘柄のファンダメンタルデータがありません(デモ・CSV銘柄、または未取得)。接続先を設定して最新データを取得すると表示されます。';
+    $('fundAxes').innerHTML = ''; $('fundTable').innerHTML = ''; $('perfTable').innerHTML = ''; return;
+  }
+  const j = judge(s), tsc = j ? j.sc : 0, fs = F.score;
+  let comment;
+  if (fs >= 2 && tsc >= 20) comment = 'ファンダ・テクニカルとも良好。順張りで検討しやすい局面です。';
+  else if (fs >= 2 && tsc <= -20) comment = 'ファンダは良好ですがトレンドは下向き。25日線の回復やゴールデンクロスなど、底打ちの確認を待つ局面です。';
+  else if (fs <= -2 && tsc >= 20) comment = '株価は上向きですが、業績・財務面に不安があります。短期の値動き重視で、損切りを厳格にしてください。';
+  else if (fs <= -2 && tsc <= -20) comment = 'ファンダ・テクニカルとも弱い状態。見送りが妥当です。';
+  else comment = 'どちらかが中立で決め手に欠けます。「戦略」タブのシグナルが点灯するまで待つのが無難です。';
+  const cls = fs >= 1 ? 'up' : fs <= -1 ? 'dn' : '';
+  $('fundVerdict').innerHTML = `<h2>ファンダ × テクニカル 総合コメント</h2>
+    <div class="kv"><div>ファンダ: <b class="${cls}">${F.label}</b>(${fs > 0 ? '+' : ''}${fs})</div><div>テクニカル: <b>${j ? j.label : '-'}</b>(${tsc > 0 ? '+' : ''}${tsc})</div></div><p>${comment}</p>
+    <p class="hint">評価は一般的な目安による機械的な判定です。業種によって基準は異なります(銀行は自己資本比率が低く、成長株はPERが高く出ます)。</p>`;
+  $('fundAxes').innerHTML = F.ax.map(x => { const [t, c] = LV[x.lv]; return `<div class="axis"><div class="hd"><span class="chip ${c}">${t}</span><b>${x.name}</b></div><div class="why">${x.why}</div></div>`; }).join('');
+
+  const f = s.fund, p = s.daily[s.daily.length - 1].c;
+  const pos = f.yHigh && f.yLow && f.yHigh > f.yLow ? (p - f.yLow) / (f.yHigh - f.yLow) * 100 : null;
+  const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
+  $('fundTable').innerHTML =
+    row('PER(会社予想)', f.per != null ? fmt(f.per, 2) + '倍' : '-') + row('PBR(実績)', f.pbr != null ? fmt(f.pbr, 2) + '倍' : '-') +
+    row('EPS(予想)', f.eps != null ? fmt(f.eps, 2) + '円' : '-') + row('BPS(実績)', f.bps != null ? fmt(f.bps, 2) + '円' : '-') +
+    row('ROE(実績)', f.roe != null ? fmt(f.roe, 2) + '%' : '-') + row('自己資本比率', f.equityRatio != null ? fmt(f.equityRatio, 1) + '%' : '-') +
+    row('配当利回り(予想)', f.divYield != null ? fmt(f.divYield, 2) + '%' : '-') + row('1株配当(予想)', f.dps != null ? fmt(f.dps, 1) + '円' : '-') +
+    row('時価総額', yen(f.mcap)) + row('年初来高値 / 安値', `${fmt(f.yHigh, 0)} / ${fmt(f.yLow, 0)}`) +
+    row('年初来レンジでの位置', pos != null ? fmt(pos, 0) + '%(0%=安値, 100%=高値)' : '-') +
+    row('単元株数 / 最低購入代金', `${fmt(f.lot)}株 / ${fmt(f.minBuy)}円`);
+
+  const P = s.perf || [];
+  $('perfTable').innerHTML = P.length ? '<tr><th>期</th><th>売上高</th><th>営業利益</th><th>営業利益率</th><th>純利益</th><th>売上前期比</th></tr>' +
+    P.slice(0, 4).map((r, i) => { const g = pct(r.sales, P[i + 1] && P[i + 1].sales);
+      return `<tr><td>${r.fy}${r.forecast ? '<small>(予想)</small>' : ''}</td><td>${yen(r.sales)}</td><td>${yen(r.op)}</td><td>${r.sales ? fmt(r.op / r.sales * 100, 1) + '%' : '-'}</td><td>${yen(r.ni)}</td><td class="${g > 0 ? 'up' : g < 0 ? 'dn' : ''}">${g == null ? '-' : (g >= 0 ? '+' : '') + fmt(g, 1) + '%'}</td></tr>`; }).join('') : '<tr><td>業績データなし</td></tr>';
+}
+
+// ---------- バックテスト・戦略 ----------
+let btCache = null, btAll = false;
+function getBT() {
+  const list = stocks.filter(s => s.daily && s.daily.length > BT.WARMUP + 250);
+  const key = list.map(s => s.code + s.daily.length + s.daily[s.daily.length - 1].t).join();
+  if (btCache && btCache.key === key) return btCache.r;
+  const r = list.length ? BT.run(list) : null; btCache = { key, r }; return r;
+}
+const f2 = (x, d = 2) => fmt(x, d);
+const exitText = (c, k) => ({ tp2: `${k}ATR損切り・2R利確`, tp3: `${k}ATR損切り・3R利確`, trail: `${k}ATR損切り・トレーリング`, sig: `${k}ATR損切り・指標で手仕舞い` })[c];
+
+function renderBT() {
+  const r = getBT(), A = $('btAdopt');
+  if (!r) { A.innerHTML = '<h2>採用戦略</h2>バックテストには10年分の実データが必要です(デモ・CSV銘柄は対象外)。接続先を設定して最新データを取得してください。'; ['btPlan', 'btNotes'].forEach(i => $(i).innerHTML = ''); $('btTable').innerHTML = ''; $('btMore').hidden = true; clearCanvas($('btCurve')); return; }
+  const ad = r.adopted, C = BT.CRITERIA;
+  const stat = (t, a) => `<tr><td>${t}</td><td>${a[0]}</td><td>${a[1]}</td></tr>`;
+  if (ad) {
+    const S = BT.STRATEGIES[ad.cand.id], i = ad.is, o = ad.oos;
+    A.innerHTML = `<h2>採用戦略(バックテストで選定)</h2>
+      <div class="big">${S.name}</div><div class="kv"><div>${exitText(ad.cand.exit, ad.cand.k)}</div></div>
+      <p class="hint">エントリー条件: ${S.desc}。翌営業日の寄付で買い。1R=エントリーから損切りまでの値幅。</p>
+      <table><tr><th></th><th>前半(選定)</th><th>後半(検証)</th></tr>
+      ${stat('取引数', [i.n, o.n])}${stat('勝率', [f2(i.win * 100, 0) + '%', f2(o.win * 100, 0) + '%'])}
+      ${stat('平均利益 / 平均損失(R)', [`+${f2(i.avgW)} / -${f2(i.avgL)}`, `+${f2(o.avgW)} / -${f2(o.avgL)}`])}
+      ${stat('<b>実現リスクリワード</b>', [`<b>${f2(i.rr)}</b>`, `<b>${f2(o.rr)}</b>`])}${stat('プロフィットファクター', [f2(i.pf), f2(o.pf)])}
+      ${stat('期待値(R/回)', [f2(i.exp), f2(o.exp)])}${stat('最大ドローダウン(R)', [f2(i.mdd, 1), f2(o.mdd, 1)])}</table>`;
+  } else {
+    const best = r.eligible[0];
+    A.innerHTML = `<h2>採用戦略</h2><div class="big dn">採用なし</div><p>前半で基準を満たした候補が後半の検証で基準を割り込んだ、または前半で基準を満たす候補がありませんでした。優位性を確認できない戦略は採用しません。${best ? `<br>参考: 前半の最上位は「${best.cand.label}」(後半 PF ${f2(best.oos.pf)}、リスクリワード ${f2(best.oos.rr)})です。` : ''}</p>`;
+  }
+  $('btMore').hidden = false; renderPlan(r); drawCurve(r); renderBtTable(r); renderBtNotes(r);
+}
+
+function renderPlan(r) {
+  const el = $('btPlan'), ad = r.adopted;
+  if (!ad) { el.innerHTML = ''; return; }
+  const sg = BT.currentSignal(cur, ad.cand);
+  if (!sg) { el.innerHTML = `<h2>${cur.code} ${cur.name} の売買プラン</h2>この銘柄は日足のデータが不足しています。`; return; }
+  const S = BT.STRATEGIES[ad.cand.id], c = store.get('kabusapo.calc.v1', { cap: 3000000, risk: 1 });
+  const stopP = (sg.stop / sg.entry - 1) * 100, tgt = sg.target ? `¥${fmt(sg.target, pd(sg.target))}(${fmt((sg.target / sg.entry - 1) * 100, 1)}%)` : (ad.cand.exit === 'trail' ? '利確は固定せず、高値からATR×3下にストップを切り上げ(トレーリング)' : '5日線が25日線を割ったら翌寄付で手仕舞い');
+  const per = ad.per[cur.code], lot = cur.fund && cur.fund.lot || 100;
+  el.innerHTML = `<h2>${cur.code} ${cur.name} の売買プラン <span class="sig ${sg.on ? 'on' : 'off'}">${sg.on ? '買いシグナル点灯' : 'シグナルなし'}</span></h2>
+    <p class="hint">${sg.on ? `${sg.date} の終値でエントリー条件を満たしています。` : `${sg.date} 時点では条件(${S.desc})を満たしていません。下記は「いま入る場合の目安」です。`}</p>
+    <div class="plan">エントリー: 翌営業日の寄付(目安 <b>¥${fmt(sg.entry, pd(sg.entry))}</b>)<br>
+      損切り: <b>¥${fmt(sg.stop, pd(sg.stop))}</b>(${fmt(stopP, 1)}%)<br>利確: <b>${tgt}</b>${sg.rr ? `<br>リスクリワード: <b>1 : ${sg.rr}</b>` : ''}</div>
+    <div class="calc"><label>資金(円)<input id="calcCap" inputmode="numeric" value="${c.cap}"></label><label>1回の許容損失(%)<input id="calcRisk" inputmode="decimal" value="${c.risk}"></label></div>
+    <div id="calcOut" class="plan"></div>
+    ${per && per.n ? `<p class="hint">この銘柄での過去成績: ${per.n}回 / 勝率${f2(per.win * 100, 0)}% / PF ${f2(per.pf)} / 期待値 ${f2(per.exp)}R</p>` : ''}`;
+  const calc = () => {
+    const cap = +$('calcCap').value.replace(/,/g, ''), rk = +$('calcRisk').value; store.set('kabusapo.calc.v1', { cap, risk: rk });
+    const per1 = sg.entry - sg.stop, loss = cap * rk / 100, sh = Math.floor(loss / per1 / lot) * lot, amt = sh * sg.entry;
+    $('calcOut').innerHTML = !(cap > 0 && rk > 0) ? '資金と許容損失を入力してください。' : sh > 0
+      ? `許容損失 <b>¥${fmt(loss)}</b> → 購入株数の目安 <b>${fmt(sh)}株</b>(${fmt(sh / lot)}単元)<br>投入額 約¥${fmt(amt)}(資金の${fmt(amt / cap * 100, 0)}%)${amt > cap ? '<br><span class="dn">資金を超えています。株数を減らしてください。</span>' : ''}`
+      : `この資金・許容損失では1単元(${fmt(lot)}株)も買えません。最低購入代金は約¥${fmt(sg.entry * lot)}、1単元の損切り時損失は約¥${fmt(per1 * lot)}です。`;
+  };
+  $('calcCap').oninput = $('calcRisk').oninput = calc; calc();
+}
+
+function clearCanvas(cv) { const { g } = setupCanvas(cv); return g; }
+function drawCurve(r) {
+  const ad = r.adopted, cv = $('btCurve'), { g, w, h } = setupCanvas(cv);
+  $('btLegend').innerHTML = `<span><b style="background:#94a3b8"></b>前半(選定に使った期間)</span><span><b style="background:${COL.ma25}"></b>後半(未見データ)</span>`;
+  if (!ad) { g.fillStyle = COL.tx; g.fillText('採用戦略なし', 10, 20); return; }
+  const tr = [...ad.isT, ...ad.ooT].sort((a, b) => a.tx < b.tx ? -1 : 1);
+  let eq = 0; const pts = tr.map(t => (eq += t.r, eq)), n = pts.length;
+  const lo = Math.min(0, ...pts), hi = Math.max(0, ...pts), padR = 44, padT = 10, padB = 16;
+  const x = i => 4 + i * (w - padR - 8) / Math.max(1, n - 1), y = v => padT + (hi - v) / (hi - lo || 1) * (h - padT - padB);
+  g.font = '10px sans-serif'; g.strokeStyle = COL.grid; g.fillStyle = COL.tx;
+  [lo, 0, hi].forEach(v => { g.beginPath(); g.moveTo(0, y(v)); g.lineTo(w - padR, y(v)); g.stroke(); g.fillText(fmt(v, 0) + 'R', w - padR + 4, y(v) + 3); });
+  const k = tr.findIndex(t => t.t >= r.cutDate);
+  const seg = (a, b, col) => { g.strokeStyle = col; g.lineWidth = 1.8; g.beginPath(); for (let i = a; i < b; i++) i === a ? g.moveTo(x(i), y(pts[i])) : g.lineTo(x(i), y(pts[i])); g.stroke(); g.lineWidth = 1; };
+  const kk = k < 0 ? n : k;
+  seg(0, kk, '#94a3b8'); if (kk < n) seg(Math.max(0, kk - 1), n, COL.ma25);
+  if (kk > 0 && kk < n) { g.setLineDash([3, 3]); g.strokeStyle = '#64748b'; g.beginPath(); g.moveTo(x(kk), padT); g.lineTo(x(kk), h - padB); g.stroke(); g.setLineDash([]); g.textAlign = 'left'; g.fillText('検証開始 ' + r.cutDate.slice(0, 7), x(kk) + 4, padT + 8); }
+  g.textAlign = 'center'; g.fillText(tr[0].tx.slice(0, 7), 24, h - 3); g.fillText(tr[n - 1].tx.slice(0, 7), w - padR - 20, h - 3);
+  g.textAlign = 'left'; g.fillStyle = '#e2e8f0'; g.fillText('+' + fmt(pts[n - 1], 1) + 'R', w - padR + 4, y(pts[n - 1]) - 4);
+}
+
+function renderBtTable(r) {
+  const rows = [...r.rows].sort((a, b) => (b === r.adopted) - (a === r.adopted) || (b.passIS - a.passIS) || b.is.exp - a.is.exp);
+  const show = btAll ? rows : rows.slice(0, 10);
+  $('btTable').innerHTML = '<tr><th>戦略</th><th>前半 PF/RR</th><th>後半 PF/RR</th><th>判定</th></tr>' + show.map(x => {
+    const S = BT.STRATEGIES[x.cand.id], v = x === r.adopted ? '採用' : x.passIS && x.passOOS ? '基準OK' : x.passIS ? '検証NG' : '不合格';
+    const cls = x === r.adopted ? 'good' : x.passIS && x.passOOS ? 'mid' : 'bad';
+    return `<tr class="${x === r.adopted ? 'adopted-row' : ''}"><td>${S.name}<br><small>${exitText(x.cand.exit, x.cand.k)}</small></td><td>${f2(x.is.pf)} / ${f2(x.is.rr)}</td><td>${f2(x.oos.pf)} / ${f2(x.oos.rr)}</td><td><span class="chip ${cls}">${v}</span></td></tr>`;
+  }).join('');
+  $('btMore').textContent = btAll ? '上位だけ表示' : `すべて表示(${rows.length}件)`;
+}
+
+function renderBtNotes(r) {
+  const ad = r.adopted, C = BT.CRITERIA, avg = r.bh.reduce((a, b) => a + b.ret, 0) / r.bh.length * 100;
+  const o = ad && ad.oos, pctApprox = o ? o.totalR : null;
+  $('btNotes').innerHTML = `<h2>検証の前提と注意</h2><ul class="bt-notes">
+    <li>対象は登録中の${r.nStocks}銘柄・${r.from}〜${r.to}の日足。<b>前半60%(〜${r.cutDate})で選び、後半40%は未見データとして検証</b>しました。</li>
+    <li>採用基準は結果を見る前に固定: 前半 取引${C.is.minTrades}件以上・期待値>${C.is.minExp}R・PF≥${C.is.minPF}・リスクリワード≥${C.is.minRR}。後半 ${C.oos.minTrades}件以上・期待値>0・PF≥${C.oos.minPF}・リスクリワード≥${C.oos.minRR}。基準を満たした中で期待値が最大のものを採用します。</li>
+    <li>約定は翌営業日の始値、損切りは窓開けなら始値で約定、往復コスト${BT.COST * 100}%(手数料・スリッページ)を差し引き。配当・税金・空売りは考慮していません。</li>
+    ${o ? `<li><b>買い持ちとの比較:</b> 後半の買い持ちは平均 +${fmt(avg, 0)}%。この戦略の後半成績は累計 ${f2(pctApprox, 1)}R(1回の損失を資金の1%にそろえると約 +${f2(pctApprox, 0)}%、最大ドローダウン約 ${f2(o.mdd, 0)}%)で、<b>上昇相場では買い持ちに及びません</b>。価値は、損失を限定して値動きに耐えやすくする点にあります。</li>` : ''}
+    <li>候補${r.rows.length}件から選ぶため選択バイアスが残ります。少数の大型株・後半が上昇相場という偏りもあります。過去の成績は将来を保証しません。</li></ul>`;
+}
+
+
+// ---------- 銘柄選択・追加・タブ ----------
 function refreshSel(sel) {
   $('stockSel').innerHTML = stocks.map(s => `<option value="${s.code}">${s.code} ${s.name}${s.custom ? ' ★' : ''}</option>`).join('');
   if (sel) $('stockSel').value = sel;
@@ -390,25 +593,42 @@ function parseMarginCSV(txt) {
 }
 const addErr = t => { $('addErr').textContent = t; };
 
-$('stockSel').onchange = e => { cur = stocks.find(s => s.code === e.target.value); renderAll(); };
-$('addBtn').onclick = () => { addErr(''); $('liveHint').textContent = cfg.proxy ? '' : '※ ⚙ で中継URLを設定すると使えます。'; $('dlg').showModal(); };
-$('setBtn').onclick = () => { $('proxyUrl').value = cfg.proxy; $('autoRef').checked = cfg.auto; $('setMsg').textContent = ''; $('setDlg').showModal(); };
+function renderTab() {
+  if (!cur) return;
+  if (activeTab === 'tech') { drawChart(); drawMargin(); } else if (activeTab === 'fund') renderFund(); else renderBT();
+}
+function showTab(t) {
+  activeTab = t;
+  ['tech', 'fund', 'bt'].forEach(k => { $('tab-' + k).hidden = k !== t; });
+  [...$('tabs').children].forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  renderTab();
+}
+$('tabs').onclick = e => { const b = e.target.closest('button'); if (b) showTab(b.dataset.tab); };
+$('btMore').onclick = () => { btAll = !btAll; renderBT(); };
+
+$('stockSel').onchange = e => selectStock(e.target.value);
+$('addBtn').onclick = () => { addErr(''); $('liveHint').textContent = api != null ? '' : '※ 最新データの取得先に接続しているときだけ使えます(⚙)。'; $('dlg').showModal(); };
+$('setBtn').onclick = () => {
+  $('proxyUrl').value = cfg.proxy; $('autoRef').checked = cfg.auto; $('setMsg').textContent = '';
+  $('connInfo').textContent = api == null ? '接続: なし(同梱データまたはデモを表示中)' : api === '.' ? '接続: このサイトの API(自動検出)' : '接続: 中継 ' + api;
+  $('setDlg').showModal();
+};
 $('refBtn').onclick = () => refresh();
 $('setSave').onclick = async () => {
   const u = $('proxyUrl').value.trim();
   if (u && !/^https?:\/\//.test(u)) { $('setMsg').textContent = 'https:// から始まるURLを入力してください。'; return; }
   cfg.proxy = u; cfg.auto = $('autoRef').checked; store.set('kabusapo.proxy.v1', u); store.set('kabusapo.auto.v1', cfg.auto);
-  $('setDlg').close(); await refresh();
+  api = await detectApi(); $('setDlg').close(); await refresh();
 };
 $('liveAdd').onclick = async () => {
   const code = $('fCode').value.trim().toUpperCase();
   if (!/^[0-9A-Z]{4}$/.test(code)) { addErr('証券コード(4桁)を入力してください。'); return; }
-  if (!cfg.proxy) { addErr('⚙ で中継URLを設定してください。'); return; }
-  addErr('取得中…');
+  if (api == null) { addErr('最新データの取得先に接続されていません(⚙)。'); return; }
+  addErr('取得中…(10年分の日足と財務を読み込みます)');
   try {
-    const st = await fetchLive(code); const w = store.get('kabusapo.watch.v1', []);
+    const st = await fetchLive(code, false), w = watchList();
     if (!w.includes(code)) store.set('kabusapo.watch.v1', [...w, code]);
-    cur = st; refreshSel(code); renderAll(); $('dlg').close(); setStatus(`${code} ${st.name} を追加しました`, 'ok');
+    selectStock(code); $('dlg').close(); setStatus(`${code} ${st.name} を追加しました`, 'ok');
   } catch (e) { addErr('取得できませんでした: ' + e.message); }
 };
 $('addForm').onsubmit = e => {
@@ -418,15 +638,18 @@ $('addForm').onsubmit = e => {
   if (daily.length < 30) { addErr('CSV取り込みは日足が30本以上必要です。'); e.preventDefault(); return; }
   const custom = loadCustom().filter(s => s.code !== code);
   custom.push({ code, name, daily, intra, margin, custom: true });
-  saveCustom(custom); $('addForm').reset(); init(code);
+  saveCustom(custom); $('addForm').reset(); stocks = stocks.filter(s => s.code !== code); init(code);
 };
 let delArm = 0;
 $('delBtn').onclick = () => {
-  if (!cur || !cur.custom && !cur.live) return;
+  if (!cur || !(cur.custom || cur.live)) return;
   if (Date.now() - delArm > 4000) { delArm = Date.now(); $('delBtn').textContent = 'もう一度押すと削除します'; return; }
-  saveCustom(loadCustom().filter(s => s.code !== cur.code));
-  store.set('kabusapo.watch.v1', store.get('kabusapo.watch.v1', []).filter(c => c !== cur.code));
-  $('delBtn').textContent = 'この銘柄を削除'; delArm = 0; $('dlg').close(); init();
+  const code = cur.code;
+  saveCustom(loadCustom().filter(s => s.code !== code));
+  store.set('kabusapo.watch.v1', watchList().filter(c => c !== code));
+  stocks = stocks.filter(s => s.code !== code);
+  $('delBtn').textContent = 'この銘柄を削除'; delArm = 0; $('dlg').close();
+  stocks.length ? selectStock() : init();
 };
 $('tfSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; tf = b.dataset.tf;
   [...$('tfSeg').children].forEach(x => x.classList.toggle('on', x === b));
@@ -438,7 +661,7 @@ const cv = $('chart');
 const pos = e => { const r = cv.getBoundingClientRect(); if (!view) return; const i = Math.floor((e.clientX - r.left - 4) / ((r.width - 56) / view.N)); hover = i; drawChart(); };
 cv.addEventListener('pointerdown', pos); cv.addEventListener('pointermove', e => { if (e.buttons || e.pointerType === 'mouse') pos(e); });
 cv.addEventListener('pointerleave', () => { hover = null; drawChart(); });
-addEventListener('resize', () => { drawChart(); drawMargin(); });
+addEventListener('resize', renderTab);
 
 async function loadSnapshot() {
   if (window.__SNAPSHOT__) return window.__SNAPSHOT__;
@@ -447,16 +670,25 @@ async function loadSnapshot() {
 }
 function init(select) {
   const custom = loadCustom().map(s => ({ ...s, custom: true }));
-  const base = snapshot && snapshot.stocks.length ? snapshot.stocks.map(s => ({ ...s, margin: mergeMargin(s.code, s.margin) })) : DEMO();
-  // 取得済みのライブ銘柄(この画面内)は維持する
+  let base = [];
+  if (snapshot && snapshot.stocks.length) base = snapshot.stocks.map(s => ({ ...s, margin: mergeMargin(s.code, s.margin) }));
+  else if (api == null) base = DEMO();
   const live = stocks.filter(s => s.live && !base.some(b => b.code === s.code) && !custom.some(c => c.code === s.code));
   stocks = [...base.map(b => stocks.find(s => s.live && s.code === b.code) || b), ...live, ...custom];
-  cur = stocks.find(s => s.code === select) || stocks[0]; refreshSel(cur.code); renderAll();
+  if (!stocks.length) return false;
+  selectStock(select); return true;
 }
+
+// 自動更新: 場中は60秒、場外は10分ごと(画面が表示されているときだけ)。アプリに戻ったときも更新する。
+setInterval(() => { if (api != null && cfg.auto && !document.hidden && !busy && Date.now() - lastRefresh >= (marketOpen() ? 60e3 : 600e3)) refresh(); }, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && api != null && cfg.auto && !busy && Date.now() - lastRefresh > 30e3) refresh(); });
+
 (async () => {
-  snapshot = await loadSnapshot(); init();
+  snapshot = await loadSnapshot(); api = await detectApi();
+  const shown = init();
+  if (!shown) document.body.classList.add('loading');
   if (snapshot) setStatus(`スナップショット表示(${hhmm(snapshot.fetchedAt)} 取得)`);
-  if (cfg.proxy) refresh(); else if (!snapshot) setStatus('デモ表示です。⚙ で中継URLを設定すると最新データを取得できます。');
-  setInterval(() => { if (cfg.proxy && cfg.auto && !document.hidden) refresh(true); }, 60000);
+  if (api != null) refresh();
+  else if (!snapshot) setStatus('デモ表示です。最新データを取得するには接続先の設定が必要です(⚙ / README)。');
 })();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
