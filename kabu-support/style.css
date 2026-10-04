@@ -3,7 +3,7 @@
 body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,"Hiragino Sans",sans-serif;padding-bottom:env(safe-area-inset-bottom)}
 .top{position:sticky;top:0;z-index:5;display:flex;gap:8px;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;background:var(--bg);border-bottom:1px solid var(--bd)}
 select,input,textarea,button{font:inherit;color:var(--tx)}
-select{flex:1;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px}
+select{flex:1;min-width:0;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px}
 button{background:var(--ac);color:#04121f;border:0;border-radius:10px;padding:10px 16px;font-weight:600}
 button.ghost{background:var(--card);color:var(--tx);border:1px solid var(--bd)}
 button.danger{color:var(--up);width:100%;margin-top:8px}
@@ -39,3 +39,13 @@ dialog::backdrop{background:#0009}
 label{display:block;margin:8px 0;font-size:13px}label small{color:var(--sub)}
 input,textarea{width:100%;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px;margin-top:4px}
 menu{display:flex;gap:8px;justify-content:flex-end;padding:0;margin:12px 0 0}
+
+.status{padding:6px 12px;font-size:12px;color:var(--sub);border-bottom:1px solid var(--bd);min-height:30px}
+.status.err{color:var(--up)}.status.ok{color:var(--dn)}
+.top button{padding:10px 12px;flex:none}
+.wide{width:100%}
+.hint{font-size:12px;color:var(--sub);margin:6px 0}.hint.err{color:var(--up)}
+dialog h3{margin:12px 0 4px;font-size:15px}
+label.chk{display:flex;gap:8px;align-items:center}label.chk input{width:auto;margin:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+#refBtn.busy{animation:spin 1s linear infinite}
