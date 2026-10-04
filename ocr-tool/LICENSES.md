@@ -31,6 +31,12 @@
 手書きモードでも、画像・文書は外部に送信しません（モデルを手元に置いた場合は、ネットワーク接続自体が不要です）。
 モデルを手元に置かない設定では、初回だけ Hugging Face からモデルをダウンロードします（文書は送信されません）。
 
+## クラウドOCR（任意）
+
+追加のソフトウェア（ライブラリ）はありません（Pythonの標準ライブラリ `urllib` のみ）。
+外部サービスの利用は、各社の利用規約・料金・データの取り扱い方針に従います（Google Cloud Vision / Microsoft Azure AI Vision）。
+クラウドOCRを使うときは、書類の画像が各社のサーバーに送信されます（既定では無効で、`cloud.allow_upload: true` にしたときだけ動きます）。
+
 ## 補足
 - **PyMuPDF は使っていません。** PyMuPDF は AGPL-3.0 で、配布・サービス提供の際に制約が出るため、BSD/Apache系の pypdfium2 + pypdf にしました。
 - Windows用のTesseractインストーラ（UB Mannheim版）は、Tesseract本体（Apache-2.0）のビルドに、Leptonica（BSD-2-Clause）などの依存ライブラリを同梱したものです。同梱物の詳細は、インストール先の `doc` フォルダやインストーラの配布ページで確認してください（未確認）。

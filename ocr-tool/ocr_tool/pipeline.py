@@ -13,7 +13,7 @@ from pathlib import Path
 from pypdf import PdfWriter
 
 from . import cells as cells_mod
-from . import engine, handwriting, loader, preprocess
+from . import cloud, engine, handwriting, loader, preprocess
 from .config import is_vertical
 from .errors import explain_exception
 from .review import ReviewWriter, review_rows
@@ -51,6 +51,10 @@ def ocr_page(page: loader.PageImage, cfg: dict, want_pdf: bool) -> PageResult:
         img, applied = preprocess.preprocess(page.image, pp)
         applied["engine"] = "handwriting"
         return PageResult(page.page_no, handwriting.recognize_page(preprocess.to_gray(img), cfg), None, applied, time.perf_counter() - t0)
+    if cfg["ocr"]["engine"] in cloud.PROVIDERS:
+        # クラウドOCR: 元の画像をそのまま送る（クラウド側で傾き・影・罫線に対処できる）。検索可能PDFは作らない
+        res = cloud.recognize_page(page.image, cfg, cfg["ocr"]["engine"])
+        return PageResult(page.page_no, res, None, {"engine": cfg["ocr"]["engine"]}, time.perf_counter() - t0)
     pp = dict(cfg["preprocess"])
     drop_lines = bool(pp.get("remove_lines")) and pp["enabled"]
     pp["remove_lines"] = False  # セル検出には罫線が必要なので、罫線除去は検出のあとで行う
