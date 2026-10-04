@@ -6,3 +6,8 @@ __pycache__/
 # 合成サンプルは tools/make_synthetic_samples.py で再生成できる
 samples/synthetic/
 wheels/
+out_*/
+cloud_usage.json
+wheels_hw/
+models/
+tessdata_best/
