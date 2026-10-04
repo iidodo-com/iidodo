@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>株サポ</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <select id="stockSel" aria-label="銘柄"></select>
+  <button id="addBtn" class="ghost" aria-label="銘柄追加">＋</button>
+</header>
+
+<main>
+  <section class="quote">
+    <div class="name" id="qName"></div>
+    <div class="price"><span id="qPrice"></span><span id="qChg"></span></div>
+    <div class="demo" id="demoTag"></div>
+  </section>
+
+  <section class="ai card" id="ai"></section>
+
+  <nav class="seg" id="tfSeg">
+    <button data-tf="D" class="on">日足</button>
+    <button data-tf="I">5分足(当日)</button>
+  </nav>
+  <nav class="seg small" id="rangeSeg">
+    <button data-n="30">30</button>
+    <button data-n="60" class="on">60</button>
+    <button data-n="120">120</button>
+  </nav>
+
+  <div class="legend" id="legend"></div>
+  <div class="readout" id="readout">チャートをタップ/なぞると値を表示</div>
+  <canvas id="chart"></canvas>
+
+  <section class="card">
+    <h2>信用残高(週次)</h2>
+    <div class="legend" id="mLegend"></div>
+    <canvas id="margin"></canvas>
+    <table id="mTable"></table>
+  </section>
+
+  <section class="card">
+    <h2>指標サマリー</h2>
+    <table id="stats"></table>
+  </section>
+
+  <p class="note">※ 表示は参考情報です。投資判断・売買は自己責任でお願いします。デモ銘柄は疑似データです。実データは「＋」からCSVで取り込めます。</p>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="addForm">
+    <h3>銘柄を追加(CSV取り込み)</h3>
+    <label>コード<input id="fCode" required placeholder="例: 7203"></label>
+    <label>銘柄名<input id="fName" required placeholder="例: トヨタ自動車"></label>
+    <label>日足CSV <small>日付,始値,高値,安値,終値,出来高</small>
+      <textarea id="fDaily" rows="5" required placeholder="2026-09-01,3000,3050,2980,3020,12000000"></textarea></label>
+    <label>信用残高CSV(任意) <small>日付,買残,売残</small>
+      <textarea id="fMargin" rows="3" placeholder="2026-09-26,12500000,3200000"></textarea></label>
+    <label>5分足CSV(任意・当日) <small>時刻,始値,高値,安値,終値,出来高</small>
+      <textarea id="fIntra" rows="3" placeholder="09:00,3000,3010,2995,3005,150000"></textarea></label>
+    <menu>
+      <button value="cancel" class="ghost" formnovalidate>キャンセル</button>
+      <button id="saveBtn" value="default">保存</button>
+    </menu>
+    <button type="button" id="delBtn" class="ghost danger" hidden>この銘柄を削除</button>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
