@@ -80,8 +80,33 @@ def _day_start_ns(d):
     return int(datetime.combine(d, dtime.min).timestamp() * 1e9)
 
 
-def build_options(exts="", folder="", since="", until="", limit=50, sort="relevance", scope="file", snippet_chars=60):
-    """画面・コマンドラインの文字列入力から SearchOptions を作る。誤りは QueryError（日本語）。"""
+def folder_to_relative(folder, roots):
+    """絶対パスで指定されたフォルダを、検索対象フォルダ（roots）からの相対パス（「/」区切り）にする。
+
+    相対パス（サブフォルダ名）で指定された場合はそのまま返す。roots の外のフォルダは QueryError（日本語）。
+    roots 自体を選んだ場合は空文字（絞り込みなし）を返す。
+    """
+    f = (folder or "").strip()
+    is_abs = os.path.isabs(f) or f.startswith(("\\\\", "//")) or (len(f) > 2 and f[1] == ":")
+    if not f or not is_abs:
+        return f
+    nf = os.path.normcase(os.path.normpath(f))
+    for r in roots or []:
+        nr = os.path.normcase(os.path.normpath(r))
+        if nf == nr:
+            return ""
+        if nf.startswith(nr.rstrip("\\/") + os.sep):
+            return os.path.normpath(f)[len(os.path.normpath(r).rstrip("\\/")) + 1:].replace("\\", "/")
+    raise QueryError("選んだフォルダ「%s」は、検索対象フォルダ（%s）の中にありません。検索対象フォルダの中のフォルダを選んでください。"
+                     "（対象を変えるには config.toml の roots を変更し、index.py を実行してください）" % (f, "、".join(roots or [])))
+
+
+def build_options(exts="", folder="", since="", until="", limit=50, sort="relevance", scope="file", snippet_chars=60, roots=None):
+    """画面・コマンドラインの文字列入力から SearchOptions を作る。誤りは QueryError（日本語）。
+
+    folder は、サブフォルダ名（相対）でも、検索対象フォルダ内の絶対パス（roots を渡したとき）でもよい。
+    """
+    folder = folder_to_relative(folder, roots)
     ext_list = [e.strip().lstrip(".").lower() for e in (exts or "").replace("、", ",").split(",") if e.strip()]
     bad = [e for e in ext_list if e not in ("docx", "xlsx", "pptx", "pdf")]
     if bad:

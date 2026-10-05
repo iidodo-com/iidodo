@@ -101,6 +101,27 @@ class GuiTest(unittest.TestCase):
         self.app.start_search()
         self.assertIn("拡張子", self.app.status.get())
 
+    def test_choose_folder_dialog(self):
+        """フォルダ選択ダイアログで選んだフォルダが相対パスで入り、検索が絞り込まれる。対象外のフォルダは日本語で拒否される。"""
+        root0 = self.cfg.roots[0]
+        with mock.patch.object(gui.filedialog, "askdirectory", return_value=os.path.join(root0, "契約書")) as dlg:
+            self.app.choose_folder()
+        self.assertEqual(dlg.call_args.kwargs["initialdir"], root0)
+        self.assertEqual(self.app.folder.get(), "契約書")
+        self.search("ABC")
+        self.assertEqual(len(self.app.tree.get_children()), 2)
+        with mock.patch.object(gui.filedialog, "askdirectory", return_value=tempfile.gettempdir()), \
+                mock.patch.object(gui.messagebox, "showerror") as err:
+            self.app.choose_folder()
+        self.assertIn("検索対象フォルダ", err.call_args[0][1])
+        self.assertEqual(self.app.folder.get(), "契約書")
+        with mock.patch.object(gui.filedialog, "askdirectory", return_value=""):
+            self.app.choose_folder()  # キャンセルでは変わらない
+        self.assertEqual(self.app.folder.get(), "契約書")
+        with mock.patch.object(gui.filedialog, "askdirectory", return_value=root0):
+            self.app.choose_folder()
+        self.assertEqual(self.app.folder.get(), "")
+
     def test_short_term_notice(self):
         """3文字未満の検索では、全件走査の注意が状態欄に出る。"""
         self.search("納期")

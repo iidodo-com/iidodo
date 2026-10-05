@@ -20,7 +20,7 @@ from core import db, opener
 from core.config import ConfigError, load_config
 from core.export import write_results_csv
 from core.query import QueryError
-from core.searcher import build_options, search
+from core.searcher import build_options, folder_to_relative, search
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NOTICE = "index.db は文書の本文を含みます。元文書と同等に扱ってください。スニペットは正規化後の文字（㈱→(株)、全角英数字→半角 等）で表示されるため、引用は元ファイルで確認してください。"
@@ -55,7 +55,11 @@ class App:
             ttk.Checkbutton(extf, text=x, variable=v).pack(side="left", padx=(0, 12))
         self.folder, self.since, self.until = tk.StringVar(), tk.StringVar(), tk.StringVar()
         ttk.Label(top, text="フォルダ").grid(row=3, column=0, sticky="w")
-        ttk.Entry(top, textvariable=self.folder, width=30).grid(row=3, column=1, columnspan=2, sticky="we", padx=4)
+        ff = ttk.Frame(top)
+        ff.grid(row=3, column=1, columnspan=2, sticky="we", padx=4)
+        ttk.Entry(ff, textvariable=self.folder, width=24).pack(side="left", fill="x", expand=True)
+        ttk.Button(ff, text="選択…", command=self.choose_folder).pack(side="left", padx=(4, 0))
+        ttk.Button(ff, text="解除", command=lambda: self.folder.set("")).pack(side="left", padx=(4, 0))
         ttk.Label(top, text="更新日 (YYYY-MM-DD)").grid(row=3, column=3, sticky="e")
         ttk.Entry(top, textvariable=self.since, width=12).grid(row=3, column=4)
         ttk.Label(top, text="～").grid(row=3, column=5)
@@ -105,7 +109,24 @@ class App:
             raise QueryError("拡張子が1つも選ばれていません。少なくとも1つ選んでください。")
         all4 = len(exts.split(",")) == 4
         return build_options("" if all4 else exts, self.folder.get(), self.since.get(), self.until.get(), 50,
-                             self.sort.get(), "place" if self.place.get() else "file", self.cfg.snippet_chars)
+                             self.sort.get(), "place" if self.place.get() else "file", self.cfg.snippet_chars, self.cfg.roots)
+
+    def choose_folder(self):
+        """検索対象フォルダの中から、絞り込むフォルダをダイアログで選ぶ（選択は読み取りだけで、何も変更しない）。"""
+        start = next((r for r in self.cfg.roots if os.path.isdir(r)), HERE)
+        cur = self.folder.get().strip()
+        if cur and os.path.isdir(os.path.join(start, *cur.replace("\\", "/").split("/"))):
+            start = os.path.join(start, *cur.replace("\\", "/").split("/"))
+        path = filedialog.askdirectory(initialdir=start, mustexist=True, title="検索するフォルダを選択（検索対象フォルダの中）")
+        if not path:
+            return
+        try:
+            rel = folder_to_relative(os.path.normpath(path), self.cfg.roots)
+        except QueryError as e:
+            messagebox.showerror("選べません", str(e))
+            return
+        self.folder.set(rel)
+        self.status.set("検索するフォルダ: %s" % (rel or "（検索対象フォルダ全体）"))
 
     def start_search(self):
         """検索を別スレッドで開始する。"""

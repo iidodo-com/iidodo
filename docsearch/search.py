@@ -44,7 +44,7 @@ def main(argv=None, out=None, err=None):
     ap = _Parser(prog="search.py", description="過去の起案・資料の全文検索（完全オフライン・読み取り専用）")
     ap.add_argument("query", nargs="?", default=None, help='検索語。スペース区切りでAND、"..." でフレーズ、-語 で除外')
     ap.add_argument("--ext", default="", help="拡張子の絞り込み（例: docx,pptx）")
-    ap.add_argument("--folder", default="", help="対象フォルダ内のサブフォルダ（例: 契約書/2024）")
+    ap.add_argument("--folder", default="", help="対象フォルダ内のサブフォルダ（例: 契約書/2024。対象フォルダ内の絶対パスも可）")
     ap.add_argument("--since", default="", help="この日以降に更新（例: 2024-04-01）")
     ap.add_argument("--until", default="", help="この日までに更新（例: 2024-12-31）")
     ap.add_argument("--limit", default=50, help="表示件数（既定 50）")
@@ -70,7 +70,7 @@ def main(argv=None, out=None, err=None):
     try:
         db.check_environment()
         cfg = load_config(a.config)
-        opts = build_options(a.ext, a.folder, a.since, a.until, a.limit, a.sort, a.scope, cfg.snippet_chars)
+        opts = build_options(a.ext, a.folder, a.since, a.until, a.limit, a.sort, a.scope, cfg.snippet_chars, cfg.roots)
         conn = db.connect_ro(cfg.db_path)
     except db.EnvError as e:
         print("環境エラー: %s" % e, file=err)
