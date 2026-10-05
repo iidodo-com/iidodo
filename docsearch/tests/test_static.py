@@ -44,5 +44,40 @@ class StaticTest(unittest.TestCase):
         self.assertGreaterEqual(found, 3)  # 正規表現が空振りしていないことの確認
 
 
+class BatchFileTest(unittest.TestCase):
+    NAMES = ("セットアップ.bat", "更新.bat", "検索.bat")
+
+    def test_bat_encoding_and_unc_safe(self):
+        """バッチファイルは、日本語Windowsで文字化けしないよう Shift-JIS(cp932)・CRLF で、UNCパスでも動くよう pushd を使う。"""
+        for n in self.NAMES:
+            with open(os.path.join(ROOT, n), "rb") as f:
+                raw = f.read()
+            text = raw.decode("cp932")  # cp932 で読めること
+            self.assertNotIn(b"\r\r\n", raw)
+            self.assertEqual(raw.count(b"\n"), raw.count(b"\r\n"), n + ": CRLF")
+            self.assertIn('pushd "%~dp0"', text, n)
+            self.assertNotIn("\ncd ", text, n)
+
+    def test_setup_config_writes_utf8_toml(self):
+        """setup_config.py が UTF-8 の config.toml を作り、DB の保存先を共有フォルダ側にしない。"""
+        import tempfile
+        import setup_config
+        from core.config import load_config
+        d = tempfile.mkdtemp()
+        root = os.path.join(d, "行政経営課 資料")
+        os.makedirs(root)
+        old_here, old_data = setup_config.HERE, setup_config.DATA_DIR
+        setup_config.HERE, setup_config.DATA_DIR = d, os.path.join(d, "data")
+        try:
+            self.assertEqual(setup_config.main([os.path.join(d, "無い")]), 3)  # 存在しないフォルダ
+            self.assertEqual(setup_config.main([root + "\\"]), 0)  # 末尾の区切りは除かれる
+            self.assertEqual(setup_config.main([root]), 2)  # 既存は上書きしない
+        finally:
+            setup_config.HERE, setup_config.DATA_DIR = old_here, old_data
+        cfg = load_config(os.path.join(d, "config.toml"))
+        self.assertEqual(cfg.roots, [os.path.normpath(root)])
+        self.assertTrue(cfg.db_path.startswith(os.path.expanduser("~")))
+
+
 if __name__ == "__main__":
     unittest.main()
