@@ -64,3 +64,16 @@ def read_bytes(path):
     """ファイルを読み取り専用（rb）で全部読む。対象フォルダのファイルを開く唯一の入口。"""
     with open(fs_path(path), "rb") as f:
         return f.read()
+
+
+def path_variants(p):
+    """パスの表記ゆれ（そのまま／実体）を返す。ネットワークドライブ（V:\\…）やリンク経由のパスを、実体（\\\\サーバ\\共有\\…）と照合するため。"""
+    n = os.path.normpath(p)
+    out = [n]
+    try:
+        r = os.path.normpath(os.path.realpath(p))
+        if r != n:
+            out.append(r)
+    except OSError:
+        pass
+    return out

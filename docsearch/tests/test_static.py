@@ -77,6 +77,11 @@ class BatchFileTest(unittest.TestCase):
             self.assertEqual(setup_config.main([os.path.join(d, "無い")]), 3)  # 存在しないフォルダ
             self.assertEqual(setup_config.main([root + "\\"]), 0)  # 末尾の区切りは除かれる
             self.assertEqual(setup_config.main([root]), 2)  # 既存は上書きしない
+            os.remove(os.path.join(d, "config.toml"))
+            self.assertEqual(setup_config.main([]), 0)  # フォルダ未指定: roots = []（画面で選ぶ）
+            self.assertEqual(load_config(os.path.join(d, "config.toml")).roots, [])
+            os.remove(os.path.join(d, "config.toml"))
+            self.assertEqual(setup_config.main([root + "\\"]), 0)
         finally:
             setup_config.HERE, setup_config.DATA_DIR = old_here, old_data
         cfg = load_config(os.path.join(d, "config.toml"))

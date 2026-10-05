@@ -35,20 +35,23 @@ def _now():
     return datetime.now().isoformat(timespec="seconds")
 
 
-def run_index(cfg, conn, progress=None, retry_errors=False, allow_mass_delete=False):
+def run_index(cfg, conn, progress=None, retry_errors=False, allow_mass_delete=False, roots=None):
     """cfg.roots を走査して index.db を更新し、IndexStats を返す。
 
     progress(done, total, elapsed, current) は1ファイルごとに呼ばれる（done は変更なしで飛ばした分を含む）。
     途中で中断（例外）しても、完了したファイルは1ファイル＝1トランザクションで保存済みなので、
     次回は同じ判定（パス・サイズ・更新日時・抽出設定が同じなら飛ばす）で続きから再開できる。
+    roots を指定したときは、そのフォルダだけを走査し、ほかの root の登録には触れない（画面から1フォルダを追加するとき）。
+    省略時は cfg.roots 全体を走査し、cfg.roots に無い root の登録は「消えたもの」として削除する（安全装置つき）。
     """
     t0 = time.time()
     stats = IndexStats()
-    for r in cfg.roots:
+    scan_roots = list(roots) if roots is not None else list(cfg.roots)
+    for r in scan_roots:
         check_root(r)  # 1つでも到達できなければ、何も変更せず中止（削除と誤認しない）
     sig = cfg.extract_signature()
     entries, protected = [], []
-    for r in cfg.roots:
+    for r in scan_roots:
         res = scan_root(r, cfg)
         entries.extend(res.entries)
         stats.other_ext += res.other_ext_count
@@ -59,7 +62,8 @@ def run_index(cfg, conn, progress=None, retry_errors=False, allow_mass_delete=Fa
 
     existing = {}
     for row in conn.execute("SELECT id,root,relpath,size,mtime_ns,status,sig FROM files"):
-        existing[(row[1], row[2])] = row
+        if roots is None or row[1] in scan_roots:
+            existing[(row[1], row[2])] = row
     seen = {(e.root, e.relpath) for e in entries}
 
     # 削除の反映（読めなかったフォルダ配下は、消えたと断定できないので残す）

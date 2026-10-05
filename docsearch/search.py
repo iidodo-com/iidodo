@@ -4,7 +4,7 @@ import os
 import sqlite3
 import sys
 
-from core import db
+from core import db, roots as roots_mod
 from core.config import ConfigError, load_config
 from core.console import setup_stdio
 from core.export import write_results_csv
@@ -44,7 +44,7 @@ def main(argv=None, out=None, err=None):
     ap = _Parser(prog="search.py", description="過去の起案・資料の全文検索（完全オフライン・読み取り専用）")
     ap.add_argument("query", nargs="?", default=None, help='検索語。スペース区切りでAND、"..." でフレーズ、-語 で除外')
     ap.add_argument("--ext", default="", help="拡張子の絞り込み（例: docx,pptx）")
-    ap.add_argument("--folder", default="", help="対象フォルダ内のサブフォルダ（例: 契約書/2024。対象フォルダ内の絶対パスも可）")
+    ap.add_argument("--folder", default="", help="検索するフォルダ。サブフォルダ名（例: 契約書/2024）か、インデックス済みフォルダ内の絶対パス。そのフォルダ以下だけを検索（親は含めない）")
     ap.add_argument("--since", default="", help="この日以降に更新（例: 2024-04-01）")
     ap.add_argument("--until", default="", help="この日までに更新（例: 2024-12-31）")
     ap.add_argument("--limit", default=50, help="表示件数（既定 50）")
@@ -70,8 +70,13 @@ def main(argv=None, out=None, err=None):
     try:
         db.check_environment()
         cfg = load_config(a.config)
-        opts = build_options(a.ext, a.folder, a.since, a.until, a.limit, a.sort, a.scope, cfg.snippet_chars, cfg.roots)
         conn = db.connect_ro(cfg.db_path)
+        try:
+            opts = build_options(a.ext, a.folder, a.since, a.until, a.limit, a.sort, a.scope, cfg.snippet_chars,
+                                 roots_mod.indexed_roots(conn))
+        except Exception:
+            conn.close()
+            raise
     except db.EnvError as e:
         print("環境エラー: %s" % e, file=err)
         return 3

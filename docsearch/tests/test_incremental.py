@@ -9,7 +9,9 @@ from unittest import mock
 
 from tests import common
 import generate_sample
+import index as index_cli
 import search as search_cli
+from core import roots as R
 import verify
 from core import db, indexer, opener
 from core.config import Config
@@ -259,6 +261,144 @@ class SafetyTest(unittest.TestCase):
         self.assertEqual(conn.execute("SELECT count(*) FROM issues WHERE kind=?", (KIND_CELLCAP,)).fetchone()[0], 1)
         self.assertEqual(find(conn, "語句1000"), {("大きい表.xlsx", "Sheet!A1000")})
         self.assertEqual(find(conn, "語句1001"), set())
+
+
+class ScopeTest(unittest.TestCase):
+    """検索フォルダの選択: 選んだフォルダ以下だけを検索し、親は見ない。後から追加したフォルダ・入れ子のまとめ。"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.work, self.exp, self.cfg, self.conn = common.fresh_sample(self.tmp)
+        self.addCleanup(self.conn.close)
+        self.docs = self.cfg.roots[0]
+        run_index(self.cfg, self.conn)
+
+    def names(self, folder, q="ABC", scope="file"):
+        """folder（絶対パス）以下を検索した結果の相対パスの一覧。"""
+        o = build_options(folder=folder, limit=1000, scope=scope, roots=R.indexed_roots(self.conn))
+        return sorted(r.relpath for r in search(self.conn, q, o).results)
+
+    def test_child_folder_only_not_parent_or_siblings(self):
+        """子フォルダを選ぶと、その下だけを検索し、親フォルダ直下や兄弟フォルダのファイルは出ない。"""
+        self.assertEqual(self.names(os.path.join(self.docs, "契約書")), ["契約書/業務委託契約書\u3000雛形.docx", "契約書/秘密保持契約書.docx"])
+        self.assertEqual(self.names(os.path.join(self.docs, "報告")), ["報告/調査報告書.pdf"])
+        self.assertEqual(self.names(os.path.join(self.docs, "企画\u3000資料")), ["企画\u3000資料/予算表 2024.xlsx", "企画\u3000資料/新規事業企画書.pptx"])
+        self.assertEqual(len(self.names(self.docs)), 5)  # 親（root）を選べば全体
+
+    def test_prefix_sibling_not_matched(self):
+        """「契約書」を選んでも、名前が「契約書」で始まる別のフォルダ（契約書2）は含まれない。"""
+        os.makedirs(os.path.join(self.docs, "契約書2"))
+        import docx
+        d = docx.Document()
+        d.add_paragraph("ABC株式会社の別フォルダ文書")
+        d.save(os.path.join(self.docs, "契約書2", "別.docx"))
+        run_index(self.cfg, self.conn)
+        self.assertNotIn("契約書2/別.docx", self.names(os.path.join(self.docs, "契約書")))
+        self.assertEqual(self.names(os.path.join(self.docs, "契約書2")), ["契約書2/別.docx"])
+
+    def test_deep_child_and_place_scope(self):
+        """深い階層のフォルダ・場所単位の検索でも、選んだフォルダ以下に限られる。"""
+        deep = "/".join(("長いフォルダ名" * 6)[:40] + str(i) for i in range(7))
+        self.assertEqual(self.names(os.path.join(self.docs, *deep.split("/")[:3]), "長いパスの文書"), [deep + "/長いパスの文書.docx"])
+        self.assertEqual(self.names(os.path.join(self.docs, "報告"), "損害賠償", "place"), ["報告/調査報告書.pdf"])
+
+    def test_not_indexed_folder_is_japanese_error(self):
+        """登録されていないフォルダを指定すると、日本語のエラー（作り方つき）になる。"""
+        from core.query import QueryError
+        with self.assertRaises(QueryError) as cm:
+            build_options(folder=os.path.join(self.tmp, "別の場所"), roots=R.indexed_roots(self.conn))
+        self.assertIn("まだインデックスされていません", str(cm.exception))
+
+    def test_add_child_then_parent_absorbs_without_duplicates(self):
+        """子フォルダを追加してから親フォルダを追加すると、子の登録は親にまとめられ、同じ文書が二重に出ない。"""
+        conn = db.connect_rw(os.path.join(self.tmp, "add.db"))
+        self.addCleanup(conn.close)
+        child = os.path.join(self.docs, "契約書")
+        self.assertEqual(R.add_root(conn, child, []), [])
+        self.assertEqual(R.indexed_roots(conn), [])  # 作成が終わるまでは「未完了」
+        run_index(self.cfg, conn, roots=[child])
+        R.clear_incomplete(conn, [child])
+        self.assertEqual(R.indexed_roots(conn), [child])
+        n_child = conn.execute("SELECT count(*) FROM files WHERE root=?", (child,)).fetchone()[0]
+        self.assertGreater(n_child, 0)
+        absorbed = R.add_root(conn, self.docs, [])
+        self.assertEqual(absorbed, [child])
+        self.assertEqual(conn.execute("SELECT count(*) FROM files WHERE root=?", (child,)).fetchone()[0], 0)
+        run_index(self.cfg, conn, roots=[self.docs])
+        R.clear_incomplete(conn, [self.docs])
+        self.assertEqual(R.indexed_roots(conn), [self.docs])
+        self.assertEqual(R.load_extra_roots(conn), [self.docs])
+        dup = conn.execute("SELECT count(*) FROM (SELECT relpath FROM files GROUP BY relpath HAVING count(*)>1)").fetchone()[0]
+        self.assertEqual(dup, 0)
+        self.assertEqual(dump(conn), dump(self.conn))
+        self.assertTrue(db.check_integrity(conn)[0])
+        # 子フォルダを選べば、親にまとめた後でも、その下だけが検索される
+        o = build_options(folder=child, limit=1000, roots=R.indexed_roots(conn))
+        self.assertEqual(sorted(r.relpath for r in search(conn, "ABC", o).results), ["契約書/業務委託契約書\u3000雛形.docx", "契約書/秘密保持契約書.docx"])
+
+    def test_single_root_run_leaves_other_roots_alone(self):
+        """1つのフォルダだけを追加で取り込んでも、ほかの root の登録は削除されない。"""
+        other = os.path.join(self.tmp, "他のフォルダ")
+        os.makedirs(other)
+        import docx
+        d = docx.Document()
+        d.add_paragraph("追加フォルダの本文ゼータ")
+        d.save(os.path.join(other, "追加.docx"))
+        before = dump(self.conn)
+        R.add_root(self.conn, other, self.cfg.roots)
+        st = run_index(self.cfg, self.conn, roots=[other])
+        R.clear_incomplete(self.conn, [other])
+        self.assertEqual(st.deleted, [])
+        self.assertEqual(dump(self.conn) - before, {("追加.docx", "段落1", "追加フォルダの本文ゼータ")})
+        self.assertEqual(before - dump(self.conn), set())
+        self.assertEqual(sorted(R.indexed_roots(self.conn)), sorted([self.docs, other]))
+        self.assertEqual(self.names(other, "ゼータ"), ["追加.docx"])
+        self.assertTrue(db.check_integrity(self.conn)[0])
+
+    def test_cancelled_index_stays_incomplete_and_resumes(self):
+        """インデックス作成を中止したフォルダは「未完了」のままで、選び直すと続きから再開できる。"""
+        conn = db.connect_rw(os.path.join(self.tmp, "cancel.db"))
+        self.addCleanup(conn.close)
+        R.add_root(conn, self.docs, [])
+
+        class Stop(Exception):
+            pass
+
+        def stop(done, total, elapsed, cur):
+            if done == 3:
+                raise Stop()
+        with self.assertRaises(Stop):
+            run_index(self.cfg, conn, stop, roots=[self.docs])
+        self.assertEqual(R.indexed_roots(conn), [])
+        self.assertEqual(R.scopes_for(self.docs, R.indexed_roots(conn)), ([], False))  # 未完了なので「登録済み」とは扱わない
+        R.add_root(conn, self.docs, [])
+        st = run_index(self.cfg, conn, roots=[self.docs])
+        self.assertEqual(st.skipped_unchanged, 3)
+        R.clear_incomplete(conn, [self.docs])
+        self.assertEqual(dump(conn), dump(self.conn))
+
+    def test_cli_add_and_folder_search(self):
+        """index.py --add で、roots が空の設定でもフォルダを追加でき、search.py --folder で、そのフォルダ以下だけを検索できる。"""
+        cfgfile = os.path.join(self.tmp, "c.toml")
+        with open(cfgfile, "w", encoding="utf-8") as f:
+            f.write('db_path = "%s"\noutput_dir = "%s"\n' % (os.path.join(self.tmp, "cli.db").replace("\\", "/"), os.path.join(self.tmp, "o").replace("\\", "/")))
+        out, err = io.StringIO(), io.StringIO()
+        self.assertEqual(index_cli.main(["--config", cfgfile], out, err), 2)  # 対象が1つもない
+        self.assertIn("検索対象のフォルダがありません", err.getvalue())
+        self.assertEqual(index_cli.main(["--config", cfgfile, "--add", os.path.join(self.tmp, "無い")], io.StringIO(), err), 4)
+        self.assertIn("アクセスできません", err.getvalue())
+        out, err = io.StringIO(), io.StringIO()
+        self.assertEqual(index_cli.main(["--config", cfgfile, "--add", os.path.join(self.docs, "契約書")], out, err), 0, err.getvalue())
+        out, err = io.StringIO(), io.StringIO()
+        self.assertEqual(search_cli.main(["--config", cfgfile, "ABC", "--folder", os.path.join(self.docs, "契約書")], out, err), 0, err.getvalue())
+        self.assertIn("該当 2 ファイル", out.getvalue())
+        out, err = io.StringIO(), io.StringIO()
+        self.assertEqual(search_cli.main(["--config", cfgfile, "ABC", "--folder", os.path.join(self.docs, "報告")], out, err), 2)
+        self.assertIn("まだインデックスされていません", err.getvalue())
+        out = io.StringIO()  # 追加後の通常の更新（引数なし）は、追加したフォルダを対象に動く
+        self.assertEqual(index_cli.main(["--config", cfgfile], out, io.StringIO()), 0)
+        self.assertIn("今回処理 0 ファイル", out.getvalue())
 
 
 class ReadOnlyTest(unittest.TestCase):
