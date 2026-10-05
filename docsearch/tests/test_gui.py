@@ -203,6 +203,32 @@ class GuiTest(unittest.TestCase):
         self.assertEqual(app.folder.get(), child)
         self.assertEqual(app.indexed_roots(), [child])
 
+    def test_scan_progress_text_and_cancel_during_scan(self):
+        """走査中も、見つかったファイル数と経過時間が表示され、中止できる。"""
+        app, parent, child = self.new_app_with_empty_db()
+        self.app = app
+        app.q.put(("scan", 123, "契約書/2024", 4.0))
+        app.poll()
+        self.assertIn("123 件のファイルが見つかりました", app.prog_text.get())
+        self.assertIn("契約書/2024", app.prog_text.get())
+        import core.scanner as sc
+        real = sc.scan_root
+
+        def slow_scan(root, cfg, on_dir=None):
+            for i in range(200):
+                if on_dir:
+                    on_dir(i, "dir%d" % i)
+                time.sleep(0.01)
+            return real(root, cfg, on_dir)
+        with mock.patch("core.indexer.scan_root", side_effect=slow_scan):
+            app.start_indexing(child)
+            self.pump(lambda: "見つかりました" in app.prog_text.get(), timeout=5)
+            self.assertTrue(app.indexing)
+            app.request_cancel()
+            self.wait_idle()
+        self.assertIn("中止", app.status.get())
+        self.assertEqual(app.indexed_roots(), [])
+
     def test_index_error_is_shown(self):
         """インデックス作成に失敗しても、画面は落ちず、日本語のメッセージを出す。"""
         app, parent, child = self.new_app_with_empty_db()

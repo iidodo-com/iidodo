@@ -42,6 +42,24 @@ def make_progress(err):
     return progress
 
 
+def make_scan_progress(err):
+    """走査中の進捗（見つけたファイル数・経過時間・調べているフォルダ）を1行で表示する関数を返す。"""
+    last = [0.0, 0]
+
+    def scan_progress(found, rel_dir, elapsed):
+        """フォルダを調べるたびに呼ばれる（描画は0.2秒に1回）。"""
+        now = time.time()
+        if now - last[0] < 0.2:
+            return
+        last[0] = now
+        name = rel_dir if len(rel_dir) <= 50 else "…" + rel_dir[-49:]
+        line = "ファイルを調べています: %d 件 | 経過 %s | %s" % (found, fmt_time(elapsed), name or ".")
+        err.write("\r" + line.ljust(last[1]))
+        last[1] = len(line)
+        err.flush()
+    return scan_progress
+
+
 def issue_rows(conn):
     """issues を (種別, フルパス, 場所, 詳細) の列で返す（種別の表示順・パス順）。"""
     order = {k: i for i, k in enumerate(KIND_ORDER)}
@@ -126,7 +144,7 @@ def main(argv=None, out=None, err=None):
                 absorbed = roots_mod.add_root(conn, folder, cfg.roots)
                 for r in absorbed:
                     print("入れ子のフォルダの登録を、上位のフォルダにまとめました: %s" % r, file=out)
-                stats = run_index(cfg, conn, make_progress(err), a.retry_errors, a.allow_mass_delete, roots=[folder])
+                stats = run_index(cfg, conn, make_progress(err), a.retry_errors, a.allow_mass_delete, roots=[folder], scan_progress=make_scan_progress(err))
                 roots_mod.clear_incomplete(conn, [folder])
             else:
                 targets = roots_mod.all_roots(cfg, conn)
@@ -134,7 +152,8 @@ def main(argv=None, out=None, err=None):
                     print("検索対象のフォルダがありません。検索画面の「選択…」でフォルダを選ぶか、"
                           "python index.py --add \"フォルダ\" で追加するか、config.toml の roots に書いてください。", file=err)
                     return 2
-                stats = run_index(dataclasses.replace(cfg, roots=targets), conn, make_progress(err), a.retry_errors, a.allow_mass_delete)
+                stats = run_index(dataclasses.replace(cfg, roots=targets), conn, make_progress(err), a.retry_errors, a.allow_mass_delete,
+                                  scan_progress=make_scan_progress(err))
                 roots_mod.clear_incomplete(conn, targets)
         except RootError as e:
             print("\nエラー: %s" % e, file=err)
