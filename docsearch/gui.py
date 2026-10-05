@@ -98,6 +98,10 @@ class App:
         ttk.Button(bar, text="パスをコピー", command=self.copy_path).pack(side="left")
         self.status = tk.StringVar(value="検索語を入力してください。")
         ttk.Label(root, textvariable=self.status, foreground="#333").pack(fill="x", padx=8)
+        roots_text = "検索対象フォルダ（config.toml の roots）: " + "、".join(self.cfg.roots)
+        dummy = any("ダミー" in r for r in self.cfg.roots)
+        ttk.Label(root, text=roots_text + ("  ← サンプルのダミーパスのままです。config.toml を書き換えて、更新.bat を実行してください" if dummy else ""),
+                  foreground="#a00" if dummy else "#333", wraplength=1060).pack(fill="x", padx=8)
         ttk.Label(root, text=NOTICE, foreground="#a00", wraplength=1060).pack(fill="x", padx=8, pady=(0, 6))
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(100, self.poll)

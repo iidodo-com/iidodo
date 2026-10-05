@@ -191,6 +191,28 @@ class FolderChoiceTest(unittest.TestCase):
         self.assertEqual(build_options(folder="/data/資料/a", roots=["/data/資料"]).folder, "a")
 
 
+class MappedDriveTest(unittest.TestCase):
+    def test_alias_path_resolves_to_real_root(self):
+        """別名（リンク／Windowsのネットワークドライブ）経由で選んだフォルダも、実体のrootsと照合される。"""
+        d = tempfile.mkdtemp()
+        real = os.path.join(d, "real", "共有")
+        os.makedirs(os.path.join(real, "令和7年度"))
+        alias = os.path.join(d, "V")
+        try:
+            os.symlink(real, alias, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("シンボリックリンクを作れない環境")
+        self.assertEqual(folder_to_relative(os.path.join(alias, "令和7年度"), [real]), "令和7年度")
+        self.assertEqual(folder_to_relative(alias, [real]), "")
+        self.assertEqual(folder_to_relative(os.path.join(real, "令和7年度"), [alias]), "令和7年度")
+
+    def test_dummy_roots_hint(self):
+        """rootsがダミーのままのときは、原因の可能性を案内する。"""
+        with self.assertRaises(QueryError) as cm:
+            folder_to_relative("/V/令和7年度", ["/D/ダミー資料"])
+        self.assertIn("ダミーパスのまま", str(cm.exception))
+
+
 class SnippetTest(unittest.TestCase):
     def test_snippet_and_spans(self):
         """検索語の前後が切り出され、強調範囲が正しい位置を指す。"""

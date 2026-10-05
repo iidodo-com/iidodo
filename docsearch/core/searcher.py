@@ -80,25 +80,43 @@ def _day_start_ns(d):
     return int(datetime.combine(d, dtime.min).timestamp() * 1e9)
 
 
+def _path_variants(p):
+    """パスの表記ゆれ（そのまま／実体）を返す。ネットワークドライブ（V:\\…）やリンク経由のパスを、実体（\\\\サーバ\\共有\\…）と照合するため。"""
+    n = os.path.normpath(p)
+    out = [n]
+    try:
+        r = os.path.normpath(os.path.realpath(p))
+        if r != n:
+            out.append(r)
+    except OSError:
+        pass
+    return out
+
+
 def folder_to_relative(folder, roots):
     """絶対パスで指定されたフォルダを、検索対象フォルダ（roots）からの相対パス（「/」区切り）にする。
 
-    相対パス（サブフォルダ名）で指定された場合はそのまま返す。roots の外のフォルダは QueryError（日本語）。
-    roots 自体を選んだ場合は空文字（絞り込みなし）を返す。
+    相対パス（サブフォルダ名）で指定された場合はそのまま返す。roots 自体を選んだ場合は空文字（絞り込みなし）。
+    ドライブ文字のパス（V:\\…）と UNC（\\\\サーバ\\共有\\…）の違いは、実体に直して照合する。
+    roots の外のフォルダは QueryError（日本語）。
     """
     f = (folder or "").strip()
     is_abs = os.path.isabs(f) or f.startswith(("\\\\", "//")) or (len(f) > 2 and f[1] == ":")
     if not f or not is_abs:
         return f
-    nf = os.path.normcase(os.path.normpath(f))
     for r in roots or []:
-        nr = os.path.normcase(os.path.normpath(r))
-        if nf == nr:
-            return ""
-        if nf.startswith(nr.rstrip("\\/") + os.sep):
-            return os.path.normpath(f)[len(os.path.normpath(r).rstrip("\\/")) + 1:].replace("\\", "/")
+        for rv in _path_variants(r):
+            base = rv.rstrip("\\/")
+            for fv in _path_variants(f):
+                if os.path.normcase(fv) == os.path.normcase(rv):
+                    return ""
+                if os.path.normcase(fv).startswith(os.path.normcase(base) + os.sep):
+                    return fv[len(base) + 1:].replace("\\", "/")
+    hint = ""
+    if any("ダミー" in r for r in roots or []):
+        hint = "【原因の可能性】config.toml の roots が、サンプルのダミーパスのままです。検索したいフォルダのパスに書き換えて、更新.bat（index.py）を実行してください。"
     raise QueryError("選んだフォルダ「%s」は、検索対象フォルダ（%s）の中にありません。検索対象フォルダの中のフォルダを選んでください。"
-                     "（対象を変えるには config.toml の roots を変更し、index.py を実行してください）" % (f, "、".join(roots or [])))
+                     "（対象を変えるには config.toml の roots を変更し、index.py を実行してください）%s" % (f, "、".join(roots or []), hint))
 
 
 def build_options(exts="", folder="", since="", until="", limit=50, sort="relevance", scope="file", snippet_chars=60, roots=None):
