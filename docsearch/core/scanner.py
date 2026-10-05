@@ -53,14 +53,34 @@ def _excluded(name, relpath, patterns):
     return False
 
 
-def scan_root(root, cfg):
-    """root 以下を走査して ScanResult を返す。権限エラー等は止まらず scanerror として記録する。"""
+def _is_link_entry(ent):
+    """DirEntry がリンク（シンボリックリンク・ジャンクション）か。
+
+    ファイルは、ジャンクションにならないので追加のアクセスをしない（ネットワーク上のフォルダで、1件ごとの問い合わせを避ける）。
+    ジャンクションの判定が必要なのは、フォルダだけ。
+    """
+    if ent.is_symlink():
+        return True
+    if not ent.is_dir(follow_symlinks=False):
+        return False
+    is_junction = getattr(ent, "is_junction", None)  # Python 3.12 以降。取得済みの情報から判定でき、追加のアクセスが要らない
+    return is_junction() if is_junction else is_link(ent.path)
+
+
+def scan_root(root, cfg, on_dir=None):
+    """root 以下を走査して ScanResult を返す。権限エラー等は止まらず scanerror として記録する。
+
+    on_dir(見つけたファイル数, 処理したフォルダの相対パス) は、フォルダを1つ処理するごとに呼ばれる（進捗表示用）。
+    """
     targets = set(cfg.extensions)
     legacy = set(cfg.legacy_extensions)
     res = ScanResult(entries=[])
     stack = [""]
+    found = 0
     while stack:
         rel_dir = stack.pop()
+        if on_dir:
+            on_dir(found, rel_dir)
         abs_dir = os.path.join(root, *rel_dir.split("/")) if rel_dir else root
         try:
             with os.scandir(fs_path(abs_dir)) as it:
@@ -76,9 +96,9 @@ def scan_root(root, cfg):
                 res.pattern_excluded += 1
                 continue
             ext = os.path.splitext(name)[1][1:].lower()
+            found += 1
             try:
-                link = ent.is_symlink() or is_link(ent.path)
-                if link:
+                if _is_link_entry(ent):
                     # リンクは辿らない。対象拡張子のファイルとフォルダのリンクだけ「対象外(リンク)」として記録する
                     if ext in targets or ext in legacy or ent.is_dir(follow_symlinks=True):
                         st = ent.stat(follow_symlinks=False)

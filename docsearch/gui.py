@@ -178,6 +178,8 @@ class App:
     def set_busy(self, busy):
         """インデックス作成中は、検索・選択の操作を止め、進捗を表示する。"""
         self.indexing = busy
+        if not busy:
+            self.bar.stop()
         state = "disabled" if busy else "normal"
         self.btn.configure(state=state)
         self.choose_btn.configure(state=state)
@@ -194,8 +196,9 @@ class App:
     def start_indexing(self, path):
         """選んだフォルダのインデックス作成を、別スレッドで開始する。"""
         self.cancel = False
-        self.bar.configure(value=0, maximum=1)
-        self.prog_text.set("ファイルを調べています…")
+        self.bar.configure(mode="indeterminate", value=0)
+        self.bar.start(15)  # 走査中は、件数が分からないので、動き続けるバーにする
+        self.prog_text.set("フォルダを調べています…（共有フォルダが大きいと、時間がかかります）")
         self.set_busy(True)
         threading.Thread(target=self.index_worker, args=(path,), daemon=True).start()
 
@@ -210,11 +213,18 @@ class App:
             if time.time() - last[0] > 0.1 or done >= total:
                 last[0] = time.time()
                 self.q.put(("progress", done, total, elapsed, current))
+        def scan_progress(found, rel_dir, elapsed):
+            """走査中の進捗を画面へ送る（0.1秒に1回）。中止要求があれば、ここで止める。"""
+            if self.cancel:
+                raise IndexCancelled()
+            if time.time() - last[0] > 0.1:
+                last[0] = time.time()
+                self.q.put(("scan", found, rel_dir, elapsed))
         try:
             conn = db.connect_rw(self.cfg.db_path)
             try:
                 roots_mod.add_root(conn, path, self.cfg.roots)
-                stats = run_index(self.cfg, conn, progress, roots=[path])
+                stats = run_index(self.cfg, conn, progress, roots=[path], scan_progress=scan_progress)
                 roots_mod.clear_incomplete(conn, [path])
             finally:
                 conn.close()
@@ -259,8 +269,15 @@ class App:
             except queue.Empty:
                 break
             kind = item[0]
-            if kind == "progress":
+            if kind == "scan":
+                _k, found, rel_dir, elapsed = item
+                name = rel_dir if len(rel_dir) <= 50 else "…" + rel_dir[-49:]
+                self.prog_text.set("フォルダを調べています: %d 件のファイルが見つかりました（経過 %d秒） %s" % (found, elapsed, name or ""))
+            elif kind == "progress":
                 _k, done, total, elapsed, current = item
+                if str(self.bar.cget("mode")) != "determinate":
+                    self.bar.stop()
+                    self.bar.configure(mode="determinate")
                 self.bar.configure(maximum=max(total, 1), value=done)
                 name = current if len(current) <= 60 else "…" + current[-59:]
                 self.prog_text.set("インデックス作成中: %d / %d ファイル（経過 %d秒） %s" % (done, total, elapsed, name))

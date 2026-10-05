@@ -35,12 +35,13 @@ def _now():
     return datetime.now().isoformat(timespec="seconds")
 
 
-def run_index(cfg, conn, progress=None, retry_errors=False, allow_mass_delete=False, roots=None):
+def run_index(cfg, conn, progress=None, retry_errors=False, allow_mass_delete=False, roots=None, scan_progress=None):
     """cfg.roots を走査して index.db を更新し、IndexStats を返す。
 
     progress(done, total, elapsed, current) は1ファイルごとに呼ばれる（done は変更なしで飛ばした分を含む）。
     途中で中断（例外）しても、完了したファイルは1ファイル＝1トランザクションで保存済みなので、
     次回は同じ判定（パス・サイズ・更新日時・抽出設定が同じなら飛ばす）で続きから再開できる。
+    scan_progress(見つけたファイル数, 調べているフォルダ, 経過秒) は、走査中（最初のファイルを処理する前）に、フォルダごとに呼ばれる。
     roots を指定したときは、そのフォルダだけを走査し、ほかの root の登録には触れない（画面から1フォルダを追加するとき）。
     省略時は cfg.roots 全体を走査し、cfg.roots に無い root の登録は「消えたもの」として削除する（安全装置つき）。
     """
@@ -51,8 +52,15 @@ def run_index(cfg, conn, progress=None, retry_errors=False, allow_mass_delete=Fa
         check_root(r)  # 1つでも到達できなければ、何も変更せず中止（削除と誤認しない）
     sig = cfg.extract_signature()
     entries, protected = [], []
+    base = [0]  # 前の root までに見つけた数
+
+    def on_dir(found, rel_dir):
+        """走査の進捗を中継する。"""
+        if scan_progress:
+            scan_progress(base[0] + found, rel_dir, time.time() - t0)
     for r in scan_roots:
-        res = scan_root(r, cfg)
+        res = scan_root(r, cfg, on_dir)
+        base[0] += sum(1 for _ in res.entries) + res.other_ext_count
         entries.extend(res.entries)
         stats.other_ext += res.other_ext_count
         stats.pattern_excluded += res.pattern_excluded

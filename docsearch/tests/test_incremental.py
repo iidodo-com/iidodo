@@ -74,6 +74,25 @@ class IncrementalTest(unittest.TestCase):
         ok, msg = db.check_integrity(self.conn)
         self.assertTrue(ok, msg)
 
+    def test_scan_progress_is_reported(self):
+        """走査中にも進捗（見つけたファイル数・調べているフォルダ）が通知され、数は増えていく。最初のファイル処理より前に出る。"""
+        events, order = [], []
+        run_index(self.cfg, self.conn, lambda *a: order.append("p"),
+                  scan_progress=lambda found, d, el: (events.append((found, d)), order.append("s")))
+        self.assertGreater(len(events), 5)
+        counts = [e[0] for e in events]
+        self.assertEqual(counts, sorted(counts))
+        self.assertIn("契約書", [e[1] for e in events])
+        self.assertLess(max(i for i, x in enumerate(order) if x == "s"), min(i for i, x in enumerate(order) if x == "p"))
+        # 中止（例外）も、走査中に効く
+        class Stop(Exception):
+            pass
+
+        def stop(found, d, el):
+            raise Stop()
+        with self.assertRaises(Stop):
+            run_index(self.cfg, self.conn, scan_progress=stop)
+
     def test_no_change_rerun_reprocesses_nothing(self):
         """何も変えずに再実行すると、1ファイルも再処理されない（エラーのファイルも同様）。"""
         with mock.patch.object(indexer, "extract", side_effect=AssertionError("再処理された")):
