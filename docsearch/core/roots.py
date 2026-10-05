@@ -82,9 +82,18 @@ def incomplete_roots(conn):
 
 
 def indexed_roots(conn):
-    """検索に使える（インデックス作成が完了している）root の一覧。"""
+    """検索に使える（インデックス作成が完了している）root の一覧。
+
+    登録されたファイルを持つ root と、画面・--add で追加した root（対象の文書が1つも無いフォルダも含む）のうち、
+    作成が未完了のものを除く。
+    """
     bad = {_norm(r) for r in incomplete_roots(conn)}
-    return [r for (r,) in conn.execute("SELECT DISTINCT root FROM files ORDER BY root") if _norm(r) not in bad]
+    out, seen = [], set()
+    for r in [x for (x,) in conn.execute("SELECT DISTINCT root FROM files ORDER BY root")] + load_extra_roots(conn):
+        if _norm(r) not in bad and _norm(r) not in seen:
+            seen.add(_norm(r))
+            out.append(r)
+    return out
 
 
 def scopes_for(folder, roots):

@@ -43,6 +43,8 @@ class App:
         self.scopes = None       # 選んだフォルダ以下の検索条件 [(root, 接頭辞)]。None はインデックス済みのすべて
         self.cancel = False      # インデックス作成の中止要求
         self.indexing = False
+        self.prog_base, self.prog_t0 = "", 0.0   # 進捗の文言と開始時刻（経過秒を毎回更新して、動いていることを示す）
+        self.folder_before = ""  # インデックス作成を始める前の、検索フォルダの表示
         root.title("過去資料の全文検索（読み取り専用）")
         root.geometry("1100x700")
         top = ttk.Frame(root, padding=6)
@@ -191,14 +193,22 @@ class App:
     def request_cancel(self):
         """インデックス作成の中止を要求する（処理中のファイルが終わった時点で止まり、完了分は保存される）。"""
         self.cancel = True
-        self.prog_text.set("中止しています…")
+        self.set_prog("中止しています…（処理中のファイルが終わると止まります）")
+
+    def set_prog(self, text):
+        """進捗の文言を設定する（経過秒は、poll が毎回付け足す）。"""
+        self.prog_base = text
+        self.prog_text.set("%s　［経過 %d秒］" % (text, time.time() - self.prog_t0))
 
     def start_indexing(self, path):
         """選んだフォルダのインデックス作成を、別スレッドで開始する。"""
         self.cancel = False
+        self.prog_t0 = time.time()
+        self.folder_before = self.folder.get()
+        self.folder.set("%s　（インデックス作成中…）" % path)  # 選んだフォルダを、すぐに表示する
         self.bar.configure(mode="indeterminate", value=0)
         self.bar.start(15)  # 走査中は、件数が分からないので、動き続けるバーにする
-        self.prog_text.set("フォルダを調べています…（共有フォルダが大きいと、時間がかかります）")
+        self.set_prog("フォルダを調べています…（共有フォルダが大きいと、時間がかかります）")
         self.set_busy(True)
         threading.Thread(target=self.index_worker, args=(path,), daemon=True).start()
 
@@ -272,7 +282,7 @@ class App:
             if kind == "scan":
                 _k, found, rel_dir, elapsed = item
                 name = rel_dir if len(rel_dir) <= 50 else "…" + rel_dir[-49:]
-                self.prog_text.set("フォルダを調べています: %d 件のファイルが見つかりました（経過 %d秒） %s" % (found, elapsed, name or ""))
+                self.set_prog("フォルダを調べています: %d 件のファイルが見つかりました  %s" % (found, name or ""))
             elif kind == "progress":
                 _k, done, total, elapsed, current = item
                 if str(self.bar.cget("mode")) != "determinate":
@@ -280,7 +290,7 @@ class App:
                     self.bar.configure(mode="determinate")
                 self.bar.configure(maximum=max(total, 1), value=done)
                 name = current if len(current) <= 60 else "…" + current[-59:]
-                self.prog_text.set("インデックス作成中: %d / %d ファイル（経過 %d秒） %s" % (done, total, elapsed, name))
+                self.set_prog("インデックス作成中: %d / %d ファイル  %s" % (done, total, name))
             elif kind == "index_done":
                 self.set_busy(False)
                 st = item[2]
@@ -290,9 +300,11 @@ class App:
                 self.select_folder(item[1])
             elif kind == "index_cancel":
                 self.set_busy(False)
+                self.folder.set(self.folder_before)
                 self.status.set("インデックス作成を中止しました。完了した分は保存されています。もう一度同じフォルダを選ぶと、続きから再開します。")
             elif kind == "index_err":
                 self.set_busy(False)
+                self.folder.set(self.folder_before)
                 messagebox.showerror("インデックスを作成できません", item[1])
             elif kind == "err":
                 self.btn.configure(state="normal")
@@ -300,6 +312,8 @@ class App:
             elif kind == "ok":
                 self.btn.configure(state="normal")
                 self.show_results(item[1])
+        if self.indexing and self.prog_base:
+            self.prog_text.set("%s　［経過 %d秒］" % (self.prog_base, time.time() - self.prog_t0))
         self.root.after(100, self.poll)
 
     def show_results(self, res):

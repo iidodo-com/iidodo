@@ -210,6 +210,7 @@ class GuiTest(unittest.TestCase):
         app.q.put(("scan", 123, "契約書/2024", 4.0))
         app.poll()
         self.assertIn("123 件のファイルが見つかりました", app.prog_text.get())
+        self.assertIn("経過", app.prog_text.get())
         self.assertIn("契約書/2024", app.prog_text.get())
         import core.scanner as sc
         real = sc.scan_root
@@ -222,12 +223,37 @@ class GuiTest(unittest.TestCase):
             return real(root, cfg, on_dir)
         with mock.patch("core.indexer.scan_root", side_effect=slow_scan):
             app.start_indexing(child)
+            self.assertIn(child, app.folder.get())  # 作成中も、選んだフォルダを表示する
+            self.assertIn("インデックス作成中", app.folder.get())
             self.pump(lambda: "見つかりました" in app.prog_text.get(), timeout=5)
             self.assertTrue(app.indexing)
             app.request_cancel()
             self.wait_idle()
         self.assertIn("中止", app.status.get())
         self.assertEqual(app.indexed_roots(), [])
+        self.assertEqual(app.folder.get(), "")  # 中止したら、元の表示に戻る
+
+    def test_elapsed_ticker_updates_without_events(self):
+        """走査から何の通知も来ない間（1つの巨大なフォルダの読み込み中など）も、経過秒が更新され続ける。"""
+        app, parent, child = self.new_app_with_empty_db()
+        self.app = app
+        import core.scanner as sc
+        gate = []
+
+        def blocking_scan(root, cfg, on_dir=None):
+            while not gate:
+                time.sleep(0.02)
+            return sc.ScanResult(entries=[])
+        with mock.patch("core.indexer.scan_root", side_effect=blocking_scan), mock.patch.object(gui.messagebox, "showinfo"), \
+                mock.patch.object(gui.messagebox, "askyesno", side_effect=AssertionError("確認が繰り返された")):
+            app.start_indexing(child)
+            self.pump(lambda: False, timeout=1.3)
+            self.assertRegex(app.prog_text.get(), r"経過 [1-9]\d*秒")
+            gate.append(1)
+            self.wait_idle()
+        # 対象の文書が1つも無いフォルダでも、作成が終われば「登録済み」になり、検索フォルダとして選ばれる
+        self.assertEqual(app.indexed_roots(), [child])
+        self.assertEqual(app.folder.get(), child)
 
     def test_index_error_is_shown(self):
         """インデックス作成に失敗しても、画面は落ちず、日本語のメッセージを出す。"""
