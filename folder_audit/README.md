@@ -8,10 +8,13 @@
 
 ## 使い方
 ```
+python main.py                                        # フォルダ選択ダイアログで対象と出力先を選ぶ
+python main.py --target \\サーバ名\共有名\部署           # 出力先だけダイアログで選ぶ
 python main.py --target \\サーバ名\共有名\部署 --output D:\棚卸し結果
 python main.py --target ... --output ... --light      # 軽量モード（ハッシュなし）
 python main.py --target ... --output ... --resume     # 中断した実行を再開
 ```
+- `--target` / `--output` を省略した方は、フォルダ選択ダイアログ（tkinter）で選びます。Windows版Pythonには標準で付属します。キャンセルすると何もせず終了します
 - 出力先は対象フォルダの**外**に指定してください（内側だと中止します）
 - 途中結果は出力先の `inventory_work.sqlite` に保存され、正常終了で削除されます（`--keep-work` で残せます）
 - 再開（`--resume`）：走査が完了していれば走査結果を再利用し、計算済みのハッシュは再計算しません。走査の途中で止めた場合は走査からやり直します（ハッシュの結果は再利用）
