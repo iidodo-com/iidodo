@@ -1,0 +1,20 @@
+# インデックス（文書の本文を含む。元文書と同等に扱う）
+index.db
+index.db-*
+*.db
+
+# 本物のパスを書いた設定（config.example.toml だけを置く）
+config.toml
+config.local.toml
+
+# 出力フォルダ（CSV・インデックス作成レポート・検証結果）
+output/
+sample_out/
+
+# 開くときの一時コピー
+docsearch_open/
+*.tmp
+
+__pycache__/
+*.pyc
+.venv/
