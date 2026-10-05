@@ -376,6 +376,35 @@ class TestDialog(unittest.TestCase):
         code, _ = self.run_main([], [str(self.target), None])
         self.assertEqual(code, 1)
 
+    def test_pause_on_double_click(self):
+        """引数なし起動（ダブルクリック相当）では終了時に Enter 待ちになる。引数ありなら待たない"""
+        import main as main_mod
+        with mock.patch("sys.stdin") as stdin, mock.patch("builtins.input") as inp:
+            stdin.isatty.return_value = True
+            from audit import dialog
+            answers = [str(self.target), str(self.out)]
+            with mock.patch.object(dialog, "choose_folder", side_effect=lambda *a, **k: answers.pop(0)), \
+                    mock.patch("sys.stdout", new=io.StringIO()):
+                self.assertEqual(main_mod.main([]), 0)   # 引数なし＝既定の config.toml を使う
+            self.assertEqual(inp.call_count, 1)
+            self.run_main(["--target", str(self.target), "--output", str(self.out)], [])
+            self.assertEqual(inp.call_count, 1)
+            self.run_main(["--target", str(self.target), "--output", str(self.out), "--pause"], [])
+            self.assertEqual(inp.call_count, 2)
+
+    def test_unexpected_exception_is_shown(self):
+        """想定外の例外でも、画面にトレースバックを表示して Enter 待ちにする（即閉じない）"""
+        import main as main_mod
+        buf = io.StringIO()
+        with mock.patch("sys.stdin") as stdin, mock.patch("builtins.input") as inp, \
+                mock.patch("main._main", side_effect=RuntimeError("boom")), \
+                mock.patch("sys.stderr", new=buf), mock.patch("sys.stdout", new=io.StringIO()):
+            stdin.isatty.return_value = True
+            code = main_mod.main([])
+        self.assertEqual(code, 1)
+        self.assertIn("boom", buf.getvalue())
+        self.assertEqual(inp.call_count, 1)
+
     def test_unavailable(self):
         """画面のない環境ではダイアログを開けない旨を表示し、引数指定を案内する"""
         from audit import dialog

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import traceback
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -23,12 +24,33 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--config", default=str(HERE / "config.toml"), help="設定ファイル（既定: config.toml）")
     p.add_argument("--light", action="store_true", help="軽量モード：ハッシュを計算せず件数・サイズ・更新日だけ集計")
     p.add_argument("--resume", action="store_true", help="前回中断した実行を一時ファイルから再開")
+    p.add_argument("--pause", action="store_true", help="終了時に Enter 待ちにする（引数なしで起動した場合は自動で待つ）")
     p.add_argument("--keep-work", action="store_true", help="終了後も一時SQLiteファイルを残す")
     return p
 
 
 def main(argv=None) -> int:
-    """エントリポイント。終了コード 0=成功、1=エラー、130=中断"""
+    """エントリポイント。ダブルクリック起動（引数なし）や --pause では、画面が消えないよう
+    終了時に Enter 待ちにする。想定外の例外も画面に表示する。終了コード 0=成功、1=エラー、130=中断"""
+    given = list(argv) if argv is not None else sys.argv[1:]
+    try:
+        code = _main(argv)
+    except SystemExit as e:  # argparse の --help / 引数エラー
+        code = e.code if isinstance(e.code, int) else 1
+    except Exception:
+        traceback.print_exc()
+        print("\n想定外のエラーが発生しました。上のメッセージを開発者に伝えてください。")
+        code = 1
+    if (not given or "--pause" in given) and sys.stdin is not None and sys.stdin.isatty():
+        try:
+            input("\nEnterキーを押すと閉じます...")
+        except EOFError:
+            pass
+    return code
+
+
+def _main(argv=None) -> int:
+    """本体処理（main から呼ばれる）"""
     if sys.version_info < (3, 11):
         print("Python 3.11 以上が必要です（設定ファイルの読み込みに標準の tomllib を使うため）")
         return 1
@@ -38,9 +60,13 @@ def main(argv=None) -> int:
         except Exception:
             pass
     args = build_parser().parse_args(argv)
-    from audit import dialog
-    from audit.config import ConfigError, load_config
-    from audit.runner import RunError, run_audit
+    try:
+        from audit import dialog
+        from audit.config import ConfigError, load_config
+        from audit.runner import RunError, run_audit
+    except ImportError as e:
+        print(f"エラー: 必要なライブラリがありません（{e}）。次を実行してから、もう一度お試しください:\n  pip install openpyxl")
+        return 1
     try:
         target, output = args.target, args.output
         if not target:
