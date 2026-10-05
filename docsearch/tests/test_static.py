@@ -57,6 +57,11 @@ class BatchFileTest(unittest.TestCase):
             self.assertEqual(raw.count(b"\n"), raw.count(b"\r\n"), n + ": CRLF")
             self.assertIn('pushd "%~dp0"', text, n)
             self.assertNotIn("\ncd ", text, n)
+            # 括弧ブロック（行末の「(」や行頭の「)」）は、中に ) があると cmd が崩れるので使わない
+            for ln in text.splitlines():
+                self.assertFalse(ln.rstrip().endswith("("), "%s: %s" % (n, ln))
+                self.assertFalse(ln.lstrip().startswith(")"), "%s: %s" % (n, ln))
+            self.assertNotRegex(text, r"(?m)^\s*(if|else|for)\b.*\($", n)
 
     def test_setup_config_writes_utf8_toml(self):
         """setup_config.py が UTF-8 の config.toml を作り、DB の保存先を共有フォルダ側にしない。"""
