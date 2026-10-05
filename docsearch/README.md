@@ -26,6 +26,8 @@
 3. **検索.bat**: 検索画面を開きます
 
 Python 3.14 が入っていること（インストール時に「Add python.exe to PATH」にチェック）が前提です。
+`wheels` フォルダ（Windows・Python 3.14 用の部品ファイル）が同梱されている場合は、セットアップ.bat はインターネットに接続せずに、そこからインストールします
+（プロキシ認証で `pip install` が「407 Proxy Authentication Required」になる環境向け）。
 index.db は、共有フォルダではなく自分のPCの `docsearch_data` に作られます。
 
 ## 1. 環境構築

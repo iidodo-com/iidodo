@@ -17,8 +17,13 @@ if not exist "%PY%" (
   python -m venv "%DATA%\venv"
   if errorlevel 1 (echo 環境の作成に失敗しました。& pause & exit /b 1)
 )
-echo [2/3] 必要な部品をインストールします（インターネット接続が必要です）
-"%PY%" -m pip install -r requirements.txt
+if exist wheels\ (
+  echo [2/3] 同梱の部品ファイル(wheels)からインストールします（インターネット接続は不要です）
+  "%PY%" -m pip install --no-index --find-links wheels -r requirements.txt
+) else (
+  echo [2/3] 必要な部品をインストールします（インターネット接続が必要です）
+  "%PY%" -m pip install -r requirements.txt
+)
 if errorlevel 1 (
   echo インストールに失敗しました。上のエラー文を確認してください（README の「pip install が失敗したとき」を参照）。
   pause & exit /b 1
