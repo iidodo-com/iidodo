@@ -12,7 +12,7 @@ from core.config import ConfigError, load_config
 from core.normalize import normalize
 from core.pathutil import fs_path, to_long_path
 from core.query import QueryError, like_pattern, parse_query
-from core.searcher import SearchResult, build_options, make_snippet
+from core.searcher import SearchResult, build_options, folder_to_relative, make_snippet
 
 
 class NormalizeTest(unittest.TestCase):
@@ -170,6 +170,25 @@ class QueryParseTest(unittest.TestCase):
             self.assertIn(word, str(cm.exception))
         o = build_options(exts="DOCX, .pdf", since="2024/04/01")
         self.assertEqual(o.exts, ["docx", "pdf"])
+
+
+class FolderChoiceTest(unittest.TestCase):
+    def test_absolute_to_relative(self):
+        """ダイアログで選んだ絶対パスが、検索対象フォルダからの相対パスになる。"""
+        roots = ["/data/資料", "/srv/共有"]
+        self.assertEqual(folder_to_relative("/data/資料/契約書/2024", roots), "契約書/2024")
+        self.assertEqual(folder_to_relative("/srv/共有/企画\u3000資料", roots), "企画\u3000資料")
+        self.assertEqual(folder_to_relative("/data/資料", roots), "")
+        self.assertEqual(folder_to_relative("契約書/2024", roots), "契約書/2024")
+        self.assertEqual(folder_to_relative("", roots), "")
+
+    def test_outside_roots_is_japanese_error(self):
+        """検索対象の外のフォルダ（前方一致だけ似ているものを含む）は、日本語のエラーになる。"""
+        for p in ("/other/dir", "/data/資料2/x"):
+            with self.assertRaises(QueryError) as cm:
+                folder_to_relative(p, ["/data/資料"])
+            self.assertIn("検索対象フォルダ", str(cm.exception))
+        self.assertEqual(build_options(folder="/data/資料/a", roots=["/data/資料"]).folder, "a")
 
 
 class SnippetTest(unittest.TestCase):
