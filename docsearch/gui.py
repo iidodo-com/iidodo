@@ -8,6 +8,7 @@ import os
 import queue
 import sys
 import threading
+import time
 
 try:
     import tkinter as tk
@@ -16,14 +17,20 @@ except ImportError:  # tkinter が無い環境
     print("エラー: tkinter を読み込めません。Python の標準インストーラで「tcl/tk and IDLE」を含めてインストールしてください。", file=sys.stderr)
     raise SystemExit(3)
 
-from core import db, opener
+from core import db, opener, roots as roots_mod
 from core.config import ConfigError, load_config
+from core.indexer import run_index
 from core.export import write_results_csv
 from core.query import QueryError
-from core.searcher import build_options, folder_to_relative, search
+from core.scanner import RootError
+from core.searcher import build_options, search
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NOTICE = "index.db は文書の本文を含みます。元文書と同等に扱ってください。スニペットは正規化後の文字（㈱→(株)、全角英数字→半角 等）で表示されるため、引用は元ファイルで確認してください。"
+
+
+class IndexCancelled(Exception):
+    """利用者が、インデックス作成を中止した。"""
 
 
 class App:
@@ -33,6 +40,9 @@ class App:
         """画面を組み立てる。"""
         self.root, self.cfg = root, cfg
         self.results, self.q = [], queue.Queue()
+        self.scopes = None       # 選んだフォルダ以下の検索条件 [(root, 接頭辞)]。None はインデックス済みのすべて
+        self.cancel = False      # インデックス作成の中止要求
+        self.indexing = False
         root.title("過去資料の全文検索（読み取り専用）")
         root.geometry("1100x700")
         top = ttk.Frame(root, padding=6)
@@ -46,7 +56,8 @@ class App:
         self.btn = ttk.Button(top, text="検索", command=self.start_search)
         self.btn.grid(row=0, column=6, padx=4)
         ttk.Button(top, text="CSV保存", command=self.save_csv).grid(row=0, column=7)
-        ttk.Label(top, text="（スペース=AND、\"…\"=フレーズ、-語=除外）").grid(row=1, column=1, columnspan=5, sticky="w")
+        ttk.Label(top, text="（スペース=AND、\"…\"=フレーズ、-語=除外）").grid(row=1, column=1, columnspan=7, sticky="w")
+        ttk.Label(top, text="検索フォルダ: 選んだフォルダとその下のすべてを検索します（親は見ません）。未選択なら、登録済みのすべてを検索します。").grid(row=5, column=1, columnspan=7, sticky="w")
         self.ext_vars = {x: tk.BooleanVar(value=True) for x in ("docx", "xlsx", "pptx", "pdf")}
         ttk.Label(top, text="拡張子").grid(row=2, column=0, sticky="w")
         extf = ttk.Frame(top)
@@ -54,12 +65,13 @@ class App:
         for x, v in self.ext_vars.items():
             ttk.Checkbutton(extf, text=x, variable=v).pack(side="left", padx=(0, 12))
         self.folder, self.since, self.until = tk.StringVar(), tk.StringVar(), tk.StringVar()
-        ttk.Label(top, text="フォルダ").grid(row=3, column=0, sticky="w")
+        ttk.Label(top, text="検索フォルダ").grid(row=3, column=0, sticky="w")
         ff = ttk.Frame(top)
         ff.grid(row=3, column=1, columnspan=2, sticky="we", padx=4)
-        ttk.Entry(ff, textvariable=self.folder, width=24).pack(side="left", fill="x", expand=True)
-        ttk.Button(ff, text="選択…", command=self.choose_folder).pack(side="left", padx=(4, 0))
-        ttk.Button(ff, text="解除", command=lambda: self.folder.set("")).pack(side="left", padx=(4, 0))
+        ttk.Entry(ff, textvariable=self.folder, width=24, state="readonly").pack(side="left", fill="x", expand=True)
+        self.choose_btn = ttk.Button(ff, text="選択…", command=self.choose_folder)
+        self.choose_btn.pack(side="left", padx=(4, 0))
+        ttk.Button(ff, text="解除", command=self.clear_folder).pack(side="left", padx=(4, 0))
         ttk.Label(top, text="更新日 (YYYY-MM-DD)").grid(row=3, column=3, sticky="e")
         ttk.Entry(top, textvariable=self.since, width=12).grid(row=3, column=4)
         ttk.Label(top, text="～").grid(row=3, column=5)
@@ -71,6 +83,15 @@ class App:
         self.place = tk.BooleanVar(value=False)
         ttk.Checkbutton(top, text="同じ場所内で全語を含む（オフ=ファイル内のどこかに含む）", variable=self.place).grid(row=4, column=4, columnspan=4, sticky="w")
         top.columnconfigure(1, weight=1)
+
+        self.prog = ttk.Frame(root, padding=(6, 2))
+        self.prog_text = tk.StringVar()
+        ttk.Label(self.prog, textvariable=self.prog_text).pack(side="top", anchor="w")
+        row = ttk.Frame(self.prog)
+        row.pack(fill="x")
+        self.bar = ttk.Progressbar(row, mode="determinate")
+        self.bar.pack(side="left", fill="x", expand=True)
+        ttk.Button(row, text="中止", command=self.request_cancel).pack(side="left", padx=6)
 
         mid = ttk.PanedWindow(root, orient="vertical")
         mid.pack(fill="both", expand=True, padx=6)
@@ -98,10 +119,6 @@ class App:
         ttk.Button(bar, text="パスをコピー", command=self.copy_path).pack(side="left")
         self.status = tk.StringVar(value="検索語を入力してください。")
         ttk.Label(root, textvariable=self.status, foreground="#333").pack(fill="x", padx=8)
-        roots_text = "検索対象フォルダ（config.toml の roots）: " + "、".join(self.cfg.roots)
-        dummy = any("ダミー" in r for r in self.cfg.roots)
-        ttk.Label(root, text=roots_text + ("  ← サンプルのダミーパスのままです。config.toml を書き換えて、更新.bat を実行してください" if dummy else ""),
-                  foreground="#a00" if dummy else "#333", wraplength=1060).pack(fill="x", padx=8)
         ttk.Label(root, text=NOTICE, foreground="#a00", wraplength=1060).pack(fill="x", padx=8, pady=(0, 6))
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(100, self.poll)
@@ -112,25 +129,102 @@ class App:
         if not exts:
             raise QueryError("拡張子が1つも選ばれていません。少なくとも1つ選んでください。")
         all4 = len(exts.split(",")) == 4
-        return build_options("" if all4 else exts, self.folder.get(), self.since.get(), self.until.get(), 50,
-                             self.sort.get(), "place" if self.place.get() else "file", self.cfg.snippet_chars, self.cfg.roots)
+        opts = build_options("" if all4 else exts, "", self.since.get(), self.until.get(), 50,
+                             self.sort.get(), "place" if self.place.get() else "file", self.cfg.snippet_chars)
+        opts.scopes = self.scopes  # 選んだフォルダ以下だけを検索（親は含めない）
+        return opts
+
+    def indexed_roots(self):
+        """インデックス済みの root の一覧（index.db を読み取り専用で開く。無ければ空）。"""
+        try:
+            conn = db.connect_ro(self.cfg.db_path)
+        except db.DbError:
+            return []
+        try:
+            return roots_mod.indexed_roots(conn)
+        finally:
+            conn.close()
+
+    def clear_folder(self):
+        """検索フォルダの選択を解除する（インデックス済みのすべてを検索）。"""
+        self.folder.set("")
+        self.scopes = None
+        self.status.set("検索フォルダの選択を解除しました（登録済みのすべてを検索します）。")
 
     def choose_folder(self):
-        """検索対象フォルダの中から、絞り込むフォルダをダイアログで選ぶ（選択は読み取りだけで、何も変更しない）。"""
-        start = next((r for r in self.cfg.roots if os.path.isdir(r)), HERE)
-        cur = self.folder.get().strip()
-        if cur and os.path.isdir(os.path.join(start, *cur.replace("\\", "/").split("/"))):
-            start = os.path.join(start, *cur.replace("\\", "/").split("/"))
-        path = filedialog.askdirectory(initialdir=start, mustexist=True, title="検索するフォルダを選択（検索対象フォルダの中）")
-        if not path:
+        """検索するフォルダをダイアログで選ぶ。選んだフォルダ以下だけを検索する（親は見ない）。"""
+        if self.indexing:
             return
+        start = self.folder.get() or next((r for r in self.indexed_roots() + list(self.cfg.roots) if os.path.isdir(r)), os.path.expanduser("~"))
+        path = filedialog.askdirectory(initialdir=start, mustexist=True, title="検索するフォルダを選択（その下のすべてのフォルダを検索します）")
+        if path:
+            self.select_folder(os.path.normpath(path))
+
+    def select_folder(self, path):
+        """選んだフォルダを検索範囲にする。まだインデックスされていなければ、確認のうえ作成する。"""
+        scopes, covered = roots_mod.scopes_for(path, self.indexed_roots())
+        if covered:
+            self.folder.set(path)
+            self.scopes = scopes
+            self.status.set("検索フォルダ: %s（その下のすべてを検索します）" % path)
+            return
+        if messagebox.askyesno(
+                "インデックスを作成します",
+                "「%s」は、まだインデックスされていません。\n\nこのフォルダとその下のすべてのフォルダを、検索できるようにしますか？\n\n"
+                "・文書は読み取るだけで、変更しません\n・ファイル数によって時間がかかります（途中で中止できます。次回は続きから再開します）\n"
+                "・親フォルダは検索対象に入りません" % path):
+            self.start_indexing(path)
+
+    def set_busy(self, busy):
+        """インデックス作成中は、検索・選択の操作を止め、進捗を表示する。"""
+        self.indexing = busy
+        state = "disabled" if busy else "normal"
+        self.btn.configure(state=state)
+        self.choose_btn.configure(state=state)
+        if busy:
+            self.prog.pack(fill="x", before=self.tree.master)
+        else:
+            self.prog.pack_forget()
+
+    def request_cancel(self):
+        """インデックス作成の中止を要求する（処理中のファイルが終わった時点で止まり、完了分は保存される）。"""
+        self.cancel = True
+        self.prog_text.set("中止しています…")
+
+    def start_indexing(self, path):
+        """選んだフォルダのインデックス作成を、別スレッドで開始する。"""
+        self.cancel = False
+        self.bar.configure(value=0, maximum=1)
+        self.prog_text.set("ファイルを調べています…")
+        self.set_busy(True)
+        threading.Thread(target=self.index_worker, args=(path,), daemon=True).start()
+
+    def index_worker(self, path):
+        """インデックス作成スレッド本体。対象フォルダは読み取りだけ。index.db への書き込みは、このスレッド内の接続で行う。"""
+        last = [0.0]
+
+        def progress(done, total, elapsed, current):
+            """進捗を画面へ送る（0.1秒に1回）。中止要求があれば、ここで止める。"""
+            if self.cancel:
+                raise IndexCancelled()
+            if time.time() - last[0] > 0.1 or done >= total:
+                last[0] = time.time()
+                self.q.put(("progress", done, total, elapsed, current))
         try:
-            rel = folder_to_relative(os.path.normpath(path), self.cfg.roots)
-        except QueryError as e:
-            messagebox.showerror("選べません", str(e))
-            return
-        self.folder.set(rel)
-        self.status.set("検索するフォルダ: %s" % (rel or "（検索対象フォルダ全体）"))
+            conn = db.connect_rw(self.cfg.db_path)
+            try:
+                roots_mod.add_root(conn, path, self.cfg.roots)
+                stats = run_index(self.cfg, conn, progress, roots=[path])
+                roots_mod.clear_incomplete(conn, [path])
+            finally:
+                conn.close()
+            self.q.put(("index_done", path, stats))
+        except IndexCancelled:
+            self.q.put(("index_cancel", path))
+        except (RootError, db.DbError) as e:
+            self.q.put(("index_err", str(e)))
+        except Exception as e:  # 想定外でも画面は落とさない
+            self.q.put(("index_err", "想定外のエラー: %s: %s" % (type(e).__name__, e)))
 
     def start_search(self):
         """検索を別スレッドで開始する。"""
@@ -158,17 +252,37 @@ class App:
             self.q.put(("err", "想定外のエラー: %s: %s" % (type(e).__name__, e)))
 
     def poll(self):
-        """検索スレッドの結果を受け取って画面に反映する。"""
-        try:
-            kind, val = self.q.get_nowait()
-        except queue.Empty:
-            self.root.after(100, self.poll)
-            return
-        self.btn.configure(state="normal")
-        if kind == "err":
-            self.status.set("検索できません: %s" % val)
-        else:
-            self.show_results(val)
+        """検索・インデックス作成スレッドからの連絡を受け取って、画面に反映する。"""
+        while True:
+            try:
+                item = self.q.get_nowait()
+            except queue.Empty:
+                break
+            kind = item[0]
+            if kind == "progress":
+                _k, done, total, elapsed, current = item
+                self.bar.configure(maximum=max(total, 1), value=done)
+                name = current if len(current) <= 60 else "…" + current[-59:]
+                self.prog_text.set("インデックス作成中: %d / %d ファイル（経過 %d秒） %s" % (done, total, elapsed, name))
+            elif kind == "index_done":
+                self.set_busy(False)
+                st = item[2]
+                messagebox.showinfo("インデックス作成が完了しました",
+                                    "処理 %d ファイル（うちエラー %d）、変更なしで省略 %d ファイル。\nエラー・対象外の一覧は、更新.bat のあとに出るレポート（index.py --report）で確認できます。"
+                                    % (len(st.processed), st.errors, st.skipped_unchanged))
+                self.select_folder(item[1])
+            elif kind == "index_cancel":
+                self.set_busy(False)
+                self.status.set("インデックス作成を中止しました。完了した分は保存されています。もう一度同じフォルダを選ぶと、続きから再開します。")
+            elif kind == "index_err":
+                self.set_busy(False)
+                messagebox.showerror("インデックスを作成できません", item[1])
+            elif kind == "err":
+                self.btn.configure(state="normal")
+                self.status.set("検索できません: %s" % item[1])
+            elif kind == "ok":
+                self.btn.configure(state="normal")
+                self.show_results(item[1])
         self.root.after(100, self.poll)
 
     def show_results(self, res):
@@ -260,6 +374,8 @@ def main():
     try:
         db.check_environment()
         cfg = load_config(os.environ.get("DOCSEARCH_CONFIG", os.path.join(HERE, "config.toml")))
+        if not os.path.exists(cfg.db_path):
+            db.connect_rw(cfg.db_path).close()  # 初回は空のインデックスを作る（検索フォルダを選ぶと、そこで作成できる）
         db.connect_ro(cfg.db_path).close()
     except (db.EnvError, ConfigError, db.DbError) as e:
         messagebox.showerror("起動できません", str(e))

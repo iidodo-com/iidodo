@@ -1,17 +1,18 @@
 """インデックス作成・更新。例: python index.py（初回も更新も同じ。変更のないファイルは飛ばします）"""
 import argparse
+import dataclasses
 import os
 import sqlite3
 import sys
 import time
 
-from core import db
+from core import db, roots as roots_mod
 from core.config import ConfigError, load_config
 from core.console import NOTICE_INDEX, setup_stdio
 from core.export import write_issues_csv
 from core.indexer import run_index
 from core.kinds import KIND_ORDER
-from core.scanner import RootError
+from core.scanner import RootError, check_root
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONSOLE_LIST_MAX = 50
@@ -84,6 +85,7 @@ def main(argv=None, out=None, err=None):
     ap.add_argument("--config", default=os.path.join(HERE, "config.toml"))
     ap.add_argument("--retry-errors", action="store_true", help="前回エラーになったファイルも、変更がなくても再試行する")
     ap.add_argument("--allow-mass-delete", action="store_true", help="大量削除の安全装置を解除する（共有フォルダの接続を確認してから）")
+    ap.add_argument("--add", metavar="フォルダ", default="", help="このフォルダ（とその下のすべて）を検索対象に追加して、インデックスを作成する")
     ap.add_argument("--report", action="store_true", help="走査せず、現在のインデックスの対象外・エラー一覧だけを表示する")
     ap.add_argument("--check", action="store_true", help="走査せず、FTS索引の整合性だけを確認する")
     try:
@@ -118,7 +120,22 @@ def main(argv=None, out=None, err=None):
                 db.set_meta(conn, "notice_shown", "1")
         stamp = time.strftime("%Y%m%d_%H%M%S")
         try:
-            stats = run_index(cfg, conn, make_progress(err), a.retry_errors, a.allow_mass_delete)
+            if a.add:
+                folder = os.path.normpath(a.add.strip().strip('"'))
+                check_root(folder)
+                absorbed = roots_mod.add_root(conn, folder, cfg.roots)
+                for r in absorbed:
+                    print("入れ子のフォルダの登録を、上位のフォルダにまとめました: %s" % r, file=out)
+                stats = run_index(cfg, conn, make_progress(err), a.retry_errors, a.allow_mass_delete, roots=[folder])
+                roots_mod.clear_incomplete(conn, [folder])
+            else:
+                targets = roots_mod.all_roots(cfg, conn)
+                if not targets:
+                    print("検索対象のフォルダがありません。検索画面の「選択…」でフォルダを選ぶか、"
+                          "python index.py --add \"フォルダ\" で追加するか、config.toml の roots に書いてください。", file=err)
+                    return 2
+                stats = run_index(dataclasses.replace(cfg, roots=targets), conn, make_progress(err), a.retry_errors, a.allow_mass_delete)
+                roots_mod.clear_incomplete(conn, targets)
         except RootError as e:
             print("\nエラー: %s" % e, file=err)
             return 4

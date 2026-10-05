@@ -32,8 +32,9 @@ if errorlevel 1 goto PIPFAIL
 echo [3/3] 設定ファイルを作ります
 if exist config.toml goto HAVECONFIG
 echo.
-echo 検索したいフォルダのパスを入力して Enter を押してください。
+echo 最初に検索したいフォルダのパスを入力して Enter を押してください。
 echo 例: \\サーバ名\共有名\フォルダ名   または   D:\資料
+echo 何も入力せずに Enter を押すと、あとで検索画面の「選択」ボタンでフォルダを選べます。
 set "ROOT="
 set /p "ROOT=パス: "
 if not defined ROOT goto NOROOT
@@ -41,11 +42,15 @@ set "ROOT=%ROOT:"=%"
 "%PY%" setup_config.py "%ROOT%"
 if errorlevel 1 goto FAIL
 goto DONE
+:NOROOT
+"%PY%" setup_config.py
+if errorlevel 1 goto FAIL
+goto DONE
 :HAVECONFIG
 echo config.toml は既にあります。変更しません。
 :DONE
 echo.
-echo セットアップが完了しました。次に「更新.bat」を実行して、インデックスを作ってください。
+echo セットアップが完了しました。次に「検索.bat」を実行し、「選択」ボタンで検索したいフォルダを選んでください（初回は、そのフォルダのインデックスが作られます）。
 pause
 popd
 exit /b 0
@@ -65,10 +70,6 @@ pause
 exit /b 1
 :PIPFAIL
 echo 部品のインストールに失敗しました。上のエラー文を確認してください。README の「pip install が失敗したとき」も参照してください。
-pause
-exit /b 1
-:NOROOT
-echo 入力がありません。もう一度実行してください。
 pause
 exit /b 1
 :FAIL

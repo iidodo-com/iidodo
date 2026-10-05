@@ -12,9 +12,9 @@ class ConfigError(Exception):
 
 @dataclass
 class Config:
-    roots: list
-    db_path: str
-    output_dir: str
+    roots: list = field(default_factory=list)
+    db_path: str = "index.db"
+    output_dir: str = "output"
     extensions: list = field(default_factory=lambda: list(TARGET_EXTENSIONS))
     legacy_extensions: list = field(default_factory=lambda: ["doc", "xls", "ppt"])
     exclude_patterns: list = field(default_factory=lambda: ["~$*", "*.tmp", "Thumbs.db"])
@@ -50,7 +50,7 @@ def _bad(key, reason, hint=""):
     return ConfigError(msg)
 
 
-def _str_list(data, key, default=None, lower=False, required=False):
+def _str_list(data, key, default=None, lower=False, required=False, allow_empty=False):
     """文字列のリストを取り出して検証する。"""
     if key not in data:
         if required:
@@ -59,7 +59,7 @@ def _str_list(data, key, default=None, lower=False, required=False):
     v = data[key]
     if not isinstance(v, list) or not all(isinstance(x, str) and x.strip() for x in v):
         raise _bad(key, "は、空でない文字列のリストで指定してください", "例: %s = [\"a\", \"b\"]" % key)
-    if required and not v:
+    if required and not v and not allow_empty:
         raise _bad(key, "が空です", "検索対象のフォルダを1つ以上指定してください。")
     return [x.strip().lstrip(".").lower() if lower else x.strip() for x in v]
 
@@ -107,7 +107,8 @@ def load_config(path):
         raise ConfigError("config.toml の設定エラー: 未知のキー「%s」があります。綴りを確認してください（使えるキー: %s）。"
                           % ("」「".join(unknown), "、".join(sorted(_KNOWN))))
     base = os.path.dirname(os.path.abspath(path))
-    roots = [_resolve(base, r) for r in _str_list(data, "roots", required=True)]
+    # roots は省略できる（検索画面の「選択…」で、検索するフォルダを後から選べる）
+    roots = [_resolve(base, r) for r in _str_list(data, "roots", default=[])]
     db_path = data.get("db_path", "index.db")
     out_dir = data.get("output_dir", "output")
     for k, v in (("db_path", db_path), ("output_dir", out_dir)):

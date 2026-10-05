@@ -12,7 +12,8 @@ from core.config import ConfigError, load_config
 from core.normalize import normalize
 from core.pathutil import fs_path, to_long_path
 from core.query import QueryError, like_pattern, parse_query
-from core.searcher import SearchResult, build_options, folder_to_relative, make_snippet
+from core import roots as R
+from core.searcher import SearchResult, build_options, make_snippet
 
 
 class NormalizeTest(unittest.TestCase):
@@ -97,10 +98,13 @@ class ConfigTest(unittest.TestCase):
             self.assertIn(w, msg)
         return msg
 
+    def test_roots_are_optional(self):
+        """roots は省略・空でもよい（検索画面で、検索するフォルダを選べる）。"""
+        self.assertEqual(load_config(self.write('db_path = "i.db"\n')).roots, [])
+        self.assertEqual(load_config(self.write("roots = []\n")).roots, [])
+
     def test_errors_name_key_and_reason(self):
         """エラーにはキー名と原因が日本語で入る。"""
-        self.assertErr('db_path = "x"\n', "roots", "ありません")
-        self.assertErr('roots = []\n', "roots", "空")
         self.assertErr('roots = "D:/a"\n', "roots", "リスト")
         self.assertErr('roots = ["a"]\nmax_file_size_mb = "大きい"\n', "max_file_size_mb", "数値")
         self.assertErr('roots = ["a"]\nmax_file_size_mb = 0\n', "max_file_size_mb", "範囲外")
@@ -172,28 +176,45 @@ class QueryParseTest(unittest.TestCase):
         self.assertEqual(o.exts, ["docx", "pdf"])
 
 
-class FolderChoiceTest(unittest.TestCase):
-    def test_absolute_to_relative(self):
-        """ダイアログで選んだ絶対パスが、検索対象フォルダからの相対パスになる。"""
-        roots = ["/data/資料", "/srv/共有"]
-        self.assertEqual(folder_to_relative("/data/資料/契約書/2024", roots), "契約書/2024")
-        self.assertEqual(folder_to_relative("/srv/共有/企画\u3000資料", roots), "企画\u3000資料")
-        self.assertEqual(folder_to_relative("/data/資料", roots), "")
-        self.assertEqual(folder_to_relative("契約書/2024", roots), "契約書/2024")
-        self.assertEqual(folder_to_relative("", roots), "")
+class RootsTest(unittest.TestCase):
+    def test_relative_to_and_within(self):
+        """選んだフォルダが root の中かを判定する。名前の前半が同じだけの兄弟フォルダは「外」。"""
+        self.assertEqual(R.relative_to("/data/資料/契約書/2024", "/data/資料"), "契約書/2024")
+        self.assertEqual(R.relative_to("/data/資料", "/data/資料"), "")
+        self.assertIsNone(R.relative_to("/data/資料2/x", "/data/資料"))
+        self.assertIsNone(R.relative_to("/data", "/data/資料"))
+        self.assertTrue(R.is_within("/a/b", "/a"))
+        self.assertFalse(R.is_within("/a", "/a", strict=True))
 
-    def test_outside_roots_is_japanese_error(self):
-        """検索対象の外のフォルダ（前方一致だけ似ているものを含む）は、日本語のエラーになる。"""
-        for p in ("/other/dir", "/data/資料2/x"):
+    def test_effective_roots_drops_nested(self):
+        """入れ子の root は、上位のものにまとめる。順序・重複に依らない。"""
+        self.assertEqual(R.effective_roots(["/a/b", "/a", "/c", "/c"]), ["/a", "/c"])
+        self.assertEqual(R.effective_roots(["/a", "/a/b/c"]), ["/a"])
+        self.assertEqual(R.effective_roots([]), [])
+        self.assertEqual(R.effective_roots(["/a/b", "/a/bc"]), ["/a/b", "/a/bc"])
+
+    def test_scopes_child_parent_unrelated(self):
+        """子フォルダを選べば、その下だけ。親は含まない。root を含むだけの親は「未登録あり」。"""
+        scopes, covered = R.scopes_for("/data/資料/契約書", ["/data/資料"])
+        self.assertEqual((scopes, covered), ([("/data/資料", "契約書")], True))
+        self.assertEqual(R.scopes_for("/data/資料", ["/data/資料"]), ([("/data/資料", "")], True))
+        scopes, covered = R.scopes_for("/data", ["/data/資料", "/other"])  # 親を選んだ: 登録済みは子だけ → 未完了
+        self.assertEqual((scopes, covered), ([("/data/資料", "")], False))
+        self.assertEqual(R.scopes_for("/elsewhere", ["/data/資料"]), ([], False))
+
+    def test_build_options_absolute_folder(self):
+        """絶対パスの --folder は、登録済みの root の中なら、そのフォルダ以下の条件になる。未登録は日本語のエラー。"""
+        o = build_options(folder="/data/資料/a", roots=["/data/資料"])
+        self.assertEqual((o.scopes, o.folder), ([("/data/資料", "a")], ""))
+        for roots in ([], ["/other"], ["/data/資料/a/b"]):
             with self.assertRaises(QueryError) as cm:
-                folder_to_relative(p, ["/data/資料"])
-            self.assertIn("検索対象フォルダ", str(cm.exception))
-        self.assertEqual(build_options(folder="/data/資料/a", roots=["/data/資料"]).folder, "a")
+                build_options(folder="/data/資料/a", roots=roots)
+            self.assertIn("まだインデックスされていません", str(cm.exception))
+            self.assertIn("--add", str(cm.exception))
+        self.assertEqual(build_options(folder="契約書/2024").folder, "契約書/2024")  # 相対はこれまでどおり
 
-
-class MappedDriveTest(unittest.TestCase):
     def test_alias_path_resolves_to_real_root(self):
-        """別名（リンク／Windowsのネットワークドライブ）経由で選んだフォルダも、実体のrootsと照合される。"""
+        """別名（リンク／Windowsのネットワークドライブ）経由で選んだフォルダも、実体のrootと照合される。"""
         d = tempfile.mkdtemp()
         real = os.path.join(d, "real", "共有")
         os.makedirs(os.path.join(real, "令和7年度"))
@@ -202,15 +223,9 @@ class MappedDriveTest(unittest.TestCase):
             os.symlink(real, alias, target_is_directory=True)
         except (OSError, NotImplementedError):
             self.skipTest("シンボリックリンクを作れない環境")
-        self.assertEqual(folder_to_relative(os.path.join(alias, "令和7年度"), [real]), "令和7年度")
-        self.assertEqual(folder_to_relative(alias, [real]), "")
-        self.assertEqual(folder_to_relative(os.path.join(real, "令和7年度"), [alias]), "令和7年度")
-
-    def test_dummy_roots_hint(self):
-        """rootsがダミーのままのときは、原因の可能性を案内する。"""
-        with self.assertRaises(QueryError) as cm:
-            folder_to_relative("/V/令和7年度", ["/D/ダミー資料"])
-        self.assertIn("ダミーパスのまま", str(cm.exception))
+        self.assertEqual(R.relative_to(os.path.join(alias, "令和7年度"), real), "令和7年度")
+        self.assertEqual(R.relative_to(os.path.join(real, "令和7年度"), alias), "令和7年度")
+        self.assertEqual(R.scopes_for(alias, [real]), ([(real, "")], True))
 
 
 class SnippetTest(unittest.TestCase):
