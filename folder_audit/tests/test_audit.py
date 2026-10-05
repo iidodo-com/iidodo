@@ -322,6 +322,67 @@ class TestModes(unittest.TestCase):
         self.assertFalse((self.out / runner.WORK_DB_NAME).exists())
 
 
+class TestDialog(unittest.TestCase):
+    """フォルダ選択ダイアログ（画面なし環境のためダイアログ関数はモックで差し替える）"""
+
+    def setUp(self):
+        """出力先を用意する"""
+        self.out = Path(tempfile.mkdtemp(prefix="audit_out5_", dir=WORK.parent))
+        self.target = WORK / "target"
+
+    def tearDown(self):
+        """出力を消す"""
+        shutil.rmtree(self.out, ignore_errors=True)
+
+    def run_main(self, argv, answers):
+        """main を実行する。ダイアログは answers を順に返す。(終了コード, 呼ばれたタイトル) を返す"""
+        import main as main_mod
+        from audit import dialog
+        asked = []
+
+        def fake(title, initialdir=None):
+            asked.append(title)
+            return answers.pop(0)
+
+        with mock.patch.object(dialog, "choose_folder", side_effect=fake), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            code = main_mod.main(argv + ["--config", str(WORK / "test_config.toml")])
+        return code, asked
+
+    def test_both_by_dialog(self):
+        """引数なしなら対象・出力先の両方をダイアログで選ぶ"""
+        code, asked = self.run_main([], [str(self.target), str(self.out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(asked), 2)
+        self.assertTrue(list(self.out.glob("*.xlsx")))
+
+    def test_only_output_by_dialog(self):
+        """--target だけ指定したら出力先だけダイアログで選ぶ"""
+        code, asked = self.run_main(["--target", str(self.target)], [str(self.out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(asked), 1)
+
+    def test_no_dialog_when_both_given(self):
+        """両方指定ならダイアログを開かない"""
+        code, asked = self.run_main(["--target", str(self.target), "--output", str(self.out)], [])
+        self.assertEqual(code, 0)
+        self.assertEqual(asked, [])
+
+    def test_cancel(self):
+        """キャンセルしたら何も実行せず終了コード1"""
+        code, _ = self.run_main([], [None])
+        self.assertEqual(code, 1)
+        self.assertFalse(list(self.out.glob("*")))
+        code, _ = self.run_main([], [str(self.target), None])
+        self.assertEqual(code, 1)
+
+    def test_unavailable(self):
+        """画面のない環境ではダイアログを開けない旨を表示し、引数指定を案内する"""
+        from audit import dialog
+        with self.assertRaises(dialog.DialogUnavailable):
+            dialog.choose_folder("x")
+
+
 class TestErrorHandling(unittest.TestCase):
     """読み取れない項目で止まらず記録する（root環境でも検証できるようモックで再現）"""
 
