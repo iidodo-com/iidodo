@@ -1,0 +1,8 @@
+# 秘密情報
+.env
+*.env
+# 取得データ・出力(ICE Data Indices のデータは再配布不可のためコミットしない)
+data/
+output/
+__pycache__/
+*.pyc
