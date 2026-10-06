@@ -1,0 +1,316 @@
+{
+  "fetched_at": "2026-10-06T11:35:27+09:00",
+  "sources": [
+    {
+      "id": "teiin",
+      "name": "地方公共団体定員管理調査（令和6年）指定都市データ",
+      "publisher": "総務省",
+      "stat_id": "e-Stat 統計コード 00200216／ファイル 000983631.xlsx（第1表 部門別職員一覧）",
+      "page_url": "https://www.soumu.go.jp/main_sosiki/jichi_gyousei/c-gyousei/teiin/251225data.html",
+      "estat_url": "https://www.e-stat.go.jp/statistics/00200216",
+      "survey_date": "2024-04-01",
+      "survey_label": "令和6年4月1日",
+      "status": "ok",
+      "files": [
+        {
+          "name": "teiin_shitei.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000983631.xlsx",
+          "retrieved_at": "2026-10-06T11:35:27+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 97203,
+          "sha256": "8c90d82a4620f36ad9207bb1c103f1cd1833e1f675e3e93143d62ba0708a4183",
+          "last_modified": "Thu, 25 Dec 2025 05:02:51 GMT"
+        }
+      ],
+      "reason": null
+    },
+    {
+      "id": "jyuki_r6",
+      "name": "住民基本台帳に基づく人口、人口動態及び世帯数（令和6年1月1日現在）市区町村別【総計】",
+      "publisher": "総務省",
+      "stat_id": "e-Stat 統計コード 00200241／ファイル 000959256.xlsx",
+      "page_url": "https://www.soumu.go.jp/menu_news/s-news/01gyosei02_02000316.html",
+      "estat_url": "https://www.e-stat.go.jp/statistics/00200241",
+      "survey_date": "2024-01-01",
+      "survey_label": "令和6年1月1日",
+      "status": "ok",
+      "files": [
+        {
+          "name": "jyuki_r6.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000959256.xlsx",
+          "retrieved_at": "2026-10-06T11:35:29+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 398768,
+          "sha256": "49501ad0d561c28ff500b55e71d5da01e2539b17d0ff03bd700f78c45a562cc2",
+          "last_modified": "Wed, 24 Jul 2024 08:00:10 GMT"
+        }
+      ],
+      "reason": null
+    },
+    {
+      "id": "jyuki_r7",
+      "name": "住民基本台帳に基づく人口、人口動態及び世帯数（令和7年1月1日現在）市区町村別【総計】",
+      "publisher": "総務省",
+      "stat_id": "e-Stat 統計コード 00200241／ファイル 001023714.xlsx",
+      "page_url": "https://www.soumu.go.jp/menu_news/s-news/01gyosei02_02000389.html",
+      "estat_url": "https://www.e-stat.go.jp/statistics/00200241",
+      "survey_date": "2025-01-01",
+      "survey_label": "令和7年1月1日",
+      "status": "ok",
+      "files": [
+        {
+          "name": "jyuki_r7.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/001023714.xlsx",
+          "retrieved_at": "2026-10-06T11:35:30+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 402527,
+          "sha256": "4bb0c174c0b3d8552953c8ed0c12c598769718ba40b71bf035816910701dfd8b",
+          "last_modified": "Wed, 06 Aug 2025 08:00:58 GMT"
+        }
+      ],
+      "reason": null
+    },
+    {
+      "id": "zaisei",
+      "name": "財政状況資料集 令和5年度（総括表・市町村）",
+      "publisher": "総務省（地方財政状況調査）",
+      "stat_id": "e-Stat 統計コード 00200251（地方財政状況調査）／市別 xlsx 000999765〜000999784",
+      "page_url": "https://www.soumu.go.jp/iken/zaisei/jyoukyou_shiryou/r05/index.html",
+      "estat_url": "https://www.e-stat.go.jp/statistics/00200251",
+      "survey_date": "2024-03-31",
+      "survey_label": "令和5年度決算",
+      "status": "ok",
+      "files": [
+        {
+          "name": "zaisei_01100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999765.xlsx",
+          "retrieved_at": "2026-10-06T11:35:32+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 656929,
+          "sha256": "77a330e3b6491e08cfcf987c79123607b22acabd397d46d2348bbe2da718b093",
+          "last_modified": "Fri, 03 Oct 2025 06:03:32 GMT"
+        },
+        {
+          "name": "zaisei_04100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999766.xlsx",
+          "retrieved_at": "2026-10-06T11:35:34+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 646363,
+          "sha256": "80c819c87219de2a2a164b37c90aebe562afd90424c781f08c0ee54bf9a718cb",
+          "last_modified": "Tue, 30 Sep 2025 08:13:33 GMT"
+        },
+        {
+          "name": "zaisei_11100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999767.xlsx",
+          "retrieved_at": "2026-10-06T11:35:35+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 650961,
+          "sha256": "334136193999aa1dd15d8ec94c8d5a41ca45aa71abd3447dda4f70c1ab101bd3",
+          "last_modified": "Tue, 30 Sep 2025 08:13:34 GMT"
+        },
+        {
+          "name": "zaisei_12100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999768.xlsx",
+          "retrieved_at": "2026-10-06T11:35:36+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 643441,
+          "sha256": "1229cfd102a7d10b8f467e393cf97af0ca9875797ad2c563ebb32312c4d394a8",
+          "last_modified": "Tue, 30 Sep 2025 08:13:31 GMT"
+        },
+        {
+          "name": "zaisei_14100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999769.xlsx",
+          "retrieved_at": "2026-10-06T11:35:38+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 651627,
+          "sha256": "67045509c1dbd4eb00a9fd26831fcf8b51b1c5245c092432ef90f14f60115d74",
+          "last_modified": "Tue, 30 Sep 2025 08:13:32 GMT"
+        },
+        {
+          "name": "zaisei_14130.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999770.xlsx",
+          "retrieved_at": "2026-10-06T11:35:39+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 667726,
+          "sha256": "0bfde42a98a71f1f083dc74fcc8981f97ec7bc2f5560d38d57ad3b4909ab528f",
+          "last_modified": "Tue, 30 Sep 2025 08:13:42 GMT"
+        },
+        {
+          "name": "zaisei_14150.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999771.xlsx",
+          "retrieved_at": "2026-10-06T11:35:41+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 650400,
+          "sha256": "90d8e6169566ab4523645f0e162fa50ad473fa106e406ce165e2ea4ac8ff0367",
+          "last_modified": "Tue, 30 Sep 2025 08:13:41 GMT"
+        },
+        {
+          "name": "zaisei_15100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999772.xlsx",
+          "retrieved_at": "2026-10-06T11:35:43+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 665529,
+          "sha256": "2bf0ee85e05896ee423863de4831cae5cd60af6b2caf67036eb08d949b38d2d3",
+          "last_modified": "Tue, 30 Sep 2025 08:13:41 GMT"
+        },
+        {
+          "name": "zaisei_22100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999773.xlsx",
+          "retrieved_at": "2026-10-06T11:35:44+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 739597,
+          "sha256": "8e9944d27149ca7ef46cdb7d20ca80e7ada8f4300146b4a4cfba023db4bde966",
+          "last_modified": "Tue, 30 Sep 2025 08:13:40 GMT"
+        },
+        {
+          "name": "zaisei_22130.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999774.xlsx",
+          "retrieved_at": "2026-10-06T11:35:45+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 659615,
+          "sha256": "d578ced8aa2e67f7ede09b80fa2c3fb8968512a7d7d918454e4bc5108522db9b",
+          "last_modified": "Fri, 03 Oct 2025 06:03:32 GMT"
+        },
+        {
+          "name": "zaisei_23100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999775.xlsx",
+          "retrieved_at": "2026-10-06T11:35:47+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 646203,
+          "sha256": "5a720f481723109e7863ff065bd3de104fd821a7d621812343d3429b7246041a",
+          "last_modified": "Wed, 08 Oct 2025 01:31:03 GMT"
+        },
+        {
+          "name": "zaisei_26100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999776.xlsx",
+          "retrieved_at": "2026-10-06T11:35:48+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 645978,
+          "sha256": "11bad69392446a19c83da1a999009fed4999040d634e9bd970d99b84c3f03863",
+          "last_modified": "Tue, 30 Sep 2025 08:13:42 GMT"
+        },
+        {
+          "name": "zaisei_27100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999777.xlsx",
+          "retrieved_at": "2026-10-06T11:35:50+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 644759,
+          "sha256": "9b7e49fd3455013220e557ac1da22ac8e46126d3117adf58a26d5a56e554166d",
+          "last_modified": "Tue, 30 Sep 2025 08:13:41 GMT"
+        },
+        {
+          "name": "zaisei_27140.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999778.xlsx",
+          "retrieved_at": "2026-10-06T11:35:51+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 660230,
+          "sha256": "75e704107b8565577824e2b686375022a12aa397175cd3d365a6a4eb3c67e9a9",
+          "last_modified": "Tue, 30 Sep 2025 08:13:42 GMT"
+        },
+        {
+          "name": "zaisei_28100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999779.xlsx",
+          "retrieved_at": "2026-10-06T11:35:53+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 673224,
+          "sha256": "039b9ac3392cc8c56db995a6ddc10323cbd2c3a2b7a3982f58c21e9f071cf3b4",
+          "last_modified": "Tue, 30 Sep 2025 08:13:40 GMT"
+        },
+        {
+          "name": "zaisei_33100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999780.xlsx",
+          "retrieved_at": "2026-10-06T11:35:54+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 664525,
+          "sha256": "9ab454c2ea88031e47fa5bf6bbc5228361cd734706212210b20b2cbf31486ab7",
+          "last_modified": "Tue, 30 Sep 2025 08:13:39 GMT"
+        },
+        {
+          "name": "zaisei_34100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999781.xlsx",
+          "retrieved_at": "2026-10-06T11:35:56+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 656841,
+          "sha256": "5f5ce9a65e9e59ae184f830466ad5bb3b23f934edf3dc85bab3d9f43e71e93c0",
+          "last_modified": "Tue, 30 Sep 2025 08:13:39 GMT"
+        },
+        {
+          "name": "zaisei_40100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999782.xlsx",
+          "retrieved_at": "2026-10-06T11:35:57+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 658765,
+          "sha256": "7d6febe9d39ec916f4a2838b7a3bc130e61e139935e1fca5967a437b14907ad5",
+          "last_modified": "Tue, 30 Sep 2025 08:13:38 GMT"
+        },
+        {
+          "name": "zaisei_40130.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999783.xlsx",
+          "retrieved_at": "2026-10-06T11:35:58+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 672882,
+          "sha256": "466a00c65302d066cf4e8a5287f9786835b071085dd99d143c71c7c635b95df6",
+          "last_modified": "Tue, 30 Sep 2025 08:13:38 GMT"
+        },
+        {
+          "name": "zaisei_43100.xlsx",
+          "url": "https://www.soumu.go.jp/main_content/000999784.xlsx",
+          "retrieved_at": "2026-10-06T11:36:00+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 666899,
+          "sha256": "d2a04e756830530a6551a408e4f0cb7ec47fb3707af29cc5a98111e67ba24412",
+          "last_modified": "Tue, 30 Sep 2025 08:13:38 GMT"
+        }
+      ],
+      "reason": null
+    },
+    {
+      "id": "census2020",
+      "name": "令和2年国勢調査 人口等基本集計 男女別人口（全国，都道府県，市区町村）",
+      "publisher": "総務省統計局（e-Stat API）",
+      "stats_data_id": "0003445078",
+      "stat_id": "e-Stat 統計表ID 0003445078（統計コード 00200521）",
+      "page_url": "https://www.e-stat.go.jp/dbview?sid=0003445078",
+      "estat_url": "https://www.e-stat.go.jp/statistics/00200521",
+      "survey_date": "2020-10-01",
+      "survey_label": "令和2年10月1日",
+      "updated": "2026-09-29",
+      "status": "ok",
+      "files": [
+        {
+          "name": "census2020.json",
+          "url": "https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?statsDataId=0003445078&cdArea=01100,04100,11100,12100,14100,14130,14150,15100,22100,22130,23100,26100,27100,27140,28100,33100,34100,40100,40130,43100",
+          "retrieved_at": "2026-10-06T11:36:02+09:00",
+          "status": "ok",
+          "http_status": 200,
+          "bytes": 8619,
+          "sha256": "e2f3f353fe19836a1c1fe960e3de7b118fa842612815d96b41590c7c748355eb"
+        }
+      ],
+      "reason": null
+    }
+  ]
+}

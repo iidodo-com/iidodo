@@ -1,0 +1,5595 @@
+{
+ "title": "政令指定都市 比較ダッシュボード",
+ "generated_from_fetch_at": "2026-10-06T11:35:27+09:00",
+ "highlight": "34100",
+ "cities": [
+  {
+   "code": "01100",
+   "name": "札幌市",
+   "pref": "北海道"
+  },
+  {
+   "code": "04100",
+   "name": "仙台市",
+   "pref": "宮城県"
+  },
+  {
+   "code": "11100",
+   "name": "さいたま市",
+   "pref": "埼玉県"
+  },
+  {
+   "code": "12100",
+   "name": "千葉市",
+   "pref": "千葉県"
+  },
+  {
+   "code": "14100",
+   "name": "横浜市",
+   "pref": "神奈川県"
+  },
+  {
+   "code": "14130",
+   "name": "川崎市",
+   "pref": "神奈川県"
+  },
+  {
+   "code": "14150",
+   "name": "相模原市",
+   "pref": "神奈川県"
+  },
+  {
+   "code": "15100",
+   "name": "新潟市",
+   "pref": "新潟県"
+  },
+  {
+   "code": "22100",
+   "name": "静岡市",
+   "pref": "静岡県"
+  },
+  {
+   "code": "22130",
+   "name": "浜松市",
+   "pref": "静岡県"
+  },
+  {
+   "code": "23100",
+   "name": "名古屋市",
+   "pref": "愛知県"
+  },
+  {
+   "code": "26100",
+   "name": "京都市",
+   "pref": "京都府"
+  },
+  {
+   "code": "27100",
+   "name": "大阪市",
+   "pref": "大阪府"
+  },
+  {
+   "code": "27140",
+   "name": "堺市",
+   "pref": "大阪府"
+  },
+  {
+   "code": "28100",
+   "name": "神戸市",
+   "pref": "兵庫県"
+  },
+  {
+   "code": "33100",
+   "name": "岡山市",
+   "pref": "岡山県"
+  },
+  {
+   "code": "34100",
+   "name": "広島市",
+   "pref": "広島県"
+  },
+  {
+   "code": "40100",
+   "name": "北九州市",
+   "pref": "福岡県"
+  },
+  {
+   "code": "40130",
+   "name": "福岡市",
+   "pref": "福岡県"
+  },
+  {
+   "code": "43100",
+   "name": "熊本市",
+   "pref": "熊本県"
+  }
+ ],
+ "sources": [
+  {
+   "id": "teiin",
+   "name": "地方公共団体定員管理調査（令和6年）指定都市データ",
+   "publisher": "総務省",
+   "stat_id": "e-Stat 統計コード 00200216／ファイル 000983631.xlsx（第1表 部門別職員一覧）",
+   "page_url": "https://www.soumu.go.jp/main_sosiki/jichi_gyousei/c-gyousei/teiin/251225data.html",
+   "estat_url": "https://www.e-stat.go.jp/statistics/00200216",
+   "survey_date": "2024-04-01",
+   "survey_label": "令和6年4月1日",
+   "status": "ok",
+   "reason": null,
+   "updated": "サーバー更新日: Thu, 25 Dec 2025 05:02:51 GMT",
+   "retrieved_at": "2026-10-06T11:35:27+09:00",
+   "files": [
+    {
+     "name": "teiin_shitei.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000983631.xlsx",
+     "sha256": "8c90d82a4620f36ad9207bb1c103f1cd1833e1f675e3e93143d62ba0708a4183",
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "id": "jyuki_r6",
+   "name": "住民基本台帳に基づく人口、人口動態及び世帯数（令和6年1月1日現在）市区町村別【総計】",
+   "publisher": "総務省",
+   "stat_id": "e-Stat 統計コード 00200241／ファイル 000959256.xlsx",
+   "page_url": "https://www.soumu.go.jp/menu_news/s-news/01gyosei02_02000316.html",
+   "estat_url": "https://www.e-stat.go.jp/statistics/00200241",
+   "survey_date": "2024-01-01",
+   "survey_label": "令和6年1月1日",
+   "status": "ok",
+   "reason": null,
+   "updated": "サーバー更新日: Wed, 24 Jul 2024 08:00:10 GMT",
+   "retrieved_at": "2026-10-06T11:35:29+09:00",
+   "files": [
+    {
+     "name": "jyuki_r6.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000959256.xlsx",
+     "sha256": "49501ad0d561c28ff500b55e71d5da01e2539b17d0ff03bd700f78c45a562cc2",
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "id": "jyuki_r7",
+   "name": "住民基本台帳に基づく人口、人口動態及び世帯数（令和7年1月1日現在）市区町村別【総計】",
+   "publisher": "総務省",
+   "stat_id": "e-Stat 統計コード 00200241／ファイル 001023714.xlsx",
+   "page_url": "https://www.soumu.go.jp/menu_news/s-news/01gyosei02_02000389.html",
+   "estat_url": "https://www.e-stat.go.jp/statistics/00200241",
+   "survey_date": "2025-01-01",
+   "survey_label": "令和7年1月1日",
+   "status": "ok",
+   "reason": null,
+   "updated": "サーバー更新日: Wed, 06 Aug 2025 08:00:58 GMT",
+   "retrieved_at": "2026-10-06T11:35:30+09:00",
+   "files": [
+    {
+     "name": "jyuki_r7.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/001023714.xlsx",
+     "sha256": "4bb0c174c0b3d8552953c8ed0c12c598769718ba40b71bf035816910701dfd8b",
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "id": "census2020",
+   "name": "令和2年国勢調査 人口等基本集計 男女別人口（全国，都道府県，市区町村）",
+   "publisher": "総務省統計局（e-Stat API）",
+   "stat_id": "e-Stat 統計表ID 0003445078（統計コード 00200521）",
+   "page_url": "https://www.e-stat.go.jp/dbview?sid=0003445078",
+   "estat_url": "https://www.e-stat.go.jp/statistics/00200521",
+   "survey_date": "2020-10-01",
+   "survey_label": "令和2年10月1日",
+   "status": "ok",
+   "reason": null,
+   "updated": "2026-09-29",
+   "retrieved_at": "2026-10-06T11:36:02+09:00",
+   "files": [
+    {
+     "name": "census2020.json",
+     "url": "https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?statsDataId=0003445078&cdArea=01100,04100,11100,12100,14100,14130,14150,15100,22100,22130,23100,26100,27100,27140,28100,33100,34100,40100,40130,43100",
+     "sha256": "e2f3f353fe19836a1c1fe960e3de7b118fa842612815d96b41590c7c748355eb",
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "id": "zaisei",
+   "name": "財政状況資料集 令和5年度（総括表・市町村）",
+   "publisher": "総務省（地方財政状況調査）",
+   "stat_id": "e-Stat 統計コード 00200251（地方財政状況調査）／市別 xlsx 000999765〜000999784",
+   "page_url": "https://www.soumu.go.jp/iken/zaisei/jyoukyou_shiryou/r05/index.html",
+   "estat_url": "https://www.e-stat.go.jp/statistics/00200251",
+   "survey_date": "2024-03-31",
+   "survey_label": "令和5年度決算",
+   "status": "ok",
+   "reason": null,
+   "updated": "サーバー更新日: Fri, 03 Oct 2025 06:03:32 GMT 〜 Wed, 08 Oct 2025 01:31:03 GMT",
+   "retrieved_at": "2026-10-06T11:35:32+09:00",
+   "files": [
+    {
+     "name": "zaisei_01100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999765.xlsx",
+     "sha256": "77a330e3b6491e08cfcf987c79123607b22acabd397d46d2348bbe2da718b093",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_04100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999766.xlsx",
+     "sha256": "80c819c87219de2a2a164b37c90aebe562afd90424c781f08c0ee54bf9a718cb",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_11100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999767.xlsx",
+     "sha256": "334136193999aa1dd15d8ec94c8d5a41ca45aa71abd3447dda4f70c1ab101bd3",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_12100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999768.xlsx",
+     "sha256": "1229cfd102a7d10b8f467e393cf97af0ca9875797ad2c563ebb32312c4d394a8",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_14100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999769.xlsx",
+     "sha256": "67045509c1dbd4eb00a9fd26831fcf8b51b1c5245c092432ef90f14f60115d74",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_14130.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999770.xlsx",
+     "sha256": "0bfde42a98a71f1f083dc74fcc8981f97ec7bc2f5560d38d57ad3b4909ab528f",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_14150.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999771.xlsx",
+     "sha256": "90d8e6169566ab4523645f0e162fa50ad473fa106e406ce165e2ea4ac8ff0367",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_15100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999772.xlsx",
+     "sha256": "2bf0ee85e05896ee423863de4831cae5cd60af6b2caf67036eb08d949b38d2d3",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_22100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999773.xlsx",
+     "sha256": "8e9944d27149ca7ef46cdb7d20ca80e7ada8f4300146b4a4cfba023db4bde966",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_22130.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999774.xlsx",
+     "sha256": "d578ced8aa2e67f7ede09b80fa2c3fb8968512a7d7d918454e4bc5108522db9b",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_23100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999775.xlsx",
+     "sha256": "5a720f481723109e7863ff065bd3de104fd821a7d621812343d3429b7246041a",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_26100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999776.xlsx",
+     "sha256": "11bad69392446a19c83da1a999009fed4999040d634e9bd970d99b84c3f03863",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_27100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999777.xlsx",
+     "sha256": "9b7e49fd3455013220e557ac1da22ac8e46126d3117adf58a26d5a56e554166d",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_27140.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999778.xlsx",
+     "sha256": "75e704107b8565577824e2b686375022a12aa397175cd3d365a6a4eb3c67e9a9",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_28100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999779.xlsx",
+     "sha256": "039b9ac3392cc8c56db995a6ddc10323cbd2c3a2b7a3982f58c21e9f071cf3b4",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_33100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999780.xlsx",
+     "sha256": "9ab454c2ea88031e47fa5bf6bbc5228361cd734706212210b20b2cbf31486ab7",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_34100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999781.xlsx",
+     "sha256": "5f5ce9a65e9e59ae184f830466ad5bb3b23f934edf3dc85bab3d9f43e71e93c0",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_40100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999782.xlsx",
+     "sha256": "7d6febe9d39ec916f4a2838b7a3bc130e61e139935e1fca5967a437b14907ad5",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_40130.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999783.xlsx",
+     "sha256": "466a00c65302d066cf4e8a5287f9786835b071085dd99d143c71c7c635b95df6",
+     "status": "ok"
+    },
+    {
+     "name": "zaisei_43100.xlsx",
+     "url": "https://www.soumu.go.jp/main_content/000999784.xlsx",
+     "sha256": "d2a04e756830530a6551a408e4f0cb7ec47fb3707af29cc5a98111e67ba24412",
+     "status": "ok"
+    }
+   ]
+  }
+ ],
+ "indicators": [
+  {
+   "id": "pop_r6",
+   "label": "人口（住民基本台帳・令和6年1月1日）",
+   "group": "人口",
+   "unit": "人",
+   "kind": "raw",
+   "sources": [
+    "jyuki_r6"
+   ],
+   "basis": "令和6年1月1日",
+   "decimals": 0,
+   "note": "住民基本台帳に基づく人口（日本人住民＋外国人住民）。人口あたり指標の分母に使用。",
+   "values": {
+    "01100": {
+     "value": 1956928,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 1066362,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 1345012,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 978899,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 3752969,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 1529136,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 717861,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 767565,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 677736,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 788985,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 2297745,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 1379529,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 2757642,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 817041,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 1500425,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 698671,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 1178773,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 921241,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 1593919,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 731722,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "pop_r7",
+   "label": "人口（住民基本台帳・令和7年1月1日）",
+   "group": "人口",
+   "unit": "人",
+   "kind": "raw",
+   "sources": [
+    "jyuki_r7"
+   ],
+   "basis": "令和7年1月1日",
+   "decimals": 0,
+   "note": "参考。人口あたり指標には使用しない（職員数・決算と年が離れるため）。",
+   "values": {
+    "01100": {
+     "value": 1955678,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 1064142,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 1350500,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 983896,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 3753398,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 1535141,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 716494,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 761503,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 672775,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 783924,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 2303004,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 1373887,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 2778917,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 811993,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 1493543,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 695690,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 1173543,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 913577,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 1608140,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 731331,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "pop_change",
+   "label": "人口増減率（令和6.1.1→令和7.1.1）",
+   "group": "人口",
+   "unit": "％",
+   "kind": "derived",
+   "sources": [
+    "jyuki_r6",
+    "jyuki_r7"
+   ],
+   "basis": "令和6年1月1日→令和7年1月1日",
+   "decimals": 2,
+   "formula": "（令和7.1.1人口 − 令和6.1.1人口）÷ 令和6.1.1人口 × 100",
+   "numerator_label": "人口増減数（人）",
+   "denominator_label": "令和6.1.1人口（人）",
+   "multiplier": 100,
+   "inputs": [
+    "pop_r7",
+    "pop_r6"
+   ],
+   "note": "2時点の差を取った指標。時点が異なることを承知の上で表示。",
+   "values": {
+    "01100": {
+     "value": -0.0639,
+     "status": "ok",
+     "numerator": -1250,
+     "denominator": 1956928,
+     "inputs": {
+      "pop_r7": 1955678,
+      "pop_r6": 1956928
+     }
+    },
+    "04100": {
+     "value": -0.2082,
+     "status": "ok",
+     "numerator": -2220,
+     "denominator": 1066362,
+     "inputs": {
+      "pop_r7": 1064142,
+      "pop_r6": 1066362
+     }
+    },
+    "11100": {
+     "value": 0.408,
+     "status": "ok",
+     "numerator": 5488,
+     "denominator": 1345012,
+     "inputs": {
+      "pop_r7": 1350500,
+      "pop_r6": 1345012
+     }
+    },
+    "12100": {
+     "value": 0.5105,
+     "status": "ok",
+     "numerator": 4997,
+     "denominator": 978899,
+     "inputs": {
+      "pop_r7": 983896,
+      "pop_r6": 978899
+     }
+    },
+    "14100": {
+     "value": 0.0114,
+     "status": "ok",
+     "numerator": 429,
+     "denominator": 3752969,
+     "inputs": {
+      "pop_r7": 3753398,
+      "pop_r6": 3752969
+     }
+    },
+    "14130": {
+     "value": 0.3927,
+     "status": "ok",
+     "numerator": 6005,
+     "denominator": 1529136,
+     "inputs": {
+      "pop_r7": 1535141,
+      "pop_r6": 1529136
+     }
+    },
+    "14150": {
+     "value": -0.1904,
+     "status": "ok",
+     "numerator": -1367,
+     "denominator": 717861,
+     "inputs": {
+      "pop_r7": 716494,
+      "pop_r6": 717861
+     }
+    },
+    "15100": {
+     "value": -0.7898,
+     "status": "ok",
+     "numerator": -6062,
+     "denominator": 767565,
+     "inputs": {
+      "pop_r7": 761503,
+      "pop_r6": 767565
+     }
+    },
+    "22100": {
+     "value": -0.732,
+     "status": "ok",
+     "numerator": -4961,
+     "denominator": 677736,
+     "inputs": {
+      "pop_r7": 672775,
+      "pop_r6": 677736
+     }
+    },
+    "22130": {
+     "value": -0.6415,
+     "status": "ok",
+     "numerator": -5061,
+     "denominator": 788985,
+     "inputs": {
+      "pop_r7": 783924,
+      "pop_r6": 788985
+     }
+    },
+    "23100": {
+     "value": 0.2289,
+     "status": "ok",
+     "numerator": 5259,
+     "denominator": 2297745,
+     "inputs": {
+      "pop_r7": 2303004,
+      "pop_r6": 2297745
+     }
+    },
+    "26100": {
+     "value": -0.409,
+     "status": "ok",
+     "numerator": -5642,
+     "denominator": 1379529,
+     "inputs": {
+      "pop_r7": 1373887,
+      "pop_r6": 1379529
+     }
+    },
+    "27100": {
+     "value": 0.7715,
+     "status": "ok",
+     "numerator": 21275,
+     "denominator": 2757642,
+     "inputs": {
+      "pop_r7": 2778917,
+      "pop_r6": 2757642
+     }
+    },
+    "27140": {
+     "value": -0.6178,
+     "status": "ok",
+     "numerator": -5048,
+     "denominator": 817041,
+     "inputs": {
+      "pop_r7": 811993,
+      "pop_r6": 817041
+     }
+    },
+    "28100": {
+     "value": -0.4587,
+     "status": "ok",
+     "numerator": -6882,
+     "denominator": 1500425,
+     "inputs": {
+      "pop_r7": 1493543,
+      "pop_r6": 1500425
+     }
+    },
+    "33100": {
+     "value": -0.4267,
+     "status": "ok",
+     "numerator": -2981,
+     "denominator": 698671,
+     "inputs": {
+      "pop_r7": 695690,
+      "pop_r6": 698671
+     }
+    },
+    "34100": {
+     "value": -0.4437,
+     "status": "ok",
+     "numerator": -5230,
+     "denominator": 1178773,
+     "inputs": {
+      "pop_r7": 1173543,
+      "pop_r6": 1178773
+     }
+    },
+    "40100": {
+     "value": -0.8319,
+     "status": "ok",
+     "numerator": -7664,
+     "denominator": 921241,
+     "inputs": {
+      "pop_r7": 913577,
+      "pop_r6": 921241
+     }
+    },
+    "40130": {
+     "value": 0.8922,
+     "status": "ok",
+     "numerator": 14221,
+     "denominator": 1593919,
+     "inputs": {
+      "pop_r7": 1608140,
+      "pop_r6": 1593919
+     }
+    },
+    "43100": {
+     "value": -0.0534,
+     "status": "ok",
+     "numerator": -391,
+     "denominator": 731722,
+     "inputs": {
+      "pop_r7": 731331,
+      "pop_r6": 731722
+     }
+    }
+   }
+  },
+  {
+   "id": "pop_census",
+   "label": "人口（国勢調査・令和2年10月1日）",
+   "group": "人口",
+   "unit": "人",
+   "kind": "raw",
+   "sources": [
+    "census2020"
+   ],
+   "basis": "令和2年10月1日",
+   "decimals": 0,
+   "note": "e-Stat API（統計表ID 0003445078）より取得した値。 財政状況資料集の国調欄との差異: 相模原市（e-Stat 725,493人／資料集 725,489人）。本指標はe-Statの値を表示。",
+   "values": {
+    "01100": {
+     "value": 1973395,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 1096704,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 1324025,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 974951,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 3777491,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 1538262,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 725493,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 789275,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 693389,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 790718,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 2332176,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 1463723,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 2752412,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 826161,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 1525152,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 724691,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 1200754,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 939029,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 1612392,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 738865,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "staff_total",
+   "label": "職員数 合計（普通会計＋公営企業等会計）",
+   "group": "職員数",
+   "unit": "人",
+   "kind": "raw",
+   "sources": [
+    "teiin"
+   ],
+   "basis": "令和6年4月1日",
+   "decimals": 0,
+   "note": "地方公共団体定員管理調査 第1表。警察部門は指定都市では0。",
+   "values": {
+    "01100": {
+     "value": 23069,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 15214,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 16315,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 12345,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 46347,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 20074,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 8104,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 11384,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 9114,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 9133,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 35814,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 20351,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 36262,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 10516,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 21514,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 9009,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 15824,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 12354,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 18483,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 10653,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "staff_general",
+   "label": "職員数 普通会計計",
+   "group": "職員数",
+   "unit": "人",
+   "kind": "raw",
+   "sources": [
+    "teiin"
+   ],
+   "basis": "令和6年4月1日",
+   "decimals": 0,
+   "note": "地方公共団体定員管理調査 第1表。警察部門は指定都市では0。",
+   "values": {
+    "01100": {
+     "value": 19647,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 12343,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 14378,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 10688,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 38645,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 16661,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 7917,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 9531,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 8007,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 8675,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 28569,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 17037,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 33745,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 9896,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 18853,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 8429,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 14532,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 11512,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 16729,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 9257,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "staff_admin",
+   "label": "職員数 一般行政部門計",
+   "group": "職員数",
+   "unit": "人",
+   "kind": "raw",
+   "sources": [
+    "teiin"
+   ],
+   "basis": "令和6年4月1日",
+   "decimals": 0,
+   "note": "地方公共団体定員管理調査 第1表。警察部門は指定都市では0。",
+   "values": {
+    "01100": {
+     "value": 7598,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 4845,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 5723,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 4429,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 15445,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 7065,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 3391,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 3713,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 3414,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 3051,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 12396,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 6999,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 15207,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 3635,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 7656,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 3351,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 5890,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 4657,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 5995,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 3624,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "staff_admin_mgmt",
+   "label": "職員数 一般行政：一般管理",
+   "group": "職員数",
+   "unit": "人",
+   "kind": "raw",
+   "sources": [
+    "teiin"
+   ],
+   "basis": "令和6年4月1日",
+   "decimals": 0,
+   "note": "地方公共団体定員管理調査 第1表。警察部門は指定都市では0。",
+   "values": {
+    "01100": {
+     "value": 3683,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 2340,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 2471,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 1999,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 7286,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 3275,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 1624,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 1726,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 1729,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 1716,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 5480,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 3477,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 7369,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 1813,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 3523,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 1533,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 2739,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 2576,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 3701,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 2078,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "staff_welfare",
+   "label": "職員数 一般行政：福祉関係",
+   "group": "職員数",
+   "unit": "人",
+   "kind": "raw",
+   "sources": [
+    "teiin"
+   ],
+   "basis": "令和6年4月1日",
+   "decimals": 0,
+   "note": "地方公共団体定員管理調査 第1表。警察部門は指定都市では0。",
+   "values": {
+    "01100": {
+     "value": 3915,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 2505,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 3252,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 2430,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 8159,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 3790,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 1767,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 1987,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 1685,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 1335,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 6916,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 3522,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 7838,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 1822,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 4133,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 1818,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 3151,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 2081,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 2294,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 1546,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "staff_edu",
+   "label": "職員数 教育部門",
+   "group": "職員数",
+   "unit": "人",
+   "kind": "raw",
+   "sources": [
+    "teiin"
+   ],
+   "basis": "令和6年4月1日",
+   "decimals": 0,
+   "note": "地方公共団体定員管理調査 第1表。警察部門は指定都市では0。",
+   "values": {
+    "01100": {
+     "value": 10236,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 6358,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 7297,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 5330,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 19531,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 8141,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 3767,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 4899,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 3550,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 4728,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 13742,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 8409,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 14909,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 5193,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 9690,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 4299,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 7284,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 5867,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 9582,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 4826,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "staff_fire",
+   "label": "職員数 消防部門",
+   "group": "職員数",
+   "unit": "人",
+   "kind": "raw",
+   "sources": [
+    "teiin"
+   ],
+   "basis": "令和6年4月1日",
+   "decimals": 0,
+   "note": "地方公共団体定員管理調査 第1表。警察部門は指定都市では0。",
+   "values": {
+    "01100": {
+     "value": 1813,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 1140,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 1358,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 929,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 3669,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 1455,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 759,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 919,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 1043,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 896,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 2431,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 1629,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 3629,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 1068,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 1507,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 779,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 1358,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 988,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 1152,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 807,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "staff_enterprise",
+   "label": "職員数 公営企業等会計",
+   "group": "職員数",
+   "unit": "人",
+   "kind": "raw",
+   "sources": [
+    "teiin"
+   ],
+   "basis": "令和6年4月1日",
+   "decimals": 0,
+   "note": "地方公共団体定員管理調査 第1表。警察部門は指定都市では0。",
+   "values": {
+    "01100": {
+     "value": 3422,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 2871,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 1937,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 1657,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 7702,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 3413,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 187,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 1853,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 1107,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 458,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 7245,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 3314,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 2517,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 620,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 2661,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 580,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 1292,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 842,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 1754,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 1396,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "staff_total_per10k",
+   "label": "人口1万人あたり職員数 合計",
+   "group": "職員数（人口あたり）",
+   "unit": "人／1万人",
+   "kind": "derived",
+   "sources": [
+    "teiin",
+    "jyuki_r6"
+   ],
+   "decimals": 2,
+   "basis": "分子：令和6年4月1日／分母：令和6年1月1日（3か月の差）",
+   "formula": "職員数（合計（普通会計＋公営企業等会計）） ÷ 住基人口（令和6.1.1） × 10,000",
+   "numerator_label": "職員数（人）",
+   "denominator_label": "住基人口 令和6.1.1（人）",
+   "multiplier": 10000,
+   "inputs": [
+    "staff_total",
+    "pop_r6"
+   ],
+   "note": "分子・分母の基準日が3か月ずれる。職員数は4月1日、人口は直前の1月1日の住基人口を採用。",
+   "values": {
+    "01100": {
+     "value": 117.883744,
+     "status": "ok",
+     "numerator": 23069,
+     "denominator": 1956928,
+     "inputs": {
+      "staff_total": 23069,
+      "pop_r6": 1956928
+     }
+    },
+    "04100": {
+     "value": 142.672001,
+     "status": "ok",
+     "numerator": 15214,
+     "denominator": 1066362,
+     "inputs": {
+      "staff_total": 15214,
+      "pop_r6": 1066362
+     }
+    },
+    "11100": {
+     "value": 121.300033,
+     "status": "ok",
+     "numerator": 16315,
+     "denominator": 1345012,
+     "inputs": {
+      "staff_total": 16315,
+      "pop_r6": 1345012
+     }
+    },
+    "12100": {
+     "value": 126.11107,
+     "status": "ok",
+     "numerator": 12345,
+     "denominator": 978899,
+     "inputs": {
+      "staff_total": 12345,
+      "pop_r6": 978899
+     }
+    },
+    "14100": {
+     "value": 123.494226,
+     "status": "ok",
+     "numerator": 46347,
+     "denominator": 3752969,
+     "inputs": {
+      "staff_total": 46347,
+      "pop_r6": 3752969
+     }
+    },
+    "14130": {
+     "value": 131.276747,
+     "status": "ok",
+     "numerator": 20074,
+     "denominator": 1529136,
+     "inputs": {
+      "staff_total": 20074,
+      "pop_r6": 1529136
+     }
+    },
+    "14150": {
+     "value": 112.890936,
+     "status": "ok",
+     "numerator": 8104,
+     "denominator": 717861,
+     "inputs": {
+      "staff_total": 8104,
+      "pop_r6": 717861
+     }
+    },
+    "15100": {
+     "value": 148.313172,
+     "status": "ok",
+     "numerator": 11384,
+     "denominator": 767565,
+     "inputs": {
+      "staff_total": 11384,
+      "pop_r6": 767565
+     }
+    },
+    "22100": {
+     "value": 134.477142,
+     "status": "ok",
+     "numerator": 9114,
+     "denominator": 677736,
+     "inputs": {
+      "staff_total": 9114,
+      "pop_r6": 677736
+     }
+    },
+    "22130": {
+     "value": 115.75632,
+     "status": "ok",
+     "numerator": 9133,
+     "denominator": 788985,
+     "inputs": {
+      "staff_total": 9133,
+      "pop_r6": 788985
+     }
+    },
+    "23100": {
+     "value": 155.86586,
+     "status": "ok",
+     "numerator": 35814,
+     "denominator": 2297745,
+     "inputs": {
+      "staff_total": 35814,
+      "pop_r6": 2297745
+     }
+    },
+    "26100": {
+     "value": 147.521364,
+     "status": "ok",
+     "numerator": 20351,
+     "denominator": 1379529,
+     "inputs": {
+      "staff_total": 20351,
+      "pop_r6": 1379529
+     }
+    },
+    "27100": {
+     "value": 131.496402,
+     "status": "ok",
+     "numerator": 36262,
+     "denominator": 2757642,
+     "inputs": {
+      "staff_total": 36262,
+      "pop_r6": 2757642
+     }
+    },
+    "27140": {
+     "value": 128.708351,
+     "status": "ok",
+     "numerator": 10516,
+     "denominator": 817041,
+     "inputs": {
+      "staff_total": 10516,
+      "pop_r6": 817041
+     }
+    },
+    "28100": {
+     "value": 143.386041,
+     "status": "ok",
+     "numerator": 21514,
+     "denominator": 1500425,
+     "inputs": {
+      "staff_total": 21514,
+      "pop_r6": 1500425
+     }
+    },
+    "33100": {
+     "value": 128.944811,
+     "status": "ok",
+     "numerator": 9009,
+     "denominator": 698671,
+     "inputs": {
+      "staff_total": 9009,
+      "pop_r6": 698671
+     }
+    },
+    "34100": {
+     "value": 134.241283,
+     "status": "ok",
+     "numerator": 15824,
+     "denominator": 1178773,
+     "inputs": {
+      "staff_total": 15824,
+      "pop_r6": 1178773
+     }
+    },
+    "40100": {
+     "value": 134.101717,
+     "status": "ok",
+     "numerator": 12354,
+     "denominator": 921241,
+     "inputs": {
+      "staff_total": 12354,
+      "pop_r6": 921241
+     }
+    },
+    "40130": {
+     "value": 115.959468,
+     "status": "ok",
+     "numerator": 18483,
+     "denominator": 1593919,
+     "inputs": {
+      "staff_total": 18483,
+      "pop_r6": 1593919
+     }
+    },
+    "43100": {
+     "value": 145.588079,
+     "status": "ok",
+     "numerator": 10653,
+     "denominator": 731722,
+     "inputs": {
+      "staff_total": 10653,
+      "pop_r6": 731722
+     }
+    }
+   }
+  },
+  {
+   "id": "staff_general_per10k",
+   "label": "人口1万人あたり職員数 普通会計計",
+   "group": "職員数（人口あたり）",
+   "unit": "人／1万人",
+   "kind": "derived",
+   "sources": [
+    "teiin",
+    "jyuki_r6"
+   ],
+   "decimals": 2,
+   "basis": "分子：令和6年4月1日／分母：令和6年1月1日（3か月の差）",
+   "formula": "職員数（普通会計計） ÷ 住基人口（令和6.1.1） × 10,000",
+   "numerator_label": "職員数（人）",
+   "denominator_label": "住基人口 令和6.1.1（人）",
+   "multiplier": 10000,
+   "inputs": [
+    "staff_general",
+    "pop_r6"
+   ],
+   "note": "分子・分母の基準日が3か月ずれる。職員数は4月1日、人口は直前の1月1日の住基人口を採用。",
+   "values": {
+    "01100": {
+     "value": 100.397153,
+     "status": "ok",
+     "numerator": 19647,
+     "denominator": 1956928,
+     "inputs": {
+      "staff_general": 19647,
+      "pop_r6": 1956928
+     }
+    },
+    "04100": {
+     "value": 115.748686,
+     "status": "ok",
+     "numerator": 12343,
+     "denominator": 1066362,
+     "inputs": {
+      "staff_general": 12343,
+      "pop_r6": 1066362
+     }
+    },
+    "11100": {
+     "value": 106.898675,
+     "status": "ok",
+     "numerator": 14378,
+     "denominator": 1345012,
+     "inputs": {
+      "staff_general": 14378,
+      "pop_r6": 1345012
+     }
+    },
+    "12100": {
+     "value": 109.183889,
+     "status": "ok",
+     "numerator": 10688,
+     "denominator": 978899,
+     "inputs": {
+      "staff_general": 10688,
+      "pop_r6": 978899
+     }
+    },
+    "14100": {
+     "value": 102.971807,
+     "status": "ok",
+     "numerator": 38645,
+     "denominator": 3752969,
+     "inputs": {
+      "staff_general": 38645,
+      "pop_r6": 3752969
+     }
+    },
+    "14130": {
+     "value": 108.956953,
+     "status": "ok",
+     "numerator": 16661,
+     "denominator": 1529136,
+     "inputs": {
+      "staff_general": 16661,
+      "pop_r6": 1529136
+     }
+    },
+    "14150": {
+     "value": 110.285975,
+     "status": "ok",
+     "numerator": 7917,
+     "denominator": 717861,
+     "inputs": {
+      "staff_general": 7917,
+      "pop_r6": 717861
+     }
+    },
+    "15100": {
+     "value": 124.171894,
+     "status": "ok",
+     "numerator": 9531,
+     "denominator": 767565,
+     "inputs": {
+      "staff_general": 9531,
+      "pop_r6": 767565
+     }
+    },
+    "22100": {
+     "value": 118.143348,
+     "status": "ok",
+     "numerator": 8007,
+     "denominator": 677736,
+     "inputs": {
+      "staff_general": 8007,
+      "pop_r6": 677736
+     }
+    },
+    "22130": {
+     "value": 109.951393,
+     "status": "ok",
+     "numerator": 8675,
+     "denominator": 788985,
+     "inputs": {
+      "staff_general": 8675,
+      "pop_r6": 788985
+     }
+    },
+    "23100": {
+     "value": 124.334946,
+     "status": "ok",
+     "numerator": 28569,
+     "denominator": 2297745,
+     "inputs": {
+      "staff_general": 28569,
+      "pop_r6": 2297745
+     }
+    },
+    "26100": {
+     "value": 123.498672,
+     "status": "ok",
+     "numerator": 17037,
+     "denominator": 1379529,
+     "inputs": {
+      "staff_general": 17037,
+      "pop_r6": 1379529
+     }
+    },
+    "27100": {
+     "value": 122.369038,
+     "status": "ok",
+     "numerator": 33745,
+     "denominator": 2757642,
+     "inputs": {
+      "staff_general": 33745,
+      "pop_r6": 2757642
+     }
+    },
+    "27140": {
+     "value": 121.119993,
+     "status": "ok",
+     "numerator": 9896,
+     "denominator": 817041,
+     "inputs": {
+      "staff_general": 9896,
+      "pop_r6": 817041
+     }
+    },
+    "28100": {
+     "value": 125.651066,
+     "status": "ok",
+     "numerator": 18853,
+     "denominator": 1500425,
+     "inputs": {
+      "staff_general": 18853,
+      "pop_r6": 1500425
+     }
+    },
+    "33100": {
+     "value": 120.643336,
+     "status": "ok",
+     "numerator": 8429,
+     "denominator": 698671,
+     "inputs": {
+      "staff_general": 8429,
+      "pop_r6": 698671
+     }
+    },
+    "34100": {
+     "value": 123.280733,
+     "status": "ok",
+     "numerator": 14532,
+     "denominator": 1178773,
+     "inputs": {
+      "staff_general": 14532,
+      "pop_r6": 1178773
+     }
+    },
+    "40100": {
+     "value": 124.961872,
+     "status": "ok",
+     "numerator": 11512,
+     "denominator": 921241,
+     "inputs": {
+      "staff_general": 11512,
+      "pop_r6": 921241
+     }
+    },
+    "40130": {
+     "value": 104.955145,
+     "status": "ok",
+     "numerator": 16729,
+     "denominator": 1593919,
+     "inputs": {
+      "staff_general": 16729,
+      "pop_r6": 1593919
+     }
+    },
+    "43100": {
+     "value": 126.509795,
+     "status": "ok",
+     "numerator": 9257,
+     "denominator": 731722,
+     "inputs": {
+      "staff_general": 9257,
+      "pop_r6": 731722
+     }
+    }
+   }
+  },
+  {
+   "id": "staff_admin_per10k",
+   "label": "人口1万人あたり職員数 一般行政部門",
+   "group": "職員数（人口あたり）",
+   "unit": "人／1万人",
+   "kind": "derived",
+   "sources": [
+    "teiin",
+    "jyuki_r6"
+   ],
+   "decimals": 2,
+   "basis": "分子：令和6年4月1日／分母：令和6年1月1日（3か月の差）",
+   "formula": "職員数（一般行政部門計） ÷ 住基人口（令和6.1.1） × 10,000",
+   "numerator_label": "職員数（人）",
+   "denominator_label": "住基人口 令和6.1.1（人）",
+   "multiplier": 10000,
+   "inputs": [
+    "staff_admin",
+    "pop_r6"
+   ],
+   "note": "分子・分母の基準日が3か月ずれる。職員数は4月1日、人口は直前の1月1日の住基人口を採用。",
+   "values": {
+    "01100": {
+     "value": 38.82616,
+     "status": "ok",
+     "numerator": 7598,
+     "denominator": 1956928,
+     "inputs": {
+      "staff_admin": 7598,
+      "pop_r6": 1956928
+     }
+    },
+    "04100": {
+     "value": 45.434852,
+     "status": "ok",
+     "numerator": 4845,
+     "denominator": 1066362,
+     "inputs": {
+      "staff_admin": 4845,
+      "pop_r6": 1066362
+     }
+    },
+    "11100": {
+     "value": 42.549806,
+     "status": "ok",
+     "numerator": 5723,
+     "denominator": 1345012,
+     "inputs": {
+      "staff_admin": 5723,
+      "pop_r6": 1345012
+     }
+    },
+    "12100": {
+     "value": 45.244709,
+     "status": "ok",
+     "numerator": 4429,
+     "denominator": 978899,
+     "inputs": {
+      "staff_admin": 4429,
+      "pop_r6": 978899
+     }
+    },
+    "14100": {
+     "value": 41.154084,
+     "status": "ok",
+     "numerator": 15445,
+     "denominator": 3752969,
+     "inputs": {
+      "staff_admin": 15445,
+      "pop_r6": 3752969
+     }
+    },
+    "14130": {
+     "value": 46.202561,
+     "status": "ok",
+     "numerator": 7065,
+     "denominator": 1529136,
+     "inputs": {
+      "staff_admin": 7065,
+      "pop_r6": 1529136
+     }
+    },
+    "14150": {
+     "value": 47.237557,
+     "status": "ok",
+     "numerator": 3391,
+     "denominator": 717861,
+     "inputs": {
+      "staff_admin": 3391,
+      "pop_r6": 717861
+     }
+    },
+    "15100": {
+     "value": 48.373753,
+     "status": "ok",
+     "numerator": 3713,
+     "denominator": 767565,
+     "inputs": {
+      "staff_admin": 3713,
+      "pop_r6": 767565
+     }
+    },
+    "22100": {
+     "value": 50.373597,
+     "status": "ok",
+     "numerator": 3414,
+     "denominator": 677736,
+     "inputs": {
+      "staff_admin": 3414,
+      "pop_r6": 677736
+     }
+    },
+    "22130": {
+     "value": 38.669937,
+     "status": "ok",
+     "numerator": 3051,
+     "denominator": 788985,
+     "inputs": {
+      "staff_admin": 3051,
+      "pop_r6": 788985
+     }
+    },
+    "23100": {
+     "value": 53.948545,
+     "status": "ok",
+     "numerator": 12396,
+     "denominator": 2297745,
+     "inputs": {
+      "staff_admin": 12396,
+      "pop_r6": 2297745
+     }
+    },
+    "26100": {
+     "value": 50.734707,
+     "status": "ok",
+     "numerator": 6999,
+     "denominator": 1379529,
+     "inputs": {
+      "staff_admin": 6999,
+      "pop_r6": 1379529
+     }
+    },
+    "27100": {
+     "value": 55.144939,
+     "status": "ok",
+     "numerator": 15207,
+     "denominator": 2757642,
+     "inputs": {
+      "staff_admin": 15207,
+      "pop_r6": 2757642
+     }
+    },
+    "27140": {
+     "value": 44.489811,
+     "status": "ok",
+     "numerator": 3635,
+     "denominator": 817041,
+     "inputs": {
+      "staff_admin": 3635,
+      "pop_r6": 817041
+     }
+    },
+    "28100": {
+     "value": 51.025543,
+     "status": "ok",
+     "numerator": 7656,
+     "denominator": 1500425,
+     "inputs": {
+      "staff_admin": 7656,
+      "pop_r6": 1500425
+     }
+    },
+    "33100": {
+     "value": 47.962489,
+     "status": "ok",
+     "numerator": 3351,
+     "denominator": 698671,
+     "inputs": {
+      "staff_admin": 3351,
+      "pop_r6": 698671
+     }
+    },
+    "34100": {
+     "value": 49.967212,
+     "status": "ok",
+     "numerator": 5890,
+     "denominator": 1178773,
+     "inputs": {
+      "staff_admin": 5890,
+      "pop_r6": 1178773
+     }
+    },
+    "40100": {
+     "value": 50.551376,
+     "status": "ok",
+     "numerator": 4657,
+     "denominator": 921241,
+     "inputs": {
+      "staff_admin": 4657,
+      "pop_r6": 921241
+     }
+    },
+    "40130": {
+     "value": 37.611698,
+     "status": "ok",
+     "numerator": 5995,
+     "denominator": 1593919,
+     "inputs": {
+      "staff_admin": 5995,
+      "pop_r6": 1593919
+     }
+    },
+    "43100": {
+     "value": 49.527006,
+     "status": "ok",
+     "numerator": 3624,
+     "denominator": 731722,
+     "inputs": {
+      "staff_admin": 3624,
+      "pop_r6": 731722
+     }
+    }
+   }
+  },
+  {
+   "id": "staff_welfare_per10k",
+   "label": "人口1万人あたり職員数 福祉関係",
+   "group": "職員数（人口あたり）",
+   "unit": "人／1万人",
+   "kind": "derived",
+   "sources": [
+    "teiin",
+    "jyuki_r6"
+   ],
+   "decimals": 2,
+   "basis": "分子：令和6年4月1日／分母：令和6年1月1日（3か月の差）",
+   "formula": "職員数（一般行政：福祉関係） ÷ 住基人口（令和6.1.1） × 10,000",
+   "numerator_label": "職員数（人）",
+   "denominator_label": "住基人口 令和6.1.1（人）",
+   "multiplier": 10000,
+   "inputs": [
+    "staff_welfare",
+    "pop_r6"
+   ],
+   "note": "分子・分母の基準日が3か月ずれる。職員数は4月1日、人口は直前の1月1日の住基人口を採用。",
+   "values": {
+    "01100": {
+     "value": 20.005846,
+     "status": "ok",
+     "numerator": 3915,
+     "denominator": 1956928,
+     "inputs": {
+      "staff_welfare": 3915,
+      "pop_r6": 1956928
+     }
+    },
+    "04100": {
+     "value": 23.491085,
+     "status": "ok",
+     "numerator": 2505,
+     "denominator": 1066362,
+     "inputs": {
+      "staff_welfare": 2505,
+      "pop_r6": 1066362
+     }
+    },
+    "11100": {
+     "value": 24.178223,
+     "status": "ok",
+     "numerator": 3252,
+     "denominator": 1345012,
+     "inputs": {
+      "staff_welfare": 3252,
+      "pop_r6": 1345012
+     }
+    },
+    "12100": {
+     "value": 24.823807,
+     "status": "ok",
+     "numerator": 2430,
+     "denominator": 978899,
+     "inputs": {
+      "staff_welfare": 2430,
+      "pop_r6": 978899
+     }
+    },
+    "14100": {
+     "value": 21.740121,
+     "status": "ok",
+     "numerator": 8159,
+     "denominator": 3752969,
+     "inputs": {
+      "staff_welfare": 8159,
+      "pop_r6": 3752969
+     }
+    },
+    "14130": {
+     "value": 24.785238,
+     "status": "ok",
+     "numerator": 3790,
+     "denominator": 1529136,
+     "inputs": {
+      "staff_welfare": 3790,
+      "pop_r6": 1529136
+     }
+    },
+    "14150": {
+     "value": 24.614793,
+     "status": "ok",
+     "numerator": 1767,
+     "denominator": 717861,
+     "inputs": {
+      "staff_welfare": 1767,
+      "pop_r6": 717861
+     }
+    },
+    "15100": {
+     "value": 25.887058,
+     "status": "ok",
+     "numerator": 1987,
+     "denominator": 767565,
+     "inputs": {
+      "staff_welfare": 1987,
+      "pop_r6": 767565
+     }
+    },
+    "22100": {
+     "value": 24.862188,
+     "status": "ok",
+     "numerator": 1685,
+     "denominator": 677736,
+     "inputs": {
+      "staff_welfare": 1685,
+      "pop_r6": 677736
+     }
+    },
+    "22130": {
+     "value": 16.920474,
+     "status": "ok",
+     "numerator": 1335,
+     "denominator": 788985,
+     "inputs": {
+      "staff_welfare": 1335,
+      "pop_r6": 788985
+     }
+    },
+    "23100": {
+     "value": 30.099075,
+     "status": "ok",
+     "numerator": 6916,
+     "denominator": 2297745,
+     "inputs": {
+      "staff_welfare": 6916,
+      "pop_r6": 2297745
+     }
+    },
+    "26100": {
+     "value": 25.530453,
+     "status": "ok",
+     "numerator": 3522,
+     "denominator": 1379529,
+     "inputs": {
+      "staff_welfare": 3522,
+      "pop_r6": 1379529
+     }
+    },
+    "27100": {
+     "value": 28.422834,
+     "status": "ok",
+     "numerator": 7838,
+     "denominator": 2757642,
+     "inputs": {
+      "staff_welfare": 7838,
+      "pop_r6": 2757642
+     }
+    },
+    "27140": {
+     "value": 22.299982,
+     "status": "ok",
+     "numerator": 1822,
+     "denominator": 817041,
+     "inputs": {
+      "staff_welfare": 1822,
+      "pop_r6": 817041
+     }
+    },
+    "28100": {
+     "value": 27.545529,
+     "status": "ok",
+     "numerator": 4133,
+     "denominator": 1500425,
+     "inputs": {
+      "staff_welfare": 4133,
+      "pop_r6": 1500425
+     }
+    },
+    "33100": {
+     "value": 26.020831,
+     "status": "ok",
+     "numerator": 1818,
+     "denominator": 698671,
+     "inputs": {
+      "staff_welfare": 1818,
+      "pop_r6": 698671
+     }
+    },
+    "34100": {
+     "value": 26.731186,
+     "status": "ok",
+     "numerator": 3151,
+     "denominator": 1178773,
+     "inputs": {
+      "staff_welfare": 3151,
+      "pop_r6": 1178773
+     }
+    },
+    "40100": {
+     "value": 22.589094,
+     "status": "ok",
+     "numerator": 2081,
+     "denominator": 921241,
+     "inputs": {
+      "staff_welfare": 2081,
+      "pop_r6": 921241
+     }
+    },
+    "40130": {
+     "value": 14.392199,
+     "status": "ok",
+     "numerator": 2294,
+     "denominator": 1593919,
+     "inputs": {
+      "staff_welfare": 2294,
+      "pop_r6": 1593919
+     }
+    },
+    "43100": {
+     "value": 21.128243,
+     "status": "ok",
+     "numerator": 1546,
+     "denominator": 731722,
+     "inputs": {
+      "staff_welfare": 1546,
+      "pop_r6": 731722
+     }
+    }
+   }
+  },
+  {
+   "id": "staff_edu_per10k",
+   "label": "人口1万人あたり職員数 教育部門",
+   "group": "職員数（人口あたり）",
+   "unit": "人／1万人",
+   "kind": "derived",
+   "sources": [
+    "teiin",
+    "jyuki_r6"
+   ],
+   "decimals": 2,
+   "basis": "分子：令和6年4月1日／分母：令和6年1月1日（3か月の差）",
+   "formula": "職員数（教育部門） ÷ 住基人口（令和6.1.1） × 10,000",
+   "numerator_label": "職員数（人）",
+   "denominator_label": "住基人口 令和6.1.1（人）",
+   "multiplier": 10000,
+   "inputs": [
+    "staff_edu",
+    "pop_r6"
+   ],
+   "note": "分子・分母の基準日が3か月ずれる。職員数は4月1日、人口は直前の1月1日の住基人口を採用。",
+   "values": {
+    "01100": {
+     "value": 52.306472,
+     "status": "ok",
+     "numerator": 10236,
+     "denominator": 1956928,
+     "inputs": {
+      "staff_edu": 10236,
+      "pop_r6": 1956928
+     }
+    },
+    "04100": {
+     "value": 59.62328,
+     "status": "ok",
+     "numerator": 6358,
+     "denominator": 1066362,
+     "inputs": {
+      "staff_edu": 6358,
+      "pop_r6": 1066362
+     }
+    },
+    "11100": {
+     "value": 54.252304,
+     "status": "ok",
+     "numerator": 7297,
+     "denominator": 1345012,
+     "inputs": {
+      "staff_edu": 7297,
+      "pop_r6": 1345012
+     }
+    },
+    "12100": {
+     "value": 54.448927,
+     "status": "ok",
+     "numerator": 5330,
+     "denominator": 978899,
+     "inputs": {
+      "staff_edu": 5330,
+      "pop_r6": 978899
+     }
+    },
+    "14100": {
+     "value": 52.041464,
+     "status": "ok",
+     "numerator": 19531,
+     "denominator": 3752969,
+     "inputs": {
+      "staff_edu": 19531,
+      "pop_r6": 3752969
+     }
+    },
+    "14130": {
+     "value": 53.239215,
+     "status": "ok",
+     "numerator": 8141,
+     "denominator": 1529136,
+     "inputs": {
+      "staff_edu": 8141,
+      "pop_r6": 1529136
+     }
+    },
+    "14150": {
+     "value": 52.47534,
+     "status": "ok",
+     "numerator": 3767,
+     "denominator": 717861,
+     "inputs": {
+      "staff_edu": 3767,
+      "pop_r6": 717861
+     }
+    },
+    "15100": {
+     "value": 63.825213,
+     "status": "ok",
+     "numerator": 4899,
+     "denominator": 767565,
+     "inputs": {
+      "staff_edu": 4899,
+      "pop_r6": 767565
+     }
+    },
+    "22100": {
+     "value": 52.380278,
+     "status": "ok",
+     "numerator": 3550,
+     "denominator": 677736,
+     "inputs": {
+      "staff_edu": 3550,
+      "pop_r6": 677736
+     }
+    },
+    "22130": {
+     "value": 59.925094,
+     "status": "ok",
+     "numerator": 4728,
+     "denominator": 788985,
+     "inputs": {
+      "staff_edu": 4728,
+      "pop_r6": 788985
+     }
+    },
+    "23100": {
+     "value": 59.806462,
+     "status": "ok",
+     "numerator": 13742,
+     "denominator": 2297745,
+     "inputs": {
+      "staff_edu": 13742,
+      "pop_r6": 2297745
+     }
+    },
+    "26100": {
+     "value": 60.955587,
+     "status": "ok",
+     "numerator": 8409,
+     "denominator": 1379529,
+     "inputs": {
+      "staff_edu": 8409,
+      "pop_r6": 1379529
+     }
+    },
+    "27100": {
+     "value": 54.064306,
+     "status": "ok",
+     "numerator": 14909,
+     "denominator": 2757642,
+     "inputs": {
+      "staff_edu": 14909,
+      "pop_r6": 2757642
+     }
+    },
+    "27140": {
+     "value": 63.558622,
+     "status": "ok",
+     "numerator": 5193,
+     "denominator": 817041,
+     "inputs": {
+      "staff_edu": 5193,
+      "pop_r6": 817041
+     }
+    },
+    "28100": {
+     "value": 64.581702,
+     "status": "ok",
+     "numerator": 9690,
+     "denominator": 1500425,
+     "inputs": {
+      "staff_edu": 9690,
+      "pop_r6": 1500425
+     }
+    },
+    "33100": {
+     "value": 61.531107,
+     "status": "ok",
+     "numerator": 4299,
+     "denominator": 698671,
+     "inputs": {
+      "staff_edu": 4299,
+      "pop_r6": 698671
+     }
+    },
+    "34100": {
+     "value": 61.793068,
+     "status": "ok",
+     "numerator": 7284,
+     "denominator": 1178773,
+     "inputs": {
+      "staff_edu": 7284,
+      "pop_r6": 1178773
+     }
+    },
+    "40100": {
+     "value": 63.685832,
+     "status": "ok",
+     "numerator": 5867,
+     "denominator": 921241,
+     "inputs": {
+      "staff_edu": 5867,
+      "pop_r6": 921241
+     }
+    },
+    "40130": {
+     "value": 60.115978,
+     "status": "ok",
+     "numerator": 9582,
+     "denominator": 1593919,
+     "inputs": {
+      "staff_edu": 9582,
+      "pop_r6": 1593919
+     }
+    },
+    "43100": {
+     "value": 65.95401,
+     "status": "ok",
+     "numerator": 4826,
+     "denominator": 731722,
+     "inputs": {
+      "staff_edu": 4826,
+      "pop_r6": 731722
+     }
+    }
+   }
+  },
+  {
+   "id": "staff_fire_per10k",
+   "label": "人口1万人あたり職員数 消防部門",
+   "group": "職員数（人口あたり）",
+   "unit": "人／1万人",
+   "kind": "derived",
+   "sources": [
+    "teiin",
+    "jyuki_r6"
+   ],
+   "decimals": 2,
+   "basis": "分子：令和6年4月1日／分母：令和6年1月1日（3か月の差）",
+   "formula": "職員数（消防部門） ÷ 住基人口（令和6.1.1） × 10,000",
+   "numerator_label": "職員数（人）",
+   "denominator_label": "住基人口 令和6.1.1（人）",
+   "multiplier": 10000,
+   "inputs": [
+    "staff_fire",
+    "pop_r6"
+   ],
+   "note": "分子・分母の基準日が3か月ずれる。職員数は4月1日、人口は直前の1月1日の住基人口を採用。",
+   "values": {
+    "01100": {
+     "value": 9.264521,
+     "status": "ok",
+     "numerator": 1813,
+     "denominator": 1956928,
+     "inputs": {
+      "staff_fire": 1813,
+      "pop_r6": 1956928
+     }
+    },
+    "04100": {
+     "value": 10.690553,
+     "status": "ok",
+     "numerator": 1140,
+     "denominator": 1066362,
+     "inputs": {
+      "staff_fire": 1140,
+      "pop_r6": 1066362
+     }
+    },
+    "11100": {
+     "value": 10.096564,
+     "status": "ok",
+     "numerator": 1358,
+     "denominator": 1345012,
+     "inputs": {
+      "staff_fire": 1358,
+      "pop_r6": 1345012
+     }
+    },
+    "12100": {
+     "value": 9.490254,
+     "status": "ok",
+     "numerator": 929,
+     "denominator": 978899,
+     "inputs": {
+      "staff_fire": 929,
+      "pop_r6": 978899
+     }
+    },
+    "14100": {
+     "value": 9.77626,
+     "status": "ok",
+     "numerator": 3669,
+     "denominator": 3752969,
+     "inputs": {
+      "staff_fire": 3669,
+      "pop_r6": 3752969
+     }
+    },
+    "14130": {
+     "value": 9.515177,
+     "status": "ok",
+     "numerator": 1455,
+     "denominator": 1529136,
+     "inputs": {
+      "staff_fire": 1455,
+      "pop_r6": 1529136
+     }
+    },
+    "14150": {
+     "value": 10.573078,
+     "status": "ok",
+     "numerator": 759,
+     "denominator": 717861,
+     "inputs": {
+      "staff_fire": 759,
+      "pop_r6": 717861
+     }
+    },
+    "15100": {
+     "value": 11.972927,
+     "status": "ok",
+     "numerator": 919,
+     "denominator": 767565,
+     "inputs": {
+      "staff_fire": 919,
+      "pop_r6": 767565
+     }
+    },
+    "22100": {
+     "value": 15.389473,
+     "status": "ok",
+     "numerator": 1043,
+     "denominator": 677736,
+     "inputs": {
+      "staff_fire": 1043,
+      "pop_r6": 677736
+     }
+    },
+    "22130": {
+     "value": 11.356363,
+     "status": "ok",
+     "numerator": 896,
+     "denominator": 788985,
+     "inputs": {
+      "staff_fire": 896,
+      "pop_r6": 788985
+     }
+    },
+    "23100": {
+     "value": 10.579938,
+     "status": "ok",
+     "numerator": 2431,
+     "denominator": 2297745,
+     "inputs": {
+      "staff_fire": 2431,
+      "pop_r6": 2297745
+     }
+    },
+    "26100": {
+     "value": 11.808378,
+     "status": "ok",
+     "numerator": 1629,
+     "denominator": 1379529,
+     "inputs": {
+      "staff_fire": 1629,
+      "pop_r6": 1379529
+     }
+    },
+    "27100": {
+     "value": 13.159794,
+     "status": "ok",
+     "numerator": 3629,
+     "denominator": 2757642,
+     "inputs": {
+      "staff_fire": 3629,
+      "pop_r6": 2757642
+     }
+    },
+    "27140": {
+     "value": 13.071559,
+     "status": "ok",
+     "numerator": 1068,
+     "denominator": 817041,
+     "inputs": {
+      "staff_fire": 1068,
+      "pop_r6": 817041
+     }
+    },
+    "28100": {
+     "value": 10.043821,
+     "status": "ok",
+     "numerator": 1507,
+     "denominator": 1500425,
+     "inputs": {
+      "staff_fire": 1507,
+      "pop_r6": 1500425
+     }
+    },
+    "33100": {
+     "value": 11.14974,
+     "status": "ok",
+     "numerator": 779,
+     "denominator": 698671,
+     "inputs": {
+      "staff_fire": 779,
+      "pop_r6": 698671
+     }
+    },
+    "34100": {
+     "value": 11.520454,
+     "status": "ok",
+     "numerator": 1358,
+     "denominator": 1178773,
+     "inputs": {
+      "staff_fire": 1358,
+      "pop_r6": 1178773
+     }
+    },
+    "40100": {
+     "value": 10.724664,
+     "status": "ok",
+     "numerator": 988,
+     "denominator": 921241,
+     "inputs": {
+      "staff_fire": 988,
+      "pop_r6": 921241
+     }
+    },
+    "40130": {
+     "value": 7.227469,
+     "status": "ok",
+     "numerator": 1152,
+     "denominator": 1593919,
+     "inputs": {
+      "staff_fire": 1152,
+      "pop_r6": 1593919
+     }
+    },
+    "43100": {
+     "value": 11.028779,
+     "status": "ok",
+     "numerator": 807,
+     "denominator": 731722,
+     "inputs": {
+      "staff_fire": 807,
+      "pop_r6": 731722
+     }
+    }
+   }
+  },
+  {
+   "id": "fin_zaiseiryoku",
+   "label": "財政力指数",
+   "group": "財政",
+   "unit": "",
+   "kind": "raw",
+   "sources": [
+    "zaisei"
+   ],
+   "basis": "令和5年度決算",
+   "decimals": 2,
+   "note": "基準財政収入額÷基準財政需要額の過去3か年平均（資料の表記に従う）。",
+   "values": {
+    "01100": {
+     "value": 0.71,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 0.88,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 0.95,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 0.89,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 0.94,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 1.03,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 0.83,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 0.65,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 0.83,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 0.81,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 0.97,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 0.8,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 0.92,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 0.76,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 0.76,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 0.74,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 0.78,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 0.69,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 0.87,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 0.69,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "fin_keijo",
+   "label": "経常収支比率",
+   "group": "財政",
+   "unit": "％",
+   "kind": "raw",
+   "sources": [
+    "zaisei"
+   ],
+   "basis": "令和5年度決算",
+   "decimals": 1,
+   "note": "経常的な経費に経常一般財源がどれだけ充当されたかの比率。",
+   "values": {
+    "01100": {
+     "value": 95.4,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 97,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 95.6,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 98.4,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 98.1,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 97.2,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 96,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 94.2,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 92.8,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 91.2,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 99.9,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 98.5,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 92,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 100.9,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 97.6,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 90,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 98.7,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 97.1,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 94.1,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 93,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "fin_jissitsu_shushi",
+   "label": "実質収支比率",
+   "group": "財政",
+   "unit": "％",
+   "kind": "raw",
+   "sources": [
+    "zaisei"
+   ],
+   "basis": "令和5年度決算",
+   "decimals": 1,
+   "note": "標準財政規模に対する実質収支の比率。",
+   "values": {
+    "01100": {
+     "value": 1.1,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 1.4,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 3.6,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 1.1,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 1.2,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 1.2,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 3.8,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 2.2,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 3.4,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 3.4,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 1.4,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 2,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 1.8,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 3.1,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 0.3,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 5.2,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 0.8,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 0.8,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 2.1,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 3.4,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "fin_jissitsu_kousai",
+   "label": "実質公債費比率",
+   "group": "財政",
+   "unit": "％",
+   "kind": "raw",
+   "sources": [
+    "zaisei"
+   ],
+   "basis": "令和5年度決算",
+   "decimals": 1,
+   "note": "資料の表記に従う（3か年平均）。",
+   "values": {
+    "01100": {
+     "value": 2.9,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 6.1,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 6.3,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 10.7,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 9.5,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 8.4,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 2.8,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 12.1,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 6.1,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 3.8,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 6.4,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 11.8,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 0.9,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 5.4,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 4.9,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 5.6,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 9.6,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 10.1,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 8,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 5.5,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "fin_shorai",
+   "label": "将来負担比率",
+   "group": "財政",
+   "unit": "％",
+   "kind": "raw",
+   "sources": [
+    "zaisei"
+   ],
+   "basis": "令和5年度決算",
+   "decimals": 1,
+   "note": "資料上『－』の市は値なし（順位対象外）。",
+   "values": {
+    "01100": {
+     "value": 18.2,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 52.3,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 20.1,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 122.4,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 127.2,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 124,
+     "status": "ok"
+    },
+    "14150": {
+     "value": null,
+     "status": "dash",
+     "raw_text": "-"
+    },
+    "15100": {
+     "value": 123,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 31.9,
+     "status": "ok"
+    },
+    "22130": {
+     "value": null,
+     "status": "dash",
+     "raw_text": "-"
+    },
+    "23100": {
+     "value": 83,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 140.5,
+     "status": "ok"
+    },
+    "27100": {
+     "value": null,
+     "status": "dash",
+     "raw_text": "-"
+    },
+    "27140": {
+     "value": null,
+     "status": "dash",
+     "raw_text": "-"
+    },
+    "28100": {
+     "value": 62.6,
+     "status": "ok"
+    },
+    "33100": {
+     "value": null,
+     "status": "dash",
+     "raw_text": "-"
+    },
+    "34100": {
+     "value": 165.4,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 143.2,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 66.9,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 92.9,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "fin_hyojun",
+   "label": "標準財政規模",
+   "group": "財政",
+   "unit": "千円",
+   "kind": "raw",
+   "sources": [
+    "zaisei"
+   ],
+   "basis": "令和5年度決算",
+   "decimals": 0,
+   "note": "",
+   "values": {
+    "01100": {
+     "value": 553530274,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 293468229,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 330447137,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 264255137,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 1000040812,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 406126808,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 184939705,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 241028935,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 197591090,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 223069265,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 678205853,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 417479761,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 889351675,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 235366559,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 454912157,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 209635573,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 348912170,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 287670566,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 453616210,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 207948832,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "fin_saisyutsu_in",
+   "label": "歳入総額（一般会計等）",
+   "group": "財政",
+   "unit": "千円",
+   "kind": "raw",
+   "sources": [
+    "zaisei"
+   ],
+   "basis": "令和5年度決算",
+   "decimals": 0,
+   "note": "財政状況資料集 総括表の「歳入総額」。",
+   "values": {
+    "01100": {
+     "value": 1209468652,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 592650350,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 682341469,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 511175819,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 1985387389,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 812457706,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 345888993,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 440273359,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 364751312,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 424171006,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 1412510019,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 966938909,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 1975047180,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 451638365,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 952593692,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 392169186,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 711658564,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 617806572,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 1123213196,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 416919228,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "fin_saisyutsu",
+   "label": "歳出総額（一般会計等）",
+   "group": "財政",
+   "unit": "千円",
+   "kind": "raw",
+   "sources": [
+    "zaisei"
+   ],
+   "basis": "令和5年度決算",
+   "decimals": 0,
+   "note": "財政状況資料集 総括表の「歳出総額」。",
+   "values": {
+    "01100": {
+     "value": 1200091653,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 583937600,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 667562830,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 506719699,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 1957930068,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 801310662,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 337235774,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 426252997,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 352593594,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 410056352,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 1394832519,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 955396483,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 1951351019,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 443302743,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 931550600,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 377741273,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 707638369,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 614040979,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 1104890536,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 405529703,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "fin_chihosai",
+   "label": "地方債現在高",
+   "group": "財政",
+   "unit": "千円",
+   "kind": "raw",
+   "sources": [
+    "zaisei"
+   ],
+   "basis": "令和5年度決算",
+   "decimals": 0,
+   "note": "臨時財政対策債を含む。",
+   "values": {
+    "01100": {
+     "value": 1103281024,
+     "status": "ok"
+    },
+    "04100": {
+     "value": 759896848,
+     "status": "ok"
+    },
+    "11100": {
+     "value": 472098681,
+     "status": "ok"
+    },
+    "12100": {
+     "value": 711133060,
+     "status": "ok"
+    },
+    "14100": {
+     "value": 2509555776,
+     "status": "ok"
+    },
+    "14130": {
+     "value": 867431771,
+     "status": "ok"
+    },
+    "14150": {
+     "value": 258186998,
+     "status": "ok"
+    },
+    "15100": {
+     "value": 625194547,
+     "status": "ok"
+    },
+    "22100": {
+     "value": 441791590,
+     "status": "ok"
+    },
+    "22130": {
+     "value": 244418676,
+     "status": "ok"
+    },
+    "23100": {
+     "value": 1377752258,
+     "status": "ok"
+    },
+    "26100": {
+     "value": 1311703695,
+     "status": "ok"
+    },
+    "27100": {
+     "value": 1526879045,
+     "status": "ok"
+    },
+    "27140": {
+     "value": 460449543,
+     "status": "ok"
+    },
+    "28100": {
+     "value": 1136707207,
+     "status": "ok"
+    },
+    "33100": {
+     "value": 337786351,
+     "status": "ok"
+    },
+    "34100": {
+     "value": 1110569164,
+     "status": "ok"
+    },
+    "40100": {
+     "value": 1008758183,
+     "status": "ok"
+    },
+    "40130": {
+     "value": 1105392640,
+     "status": "ok"
+    },
+    "43100": {
+     "value": 496140908,
+     "status": "ok"
+    }
+   }
+  },
+  {
+   "id": "fin_saisyutsu_percap",
+   "label": "住民一人あたり歳出額",
+   "group": "財政（住民あたり）",
+   "unit": "円／人",
+   "kind": "derived",
+   "sources": [
+    "zaisei",
+    "jyuki_r6"
+   ],
+   "decimals": 0,
+   "basis": "分子：令和5年度決算／分母：令和6年1月1日人口（同年度内の日付）",
+   "formula": "歳出総額（千円） × 1,000 ÷ 住基人口（令和6.1.1）",
+   "numerator_label": "歳出総額（千円）",
+   "denominator_label": "住基人口 令和6.1.1（人）",
+   "multiplier": 1000,
+   "inputs": [
+    "fin_saisyutsu",
+    "pop_r6"
+   ],
+   "note": "年度決算額を、年度内の1月1日人口で割る。",
+   "values": {
+    "01100": {
+     "value": 613252.8397,
+     "status": "ok",
+     "numerator": 1200091653,
+     "denominator": 1956928,
+     "inputs": {
+      "fin_saisyutsu": 1200091653,
+      "pop_r6": 1956928
+     }
+    },
+    "04100": {
+     "value": 547597.9077,
+     "status": "ok",
+     "numerator": 583937600,
+     "denominator": 1066362,
+     "inputs": {
+      "fin_saisyutsu": 583937600,
+      "pop_r6": 1066362
+     }
+    },
+    "11100": {
+     "value": 496324.8135,
+     "status": "ok",
+     "numerator": 667562830,
+     "denominator": 1345012,
+     "inputs": {
+      "fin_saisyutsu": 667562830,
+      "pop_r6": 1345012
+     }
+    },
+    "12100": {
+     "value": 517642.4728,
+     "status": "ok",
+     "numerator": 506719699,
+     "denominator": 978899,
+     "inputs": {
+      "fin_saisyutsu": 506719699,
+      "pop_r6": 978899
+     }
+    },
+    "14100": {
+     "value": 521701.6362,
+     "status": "ok",
+     "numerator": 1957930068,
+     "denominator": 3752969,
+     "inputs": {
+      "fin_saisyutsu": 1957930068,
+      "pop_r6": 3752969
+     }
+    },
+    "14130": {
+     "value": 524028.3807,
+     "status": "ok",
+     "numerator": 801310662,
+     "denominator": 1529136,
+     "inputs": {
+      "fin_saisyutsu": 801310662,
+      "pop_r6": 1529136
+     }
+    },
+    "14150": {
+     "value": 469778.6535,
+     "status": "ok",
+     "numerator": 337235774,
+     "denominator": 717861,
+     "inputs": {
+      "fin_saisyutsu": 337235774,
+      "pop_r6": 717861
+     }
+    },
+    "15100": {
+     "value": 555331.4664,
+     "status": "ok",
+     "numerator": 426252997,
+     "denominator": 767565,
+     "inputs": {
+      "fin_saisyutsu": 426252997,
+      "pop_r6": 767565
+     }
+    },
+    "22100": {
+     "value": 520252.1247,
+     "status": "ok",
+     "numerator": 352593594,
+     "denominator": 677736,
+     "inputs": {
+      "fin_saisyutsu": 352593594,
+      "pop_r6": 677736
+     }
+    },
+    "22130": {
+     "value": 519726.4232,
+     "status": "ok",
+     "numerator": 410056352,
+     "denominator": 788985,
+     "inputs": {
+      "fin_saisyutsu": 410056352,
+      "pop_r6": 788985
+     }
+    },
+    "23100": {
+     "value": 607044.0884,
+     "status": "ok",
+     "numerator": 1394832519,
+     "denominator": 2297745,
+     "inputs": {
+      "fin_saisyutsu": 1394832519,
+      "pop_r6": 2297745
+     }
+    },
+    "26100": {
+     "value": 692552.6633,
+     "status": "ok",
+     "numerator": 955396483,
+     "denominator": 1379529,
+     "inputs": {
+      "fin_saisyutsu": 955396483,
+      "pop_r6": 1379529
+     }
+    },
+    "27100": {
+     "value": 707615.7888,
+     "status": "ok",
+     "numerator": 1951351019,
+     "denominator": 2757642,
+     "inputs": {
+      "fin_saisyutsu": 1951351019,
+      "pop_r6": 2757642
+     }
+    },
+    "27140": {
+     "value": 542570.9885,
+     "status": "ok",
+     "numerator": 443302743,
+     "denominator": 817041,
+     "inputs": {
+      "fin_saisyutsu": 443302743,
+      "pop_r6": 817041
+     }
+    },
+    "28100": {
+     "value": 620857.8236,
+     "status": "ok",
+     "numerator": 931550600,
+     "denominator": 1500425,
+     "inputs": {
+      "fin_saisyutsu": 931550600,
+      "pop_r6": 1500425
+     }
+    },
+    "33100": {
+     "value": 540656.8657,
+     "status": "ok",
+     "numerator": 377741273,
+     "denominator": 698671,
+     "inputs": {
+      "fin_saisyutsu": 377741273,
+      "pop_r6": 698671
+     }
+    },
+    "34100": {
+     "value": 600317.7618,
+     "status": "ok",
+     "numerator": 707638369,
+     "denominator": 1178773,
+     "inputs": {
+      "fin_saisyutsu": 707638369,
+      "pop_r6": 1178773
+     }
+    },
+    "40100": {
+     "value": 666536.7466,
+     "status": "ok",
+     "numerator": 614040979,
+     "denominator": 921241,
+     "inputs": {
+      "fin_saisyutsu": 614040979,
+      "pop_r6": 921241
+     }
+    },
+    "40130": {
+     "value": 693191.1446,
+     "status": "ok",
+     "numerator": 1104890536,
+     "denominator": 1593919,
+     "inputs": {
+      "fin_saisyutsu": 1104890536,
+      "pop_r6": 1593919
+     }
+    },
+    "43100": {
+     "value": 554212.8062,
+     "status": "ok",
+     "numerator": 405529703,
+     "denominator": 731722,
+     "inputs": {
+      "fin_saisyutsu": 405529703,
+      "pop_r6": 731722
+     }
+    }
+   }
+  },
+  {
+   "id": "fin_chihosai_percap",
+   "label": "住民一人あたり地方債現在高",
+   "group": "財政（住民あたり）",
+   "unit": "円／人",
+   "kind": "derived",
+   "sources": [
+    "zaisei",
+    "jyuki_r6"
+   ],
+   "decimals": 0,
+   "basis": "分子：令和5年度決算／分母：令和6年1月1日人口（同年度内の日付）",
+   "formula": "地方債現在高（千円） × 1,000 ÷ 住基人口（令和6.1.1）",
+   "numerator_label": "地方債現在高（千円）",
+   "denominator_label": "住基人口 令和6.1.1（人）",
+   "multiplier": 1000,
+   "inputs": [
+    "fin_chihosai",
+    "pop_r6"
+   ],
+   "note": "年度決算額を、年度内の1月1日人口で割る。",
+   "values": {
+    "01100": {
+     "value": 563782.1238,
+     "status": "ok",
+     "numerator": 1103281024,
+     "denominator": 1956928,
+     "inputs": {
+      "fin_chihosai": 1103281024,
+      "pop_r6": 1956928
+     }
+    },
+    "04100": {
+     "value": 712606.8333,
+     "status": "ok",
+     "numerator": 759896848,
+     "denominator": 1066362,
+     "inputs": {
+      "fin_chihosai": 759896848,
+      "pop_r6": 1066362
+     }
+    },
+    "11100": {
+     "value": 350999.6052,
+     "status": "ok",
+     "numerator": 472098681,
+     "denominator": 1345012,
+     "inputs": {
+      "fin_chihosai": 472098681,
+      "pop_r6": 1345012
+     }
+    },
+    "12100": {
+     "value": 726462.1376,
+     "status": "ok",
+     "numerator": 711133060,
+     "denominator": 978899,
+     "inputs": {
+      "fin_chihosai": 711133060,
+      "pop_r6": 978899
+     }
+    },
+    "14100": {
+     "value": 668685.453,
+     "status": "ok",
+     "numerator": 2509555776,
+     "denominator": 3752969,
+     "inputs": {
+      "fin_chihosai": 2509555776,
+      "pop_r6": 3752969
+     }
+    },
+    "14130": {
+     "value": 567269.2102,
+     "status": "ok",
+     "numerator": 867431771,
+     "denominator": 1529136,
+     "inputs": {
+      "fin_chihosai": 867431771,
+      "pop_r6": 1529136
+     }
+    },
+    "14150": {
+     "value": 359661.5473,
+     "status": "ok",
+     "numerator": 258186998,
+     "denominator": 717861,
+     "inputs": {
+      "fin_chihosai": 258186998,
+      "pop_r6": 717861
+     }
+    },
+    "15100": {
+     "value": 814516.7471,
+     "status": "ok",
+     "numerator": 625194547,
+     "denominator": 767565,
+     "inputs": {
+      "fin_chihosai": 625194547,
+      "pop_r6": 767565
+     }
+    },
+    "22100": {
+     "value": 651863.8378,
+     "status": "ok",
+     "numerator": 441791590,
+     "denominator": 677736,
+     "inputs": {
+      "fin_chihosai": 441791590,
+      "pop_r6": 677736
+     }
+    },
+    "22130": {
+     "value": 309788.7488,
+     "status": "ok",
+     "numerator": 244418676,
+     "denominator": 788985,
+     "inputs": {
+      "fin_chihosai": 244418676,
+      "pop_r6": 788985
+     }
+    },
+    "23100": {
+     "value": 599610.6,
+     "status": "ok",
+     "numerator": 1377752258,
+     "denominator": 2297745,
+     "inputs": {
+      "fin_chihosai": 1377752258,
+      "pop_r6": 2297745
+     }
+    },
+    "26100": {
+     "value": 950834.4478,
+     "status": "ok",
+     "numerator": 1311703695,
+     "denominator": 1379529,
+     "inputs": {
+      "fin_chihosai": 1311703695,
+      "pop_r6": 1379529
+     }
+    },
+    "27100": {
+     "value": 553690.0892,
+     "status": "ok",
+     "numerator": 1526879045,
+     "denominator": 2757642,
+     "inputs": {
+      "fin_chihosai": 1526879045,
+      "pop_r6": 2757642
+     }
+    },
+    "27140": {
+     "value": 563557.4506,
+     "status": "ok",
+     "numerator": 460449543,
+     "denominator": 817041,
+     "inputs": {
+      "fin_chihosai": 460449543,
+      "pop_r6": 817041
+     }
+    },
+    "28100": {
+     "value": 757590.1541,
+     "status": "ok",
+     "numerator": 1136707207,
+     "denominator": 1500425,
+     "inputs": {
+      "fin_chihosai": 1136707207,
+      "pop_r6": 1500425
+     }
+    },
+    "33100": {
+     "value": 483469.832,
+     "status": "ok",
+     "numerator": 337786351,
+     "denominator": 698671,
+     "inputs": {
+      "fin_chihosai": 337786351,
+      "pop_r6": 698671
+     }
+    },
+    "34100": {
+     "value": 942139.9744,
+     "status": "ok",
+     "numerator": 1110569164,
+     "denominator": 1178773,
+     "inputs": {
+      "fin_chihosai": 1110569164,
+      "pop_r6": 1178773
+     }
+    },
+    "40100": {
+     "value": 1094999.2271,
+     "status": "ok",
+     "numerator": 1008758183,
+     "denominator": 921241,
+     "inputs": {
+      "fin_chihosai": 1008758183,
+      "pop_r6": 921241
+     }
+    },
+    "40130": {
+     "value": 693506.1568,
+     "status": "ok",
+     "numerator": 1105392640,
+     "denominator": 1593919,
+     "inputs": {
+      "fin_chihosai": 1105392640,
+      "pop_r6": 1593919
+     }
+    },
+    "43100": {
+     "value": 678045.6348,
+     "status": "ok",
+     "numerator": 496140908,
+     "denominator": 731722,
+     "inputs": {
+      "fin_chihosai": 496140908,
+      "pop_r6": 731722
+     }
+    }
+   }
+  }
+ ],
+ "not_fetched": [
+  {
+   "label": "地方公務員給与実態調査（平均給料月額・ラスパイレス指数 等）",
+   "reason": "今回の取得対象に含めていない"
+  },
+  {
+   "label": "定員管理調査 第2表（細部門別職員数：税務・衛生・土木・病院・水道 等）",
+   "reason": "今回の取得対象に含めていない（第1表の大分類のみ収録）"
+  },
+  {
+   "label": "決算状況調（目的別・性質別歳出の詳細）",
+   "reason": "今回の取得対象に含めていない"
+  }
+ ],
+ "integrity": {
+  "jyuki": {
+   "jyuki_r6": {
+    "01100": {
+     "male": 915082,
+     "female": 1041846,
+     "total": 1956928,
+     "households": 1104953,
+     "ward_sum": {
+      "male": 915082,
+      "female": 1041846,
+      "total": 1956928,
+      "households": 1104953
+     },
+     "ward_count": 10,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "011002"
+    },
+    "04100": {
+     "male": 515655,
+     "female": 550707,
+     "total": 1066362,
+     "households": 543162,
+     "ward_sum": {
+      "male": 515655,
+      "female": 550707,
+      "total": 1066362,
+      "households": 543162
+     },
+     "ward_count": 5,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "041009"
+    },
+    "11100": {
+     "male": 666409,
+     "female": 678603,
+     "total": 1345012,
+     "households": 640263,
+     "ward_sum": {
+      "male": 666409,
+      "female": 678603,
+      "total": 1345012,
+      "households": 640263
+     },
+     "ward_count": 10,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "111007"
+    },
+    "12100": {
+     "male": 486126,
+     "female": 492773,
+     "total": 978899,
+     "households": 487045,
+     "ward_sum": {
+      "male": 486126,
+      "female": 492773,
+      "total": 978899,
+      "households": 487045
+     },
+     "ward_count": 6,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "121002"
+    },
+    "14100": {
+     "male": 1857671,
+     "female": 1895298,
+     "total": 3752969,
+     "households": 1868807,
+     "ward_sum": {
+      "male": 1857671,
+      "female": 1895298,
+      "total": 3752969,
+      "households": 1868807
+     },
+     "ward_count": 18,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "141003"
+    },
+    "14130": {
+     "male": 772767,
+     "female": 756369,
+     "total": 1529136,
+     "households": 788387,
+     "ward_sum": {
+      "male": 772767,
+      "female": 756369,
+      "total": 1529136,
+      "households": 788387
+     },
+     "ward_count": 7,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "141305"
+    },
+    "14150": {
+     "male": 359629,
+     "female": 358232,
+     "total": 717861,
+     "households": 355035,
+     "ward_sum": {
+      "male": 359629,
+      "female": 358232,
+      "total": 717861,
+      "households": 355035
+     },
+     "ward_count": 3,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "141500"
+    },
+    "15100": {
+     "male": 369463,
+     "female": 398102,
+     "total": 767565,
+     "households": 349363,
+     "ward_sum": {
+      "male": 369463,
+      "female": 398102,
+      "total": 767565,
+      "households": 349363
+     },
+     "ward_count": 8,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "151009"
+    },
+    "22100": {
+     "male": 330038,
+     "female": 347698,
+     "total": 677736,
+     "households": 324474,
+     "ward_sum": {
+      "male": 330038,
+      "female": 347698,
+      "total": 677736,
+      "households": 324474
+     },
+     "ward_count": 3,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "221007"
+    },
+    "22130": {
+     "male": 393379,
+     "female": 395606,
+     "total": 788985,
+     "households": 355283,
+     "ward_sum": {
+      "male": 393379,
+      "female": 395606,
+      "total": 788985,
+      "households": 355283
+     },
+     "ward_count": 3,
+     "skipped_pre_reorg_rows": [
+      "浜松市中区（再編前）",
+      "浜松市東区（再編前）",
+      "浜松市西区（再編前）",
+      "浜松市南区（再編前）",
+      "浜松市北区（再編前）",
+      "浜松市浜北区（再編前）",
+      "浜松市天竜区（再編前）"
+     ],
+     "dantai_code": "221309"
+    },
+    "23100": {
+     "male": 1134172,
+     "female": 1163573,
+     "total": 2297745,
+     "households": 1171598,
+     "ward_sum": {
+      "male": 1134172,
+      "female": 1163573,
+      "total": 2297745,
+      "households": 1171598
+     },
+     "ward_count": 16,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "231002"
+    },
+    "26100": {
+     "male": 652979,
+     "female": 726550,
+     "total": 1379529,
+     "households": 736711,
+     "ward_sum": {
+      "male": 652979,
+      "female": 726550,
+      "total": 1379529,
+      "households": 736711
+     },
+     "ward_count": 11,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "261009"
+    },
+    "27100": {
+     "male": 1335043,
+     "female": 1422599,
+     "total": 2757642,
+     "households": 1590992,
+     "ward_sum": {
+      "male": 1335043,
+      "female": 1422599,
+      "total": 2757642,
+      "households": 1590992
+     },
+     "ward_count": 24,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "271004"
+    },
+    "27140": {
+     "male": 391137,
+     "female": 425904,
+     "total": 817041,
+     "households": 402153,
+     "ward_sum": {
+      "male": 391137,
+      "female": 425904,
+      "total": 817041,
+      "households": 402153
+     },
+     "ward_count": 7,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "271403"
+    },
+    "28100": {
+     "male": 710051,
+     "female": 790374,
+     "total": 1500425,
+     "households": 774656,
+     "ward_sum": {
+      "male": 710051,
+      "female": 790374,
+      "total": 1500425,
+      "households": 774656
+     },
+     "ward_count": 9,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "281000"
+    },
+    "33100": {
+     "male": 336136,
+     "female": 362535,
+     "total": 698671,
+     "households": 340016,
+     "ward_sum": {
+      "male": 336136,
+      "female": 362535,
+      "total": 698671,
+      "households": 340016
+     },
+     "ward_count": 4,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "331007"
+    },
+    "34100": {
+     "male": 570210,
+     "female": 608563,
+     "total": 1178773,
+     "households": 580875,
+     "ward_sum": {
+      "male": 570210,
+      "female": 608563,
+      "total": 1178773,
+      "households": 580875
+     },
+     "ward_count": 8,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "341002"
+    },
+    "40100": {
+     "male": 437435,
+     "female": 483806,
+     "total": 921241,
+     "households": 489006,
+     "ward_sum": {
+      "male": 437435,
+      "female": 483806,
+      "total": 921241,
+      "households": 489006
+     },
+     "ward_count": 7,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "401005"
+    },
+    "40130": {
+     "male": 755213,
+     "female": 838706,
+     "total": 1593919,
+     "households": 856619,
+     "ward_sum": {
+      "male": 755213,
+      "female": 838706,
+      "total": 1593919,
+      "households": 856619
+     },
+     "ward_count": 7,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "401307"
+    },
+    "43100": {
+     "male": 346245,
+     "female": 385477,
+     "total": 731722,
+     "households": 358817,
+     "ward_sum": {
+      "male": 346245,
+      "female": 385477,
+      "total": 731722,
+      "households": 358817
+     },
+     "ward_count": 5,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "431001"
+    }
+   },
+   "jyuki_r7": {
+    "01100": {
+     "male": 914781,
+     "female": 1040897,
+     "total": 1955678,
+     "households": 1113832,
+     "ward_sum": {
+      "male": 914781,
+      "female": 1040897,
+      "total": 1955678,
+      "households": 1113832
+     },
+     "ward_count": 10,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "011002"
+    },
+    "04100": {
+     "male": 514228,
+     "female": 549914,
+     "total": 1064142,
+     "households": 548719,
+     "ward_sum": {
+      "male": 514228,
+      "female": 549914,
+      "total": 1064142,
+      "households": 548719
+     },
+     "ward_count": 5,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "041009"
+    },
+    "11100": {
+     "male": 668943,
+     "female": 681557,
+     "total": 1350500,
+     "households": 649585,
+     "ward_sum": {
+      "male": 668943,
+      "female": 681557,
+      "total": 1350500,
+      "households": 649585
+     },
+     "ward_count": 10,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "111007"
+    },
+    "12100": {
+     "male": 488345,
+     "female": 495551,
+     "total": 983896,
+     "households": 496438,
+     "ward_sum": {
+      "male": 488345,
+      "female": 495551,
+      "total": 983896,
+      "households": 496438
+     },
+     "ward_count": 6,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "121002"
+    },
+    "14100": {
+     "male": 1857643,
+     "female": 1895755,
+     "total": 3753398,
+     "households": 1888048,
+     "ward_sum": {
+      "male": 1857643,
+      "female": 1895755,
+      "total": 3753398,
+      "households": 1888048
+     },
+     "ward_count": 18,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "141003"
+    },
+    "14130": {
+     "male": 775836,
+     "female": 759305,
+     "total": 1535141,
+     "households": 799973,
+     "ward_sum": {
+      "male": 775836,
+      "female": 759305,
+      "total": 1535141,
+      "households": 799973
+     },
+     "ward_count": 7,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "141305"
+    },
+    "14150": {
+     "male": 358771,
+     "female": 357723,
+     "total": 716494,
+     "households": 358556,
+     "ward_sum": {
+      "male": 358771,
+      "female": 357723,
+      "total": 716494,
+      "households": 358556
+     },
+     "ward_count": 3,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "141500"
+    },
+    "15100": {
+     "male": 366552,
+     "female": 394951,
+     "total": 761503,
+     "households": 351489,
+     "ward_sum": {
+      "male": 366552,
+      "female": 394951,
+      "total": 761503,
+      "households": 351489
+     },
+     "ward_count": 8,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "151009"
+    },
+    "22100": {
+     "male": 327566,
+     "female": 345209,
+     "total": 672775,
+     "households": 327008,
+     "ward_sum": {
+      "male": 327566,
+      "female": 345209,
+      "total": 672775,
+      "households": 327008
+     },
+     "ward_count": 3,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "221007"
+    },
+    "22130": {
+     "male": 390875,
+     "female": 393049,
+     "total": 783924,
+     "households": 358071,
+     "ward_sum": {
+      "male": 390875,
+      "female": 393049,
+      "total": 783924,
+      "households": 358071
+     },
+     "ward_count": 3,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "221309"
+    },
+    "23100": {
+     "male": 1136651,
+     "female": 1166353,
+     "total": 2303004,
+     "households": 1188651,
+     "ward_sum": {
+      "male": 1136651,
+      "female": 1166353,
+      "total": 2303004,
+      "households": 1188651
+     },
+     "ward_count": 16,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "231002"
+    },
+    "26100": {
+     "male": 649681,
+     "female": 724206,
+     "total": 1373887,
+     "households": 743206,
+     "ward_sum": {
+      "male": 649681,
+      "female": 724206,
+      "total": 1373887,
+      "households": 743206
+     },
+     "ward_count": 11,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "261009"
+    },
+    "27100": {
+     "male": 1345204,
+     "female": 1433713,
+     "total": 2778917,
+     "households": 1622994,
+     "ward_sum": {
+      "male": 1345204,
+      "female": 1433713,
+      "total": 2778917,
+      "households": 1622994
+     },
+     "ward_count": 24,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "271004"
+    },
+    "27140": {
+     "male": 388259,
+     "female": 423734,
+     "total": 811993,
+     "households": 404180,
+     "ward_sum": {
+      "male": 388259,
+      "female": 423734,
+      "total": 811993,
+      "households": 404180
+     },
+     "ward_count": 7,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "271403"
+    },
+    "28100": {
+     "male": 706589,
+     "female": 786954,
+     "total": 1493543,
+     "households": 780144,
+     "ward_sum": {
+      "male": 706589,
+      "female": 786954,
+      "total": 1493543,
+      "households": 780144
+     },
+     "ward_count": 9,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "281000"
+    },
+    "33100": {
+     "male": 334689,
+     "female": 361001,
+     "total": 695690,
+     "households": 342192,
+     "ward_sum": {
+      "male": 334689,
+      "female": 361001,
+      "total": 695690,
+      "households": 342192
+     },
+     "ward_count": 4,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "331007"
+    },
+    "34100": {
+     "male": 567524,
+     "female": 606019,
+     "total": 1173543,
+     "households": 584288,
+     "ward_sum": {
+      "male": 567524,
+      "female": 606019,
+      "total": 1173543,
+      "households": 584288
+     },
+     "ward_count": 8,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "341002"
+    },
+    "40100": {
+     "male": 434242,
+     "female": 479335,
+     "total": 913577,
+     "households": 489747,
+     "ward_sum": {
+      "male": 434242,
+      "female": 479335,
+      "total": 913577,
+      "households": 489747
+     },
+     "ward_count": 7,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "401005"
+    },
+    "40130": {
+     "male": 762036,
+     "female": 846104,
+     "total": 1608140,
+     "households": 873871,
+     "ward_sum": {
+      "male": 762036,
+      "female": 846104,
+      "total": 1608140,
+      "households": 873871
+     },
+     "ward_count": 7,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "401307"
+    },
+    "43100": {
+     "male": 346223,
+     "female": 385108,
+     "total": 731331,
+     "households": 363032,
+     "ward_sum": {
+      "male": 346223,
+      "female": 385108,
+      "total": 731331,
+      "households": 363032
+     },
+     "ward_count": 5,
+     "skipped_pre_reorg_rows": [],
+     "dantai_code": "431001"
+    }
+   }
+  },
+  "census": {
+   "01100": {
+    "total": 1973395,
+    "male": 918682,
+    "female": 1054713
+   },
+   "04100": {
+    "total": 1096704,
+    "male": 531617,
+    "female": 565087
+   },
+   "11100": {
+    "total": 1324025,
+    "male": 652920,
+    "female": 671105
+   },
+   "12100": {
+    "total": 974951,
+    "male": 481246,
+    "female": 493705
+   },
+   "14100": {
+    "total": 3777491,
+    "male": 1867305,
+    "female": 1910186
+   },
+   "14130": {
+    "total": 1538262,
+    "male": 775772,
+    "female": 762490
+   },
+   "14150": {
+    "total": 725493,
+    "male": 362193,
+    "female": 363300
+   },
+   "15100": {
+    "total": 789275,
+    "male": 379741,
+    "female": 409534
+   },
+   "22100": {
+    "total": 693389,
+    "male": 337812,
+    "female": 355577
+   },
+   "22130": {
+    "total": 790718,
+    "male": 392900,
+    "female": 397818
+   },
+   "23100": {
+    "total": 2332176,
+    "male": 1146669,
+    "female": 1185507
+   },
+   "26100": {
+    "total": 1463723,
+    "male": 692279,
+    "female": 771444
+   },
+   "27100": {
+    "total": 2752412,
+    "male": 1326875,
+    "female": 1425537
+   },
+   "27140": {
+    "total": 826161,
+    "male": 393961,
+    "female": 432200
+   },
+   "28100": {
+    "total": 1525152,
+    "male": 716452,
+    "female": 808700
+   },
+   "33100": {
+    "total": 724691,
+    "male": 348630,
+    "female": 376061
+   },
+   "34100": {
+    "total": 1200754,
+    "male": 579415,
+    "female": 621339
+   },
+   "40100": {
+    "total": 939029,
+    "male": 443269,
+    "female": 495760
+   },
+   "40130": {
+    "total": 1612392,
+    "male": 761148,
+    "female": 851244
+   },
+   "43100": {
+    "total": 738865,
+    "male": 349115,
+    "female": 389750
+   }
+  },
+  "census_vs_zaisei_diff": {
+   "14150": {
+    "estat": 725493,
+    "zaisei": 725489
+   }
+  },
+  "teiin": {
+   "cities": {
+    "札幌市": {
+     "一般管理": 3683,
+     "福祉関係": 3915,
+     "一般行政計": 7598,
+     "教育": 10236,
+     "警察": 0,
+     "消防": 1813,
+     "普通会計計": 19647,
+     "公営企業等会計": 3422,
+     "合計": 23069
+    },
+    "仙台市": {
+     "一般管理": 2340,
+     "福祉関係": 2505,
+     "一般行政計": 4845,
+     "教育": 6358,
+     "警察": 0,
+     "消防": 1140,
+     "普通会計計": 12343,
+     "公営企業等会計": 2871,
+     "合計": 15214
+    },
+    "さいたま市": {
+     "一般管理": 2471,
+     "福祉関係": 3252,
+     "一般行政計": 5723,
+     "教育": 7297,
+     "警察": 0,
+     "消防": 1358,
+     "普通会計計": 14378,
+     "公営企業等会計": 1937,
+     "合計": 16315
+    },
+    "千葉市": {
+     "一般管理": 1999,
+     "福祉関係": 2430,
+     "一般行政計": 4429,
+     "教育": 5330,
+     "警察": 0,
+     "消防": 929,
+     "普通会計計": 10688,
+     "公営企業等会計": 1657,
+     "合計": 12345
+    },
+    "横浜市": {
+     "一般管理": 7286,
+     "福祉関係": 8159,
+     "一般行政計": 15445,
+     "教育": 19531,
+     "警察": 0,
+     "消防": 3669,
+     "普通会計計": 38645,
+     "公営企業等会計": 7702,
+     "合計": 46347
+    },
+    "川崎市": {
+     "一般管理": 3275,
+     "福祉関係": 3790,
+     "一般行政計": 7065,
+     "教育": 8141,
+     "警察": 0,
+     "消防": 1455,
+     "普通会計計": 16661,
+     "公営企業等会計": 3413,
+     "合計": 20074
+    },
+    "相模原市": {
+     "一般管理": 1624,
+     "福祉関係": 1767,
+     "一般行政計": 3391,
+     "教育": 3767,
+     "警察": 0,
+     "消防": 759,
+     "普通会計計": 7917,
+     "公営企業等会計": 187,
+     "合計": 8104
+    },
+    "新潟市": {
+     "一般管理": 1726,
+     "福祉関係": 1987,
+     "一般行政計": 3713,
+     "教育": 4899,
+     "警察": 0,
+     "消防": 919,
+     "普通会計計": 9531,
+     "公営企業等会計": 1853,
+     "合計": 11384
+    },
+    "静岡市": {
+     "一般管理": 1729,
+     "福祉関係": 1685,
+     "一般行政計": 3414,
+     "教育": 3550,
+     "警察": 0,
+     "消防": 1043,
+     "普通会計計": 8007,
+     "公営企業等会計": 1107,
+     "合計": 9114
+    },
+    "浜松市": {
+     "一般管理": 1716,
+     "福祉関係": 1335,
+     "一般行政計": 3051,
+     "教育": 4728,
+     "警察": 0,
+     "消防": 896,
+     "普通会計計": 8675,
+     "公営企業等会計": 458,
+     "合計": 9133
+    },
+    "名古屋市": {
+     "一般管理": 5480,
+     "福祉関係": 6916,
+     "一般行政計": 12396,
+     "教育": 13742,
+     "警察": 0,
+     "消防": 2431,
+     "普通会計計": 28569,
+     "公営企業等会計": 7245,
+     "合計": 35814
+    },
+    "京都市": {
+     "一般管理": 3477,
+     "福祉関係": 3522,
+     "一般行政計": 6999,
+     "教育": 8409,
+     "警察": 0,
+     "消防": 1629,
+     "普通会計計": 17037,
+     "公営企業等会計": 3314,
+     "合計": 20351
+    },
+    "大阪市": {
+     "一般管理": 7369,
+     "福祉関係": 7838,
+     "一般行政計": 15207,
+     "教育": 14909,
+     "警察": 0,
+     "消防": 3629,
+     "普通会計計": 33745,
+     "公営企業等会計": 2517,
+     "合計": 36262
+    },
+    "堺市": {
+     "一般管理": 1813,
+     "福祉関係": 1822,
+     "一般行政計": 3635,
+     "教育": 5193,
+     "警察": 0,
+     "消防": 1068,
+     "普通会計計": 9896,
+     "公営企業等会計": 620,
+     "合計": 10516
+    },
+    "神戸市": {
+     "一般管理": 3523,
+     "福祉関係": 4133,
+     "一般行政計": 7656,
+     "教育": 9690,
+     "警察": 0,
+     "消防": 1507,
+     "普通会計計": 18853,
+     "公営企業等会計": 2661,
+     "合計": 21514
+    },
+    "岡山市": {
+     "一般管理": 1533,
+     "福祉関係": 1818,
+     "一般行政計": 3351,
+     "教育": 4299,
+     "警察": 0,
+     "消防": 779,
+     "普通会計計": 8429,
+     "公営企業等会計": 580,
+     "合計": 9009
+    },
+    "広島市": {
+     "一般管理": 2739,
+     "福祉関係": 3151,
+     "一般行政計": 5890,
+     "教育": 7284,
+     "警察": 0,
+     "消防": 1358,
+     "普通会計計": 14532,
+     "公営企業等会計": 1292,
+     "合計": 15824
+    },
+    "北九州市": {
+     "一般管理": 2576,
+     "福祉関係": 2081,
+     "一般行政計": 4657,
+     "教育": 5867,
+     "警察": 0,
+     "消防": 988,
+     "普通会計計": 11512,
+     "公営企業等会計": 842,
+     "合計": 12354
+    },
+    "福岡市": {
+     "一般管理": 3701,
+     "福祉関係": 2294,
+     "一般行政計": 5995,
+     "教育": 9582,
+     "警察": 0,
+     "消防": 1152,
+     "普通会計計": 16729,
+     "公営企業等会計": 1754,
+     "合計": 18483
+    },
+    "熊本市": {
+     "一般管理": 2078,
+     "福祉関係": 1546,
+     "一般行政計": 3624,
+     "教育": 4826,
+     "警察": 0,
+     "消防": 807,
+     "普通会計計": 9257,
+     "公営企業等会計": 1396,
+     "合計": 10653
+    }
+   },
+   "total_row": {
+    "一般管理": 62138,
+    "福祉関係": 65946,
+    "一般行政計": 128084,
+    "教育": 157638,
+    "警察": 0,
+    "消防": 29329,
+    "普通会計計": 315051,
+    "公営企業等会計": 46828,
+    "合計": 361879
+   }
+  },
+  "zaisei": {
+   "fin": {
+    "01100": {
+     "歳入総額": 1209468652,
+     "実質収支比率": 1.1,
+     "歳出総額": 1200091653,
+     "経常収支比率": 95.4,
+     "標準財政規模": 553530274,
+     "財政力指数": 0.71,
+     "実質公債費比率": 2.9,
+     "将来負担比率": 18.2,
+     "基準財政収入額": 319729869,
+     "基準財政需要額": 450443774,
+     "地方債現在高": 1103281024
+    },
+    "04100": {
+     "歳入総額": 592650350,
+     "実質収支比率": 1.4,
+     "歳出総額": 583937600,
+     "経常収支比率": 97,
+     "標準財政規模": 293468229,
+     "財政力指数": 0.88,
+     "実質公債費比率": 6.1,
+     "将来負担比率": 52.3,
+     "基準財政収入額": 203446950,
+     "基準財政需要額": 232389183,
+     "地方債現在高": 759896848
+    },
+    "11100": {
+     "歳入総額": 682341469,
+     "実質収支比率": 3.6,
+     "歳出総額": 667562830,
+     "経常収支比率": 95.6,
+     "標準財政規模": 330447137,
+     "財政力指数": 0.95,
+     "実質公債費比率": 6.3,
+     "将来負担比率": 20.1,
+     "基準財政収入額": 250780659,
+     "基準財政需要額": 262380712,
+     "地方債現在高": 472098681
+    },
+    "12100": {
+     "歳入総額": 511175819,
+     "実質収支比率": 1.1,
+     "歳出総額": 506719699,
+     "経常収支比率": 98.4,
+     "標準財政規模": 264255137,
+     "財政力指数": 0.89,
+     "実質公債費比率": 10.7,
+     "将来負担比率": 122.4,
+     "基準財政収入額": 184757181,
+     "基準財政需要額": 208896389,
+     "地方債現在高": 711133060
+    },
+    "14100": {
+     "歳入総額": 1985387389,
+     "実質収支比率": 1.2,
+     "歳出総額": 1957930068,
+     "経常収支比率": 98.1,
+     "標準財政規模": 1000040812,
+     "財政力指数": 0.94,
+     "実質公債費比率": 9.5,
+     "将来負担比率": 127.2,
+     "基準財政収入額": 750854942,
+     "基準財政需要額": 789864775,
+     "地方債現在高": 2509555776
+    },
+    "14130": {
+     "歳入総額": 812457706,
+     "実質収支比率": 1.2,
+     "歳出総額": 801310662,
+     "経常収支比率": 97.2,
+     "標準財政規模": 406126808,
+     "財政力指数": 1.03,
+     "実質公債費比率": 8.4,
+     "将来負担比率": 124,
+     "基準財政収入額": 323812842,
+     "基準財政需要額": 304548140,
+     "地方債現在高": 867431771
+    },
+    "14150": {
+     "歳入総額": 345888993,
+     "実質収支比率": 3.8,
+     "歳出総額": 337235774,
+     "経常収支比率": 96,
+     "標準財政規模": 184939705,
+     "財政力指数": 0.83,
+     "実質公債費比率": 2.8,
+     "将来負担比率": "-",
+     "基準財政収入額": 122444390,
+     "基準財政需要額": 147778578,
+     "地方債現在高": 258186998
+    },
+    "15100": {
+     "歳入総額": 440273359,
+     "実質収支比率": 2.2,
+     "歳出総額": 426252997,
+     "経常収支比率": 94.2,
+     "標準財政規模": 241028935,
+     "財政力指数": 0.65,
+     "実質公債費比率": 12.1,
+     "将来負担比率": 123,
+     "基準財政収入額": 127672239,
+     "基準財政需要額": 198409622,
+     "地方債現在高": 625194547
+    },
+    "22100": {
+     "歳入総額": 364751312,
+     "実質収支比率": 3.4,
+     "歳出総額": 352593594,
+     "経常収支比率": 92.8,
+     "標準財政規模": 197591090,
+     "財政力指数": 0.83,
+     "実質公債費比率": 6.1,
+     "将来負担比率": 31.9,
+     "基準財政収入額": 128676365,
+     "基準財政需要額": 156981857,
+     "地方債現在高": 441791590
+    },
+    "22130": {
+     "歳入総額": 424171006,
+     "実質収支比率": 3.4,
+     "歳出総額": 410056352,
+     "経常収支比率": 91.2,
+     "標準財政規模": 223069265,
+     "財政力指数": 0.81,
+     "実質公債費比率": 3.8,
+     "将来負担比率": "-",
+     "基準財政収入額": 145204775,
+     "基準財政需要額": 178229507,
+     "地方債現在高": 244418676
+    },
+    "23100": {
+     "歳入総額": 1412510019,
+     "実質収支比率": 1.4,
+     "歳出総額": 1394832519,
+     "経常収支比率": 99.9,
+     "標準財政規模": 678205853,
+     "財政力指数": 0.97,
+     "実質公債費比率": 6.4,
+     "将来負担比率": 83,
+     "基準財政収入額": 527022457,
+     "基準財政需要額": 535090979,
+     "地方債現在高": 1377752258
+    },
+    "26100": {
+     "歳入総額": 966938909,
+     "実質収支比率": 2,
+     "歳出総額": 955396483,
+     "経常収支比率": 98.5,
+     "標準財政規模": 417479761,
+     "財政力指数": 0.8,
+     "実質公債費比率": 11.8,
+     "将来負担比率": 140.5,
+     "基準財政収入額": 268558333,
+     "基準財政需要額": 332077541,
+     "地方債現在高": 1311703695
+    },
+    "27100": {
+     "歳入総額": 1975047180,
+     "実質収支比率": 1.8,
+     "歳出総額": 1951351019,
+     "経常収支比率": 92,
+     "標準財政規模": 889351675,
+     "財政力指数": 0.92,
+     "実質公債費比率": 0.9,
+     "将来負担比率": "-",
+     "基準財政収入額": 651004760,
+     "基準財政需要額": 695321976,
+     "地方債現在高": 1526879045
+    },
+    "27140": {
+     "歳入総額": 451638365,
+     "実質収支比率": 3.1,
+     "歳出総額": 443302743,
+     "経常収支比率": 100.9,
+     "標準財政規模": 235366559,
+     "財政力指数": 0.76,
+     "実質公債費比率": 5.4,
+     "将来負担比率": "-",
+     "基準財政収入額": 142156359,
+     "基準財政需要額": 189018496,
+     "地方債現在高": 460449543
+    },
+    "28100": {
+     "歳入総額": 952593692,
+     "実質収支比率": 0.3,
+     "歳出総額": 931550600,
+     "経常収支比率": 97.6,
+     "標準財政規模": 454912157,
+     "財政力指数": 0.76,
+     "実質公債費比率": 4.9,
+     "将来負担比率": 62.6,
+     "基準財政収入額": 277713539,
+     "基準財政需要額": 364319989,
+     "地方債現在高": 1136707207
+    },
+    "33100": {
+     "歳入総額": 392169186,
+     "実質収支比率": 5.2,
+     "歳出総額": 377741273,
+     "経常収支比率": 90,
+     "標準財政規模": 209635573,
+     "財政力指数": 0.74,
+     "実質公債費比率": 5.6,
+     "将来負担比率": "-",
+     "基準財政収入額": 125125928,
+     "基準財政需要額": 168693035,
+     "地方債現在高": 337786351
+    },
+    "34100": {
+     "歳入総額": 711658564,
+     "実質収支比率": 0.8,
+     "歳出総額": 707638369,
+     "経常収支比率": 98.7,
+     "標準財政規模": 348912170,
+     "財政力指数": 0.78,
+     "実質公債費比率": 9.6,
+     "将来負担比率": 165.4,
+     "基準財政収入額": 216512335,
+     "基準財政需要額": 279274914,
+     "地方債現在高": 1110569164
+    },
+    "40100": {
+     "歳入総額": 617806572,
+     "実質収支比率": 0.8,
+     "歳出総額": 614040979,
+     "経常収支比率": 97.1,
+     "標準財政規模": 287670566,
+     "財政力指数": 0.69,
+     "実質公債費比率": 10.1,
+     "将来負担比率": 143.2,
+     "基準財政収入額": 161472293,
+     "基準財政需要額": 233886981,
+     "地方債現在高": 1008758183
+    },
+    "40130": {
+     "歳入総額": 1123213196,
+     "実質収支比率": 2.1,
+     "歳出総額": 1104890536,
+     "経常収支比率": 94.1,
+     "標準財政規模": 453616210,
+     "財政力指数": 0.87,
+     "実質公債費比率": 8,
+     "将来負担比率": 66.9,
+     "基準財政収入額": 312884788,
+     "基準財政需要額": 358697028,
+     "地方債現在高": 1105392640
+    },
+    "43100": {
+     "歳入総額": 416919228,
+     "実質収支比率": 3.4,
+     "歳出総額": 405529703,
+     "経常収支比率": 93,
+     "標準財政規模": 207948832,
+     "財政力指数": 0.69,
+     "実質公債費比率": 5.5,
+     "将来負担比率": 92.9,
+     "基準財政収入額": 116673957,
+     "基準財政需要額": 169860333,
+     "地方債現在高": 496140908
+    }
+   },
+   "extra": {
+    "01100": {
+     "city": "札幌市",
+     "pop_census": 1973395,
+     "pop_r6": 1956928
+    },
+    "04100": {
+     "city": "仙台市",
+     "pop_census": 1096704,
+     "pop_r6": 1066362
+    },
+    "11100": {
+     "city": "さいたま市",
+     "pop_census": 1324025,
+     "pop_r6": 1345012
+    },
+    "12100": {
+     "city": "千葉市",
+     "pop_census": 974951,
+     "pop_r6": 978899
+    },
+    "14100": {
+     "city": "横浜市",
+     "pop_census": 3777491,
+     "pop_r6": 3752969
+    },
+    "14130": {
+     "city": "川崎市",
+     "pop_census": 1538262,
+     "pop_r6": 1529136
+    },
+    "14150": {
+     "city": "相模原市",
+     "pop_census": 725489,
+     "pop_r6": 717861
+    },
+    "15100": {
+     "city": "新潟市",
+     "pop_census": 789275,
+     "pop_r6": 767565
+    },
+    "22100": {
+     "city": "静岡市",
+     "pop_census": 693389,
+     "pop_r6": 677736
+    },
+    "22130": {
+     "city": "浜松市",
+     "pop_census": 790718,
+     "pop_r6": 788985
+    },
+    "23100": {
+     "city": "名古屋市",
+     "pop_census": 2332176,
+     "pop_r6": 2297745
+    },
+    "26100": {
+     "city": "京都市",
+     "pop_census": 1463723,
+     "pop_r6": 1379529
+    },
+    "27100": {
+     "city": "大阪市",
+     "pop_census": 2752412,
+     "pop_r6": 2757642
+    },
+    "27140": {
+     "city": "堺市",
+     "pop_census": 826161,
+     "pop_r6": 817041
+    },
+    "28100": {
+     "city": "神戸市",
+     "pop_census": 1525152,
+     "pop_r6": 1500425
+    },
+    "33100": {
+     "city": "岡山市",
+     "pop_census": 724691,
+     "pop_r6": 698671
+    },
+    "34100": {
+     "city": "広島市",
+     "pop_census": 1200754,
+     "pop_r6": 1178773
+    },
+    "40100": {
+     "city": "北九州市",
+     "pop_census": 939029,
+     "pop_r6": 921241
+    },
+    "40130": {
+     "city": "福岡市",
+     "pop_census": 1612392,
+     "pop_r6": 1593919
+    },
+    "43100": {
+     "city": "熊本市",
+     "pop_census": 738865,
+     "pop_r6": 731722
+    }
+   }
+  }
+ }
+}
