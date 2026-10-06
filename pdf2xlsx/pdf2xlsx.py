@@ -2,6 +2,7 @@
 """システム出力PDF（支出一覧表）→ Excel 転記ツール。ネットワーク通信なし。
 
 使い方: python pdf2xlsx.py <入力PDF> <転記先テンプレート.xlsx> <出力.xlsx> [--config config.json]
+引数なしで起動（exeをダブルクリック）するとファイル選択ダイアログが開く。
 検証が1つでも外れたら出力ファイルを作らず終了コード1で止まる。
 画面には件数・合計・検証結果のみ表示し、明細の中身は表示しない。
 """
@@ -207,7 +208,39 @@ def run(pdf, template, output, cfg):
     return True, msgs
 
 
+def gui_main():
+    """引数なし起動（ダブルクリック）: ファイル選択ダイアログで入力→結果を表示。"""
+    import tkinter as tk
+    from tkinter import filedialog, messagebox
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    title = "PDF→Excel 転記"
+    pdf = filedialog.askopenfilename(title="① 入力PDFを選択", filetypes=[("PDF", "*.pdf")])
+    if not pdf:
+        return 0
+    tpl = filedialog.askopenfilename(title="② 転記先テンプレート(Excel)を選択", filetypes=[("Excel", "*.xlsx")])
+    if not tpl:
+        return 0
+    out = filedialog.asksaveasfilename(title="③ 出力ファイルの保存先", defaultextension=".xlsx",
+                                       filetypes=[("Excel", "*.xlsx")], initialfile="転記結果.xlsx")
+    if not out:
+        return 0
+    if os.path.abspath(out) in (os.path.abspath(pdf), os.path.abspath(tpl)):
+        messagebox.showerror(title, "出力先が入力ファイルと同じです。別の名前にしてください。")
+        return 2
+    try:
+        ok, msgs = run(pdf, tpl, out, load_config(DEFAULT_CONFIG))
+    except Exception as e:
+        messagebox.showerror(title, f"エラー: {type(e).__name__}: {e}")
+        return 2
+    (messagebox.showinfo if ok else messagebox.showerror)(title, "\n".join(msgs))
+    return 0 if ok else 1
+
+
 def main(argv=None):
+    if argv is None and len(sys.argv) == 1:
+        return gui_main()
     for st in (sys.stdout, sys.stderr):  # コンソールの文字コードで表せない文字でも落とさない
         if hasattr(st, "reconfigure"):
             st.reconfigure(errors="replace")
