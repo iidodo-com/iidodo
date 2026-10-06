@@ -17,7 +17,9 @@ TOOL = os.path.join(HERE, "pdf2xlsx.py")
 
 
 def run_tool(pdf, out, tpl=TPL):
-    p = subprocess.run([sys.executable, TOOL, pdf, tpl, out], capture_output=True, text=True)
+    env = dict(os.environ, PYTHONUTF8="1")  # 出力を文字列で検査するためUTF-8に固定
+    p = subprocess.run([sys.executable, TOOL, pdf, tpl, out], capture_output=True,
+                       text=True, encoding="utf-8", env=env)
     return p.returncode, p.stdout + p.stderr
 
 

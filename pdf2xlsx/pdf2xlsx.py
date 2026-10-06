@@ -208,6 +208,9 @@ def run(pdf, template, output, cfg):
 
 
 def main(argv=None):
+    for st in (sys.stdout, sys.stderr):  # コンソールの文字コードで表せない文字でも落とさない
+        if hasattr(st, "reconfigure"):
+            st.reconfigure(errors="replace")
     ap = argparse.ArgumentParser(description="PDF明細をExcelへ転記（検証付き）")
     ap.add_argument("pdf")
     ap.add_argument("template")
