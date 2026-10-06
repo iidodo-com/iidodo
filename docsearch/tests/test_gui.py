@@ -59,7 +59,7 @@ class GuiTest(unittest.TestCase):
         """検索結果が一覧に出て、選択すると詳細欄で検索語が強調される。"""
         self.search("ＡＢＣ")
         self.assertEqual(len(self.app.tree.get_children()), 5)
-        self.assertIn("該当 5 件中 5 件", self.app.status.get())
+        self.assertIn("該当 5 件中 1～5 件目を表示", self.app.status.get())
         self.app.tree.selection_set("0")
         self.root.update()
         ranges = self.app.detail.tag_ranges("hit")
@@ -265,6 +265,56 @@ class GuiTest(unittest.TestCase):
             self.wait_idle()
         self.assertIn("アクセスできません", err.call_args[0][1])
         self.assertFalse(app.indexing)
+
+    def wait_search(self):
+        """検索（ページ送りを含む）が終わるまで待つ。"""
+        self.app.status.set("")
+        return self.pump(lambda: self.app.status.get() != "" and str(self.app.btn["state"]) == "normal")
+
+    def test_paging_and_csv_all(self):
+        """ページ送り: 1ページの件数を変えられ、前へ・次へで全件を見られる。CSVは表示中のページではなく全件を保存する。"""
+        self.app.page_size.set("2")
+        self.search("ABC")
+        self.assertEqual(len(self.app.tree.get_children()), 2)
+        self.assertEqual(self.app.page_label.get(), "1～2 件目 / 全 5 件")
+        self.assertEqual((str(self.app.prev_btn["state"]), str(self.app.next_btn["state"])), ("disabled", "normal"))
+        seen = [r.fullpath for r in self.app.results]
+        for expect_rows, label, nxt in ((2, "3～4 件目 / 全 5 件", "normal"), (1, "5～5 件目 / 全 5 件", "disabled")):
+            self.app.status.set("")
+            self.app.go_page(1)
+            self.assertTrue(self.wait_search())
+            self.assertEqual(len(self.app.tree.get_children()), expect_rows)
+            self.assertEqual(self.app.page_label.get(), label)
+            self.assertEqual(str(self.app.next_btn["state"]), nxt)
+            self.assertEqual(str(self.app.prev_btn["state"]), "normal")
+            seen += [r.fullpath for r in self.app.results]
+        self.assertEqual(len(seen), 5)
+        self.assertEqual(len(set(seen)), 5)  # 重複も欠落もない
+        # CSV: 最後のページ（1件）を表示していても、全5件を保存する
+        out = os.path.join(tempfile.mkdtemp(), "全件.csv")
+        with mock.patch.object(gui.filedialog, "asksaveasfilename", return_value=out):
+            self.app.save_csv()
+        with open(out, encoding="utf-8-sig") as f:
+            self.assertEqual(len(f.read().strip().splitlines()), 6)
+        self.assertIn("全 5 件", self.app.status.get())
+        # 前へで戻る。件数を変えると、最初のページから検索し直す
+        self.app.status.set("")
+        self.app.go_page(-1)
+        self.assertTrue(self.wait_search())
+        self.assertEqual(self.app.page_label.get(), "3～4 件目 / 全 5 件")
+        self.app.page_size.set("100")
+        self.app.status.set("")
+        self.app.change_page_size()
+        self.assertTrue(self.wait_search())
+        self.assertEqual(self.app.page_label.get(), "1～5 件目 / 全 5 件")
+        self.assertEqual((str(self.app.prev_btn["state"]), str(self.app.next_btn["state"])), ("disabled", "disabled"))
+
+    def test_bad_page_size_is_japanese_error(self):
+        """1ページの件数が数字でないときは、日本語のメッセージを出す。"""
+        self.app.page_size.set("たくさん")
+        self.app.query.set("ABC")
+        self.app.start_search()
+        self.assertIn("整数", self.app.status.get())
 
     def test_short_term_notice(self):
         """3文字未満の検索では、全件走査の注意が状態欄に出る。"""

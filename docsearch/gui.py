@@ -4,6 +4,7 @@ GUIを開く・検索する操作は、index.db と対象ファイルを読み�
 既定では、ダブルクリックは「読み取り専用の一時コピー」を開く（元ファイルを開くと Word/Excel が
 同じフォルダにロックファイルを作ることがあるため）。一時コピーは終了時と次回起動時に削除する。
 """
+import dataclasses
 import os
 import queue
 import sys
@@ -26,6 +27,8 @@ from core.scanner import RootError
 from core.searcher import build_options, search
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+PAGE_SIZES = ("50", "100", "200", "500")
+CSV_MAX = 20000  # CSV保存で書き出す最大件数
 NOTICE = "index.db は文書の本文を含みます。元文書と同等に扱ってください。スニペットは正規化後の文字（㈱→(株)、全角英数字→半角 等）で表示されるため、引用は元ファイルで確認してください。"
 
 
@@ -43,6 +46,8 @@ class App:
         self.scopes = None       # 選んだフォルダ以下の検索条件 [(root, 接頭辞)]。None はインデックス済みのすべて
         self.cancel = False      # インデックス作成の中止要求
         self.indexing = False
+        self.last = None         # 直前の検索（検索語, SearchOptions）。ページ送りで使う
+        self.total = 0           # 直前の検索の該当数
         self.prog_base, self.prog_t0 = "", 0.0   # 進捗の文言と開始時刻（経過秒を毎回更新して、動いていることを示す）
         self.folder_before = ""  # インデックス作成を始める前の、検索フォルダの表示
         root.title("過去資料の全文検索（読み取り専用）")
@@ -119,6 +124,20 @@ class App:
         ttk.Button(bar, text="開く", command=self.open_selected).pack(side="left")
         ttk.Button(bar, text="フォルダを開く", command=self.reveal_selected).pack(side="left", padx=4)
         ttk.Button(bar, text="パスをコピー", command=self.copy_path).pack(side="left")
+        pg = ttk.Frame(bar)
+        pg.pack(side="right")
+        self.prev_btn = ttk.Button(pg, text="◀ 前へ", command=lambda: self.go_page(-1), state="disabled")
+        self.prev_btn.pack(side="left")
+        self.page_label = tk.StringVar(value="")
+        ttk.Label(pg, textvariable=self.page_label).pack(side="left", padx=8)
+        self.next_btn = ttk.Button(pg, text="次へ ▶", command=lambda: self.go_page(1), state="disabled")
+        self.next_btn.pack(side="left")
+        ttk.Label(pg, text="　1ページの件数").pack(side="left")
+        self.page_size = tk.StringVar(value=PAGE_SIZES[0])
+        cb = ttk.Combobox(pg, textvariable=self.page_size, values=PAGE_SIZES, width=5)
+        cb.pack(side="left", padx=(4, 0))
+        cb.bind("<<ComboboxSelected>>", lambda _e: self.change_page_size())
+        cb.bind("<Return>", lambda _e: self.change_page_size())
         self.status = tk.StringVar(value="検索語を入力してください。")
         ttk.Label(root, textvariable=self.status, foreground="#333").pack(fill="x", padx=8)
         ttk.Label(root, text=NOTICE, foreground="#a00", wraplength=1060).pack(fill="x", padx=8, pady=(0, 6))
@@ -131,7 +150,7 @@ class App:
         if not exts:
             raise QueryError("拡張子が1つも選ばれていません。少なくとも1つ選んでください。")
         all4 = len(exts.split(",")) == 4
-        opts = build_options("" if all4 else exts, "", self.since.get(), self.until.get(), 50,
+        opts = build_options("" if all4 else exts, "", self.since.get(), self.until.get(), self.page_size.get(),
                              self.sort.get(), "place" if self.place.get() else "file", self.cfg.snippet_chars)
         opts.scopes = self.scopes  # 選んだフォルダ以下だけを検索（親は含めない）
         return opts
@@ -246,17 +265,36 @@ class App:
         except Exception as e:  # 想定外でも画面は落とさない
             self.q.put(("index_err", "想定外のエラー: %s: %s" % (type(e).__name__, e)))
 
-    def start_search(self):
-        """検索を別スレッドで開始する。"""
-        try:
-            opts = self.form_options()
-        except QueryError as e:
-            self.status.set("入力エラー: %s" % e)
-            return
+    def start_search(self, page=None):
+        """検索を別スレッドで開始する。page を指定したときは、直前の検索条件のまま、そのページ（0始まり）を表示する。"""
+        if page is None:
+            try:
+                opts = self.form_options()
+            except QueryError as e:
+                self.status.set("入力エラー: %s" % e)
+                return
+            raw = self.query.get()
+            self.last = (raw, opts)
+        else:
+            raw, opts = self.last
+            opts = dataclasses.replace(opts, offset=page * opts.limit)
+            self.last = (raw, opts)
         self.btn.configure(state="disabled")
         self.status.set("検索中…（3文字未満の語だけの検索は、全件走査のため時間がかかる場合があります）")
-        raw = self.query.get()
         threading.Thread(target=self.worker, args=(raw, opts), daemon=True).start()
+
+    def go_page(self, delta):
+        """前へ・次へ。直前の検索条件のまま、前後のページを表示する。"""
+        if not self.last:
+            return
+        opts = self.last[1]
+        page = max(0, opts.offset // opts.limit + delta)
+        self.start_search(page)
+
+    def change_page_size(self):
+        """1ページの件数を変えたら、最初のページから検索し直す。"""
+        if self.last:
+            self.start_search()
 
     def worker(self, raw, opts):
         """検索スレッド本体。DBは読み取り専用で、このスレッド内で開いて閉じる。"""
@@ -323,7 +361,13 @@ class App:
         for i, r in enumerate(res.results):
             more = "（ほか%d箇所）" % (r.place_hits - 1) if r.place_hits > 1 and not self.place.get() else ""
             self.tree.insert("", "end", iid=str(i), values=(r.name, r.location + more, r.mtime_text, r.snippet))
-        msg = "該当 %d 件中 %d 件を表示（並び順: %s）" % (res.total, len(res.results), "関連度(bm25)" if res.sort_used == "relevance" else "更新日の新しい順")
+        self.total = res.total
+        first = res.offset + 1 if res.results else 0
+        last = res.offset + len(res.results)
+        self.page_label.set("%d～%d 件目 / 全 %d 件" % (first, last, res.total))
+        self.prev_btn.configure(state="normal" if res.offset > 0 else "disabled")
+        self.next_btn.configure(state="normal" if last < res.total else "disabled")
+        msg = "該当 %d 件中 %d～%d 件目を表示（並び順: %s）" % (res.total, first, last, "関連度(bm25)" if res.sort_used == "relevance" else "更新日の新しい順")
         self.status.set(msg + "".join(" ／ " + n for n in res.notices))
         self.set_detail("")
 
@@ -378,19 +422,31 @@ class App:
             self.status.set("パスをコピーしました: %s" % r.fullpath)
 
     def save_csv(self):
-        """現在の検索結果をCSVに保存する。"""
-        if not self.results:
+        """検索結果をCSVに保存する。表示中のページだけでなく、該当した全件（上限 20000 件）を保存する。"""
+        if not self.results or not self.last:
             messagebox.showinfo("CSV保存", "保存する検索結果がありません。先に検索してください。")
             return
         path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV", "*.csv")],
                                             initialdir=self.cfg.output_dir if os.path.isdir(self.cfg.output_dir) else HERE,
                                             initialfile="検索結果.csv")
-        if path:
+        if not path:
+            return
+        raw, opts = self.last
+        try:
+            self.status.set("CSVを作成しています…")
+            self.root.update_idletasks()
+            conn = db.connect_ro(self.cfg.db_path)
             try:
-                write_results_csv(self.results, path)
-                self.status.set("CSVを保存しました: %s" % path)
-            except OSError as e:
-                messagebox.showerror("保存できません", "CSVを保存できません（%s）。保存先・権限・ファイルが開かれていないかを確認してください。" % e)
+                res = search(conn, raw, dataclasses.replace(opts, offset=0, limit=CSV_MAX))
+            finally:
+                conn.close()
+            write_results_csv(res.results, path)
+            more = "（該当 %d 件のうち、上位 %d 件）" % (res.total, len(res.results)) if res.total > len(res.results) else ""
+            self.status.set("CSVを保存しました: %s　全 %d 件%s" % (path, len(res.results), more))
+        except (QueryError, db.DbError) as e:
+            messagebox.showerror("保存できません", str(e))
+        except OSError as e:
+            messagebox.showerror("保存できません", "CSVを保存できません（%s）。保存先・権限・ファイルが開かれていないかを確認してください。" % e)
 
     def close(self):
         """終了時に一時コピーを削除して閉じる。"""

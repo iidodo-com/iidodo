@@ -48,6 +48,7 @@ def main(argv=None, out=None, err=None):
     ap.add_argument("--since", default="", help="この日以降に更新（例: 2024-04-01）")
     ap.add_argument("--until", default="", help="この日までに更新（例: 2024-12-31）")
     ap.add_argument("--limit", default=50, help="表示件数（既定 50）")
+    ap.add_argument("--offset", default=0, help="先頭からN件を読み飛ばして表示（ページ送り用。例: --limit 50 --offset 50 で51～100件目）")
     ap.add_argument("--sort", default="relevance", choices=["relevance", "date"], help="relevance:関連度(bm25) / date:更新日の新しい順")
     ap.add_argument("--scope", default="file", choices=["file", "place"], help="file:ファイル内でAND（既定）/ place:同じ場所内でAND")
     ap.add_argument("--csv", default="", help="結果をCSVに保存するパス")
@@ -73,7 +74,7 @@ def main(argv=None, out=None, err=None):
         conn = db.connect_ro(cfg.db_path)
         try:
             opts = build_options(a.ext, a.folder, a.since, a.until, a.limit, a.sort, a.scope, cfg.snippet_chars,
-                                 roots_mod.indexed_roots(conn))
+                                 roots_mod.indexed_roots(conn), a.offset)
         except Exception:
             conn.close()
             raise
@@ -102,14 +103,17 @@ def main(argv=None, out=None, err=None):
         conn.close()
     for n in res.notices:
         print("【お知らせ】" + n, file=out)
-    print("検索語: %s%s | 並び順: %s | AND の範囲: %s | 該当 %d %s中 %d 件を表示" % (
+    first = res.offset + 1 if res.results else 0
+    print("検索語: %s%s | 並び順: %s | AND の範囲: %s | 該当 %d %s中 %d～%d 件目を表示" % (
         " ".join(res.positives), ("  除外: " + " ".join(res.negatives)) if res.negatives else "",
         "関連度(bm25)" if res.sort_used == "relevance" else "更新日の新しい順",
         "ファイル内" if opts.scope == "file" else "同じ場所内", res.total,
-        "ファイル" if opts.scope == "file" else "か所", len(res.results)), file=out)
+        "ファイル" if opts.scope == "file" else "か所", first, res.offset + len(res.results)), file=out)
+    if res.offset + len(res.results) < res.total:
+        print("【次の%d件】--offset %d を付けて、もう一度実行してください。" % (opts.limit, res.offset + opts.limit), file=out)
     for i, r in enumerate(res.results, 1):
         more = "（ほか%d箇所）" % (r.place_hits - 1) if opts.scope == "file" and r.place_hits > 1 else ""
-        print("%d. %s | %s%s | %s | %s" % (i, r.name, r.location, more, r.mtime_text, r.folder or "."), file=out)
+        print("%d. %s | %s%s | %s | %s" % (res.offset + i, r.name, r.location, more, r.mtime_text, r.folder or "."), file=out)
         print("     " + format_snippet(r), file=out)
     if res.results:
         print("※スニペットは正規化後の文字（㈱→(株)、全角英数字→半角 など）で表示されます。引用する際は元ファイルで確認してください。", file=out)

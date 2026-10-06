@@ -16,6 +16,7 @@ class SearchOptions:
     since_ns: int = None       # この更新日時（ns）以降
     until_ns: int = None       # この更新日時（ns）より前
     limit: int = 50
+    offset: int = 0            # 先頭から読み飛ばす件数（ページ送り用）
     sort: str = "relevance"    # relevance / date
     scope: str = "file"        # file（ファイル内）/ place（同じ場所内）
     snippet_chars: int = 60
@@ -57,6 +58,7 @@ class SearchResult:
 @dataclass
 class SearchOutcome:
     results: list = field(default_factory=list)
+    offset: int = 0                     # この結果が、該当全体の何件目から始まるか（0始まり）
     total: int = 0                      # limit 適用前の該当数（ファイル単位ならファイル数、場所単位なら場所数）
     notices: list = field(default_factory=list)
     full_scan: bool = False             # 全語が3文字未満で、LIKEの全件走査になった
@@ -82,7 +84,7 @@ def _day_start_ns(d):
     return int(datetime.combine(d, dtime.min).timestamp() * 1e9)
 
 
-def build_options(exts="", folder="", since="", until="", limit=50, sort="relevance", scope="file", snippet_chars=60, roots=None):
+def build_options(exts="", folder="", since="", until="", limit=50, sort="relevance", scope="file", snippet_chars=60, roots=None, offset=0):
     """画面・コマンドラインの文字列入力から SearchOptions を作る。誤りは QueryError（日本語）。
 
     folder は、サブフォルダ名（相対）でも、フォルダの絶対パスでもよい。絶対パスのときは、roots（インデックス済みの
@@ -104,9 +106,15 @@ def build_options(exts="", folder="", since="", until="", limit=50, sort="releva
     try:
         limit = int(limit)
     except (TypeError, ValueError):
-        raise QueryError("表示件数（--limit）は整数で指定してください。")
+        raise QueryError("表示件数は整数で指定してください。")
     if limit < 1:
-        raise QueryError("表示件数（--limit）は1以上で指定してください。")
+        raise QueryError("表示件数は1以上で指定してください。")
+    try:
+        offset = int(offset)
+    except (TypeError, ValueError):
+        raise QueryError("表示の開始位置（--offset）は整数で指定してください。")
+    if offset < 0:
+        raise QueryError("表示の開始位置（--offset）は0以上で指定してください。")
     if sort not in ("relevance", "date"):
         raise QueryError("並び順は relevance（関連度）か date（更新日の新しい順）で指定してください。")
     if scope not in ("file", "place"):
@@ -118,7 +126,7 @@ def build_options(exts="", folder="", since="", until="", limit=50, sort="releva
         exts=ext_list or None, folder=folder, scopes=scopes,
         since_ns=_day_start_ns(s) if s else None,
         until_ns=_day_start_ns(u + timedelta(days=1)) if u else None,
-        limit=limit, sort=sort, scope=scope, snippet_chars=snippet_chars)
+        limit=limit, offset=offset, sort=sort, scope=scope, snippet_chars=snippet_chars)
 
 
 def _file_filter(opts, params):
@@ -189,7 +197,7 @@ def search(conn, raw_query, opts):
     3文字以上の語は FTS5(trigram) の MATCH、3文字未満の語は LIKE（全件走査になりうる）で処理する。
     """
     pq = parse_query(raw_query)
-    out = SearchOutcome(positives=pq.positives, negatives=pq.negatives, sort_used=opts.sort)
+    out = SearchOutcome(positives=pq.positives, negatives=pq.negatives, sort_used=opts.sort, offset=opts.offset)
     longs = [t for t in pq.positives if is_long(t)]
     shorts = [t for t in pq.positives if not is_long(t)]
     out.like_used = bool(shorts) or any(not is_long(t) for t in pq.negatives)
@@ -237,8 +245,9 @@ def _search_place(conn, pq, longs, shorts, opts, out):
     else:
         order = "f.mtime_ns DESC, f.relpath, c.id"
     params["limit"] = opts.limit
+    params["offset"] = opts.offset
     sql = ("SELECT f.root, f.relpath, f.ext, f.mtime_ns, c.location, c.text, %s AS score FROM %s WHERE %s "
-           "ORDER BY %s LIMIT :limit" % (score, frm, w, order))
+           "ORDER BY %s LIMIT :limit OFFSET :offset" % (score, frm, w, order))
     for root, rel, ext, mt, loc, text, sc in conn.execute(sql, params):
         snip, spans = make_snippet(text, pq.positives, opts.snippet_chars)
         out.results.append(SearchResult(root, rel, ext, loc, mt, snip, spans, sc, 1))
@@ -301,7 +310,7 @@ def _search_file(conn, pq, longs, shorts, opts, out):
         order = sorted(ids, key=lambda i: (best_score.get(i, 0), -cand[i], i))
     else:
         order = sorted(ids, key=lambda i: (-cand[i], i))
-    top = order[:opts.limit]
+    top = order[opts.offset:opts.offset + opts.limit]
     conn.execute("DELETE FROM temp.cand")
     conn.executemany("INSERT INTO temp.cand VALUES(?)", [(i,) for i in top])
     like_sql = "".join(" OR c.text LIKE ? ESCAPE '\\'" for _ in shorts)

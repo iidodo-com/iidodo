@@ -176,6 +176,28 @@ class ScopeAndSortTest(unittest.TestCase):
         self.assertEqual(len(res.results), 2)
         self.assertGreater(res.total, 2)
 
+    def test_paging_covers_everything_without_overlap(self):
+        """ページ送り（offset）: ページをつなげると、1回で全件取った結果と同じ順序・同じ内容になり、重複も欠落もない。"""
+        for scope in ("place", "file"):
+            for sort in ("relevance", "date"):
+                with self.subTest(scope=scope, sort=sort):
+                    full = search(self.conn, "ABC", build_options(limit=1000, scope=scope, sort=sort))
+                    want = [(r.relpath, r.location) for r in full.results]
+                    self.assertGreaterEqual(len(want), 5)
+                    got, off = [], 0
+                    while True:
+                        page = search(self.conn, "ABC", build_options(limit=2, offset=off, scope=scope, sort=sort))
+                        self.assertEqual((page.total, page.offset), (full.total, off))
+                        if not page.results:
+                            break
+                        self.assertLessEqual(len(page.results), 2)
+                        got += [(r.relpath, r.location) for r in page.results]
+                        off += 2
+                    self.assertEqual(got, want)
+                    self.assertEqual(len(set(got)), len(got))
+                    beyond = search(self.conn, "ABC", build_options(limit=2, offset=full.total + 10, scope=scope, sort=sort))
+                    self.assertEqual((beyond.results, beyond.total), ([], full.total))
+
     def test_exclusion_scope_difference(self):
         """除外語: 場所単位では「その場所」を、ファイル単位では「そのファイル全体」を除外する。"""
         p = search(self.conn, "損害賠償 -上限", build_options(scope="place"))
@@ -262,6 +284,28 @@ class CliTest(unittest.TestCase):
         self.assertTrue(os.path.exists(csvp))
         with open(csvp, encoding="utf-8-sig") as f:
             self.assertEqual(len(f.read().strip().splitlines()), 4)
+
+    def test_cli_paging(self):
+        """--limit / --offset でページ送りでき、番号と「次のN件」の案内が出る。"""
+        rc, out, err = self.run_cli("ABC", "--limit", "2")
+        self.assertEqual(rc, 0, err)
+        self.assertIn("該当 5 ファイル中 1～2 件目を表示", out)
+        self.assertIn("--offset 2 を付けて", out)
+        self.assertIn("\n1. ", out)
+        rc, out, err = self.run_cli("ABC", "--limit", "2", "--offset", "2")
+        self.assertIn("3～4 件目を表示", out)
+        self.assertIn("\n3. ", out)
+        self.assertIn("--offset 4 を付けて", out)
+        rc, out, err = self.run_cli("ABC", "--limit", "2", "--offset", "4")
+        self.assertIn("5～5 件目を表示", out)
+        self.assertNotIn("--offset", out)  # 最後のページには、次の案内を出さない
+        rc, out, err = self.run_cli("ABC", "--limit", "2", "--offset", "99")
+        self.assertEqual(rc, 0, err)
+        self.assertIn("該当 5 ファイル中 0～99 件目を表示", out)  # 範囲外の開始位置: 結果なし（表示は0件）
+        for bad, word in (("-1", "0以上"), ("x", "整数")):
+            rc, out, err = self.run_cli("ABC", "--offset", bad)
+            self.assertEqual(rc, 2)
+            self.assertIn(word, err)
 
     def test_argument_errors(self):
         """日付・拡張子・件数の誤りも、日本語のメッセージで終了コード2。"""
