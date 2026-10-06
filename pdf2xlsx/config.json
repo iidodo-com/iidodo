@@ -1,0 +1,29 @@
+{
+  "headers": ["伝票番号", "執行日", "科目コード", "科目名", "摘要", "支出先", "金額（円）"],
+  "column_x_boundaries": [100, 180, 240, 350, 460, 650],
+  "row_y_tolerance": 3,
+  "labels": {
+    "subtotal": "小計",
+    "count": "件数",
+    "total": "合計"
+  },
+  "patterns": {
+    "voucher": "^\\d{4}-\\d{4}$",
+    "code": "^\\d{4}$",
+    "date": "^令和(\\d+)年(\\d+)月(\\d+)日$",
+    "amount": "^\\d{1,3}(,\\d{3})*$",
+    "subtotal_line": "^小計\\s+(\\d{1,3}(?:,\\d{3})*)$",
+    "summary_line": "^件数\\s*(\\d+)\\s*件\\s+合計\\s*(\\d{1,3}(?:,\\d{3})*)$"
+  },
+  "era_offset": {"令和": 2018},
+  "excel": {
+    "sheet": "転記先",
+    "header_row": 1,
+    "first_data_row": 2,
+    "last_data_row": 1000,
+    "columns": ["A", "B", "C", "D", "E", "F", "G"],
+    "pdf_total_cell": "J4",
+    "result_cells": {"count": "J2", "total": "J3", "verdict": "J6"},
+    "number_formats": {"B": "yyyy/mm/dd", "C": "@", "G": "#,##0"}
+  }
+}
