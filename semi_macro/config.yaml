@@ -1,0 +1,107 @@
+# 半導体×マクロ 検証ツール 設定ファイル
+# コードを触らずに、指標・期間・ラグ・判定基準を変更できます。
+# APIキーはここに書かないでください（環境変数 FRED_API_KEY か、git管理外の .env に書きます）。
+
+paths:
+  data_dir: data
+  output_dir: output
+
+http:
+  timeout_sec: 30
+  retries: 3          # ネットワーク失敗・レート制限(429)時の再試行回数
+  backoff_sec: 5      # 再試行までの待ち時間の基準(秒)。回数が増えるごとに倍
+
+# ---- FRED 系列 -------------------------------------------------------
+fred:
+  start: "1980-01-01"       # 取得開始日（系列の実際の開始日がこれより後なら、そちらから）
+  overlap_days: 21          # 差分取得時に、最終日から遡って取り直す日数（後からの改訂検出用）
+  series:
+    - {id: DGS10,        name: "米10年国債利回り",            kind: rate,  unit: "%",          group: "金利"}
+    - {id: DGS2,         name: "米2年国債利回り",             kind: rate,  unit: "%",          group: "金利"}
+    - {id: T10Y2Y,       name: "10年−2年スプレッド",         kind: rate,  unit: "%",          group: "金利"}
+    - {id: BAMLC0A0CM,   name: "ICE BofA 投資適格OAS",       kind: rate,  unit: "%",          group: "社債スプレッド(ICE)"}
+    - {id: BAMLH0A0HYM2, name: "ICE BofA ハイイールドOAS",   kind: rate,  unit: "%",          group: "社債スプレッド(ICE)"}
+    - {id: BAA10Y,       name: "Moody's Baa利回り−米10年債", kind: rate,  unit: "%",          group: "社債スプレッド(Moody's代替)"}
+    - {id: AAA10Y,       name: "Moody's Aaa利回り−米10年債", kind: rate,  unit: "%",          group: "社債スプレッド(Moody's代替)"}
+    - {id: DEXJPUS,      name: "ドル円(FRB H.10)",           kind: price, unit: "円/米ドル",  group: "為替"}
+    - {id: DTWEXBGS,     name: "ドル指数(広義・名目)",       kind: price, unit: "指数",       group: "為替"}
+    - {id: VIXCLS,       name: "VIX",                        kind: price, unit: "指数",       group: "リスク"}
+
+# ---- 株価・指数 (yfinance: 非公式) ------------------------------------
+yfinance:
+  start: "2000-01-01"
+  overlap_days: 10
+  # 差分取得時、重ねた期間の終値・調整後終値が保存値と食い違えば（分割・配当による遡及改訂）全期間を取り直す
+  revision_tolerance: 1.0e-6
+  market_hours:
+    # 未確定の足の除外（日本株: 当日の16:00 JST以降、米国: 現地日の翌日 08:00 JST 以降を確定とみなす）
+    jp_final_after_jst: "16:00"
+    us_final_after_jst: "08:00"   # 米国日付の「翌日」のこの時刻以降
+  tickers:
+    # role: index=指数, us_etf, jp_stock=日本株(バスケット候補), reference_etf=参考表示のみ
+    - {ticker: "^SOX",   name: "フィラデルフィア半導体指数", role: index,         market: US, enabled: true}
+    - {ticker: "SOXX",   name: "iShares半導体ETF",           role: us_etf,        market: US, enabled: true}
+    - {ticker: "^N225",  name: "日経平均",                   role: index,         market: JP, enabled: true}
+    - {ticker: "8035.T", name: "東京エレクトロン",           role: jp_stock,      market: JP, enabled: true}
+    - {ticker: "6857.T", name: "アドバンテスト",             role: jp_stock,      market: JP, enabled: true}
+    - {ticker: "6146.T", name: "ディスコ",                   role: jp_stock,      market: JP, enabled: true}
+    - {ticker: "6920.T", name: "レーザーテック",             role: jp_stock,      market: JP, enabled: true}
+    # 任意項目: 上場が浅く分割の影響があるため主分析(バスケット)には入れない
+    - {ticker: "285A.T", name: "キオクシア(任意)",           role: jp_optional,   market: JP, enabled: true}
+    # 参考表示のみ(履歴約2年・検証対象外)。yfinanceの検索結果から拾った銘柄名で、連動指数の詳細は未確認
+    - {ticker: "200A.T", name: "NEXT FUNDS 日経半導体株指数連動型ETF", role: reference_etf, market: JP, enabled: true}
+    - {ticker: "221A.T", name: "MAXIS 日経半導体株ETF",      role: reference_etf, market: JP, enabled: true}
+    - {ticker: "213A.T", name: "上場インデックスファンド日経半導体株", role: reference_etf, market: JP, enabled: true}
+
+basket:
+  name: "半導体製造装置バスケット(等ウェイト)"
+  members: ["8035.T", "6857.T", "6146.T", "6920.T"]
+  include_optional: false          # true にすると 285A.T も加える(非推奨)
+  benchmark: "^N225"
+
+# ---- データ品質 ---------------------------------------------------------
+quality:
+  large_move_threshold: 0.12       # 日次変動がこれを超えた日をフラグ(補正はしない)
+  manual_conflict_tolerance: 0.005 # 手動CSVとyfinanceが0.5%超ずれたら警告(yfinanceを優先)
+
+# ---- 日本株の終値照合(あなたの証券会社画面との比較結果をここに追記) ----------
+# 未記入の期間は、メタ情報・ダッシュボードに「未確認」と表示されます。
+# 追記例:
+#   - {tickers: ["8035.T","6857.T"], from: "2026-09-30", to: "2026-10-05", status: "一致", by: "ユーザー", note: "SBI画面"}
+#   status は 一致 / 不一致 のいずれか。「不一致」の場合、その銘柄・日付はyfinanceを正とせず、報告対象になります。
+verification: []
+
+# ---- 仮説検証 -------------------------------------------------------------
+hypothesis:
+  # 事前基準をあなたが確認・承認するまで false のままにしてください。
+  # false の間、実データでの検定(hypothesis コマンド)は実行されません。
+  criteria_confirmed: false
+
+  lags: {min: 0, max: 30}              # 先行ラグ(営業日)。lag=0 は規則Bの定義
+  spread_change_windows: [5, 20]       # 社債スプレッドの変化の窓(営業日)
+  forward_return_windows: [5, 20]      # その後リターンの窓(営業日)
+  spread_series:                       # ICE系とMoody's系は別々に検証(混ぜない)
+    - {id: BAMLC0A0CM,   label: "ICE BofA 投資適格OAS",       family: ICE}
+    - {id: BAMLH0A0HYM2, label: "ICE BofA ハイイールドOAS",   family: ICE}
+    - {id: BAA10Y,       label: "Moody's Baa−10年債(代替)",   family: Moodys}
+    - {id: AAA10Y,       label: "Moody's Aaa−10年債(代替)",   family: Moodys}
+  targets:
+    verdict: ["SOX", "JP_BASKET"]      # 判定を出す対象
+    descriptive: ["SOXX", "SOXX_ADJ", "N225", "JP_BASKET_REL", "8035.T", "6857.T", "6146.T", "6920.T"]  # 記述のみ
+
+  stats:
+    seed: 20261006
+    block_length: 40                   # ブロック長(営業日): 最大窓(20)の2倍。ブートストラップと置換検定で共通
+    n_bootstrap: 2000
+    n_permutations: 2000
+    ci_level: 0.95
+    n_splits: 2                        # 期間分割数(2=前半・後半)
+
+  # --- 判定基準(結果を見る前に固定する) -----------------------------------
+  verdict:
+    alpha: 0.05                        # ラグ全体の最大統計量による調整後p値の有意水準
+    min_effective_n_total: 100         # 検定に使うセル: 重ならない窓での標本数(全期間)
+    min_effective_n_per_split: 50      # 同: 各分割期間
+    min_consecutive_lags: 3            # 支持には、同符号(負)で連続する3ラグ以上の一群が必要
+    equivalence_r: 0.10                # 「支持しない」: 全セル・全ラグで相関の信頼区間の下限が -この値 より上
+    require_split_sign_agreement: true # 支持には、全ての分割期間で同符号
