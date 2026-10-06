@@ -15,7 +15,9 @@ import sys
 import openpyxl
 import pdfplumber
 
-DEFAULT_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+# exe化(PyInstaller)時は exe と同じフォルダの config.json を読む（設定を差し替え可能にするため）
+_BASE = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
+DEFAULT_CONFIG = os.path.join(_BASE, "config.json")
 
 
 class ExtractError(Exception):
