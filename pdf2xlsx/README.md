@@ -40,4 +40,5 @@ python test_pdf2xlsx.py
 - 手元で作る: Python 3 を入れた Windows で `build_exe.bat` をダブルクリック → `dist\pdf2xlsx\pdf2xlsx.exe`
 - GitHub で作る: Actions の「build-pdf2xlsx-exe」を実行（pdf2xlsx/ を push しても自動実行）→ Artifacts の `pdf2xlsx-windows`
 - フォルダごと配布する。`config.json` は exe と同じ場所に置く（設定変更はこのファイルを編集するだけ）。
-- 使い方: `pdf2xlsx.exe 入力.pdf テンプレート.xlsx 出力.xlsx`
+- 使い方(簡単): `pdf2xlsx.exe` をダブルクリック → 入力PDF・テンプレート・保存先を順に選ぶ → 結果がダイアログで表示される
+- 使い方(コマンド): `pdf2xlsx.exe 入力.pdf テンプレート.xlsx 出力.xlsx`
