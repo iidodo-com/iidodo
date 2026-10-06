@@ -78,7 +78,7 @@ verification:
 hypothesis:
   # 事前基準をあなたが確認・承認するまで false のままにしてください。
   # false の間、実データでの検定(hypothesis コマンド)は実行されません。
-  criteria_confirmed: false
+  criteria_confirmed: true
 
   lags: {min: 0, max: 30}              # 先行ラグ(営業日)。lag=0 は規則Bの定義
   spread_change_windows: [5, 20]       # 社債スプレッドの変化の窓(営業日)
