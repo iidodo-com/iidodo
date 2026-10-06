@@ -167,7 +167,7 @@ class QueryParseTest(unittest.TestCase):
     def test_build_options_errors(self):
         """絞り込み条件の誤りも、日本語で QueryError になる。"""
         for kw, word in ((dict(exts="txt"), "拡張子"), (dict(since="2024/13/45"), "日付"), (dict(limit="x"), "整数"),
-                          (dict(limit=0), "1以上"), (dict(sort="x"), "並び順"), (dict(scope="x"), "範囲"),
+                          (dict(limit=0), "1以上"), (dict(offset=-1), "0以上"), (dict(offset="x"), "整数"), (dict(sort="x"), "並び順"), (dict(scope="x"), "範囲"),
                           (dict(since="2024-05-01", until="2024-04-01"), "後")):
             with self.assertRaises(QueryError) as cm:
                 build_options(**kw)
