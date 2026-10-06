@@ -1,0 +1,26 @@
+name: build-pdf2xlsx-exe
+on:
+  workflow_dispatch:
+  push:
+    paths: ["pdf2xlsx/**"]
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: pdf2xlsx
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pdfplumber openpyxl pyinstaller reportlab
+      - run: python test_pdf2xlsx.py
+      - run: python -m PyInstaller --noconfirm --clean --onedir --name pdf2xlsx --collect-all pdfminer pdf2xlsx.py
+      - run: copy config.json dist\pdf2xlsx\config.json
+      - name: exe smoke test
+        run: dist\pdf2xlsx\pdf2xlsx.exe samples\sample_input.pdf samples\sample_template.xlsx out.xlsx
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf2xlsx-windows
+          path: pdf2xlsx/dist/pdf2xlsx

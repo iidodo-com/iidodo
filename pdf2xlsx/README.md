@@ -34,3 +34,10 @@ python test_pdf2xlsx.py
 
 見出し文字列、列のx座標境界（`column_x_boundaries`）、小計/件数/合計行の正規表現（`patterns`）、
 元号換算、転記先シート名・列対応・書式・照合欄セルを設定。実物の様式に合わせるときはここを直します。
+
+## 実行ファイル（Windows exe）の作り方
+
+- 手元で作る: Python 3 を入れた Windows で `build_exe.bat` をダブルクリック → `dist\pdf2xlsx\pdf2xlsx.exe`
+- GitHub で作る: Actions の「build-pdf2xlsx-exe」を実行（pdf2xlsx/ を push しても自動実行）→ Artifacts の `pdf2xlsx-windows`
+- フォルダごと配布する。`config.json` は exe と同じ場所に置く（設定変更はこのファイルを編集するだけ）。
+- 使い方: `pdf2xlsx.exe 入力.pdf テンプレート.xlsx 出力.xlsx`
