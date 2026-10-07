@@ -110,10 +110,10 @@ length('あいう')
 equals(length(json('[]')), 0)
 ```
 
-### E08_7 【誤りの再現】null を length に直接渡す
+### E08_7 【誤りの再現】null を length に直接渡す（実機で確認済み）
 
-- 期待出力: （エラーまたは 0。結果を知らせてください）
-- 備考: 最後に実行する。失敗しても他のケースに影響しない位置に置く
+- 期待出力: エラー：The template language function 'length' expects its parameter to be an array or a string. The provided value is of type 'Null'.
+- 備考: 2026-10-07 実機で確認済み（InvalidTemplate）。値なしの可能性があるときは coalesce で空配列にしてから length を使う
 
 ```text
 length(null)
