@@ -107,7 +107,10 @@ pre.code{background:var(--code);color:var(--code-fg);padding:.7em .9em;border-ra
 <li><span class="en">Create</span> →「<span class="en">Instant cloud flow</span>」→ 名前を <span class="en">見本づくり</span> にして、<span class="en">Manually trigger a flow</span> を選んで <span class="en">Create</span>。</li>
 <li><span class="en">＋</span> →「<span class="en">Scope</span>」を追加し、名前を <span class="en">Try</span> にします（箱の「…」→「Rename」）。<br><small>※ 検索欄に <span class="en">Scope</span> と入れると出ます（コントロールの仲間）。</small></li>
 <li><span class="en">Try</span> の中の <span class="en">＋</span> で、<span class="en">Excel Online (Business)</span> の <span class="en">List rows present in a table</span> を追加し、練習用の Excel ファイルとテーブルを選びます。</li>
-<li>その下に <span class="en">Apply to each</span> を追加し、「Select an output」には、一覧取得の <span class="en">value</span>（動的なコンテンツ）を選びます。中に <span class="en">Compose</span> を1つ追加し、入力は何でもよい（例：<span class="en">test</span>）。</li>
+<li>その下に <span class="en">Apply to each</span> を追加します（<span class="en">Try</span> の中でも外でも構いません）。<br>
+「<span class="en">Select an output from previous steps</span>」の欄をクリックし、<b>欄の右端の上のアイコン（稲妻＝動的なコンテンツ）</b>を押して、<span class="en">List rows present in a table</span> の下の <span class="en">value</span> を選びます。<br>
+<small>見つからないときは、右端の下のアイコン（<span class="en">fx</span>）で式の欄を開き、<span class="en">body('List_rows_present_in_a_table')?['value']</span> を貼って <span class="en">Add</span>。</small><br>
+続いて、箱の中の <span class="en">＋</span> で <span class="en">Compose</span> を1つ追加し、入力は何でもよい（例：<span class="en">test</span>）。</li>
 <li><span class="en">Try</span> の<b>外の下</b>に、もう1つ <span class="en">Scope</span> を追加し、名前を <span class="en">Catch</span> にします。</li>
 <li><span class="en">Catch</span> の中に <span class="en">Outlook</span> の <span class="en">Send an email (V2)</span>（メールの送信）を追加し、宛先に自分、件名と本文に「失敗しました」などを入れます。</li>
 <li><span class="en">Catch</span> を、<b>「Try が失敗したときだけ動く」</b>設定にします（第4章の「実行条件の構成」）。</li>
@@ -143,7 +146,7 @@ pre.code{background:var(--code);color:var(--code-fg);padding:.7em .9em;border-ra
 <tr><td><b>Excel：ページ分け（ページネーション）</b></td><td><span class="en">List rows present in a table</span> の箱 →「<span class="en">Settings</span>」タブ → <span class="en">Pagination</span>（ページネーション）をオン／オフ。オンのときは「しきい値（Threshold）」に数字（例：<span class="en">5000</span>）</td><td>オフ・オンの2回</td></tr>
 <tr><td><b>Apply to each：並列実行（コンカレンシー）</b></td><td><span class="en">Apply to each</span> の箱 →「<span class="en">Settings</span>」タブ → <span class="en">Concurrency control</span> をオン／オフ。オンのときは並列度（例：<span class="en">4</span>）</td><td>オフ・オンの2回</td></tr>
 <tr><td><b>失敗時にだけ動く（実行条件の構成）</b></td><td><span class="en">Catch</span> の箱（またはその中のメール送信）→ <span class="en">Settings</span> タブの中の <span class="en">Run after</span>（実行条件の構成）。「<span class="en">is successful</span>」を外して、「<span class="en">has failed</span>」「<span class="en">has timed out</span>」にチェック</td><td>変更後の1回（必要なら変更前も）</td></tr>
-<tr><td><b>Excel：日付の形式</b></td><td><span class="en">List rows present in a table</span> の「<span class="en">Parameters</span>」タブの <span class="en">Advanced parameters</span> の中の <span class="en">Date Time Format</span>（日付/時刻の形式）（想定）。「<span class="en">ISO 8601</span>」を選ぶ</td><td>選んだ状態の1回</td></tr>
+<tr><td><b>Excel：日付の形式</b></td><td><span class="en">List rows present in a table</span> の「<span class="en">Parameters</span>」タブの <span class="en">Advanced parameters</span> の中の <span class="en">DateTime Format</span>（日付/時刻の形式。<b>画面で確認済み</b>）。ドロップダウンから選ぶ（選択肢の中の「<span class="en">ISO 8601</span>」を選ぶ想定）</td><td>選んだ状態の1回</td></tr>
 <tr><td>トリガー条件</td><td>トリガーの箱 →「<span class="en">Settings</span>」タブ → <span class="en">Trigger conditions</span>（トリガー条件）に、条件の式を1つ入れる（例：<span class="en">@equals(1,1)</span>）</td><td>設定後の1回</td></tr>
 <tr><td>定期実行のタイムゾーン</td><td><span class="en">Recurrence</span>（定期的に実行）トリガーの <span class="en">Time zone</span> を日本時間（<span class="en">(UTC+09:00) Osaka, Sapporo, Tokyo</span>）に</td><td>設定後の1回</td></tr>
 </table>
