@@ -10,7 +10,7 @@ JSON を丸ごと生成してインポートする方式は採りません。
 | 工程 | 内容 | 状態 |
 | --- | --- | --- |
 | 事前 | サンプル収集チェックリスト（[docs/sample_checklist.md](docs/sample_checklist.md)） | 完成 |
-| 1 | 式ライブラリ（[expressions/](expressions/)）と `tools/make_expression.ps1` | 作成済み・**式の実機検証待ち**（[expressions/VERIFY.md](expressions/VERIFY.md)） |
+| 1 | 式ライブラリ（[expressions/](expressions/)）と `tools/make_expression.ps1` | **完成・実機検証済み**（2026-10-07、全81ケース期待どおり。[expressions/VERIFIED_RESULTS.md](expressions/VERIFIED_RESULTS.md)） |
 | 構造メモ | `docs/structure_notes.md`（サンプルを読んでアクション構造の規則をまとめる） | サンプル待ち（承認が必要） |
 | 2 | `tools/build_guide`（構築手順書の出力） | サンプル待ち |
 | 3 | `tools/explain_flow`（引継ぎ仕様書の出力） | サンプル待ち |
@@ -40,7 +40,7 @@ flow-kit/
 
 - 一覧と使い方：[expressions/README.md](expressions/README.md)
 - 各式の **Compose（作成）での検証手順・結果記入表**：[expressions/VERIFY.md](expressions/VERIFY.md)
-- **すべて「未検証」です。** 検証結果が確認できるまで、本番のフローには使わないでください。
+- **全ケースを実機で検証済み**（2026-10-07、Power Automate 英語表示・既定環境）。結果は [expressions/VERIFIED_RESULTS.md](expressions/VERIFIED_RESULTS.md)。別の環境（画面言語やテナント）で使うときは、E00・E01 だけでも先に確認してください。
 - 画面での検証は、**一括版マニュアル** [docs/manual_expression_check_bulk.html](docs/manual_expression_check_bulk.html)（箱3個＋集計＋隔離1個で全81ケース）が手早いです。ケースごとに確認する詳細版は [docs/manual_expression_check.html](docs/manual_expression_check.html) です。
 
 ### `make_expression`（要件から式を探して出力）

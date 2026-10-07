@@ -6,7 +6,7 @@
 - 根拠: https://learn.microsoft.com/en-us/azure/logic-apps/workflow-definition-language-functions-reference
 - 書式の根拠: https://learn.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings
 - リファレンス確認: 使用関数の名前・引数は上記ページで確認済み（2026-10-07 時点・英語版）。戻り値の細かい挙動は下記ケースで実機確認する。
-- 検証状況: **未検証**（Compose での検証待ち。結果は VERIFY.md に記入）
+- 検証状況: **実機検証済み**（2026-10-07 Power Automate 英語表示・既定環境。全ケースが期待どおり。詳細は VERIFIED_RESULTS.md）
 
 ## 用途
 
@@ -56,7 +56,7 @@ A<br>B<br>C
 
 ## よくある誤り
 
-- 式の中に `'\n'` と書く。**改行にならず「\n」という文字が出力される可能性があります**（リファレンスに記載なし。ケース E09_6 で確認）。`decodeUriComponent('%0A')` を使う。
+- 式の中に `'\n'` と書く。**改行にならず「\n」という文字が出力されます**（2026-10-07 実機で確認。ケース E09_6：文字数 A\nB が 4）。`decodeUriComponent('%0A')` を使う。
 - HTML 形式の本文に改行コードだけを入れる（HTML では改行コードは無視され、1行につながって表示される）。
 - CRLF（`%0D%0A`）のデータに対して LF だけを置換する（CR が残り、表示が崩れることがある）。CRLF を先に置換する（式C）。
 - リッチテキスト列に式Bを適用する（すでに HTML のため不要）。
@@ -112,7 +112,7 @@ join(createArray('A','B','C'), '<br>')
 
 ### E09_6 【観察】\n と書いた場合（改行になるか）
 
-- 期待出力: 4（予想：\n が文字として残る。3なら改行として解釈されている）
+- 期待出力: 4（実機確認済み：\n は改行にならず、文字として残る）
 - 備考: 予想値。結果を知らせてください
 
 ```text

@@ -3,7 +3,7 @@
 - 要件: 月末日を求めたい
 - 採用: 月末日（ID: E04 / ファイル: expressions/04_end_of_month.md）
 - 一致したキーワード: 月末, 月末日, 末日
-- 検証状況: **未検証**（Compose での検証待ち。結果は VERIFY.md に記入）
+- 検証状況: **実機検証済み**（2026-10-07 Power Automate 英語表示・既定環境。全ケースが期待どおり。詳細は VERIFIED_RESULTS.md）
 
 ## 用途
 

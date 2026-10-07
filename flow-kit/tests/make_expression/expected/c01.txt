@@ -3,7 +3,7 @@
 - 要件: 日本時間の今日の日付を yyyy/MM/dd で出したい
 - 採用: 日本時間の今日の日付（yyyy/MM/dd）（ID: E01 / ファイル: expressions/01_today_jst.md）
 - 一致したキーワード: 今日, 日付, yyyy/MM/dd, 日本時間
-- 検証状況: **未検証**（Compose での検証待ち。結果は VERIFY.md に記入）
+- 検証状況: **実機検証済み**（2026-10-07 Power Automate 英語表示・既定環境。全ケースが期待どおり。詳細は VERIFIED_RESULTS.md）
 
 ## 用途
 
