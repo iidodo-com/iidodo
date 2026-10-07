@@ -1,0 +1,20 @@
+{
+  "type": "Foreach",
+  "foreach": "@outputs('List_rows_present_in_a_table')?['body/value']",
+  "actions": {
+    "test": {
+      "type": "Compose",
+      "inputs": "test"
+    }
+  },
+  "runAfter": {
+    "List_rows_present_in_a_table": [
+      "Succeeded"
+    ]
+  },
+  "runtimeConfiguration": {
+    "concurrency": {
+      "repetitions": 4
+    }
+  }
+}

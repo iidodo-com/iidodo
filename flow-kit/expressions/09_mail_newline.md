@@ -43,7 +43,7 @@ join(<配列>, '<br>')
 ## 入力の想定
 
 `<複数行テキスト>` に、Forms の複数行回答・SharePoint の複数行テキスト・Excel の改行入りセルなどを入れます。
-- メール送信アクションの本文が **HTML として扱われるか** は、アクション側の設定に依存します（本文欄の設定・「HTML」関連の項目名は **要確認（サンプルなし）**）。Teams の投稿も同様に **要確認（サンプルなし）**。
+- Outlook の「Send an email (V2)」の本文は、**HTML として保存されます**（サンプルでは `emailMessage/Body` が `<p class="editor-paragraph">…</p>`。`samples/actions/control__scope__run_after_failed.json`）。そのため、改行は `<br>` にします。Teams の投稿の本文は **要確認（サンプルなし）**。
 - SharePoint の「リッチテキスト」列は、すでに HTML（`<div>` 等）の形で届くため、`<br>` への置換は不要です。
 
 ## 出力例
