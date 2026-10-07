@@ -7,7 +7,7 @@
 - 書式の根拠: https://learn.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings
 - タイムゾーン名の根拠: https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones（このページ自体は未確認。`Tokyo Standard Time` は E00 のケースで動作確認する）
 - リファレンス確認: 使用関数の名前・引数は上記ページで確認済み（2026-10-07 時点・英語版）。戻り値の細かい挙動は下記ケースで実機確認する。
-- 検証状況: **未検証**（Compose での検証待ち。結果は VERIFY.md に記入）
+- 検証状況: **実機検証済み**（2026-10-07 Power Automate 英語表示・既定環境。全ケースが期待どおり。詳細は VERIFIED_RESULTS.md）
 
 ## 用途
 
@@ -37,7 +37,7 @@ convertTimeZone(utcNow(), 'UTC', 'Tokyo Standard Time')
 2026-10-07T00:30:12.3456789
 ```
 
-- 末尾に `Z` や `+09:00` は付かない想定です（リファレンスに「結果にタイムゾーンのオフセットが含まれない場合がある」と記載）。→ ケース E00_1 で確認します。
+- 末尾に `Z` や `+09:00` は **付きません**（2026-10-07 実機で確認。ケース E00_1 の出力は `2026-10-07T00:30:00.0000000`）。リファレンスにも「結果にタイムゾーンのオフセットが含まれない場合がある」と記載されています。
 
 ## よくある誤り
 
