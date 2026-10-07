@@ -110,6 +110,7 @@ powershell -NoProfile -File .\tests\run_tests.ps1
 ## サンプル追加が必要なアクション一覧
 
 **現在、`samples/` にサンプルJSONはありません（すべて未提供）。** 下の一覧が、構築手順書・引継ぎ仕様書・静的チェックを作るために必要なサンプルです。取り出し方・ファイル名・伏字のルールは [docs/sample_checklist.md](docs/sample_checklist.md) にあります。
+初めての方向けに、手順・伏字ツール・ファイル名メーカー・`connectors.txt` メーカーをまとめた HTML マニュアルが [docs/manual_sample_extraction.html](docs/manual_sample_extraction.html) にあります。
 サンプルが届いたら、この一覧の状態を更新します。サンプルにない書き方は、各成果物に「要確認（サンプルなし）」と書きます。
 
 | 状態 | 優先 | 種類 | 必要なサンプル（バリエーション） |
