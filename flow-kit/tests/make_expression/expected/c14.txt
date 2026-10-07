@@ -1,0 +1,83 @@
+﻿# 式の提案
+
+- 採用: 空欄判定（null・空文字・半角/全角スペースのみ）（ID: E07 / ファイル: expressions/07_is_blank.md）
+- 一致したキーワード: （ID 指定）
+- 検証状況: **未検証**（Compose での検証待ち。結果は VERIFY.md に記入）
+
+## 用途
+
+Excel のセル・SharePoint の列・Forms の回答が「空欄」かどうかを `true/false` で返します。
+**値なし（null）／空文字／半角スペースのみ／全角スペースのみ／ノーブレークスペースのみ** をすべて空欄とみなします。条件アクションの比較値や `if` の条件に使います。
+
+## 式（貼り付け用）
+
+Compose（作成）の入力欄で **「式」タブ（fx）** を開き、下の式を貼り付けます（先頭の `@` は付けません）。
+
+### 式（貼り付け用）
+
+```text
+empty(trim(replace(replace(string(triggerBody()?['comment']),decodeUriComponent('%E3%80%80'),' '),decodeUriComponent('%C2%A0'),' ')))
+```
+
+### 簡易版（null と空文字だけを空欄とする場合）
+
+```text
+empty(string(triggerBody()?['comment']))
+```
+
+## 入力の想定
+
+`triggerBody()?['comment']` に判定したい値（動的なコンテンツ。`triggerBody()?['項目名']` のような式でもよい）を入れます。
+- `string(null)` は空文字 `""` を返します（リファレンスに記載）。そのため値なし（null）も空欄として判定されます。
+- 全角スペースは `decodeUriComponent('%E3%80%80')`（= `%E3%80%80` を元の文字に戻す関数）で表しています。式に全角スペースを直接書くと見分けにくく、貼り付け時に失われやすいためです。ノーブレークスペース（U+00A0）は `decodeUriComponent('%C2%A0')` です。
+
+## 出力例
+
+| 値 | 出力 |
+| --- | --- |
+| （値なし） | `true` |
+| `""` | `true` |
+| `" "`（半角） | `true` |
+| `"　"`（全角） | `true` |
+| `"abc"` | `false` |
+| `0` | `false` |
+
+## よくある誤り
+
+- `empty(triggerBody()?['comment'])` だけで判定する（スペースだけの値は空欄にならない。ケース E07_8）。
+- `equals(triggerBody()?['comment'], '')` で判定する（null と空文字を区別する場合があり、値なしが空欄にならない恐れ。ケース E07_9 で確認）。
+- `trim` だけで全角スペースが消えると思い込む（リファレンスの `trim` には「空白」としか書かれておらず、全角スペースが除去されるかは記載がない。10_trim_zenkaku.md のケースで確認）。この式は先に全角スペースを半角に置換している。
+- 数値の `0` を空欄と判定してしまう設計にする（この式では 0 は空欄ではない）。
+- Excel の「空に見えるセル」に数式で `""` が入っている場合も空文字として届く。値の有無ではなく空文字かどうかで判定すること。
+- 複数選択や配列の列に使う（配列には `empty(<配列>)` を使う）。
+
+## 検証方法（Compose）
+
+1. 手動でトリガーするテスト用フローを作り、「作成（Compose）」アクションを追加する。
+2. Compose の入力欄で「式」タブ（fx）を開き、下の検証用の式を貼り付ける（先頭の @ は不要）。
+3. フローを保存して手動実行し、実行履歴で Compose の出力を開いて、期待出力と一致するか確認する。
+4. 他のケースと、観察ケースを含む全手順は expressions/VERIFY.md を参照。
+
+### E07_1 空文字
+
+- 期待出力: `true`
+
+```text
+empty(trim(replace(replace(string(''),decodeUriComponent('%E3%80%80'),' '),decodeUriComponent('%C2%A0'),' ')))
+```
+
+### E07_2 半角スペースのみ
+
+- 期待出力: `true`
+
+```text
+empty(trim(replace(replace(string(' '),decodeUriComponent('%E3%80%80'),' '),decodeUriComponent('%C2%A0'),' ')))
+```
+
+### E07_3 全角スペースのみ
+
+- 期待出力: `true`
+
+```text
+empty(trim(replace(replace(string(decodeUriComponent('%E3%80%80')),decodeUriComponent('%E3%80%80'),' '),decodeUriComponent('%C2%A0'),' ')))
+```
