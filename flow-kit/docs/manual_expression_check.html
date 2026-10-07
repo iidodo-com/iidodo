@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>式の検証マニュアル</title>
+<style>
+:root{--bg:#f7f8fa;--fg:#1f2430;--sub:#5a6272;--line:#d9dde5;--card:#fff;--acc:#0b5fd3;--warn-bg:#fff4e0;--warn:#a05a00;--ok-bg:#e8f6ec;--ok:#1c6b35;--ng-bg:#fdecec;--ng:#a12020;--code:#10151f;--code-fg:#e8edf7}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--fg:#e8ebf2;--sub:#a3abbb;--line:#2e3442;--card:#1b1f27;--acc:#6aa5ff;--warn-bg:#3a2b12;--warn:#ffc46b;--ok-bg:#16301f;--ok:#7fd69a;--ng-bg:#3a1a1a;--ng:#ff9c9c;--code:#0b0e14}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Yu Gothic UI","Meiryo UI","Hiragino Sans",sans-serif;line-height:1.8;font-size:17px}
+.wrap{max-width:900px;margin:0 auto;padding:16px}
+h1{font-size:1.7rem;margin:.4em 0}
+h2{font-size:1.35rem;border-left:6px solid var(--acc);padding-left:.6em;margin:2em 0 .6em}
+h3{font-size:1.15rem;margin:1.6em 0 .2em}
+p,li{margin:.4em 0}
+.lead{color:var(--sub)}
+.box{border-radius:10px;padding:.8em 1em;margin:1em 0;border:1px solid var(--line);background:var(--card)}
+.warn{background:var(--warn-bg);border-color:var(--warn);color:var(--fg)}
+.warn b{color:var(--warn)}
+.okb{background:var(--ok-bg);border-color:var(--ok)}
+.ngb{background:var(--ng-bg);border-color:var(--ng)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.7em 1em .7em 3.4em;margin:.7em 0}
+.steps>li::before{content:counter(s);position:absolute;left:.8em;top:.7em;width:1.9em;height:1.9em;border-radius:50%;background:var(--acc);color:#fff;text-align:center;font-weight:bold;line-height:1.9em}
+.en{font-family:Consolas,monospace;background:var(--line);padding:0 .35em;border-radius:4px;font-size:.92em}
+.case{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.8em 1em;margin:.9em 0}
+.case-head{display:flex;gap:.6em;align-items:center;flex-wrap:wrap}
+.cid{font-family:Consolas,monospace;font-weight:bold;background:var(--acc);color:#fff;padding:0 .6em;border-radius:6px}
+.tag{font-size:.8em;background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn);padding:0 .5em;border-radius:6px}
+.clabel{font-weight:bold}
+.row{display:flex;gap:.8em;margin:.3em 0;flex-wrap:wrap}
+.k{color:var(--sub);min-width:7.5em}.k2{color:var(--sub);margin-top:.5em}
+.v{font-family:Consolas,"Yu Gothic UI",monospace;word-break:break-all;flex:1;min-width:12em}
+.codewrap{position:relative}
+pre.code{background:var(--code);color:var(--code-fg);padding:.7em 5.2em .7em .8em;border-radius:8px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:.2em 0;font-size:.88em;line-height:1.5;font-family:Consolas,monospace;max-height:9em}
+button{font:inherit;cursor:pointer}
+.copy{position:absolute;right:.4em;top:.4em;background:var(--acc);color:#fff;border:0;border-radius:6px;padding:.2em .8em}
+.copy.done{background:#1c8a46}
+.result{display:flex;gap:1em;flex-wrap:wrap;margin-top:.6em}
+.result label{display:flex;gap:.4em;align-items:center;color:var(--sub);font-size:.95em}
+.result input{min-width:16em;font:inherit;padding:.25em .5em;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+.result select{font:inherit;padding:.25em;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+.big{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:.6em 1.4em;font-size:1.05rem}
+textarea#out{width:100%;min-height:12em;font-family:Consolas,"Yu Gothic UI",monospace;font-size:.9rem;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:.6em}
+table{border-collapse:collapse;width:100%;background:var(--card)}
+th,td{border:1px solid var(--line);padding:.4em .7em;text-align:left;vertical-align:top}
+th{background:var(--bg)}
+details{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.5em 1em;margin:.6em 0}
+summary{cursor:pointer;font-weight:bold}
+@media print{.copy,.big,.result input,.result select{display:none}.case{break-inside:avoid}body{font-size:12pt}}
+@media (max-width:600px){body{font-size:16px}.result input{min-width:10em}}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>式の検証マニュアル</h1>
+<p class="lead">Power Automate の画面で、私たちが作った「式」が正しく動くかを確かめる手順です。パソコン操作に慣れていなくても、上から順にやれば進められるように書いています。</p>
+
+<div class="box">
+<b>この作業の目的</b>
+<ul>
+<li>日付を日本時間にするなどの「式」は、Microsoft の公式説明書を読んで書いたものです。<b>まだ実際には動かしていません。</b></li>
+<li>間違った日付が本番のフローに出ないよう、<b>小さなテスト用フロー</b>で答え合わせをします。</li>
+<li>所要時間の目安：最初の4グループ（全21ケース）で、慣れれば約40分です。1グループずつ、日を分けても構いません。</li>
+</ul>
+</div>
+
+<div class="box warn"><b>画面の名前について</b><br>
+この手順の画面名は、実際に表示された英語の画面（Power Automate の「Create」ページ）をもとに書いています。画面が更新されると言葉が変わることがあります。違う言葉が出たら、<b>近いものを選ぶか、画面を撮って私に送ってください。</b>
+</div>
+
+<h2>1. テスト用フローを作る（最初の1回だけ）</h2>
+<ol class="steps">
+<li><b>「Create」ページを開く</b><br>左のメニューの <span class="en">Create</span> を押します。</li>
+<li><b>「Instant cloud flow」を押す</b><br>上の段の左から2番目です。説明は「Triggered manually as needed.」（必要なときに手動で実行）です。</li>
+<li><b>名前とトリガーを決める</b><br>「Flow name」に <span class="en">式の検証</span> と入力します。トリガーは <span class="en">Manually trigger a flow</span> を選び、<span class="en">Create</span> を押します。</li>
+<li><b>「＋」を押して Compose を追加する</b><br>上の箱の下にある <span class="en">＋</span>（<span class="en">Add an action</span>）を押し、検索欄に <span class="en">Compose</span>（日本語表示は「作成」）と入力して選びます。</li>
+<li><b>「Inputs」欄をクリックする</b><br>追加された箱の <span class="en">Inputs</span>（入力）欄をクリックします。近くに小さな窓が出ます。</li>
+<li><b>「fx」（Expression＝式）の欄を探す</b><br>窓の中に <span class="en">fx</span> または <span class="en">Expression</span> と書かれたタブか欄があります。<b>ここが式を貼る場所です。</b><br>
+<div class="box warn" style="margin-top:.5em"><b>注意：「Copilot」と書かれた窓は使わないでください。</b><br>
+「Create an expression with Copilot」は、AI に式を作ってもらう別の欄です。300文字までしか入らず、AI が式を書き換えてしまうことがあります。<br>この窓が開いてしまったら、左上の <b>「＜」（戻る）</b> か右上の <b>「×」</b> で閉じてください。<b>「OK」は押さないでください。</b></div></li>
+<li><b>式を貼り付ける</b><br>下の「3. 検証ケース」の式の右の <span class="en">コピー</span> ボタンを押し、式の欄に貼り付けます（Ctrl＋V）。<b>先頭に @ は付けません。</b>貼ったら <span class="en">Add</span>（または <span class="en">OK</span>）を押します。</li>
+<li><b>箱の名前をケースIDにする</b><br>箱の右上の <span class="en">…</span> → <span class="en">Rename</span>（名前の変更）で、<b>E00_1</b> のようにケースIDにします。<br>これが、結果を見比べるときの目印です。</li>
+<li><b>箱を増やす</b><br>手順4〜8を繰り返し、ケースの数だけ箱を並べます。<b>まず「ステップ1」の3つだけ</b>作れば十分です。</li>
+<li><b>保存して実行する</b><br>右上の <span class="en">Save</span>（保存）→ <span class="en">Test</span>（テスト）→ <span class="en">Manually</span>（手動）→ <span class="en">Run flow</span>（フローの実行）→ <span class="en">Done</span> の順に押します。実行が終わったら、各箱をクリックして <span class="en">Outputs</span>（出力）を見ます。</li>
+</ol>
+
+<h2>2. 結果の見方</h2>
+<table>
+<tr><th>見えたもの</th><th>意味・やること</th></tr>
+<tr><td>箱が緑（チェック）で、出力に値がある</td><td>成功です。出力の値を期待する出力と見比べます。文字の出力は <span class="en">"2026/10/06"</span> のように引用符 <span class="en">"</span> が付いて見えますが、問題ありません。</td></tr>
+<tr><td>値が期待と違う</td><td><b>失敗ではありません。</b>大事な情報です。表示された値をそのまま「実際の出力」に書いてください。</td></tr>
+<tr><td>箱が赤い（エラー）</td><td>赤い箱をクリックして、エラーの文章を<b>全部コピー</b>して「実際の出力」に書いてください。その箱は削除して、もう一度実行します。<b>赤い箱があると、その後ろの箱は動きません。</b></td></tr>
+<tr><td>式を貼ったら「正しくありません」と出た</td><td>その文章をそのまま書いてください。</td></tr>
+</table>
+<p class="lead">「観察」と付いたケースは、期待する出力が私の<b>予想</b>です。違っていてもそれが答えなので、正直に書いてください。</p>
+
+<h2>3. 検証ケース（コピー用）</h2>
+<div class="box">各ケースの式の右の「コピー」を押すと、式がまるごとコピーされます。ページ内の「実際の出力」と「判定」に書き込むと、一番下で<b>まとめて私に送れる文章</b>が作れます。書いた内容はこのページを閉じると消えるので、途中で閉じるときは先に一番下の「結果をまとめる」を押してコピーしてください。</div>
+<section class="group"><h3>ステップ1：現在日時（まずここから）</h3><p>日本時間への変換が動くかを確認します。最初の1つ（E00_1）は、すでに成功したとのことなので、結果の値だけ教えてください。</p>
+<div class="case" data-id="E00_1">
+  <div class="case-head"><span class="cid">E00_1</span><span class="tag">観察</span><span class="clabel">固定のUTC時刻を日本時間へ変換（時刻部分の確認）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">2026-10-07T00:30:00.0000000</span></div>
+  <div class="row"><span class="k">メモ</span><span class="v">末尾に Z／オフセットが付くかどうかを確認</span></div>
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E00_1">convertTimeZone(&#x27;2026-10-06T15:30:00Z&#x27;, &#x27;UTC&#x27;, &#x27;Tokyo Standard Time&#x27;)</pre><button class="copy" type="button" data-target="x_E00_1">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E00_2">
+  <div class="case-head"><span class="cid">E00_2</span><span class="clabel">変換結果を日付時刻の書式にする</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">2026/10/07 00:30</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E00_2">formatDateTime(convertTimeZone(&#x27;2026-10-06T15:30:00Z&#x27;, &#x27;UTC&#x27;, &#x27;Tokyo Standard Time&#x27;), &#x27;yyyy/MM/dd HH:mm&#x27;)</pre><button class="copy" type="button" data-target="x_E00_2">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E00_3">
+  <div class="case-head"><span class="cid">E00_3</span><span class="tag">観察</span><span class="clabel">本番式の実行確認（現在時刻）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">実行した時刻の日本時間（目視で、手元の時計と一致すること）</span></div>
+  <div class="row"><span class="k">メモ</span><span class="v">期待値は固定できないため目視確認</span></div>
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E00_3">convertTimeZone(utcNow(), &#x27;UTC&#x27;, &#x27;Tokyo Standard Time&#x27;)</pre><button class="copy" type="button" data-target="x_E00_3">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div></section><section class="group"><h3>ステップ2：今日の日付</h3><p>日付が変わる境目（日本時間の0時）で、ずれないかを確認します。</p>
+<div class="case" data-id="E01_1">
+  <div class="case-head"><span class="cid">E01_1</span><span class="clabel">日本時間 23:59:59（同じ日）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">2026/10/06</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E01_1">convertTimeZone(&#x27;2026-10-06T14:59:59Z&#x27;, &#x27;UTC&#x27;, &#x27;Tokyo Standard Time&#x27;, &#x27;yyyy/MM/dd&#x27;)</pre><button class="copy" type="button" data-target="x_E01_1">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E01_2">
+  <div class="case-head"><span class="cid">E01_2</span><span class="clabel">日本時間 0:00:00（日付が変わる境目）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">2026/10/07</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E01_2">convertTimeZone(&#x27;2026-10-06T15:00:00Z&#x27;, &#x27;UTC&#x27;, &#x27;Tokyo Standard Time&#x27;, &#x27;yyyy/MM/dd&#x27;)</pre><button class="copy" type="button" data-target="x_E01_2">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E01_3">
+  <div class="case-head"><span class="cid">E01_3</span><span class="clabel">年またぎ（日本時間 2027/01/01）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">2027/01/01</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E01_3">convertTimeZone(&#x27;2026-12-31T15:00:00Z&#x27;, &#x27;UTC&#x27;, &#x27;Tokyo Standard Time&#x27;, &#x27;yyyy/MM/dd&#x27;)</pre><button class="copy" type="button" data-target="x_E01_3">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E01_5">
+  <div class="case-head"><span class="cid">E01_5</span><span class="clabel">派生式 yyyy年M月d日</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">2026年10月7日</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E01_5">convertTimeZone(&#x27;2026-10-06T15:30:00Z&#x27;, &#x27;UTC&#x27;, &#x27;Tokyo Standard Time&#x27;, &#x27;yyyy年M月d日&#x27;)</pre><button class="copy" type="button" data-target="x_E01_5">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E01_4">
+  <div class="case-head"><span class="cid">E01_4</span><span class="tag">観察</span><span class="clabel">【誤りの再現】変換せずに formatDateTime（日本時間では 10/07 なのに…）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">2026/10/06</span></div>
+  <div class="row"><span class="k">メモ</span><span class="v">誤った式の結果。日本時間とずれることの確認用</span></div>
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E01_4">formatDateTime(&#x27;2026-10-06T15:30:00Z&#x27;, &#x27;yyyy/MM/dd&#x27;)</pre><button class="copy" type="button" data-target="x_E01_4">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div></section><section class="group"><h3>ステップ3：全角スペースの除去</h3><p>全角スペースが標準の機能で消えるか、公式説明書に書かれていないため確認します。結果は数字で出ます。</p>
+<div class="case" data-id="E10_1">
+  <div class="case-head"><span class="cid">E10_1</span><span class="clabel">【前提確認】検証用の入力（全角スペース＋山田＋全角＋太郎＋全角＋半角）の文字数</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">8</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E10_1">length(concat(decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27;山田&#x27;,decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27;太郎&#x27;,decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;))</pre><button class="copy" type="button" data-target="x_E10_1">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E10_2">
+  <div class="case-head"><span class="cid">E10_2</span><span class="tag">観察</span><span class="clabel">【観察】標準の trim だけで両端の全角スペースが消えるか（文字数で確認）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">（5：全角・半角とも両端除去 / 7：半角だけ除去 / 8：何も除去されない。結果を知らせてください）</span></div>
+  <div class="row"><span class="k">メモ</span><span class="v">最重要の観察ケース。結果に応じて式の根拠を確定する</span></div>
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E10_2">length(trim(concat(decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27;山田&#x27;,decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27;太郎&#x27;,decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;)))</pre><button class="copy" type="button" data-target="x_E10_2">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E10_3">
+  <div class="case-head"><span class="cid">E10_3</span><span class="clabel">式A（両端の全角・半角スペースを除去。途中の全角は半角に統一）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">山田 太郎</span></div>
+  <div class="row"><span class="k">メモ</span><span class="v">途中の空白は半角スペース1つになる</span></div>
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E10_3">trim(replace(replace(string(concat(decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27;山田&#x27;,decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27;太郎&#x27;,decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;)),decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;),decodeUriComponent(&#x27;%C2%A0&#x27;),&#x27; &#x27;))</pre><button class="copy" type="button" data-target="x_E10_3">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E10_4">
+  <div class="case-head"><span class="cid">E10_4</span><span class="clabel">式A の結果の文字数</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">5</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E10_4">length(trim(replace(replace(string(concat(decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27;山田&#x27;,decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27;太郎&#x27;,decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;)),decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;),decodeUriComponent(&#x27;%C2%A0&#x27;),&#x27; &#x27;)))</pre><button class="copy" type="button" data-target="x_E10_4">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E10_5">
+  <div class="case-head"><span class="cid">E10_5</span><span class="clabel">式B（途中も含めてスペースをすべて除去）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">山田太郎</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E10_5">replace(replace(replace(string(concat(decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27;山田&#x27;,decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27;太郎&#x27;,decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;)),decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27;&#x27;),decodeUriComponent(&#x27;%C2%A0&#x27;),&#x27;&#x27;),&#x27; &#x27;,&#x27;&#x27;)</pre><button class="copy" type="button" data-target="x_E10_5">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E10_6">
+  <div class="case-head"><span class="cid">E10_6</span><span class="clabel">式A：ノーブレークスペースの除去</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">ABC</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E10_6">trim(replace(replace(string(concat(decodeUriComponent(&#x27;%C2%A0&#x27;),&#x27;ABC&#x27;,decodeUriComponent(&#x27;%C2%A0&#x27;))),decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;),decodeUriComponent(&#x27;%C2%A0&#x27;),&#x27; &#x27;))</pre><button class="copy" type="button" data-target="x_E10_6">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E10_7">
+  <div class="case-head"><span class="cid">E10_7</span><span class="clabel">式A：値なし（null）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">（空文字）</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E10_7">trim(replace(replace(string(null),decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;),decodeUriComponent(&#x27;%C2%A0&#x27;),&#x27; &#x27;))</pre><button class="copy" type="button" data-target="x_E10_7">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div></section><section class="group"><h3>ステップ4：メール本文の改行</h3><p>改行の書き方が公式説明書に書かれていないため確認します。</p>
+<div class="case" data-id="E09_1">
+  <div class="case-head"><span class="cid">E09_1</span><span class="clabel">文字列の途中に改行を入れる（出力が2行で表示される）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">1行目⏎2行目（2行で表示）</span></div>
+  <div class="row"><span class="k">メモ</span><span class="v">実行履歴で2行になっていることを目視確認</span></div>
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E09_1">concat(&#x27;1行目&#x27;, decodeUriComponent(&#x27;%0A&#x27;), &#x27;2行目&#x27;)</pre><button class="copy" type="button" data-target="x_E09_1">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E09_2">
+  <div class="case-head"><span class="cid">E09_2</span><span class="clabel">上の改行が1文字であること（文字数で確認）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">3</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E09_2">length(concat(&#x27;A&#x27;, decodeUriComponent(&#x27;%0A&#x27;), &#x27;B&#x27;))</pre><button class="copy" type="button" data-target="x_E09_2">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E09_3">
+  <div class="case-head"><span class="cid">E09_3</span><span class="clabel">HTMLメール用：改行を &lt;br&gt; に置換</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">1行目&lt;br&gt;2行目</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E09_3">replace(concat(&#x27;1行目&#x27;, decodeUriComponent(&#x27;%0A&#x27;), &#x27;2行目&#x27;), decodeUriComponent(&#x27;%0A&#x27;), &#x27;&lt;br&gt;&#x27;)</pre><button class="copy" type="button" data-target="x_E09_3">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E09_4">
+  <div class="case-head"><span class="cid">E09_4</span><span class="clabel">CRLF（Windows形式の改行）も LF も &lt;br&gt; にする</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">A&lt;br&gt;B&lt;br&gt;C</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E09_4">replace(replace(concat(&#x27;A&#x27;, decodeUriComponent(&#x27;%0D%0A&#x27;), &#x27;B&#x27;, decodeUriComponent(&#x27;%0A&#x27;), &#x27;C&#x27;), decodeUriComponent(&#x27;%0D%0A&#x27;), &#x27;&lt;br&gt;&#x27;), decodeUriComponent(&#x27;%0A&#x27;), &#x27;&lt;br&gt;&#x27;)</pre><button class="copy" type="button" data-target="x_E09_4">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E09_5">
+  <div class="case-head"><span class="cid">E09_5</span><span class="clabel">配列を &lt;br&gt; で連結（箇条書きを本文にする）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">A&lt;br&gt;B&lt;br&gt;C</span></div>
+  
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E09_5">join(createArray(&#x27;A&#x27;,&#x27;B&#x27;,&#x27;C&#x27;), &#x27;&lt;br&gt;&#x27;)</pre><button class="copy" type="button" data-target="x_E09_5">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div>
+<div class="case" data-id="E09_6">
+  <div class="case-head"><span class="cid">E09_6</span><span class="tag">観察</span><span class="clabel">【観察】\n と書いた場合（改行になるか）</span></div>
+  <div class="row"><span class="k">期待する出力</span><span class="v">4（予想：\n が文字として残る。3なら改行として解釈されている）</span></div>
+  <div class="row"><span class="k">メモ</span><span class="v">予想値。結果を知らせてください</span></div>
+  <div class="k2">貼り付ける式（1行ぜんぶ）</div>
+  <div class="codewrap"><pre class="code" id="x_E09_6">length(concat(&#x27;A&#x27;,&#x27;\n&#x27;,&#x27;B&#x27;))</pre><button class="copy" type="button" data-target="x_E09_6">コピー</button></div>
+  <div class="result">
+    <label>実際の出力 <input type="text" class="actual" placeholder="画面に出た値をそのまま書く"></label>
+    <label>判定 <select class="judge"><option value="">未実施</option><option>OK（期待どおり）</option><option>違う（値を記入）</option><option>赤いエラー（文章を記入）</option></select></label>
+  </div>
+</div></section>
+
+<h2>4. 結果を私に送る</h2>
+<p>上のケースに書き込んだら、下のボタンを押して、できた文章をコピーして貼り付けて送ってください。</p>
+<p><button type="button" class="big" id="mk">結果をまとめる</button> <button type="button" class="big" id="cp" style="background:#1c8a46">まとめた文章をコピー</button></p>
+<textarea id="out" placeholder="ここに結果が出ます"></textarea>
+<p class="lead">書き込みが面倒なときは、画面のスクリーンショットでも構いません。</p>
+
+<h2>5. 困ったとき</h2>
+<details><summary>「Create an expression with Copilot」という窓が開いた</summary>
+<p>AI に式を作ってもらう別の欄です。左上の「＜」か右上の「×」で閉じ、<b>「OK」は押さずに</b>、窓の中の <span class="en">fx</span>（Expression）の欄を探してください。</p></details>
+<details><summary>式を貼ったあと、「OK」や「Add」が押せない</summary>
+<p>式の最初や最後に余分な文字（スペースや改行、<span class="en">@</span>）が入っていないか確認してください。「コピー」ボタンを使うと余分な文字は入りません。</p></details>
+<details><summary>「fx」の欄が見つからない</summary>
+<p>「Inputs」欄をクリックした直後の画面を、窓全体が見える形で撮って送ってください。どれが式の欄かを案内します。</p></details>
+<details><summary>実行したら、後ろの箱が灰色のまま動かない</summary>
+<p>前の箱のどれかが赤くなっています。赤い箱の文章を記録して削除し、もう一度実行してください。</p></details>
+<details><summary>途中でやめたい／日を分けたい</summary>
+<p>フローは保存されているので、いつでも続きから再開できます。このページの入力内容だけは消えるので、先に「結果をまとめる」でコピーしてください。</p></details>
+
+<h2>6. このあとの予定</h2>
+<table>
+<tr><th>順番</th><th>内容</th></tr>
+<tr><td>いま</td><td>この4グループ（E00・E01・E10・E09）を実行して、結果を送る。</td></tr>
+<tr><td>次</td><td>残りの式（和暦・翌営業日・月末・ファイル名・Excel・空欄・件数・年度・日数差）を検証する。一覧は <span class="en">expressions\VERIFY.md</span> にあります。</td></tr>
+<tr><td>並行して</td><td>アクションの「見本」（サンプルJSON）を用意する。手順は <span class="en">docs\sample_checklist.md</span> にあります。</td></tr>
+<tr><td>そのあと</td><td>見本を読んで構造メモを作り、内容を確認していただいてから、手順書づくり・チェック機能に進みます。</td></tr>
+</table>
+
+</div>
+<script>
+(function(){
+  var cases = [{"id": "E00_1", "label": "固定のUTC時刻を日本時間へ変換（時刻部分の確認）", "expected": "2026-10-07T00:30:00.0000000", "observe": true}, {"id": "E00_2", "label": "変換結果を日付時刻の書式にする", "expected": "2026/10/07 00:30", "observe": false}, {"id": "E00_3", "label": "本番式の実行確認（現在時刻）", "expected": "実行した時刻の日本時間（目視で、手元の時計と一致すること）", "observe": true}, {"id": "E01_1", "label": "日本時間 23:59:59（同じ日）", "expected": "2026/10/06", "observe": false}, {"id": "E01_2", "label": "日本時間 0:00:00（日付が変わる境目）", "expected": "2026/10/07", "observe": false}, {"id": "E01_3", "label": "年またぎ（日本時間 2027/01/01）", "expected": "2027/01/01", "observe": false}, {"id": "E01_5", "label": "派生式 yyyy年M月d日", "expected": "2026年10月7日", "observe": false}, {"id": "E01_4", "label": "【誤りの再現】変換せずに formatDateTime（日本時間では 10/07 なのに…）", "expected": "2026/10/06", "observe": true}, {"id": "E10_1", "label": "【前提確認】検証用の入力（全角スペース＋山田＋全角＋太郎＋全角＋半角）の文字数", "expected": "8", "observe": false}, {"id": "E10_2", "label": "【観察】標準の trim だけで両端の全角スペースが消えるか（文字数で確認）", "expected": "（5：全角・半角とも両端除去 / 7：半角だけ除去 / 8：何も除去されない。結果を知らせてください）", "observe": true}, {"id": "E10_3", "label": "式A（両端の全角・半角スペースを除去。途中の全角は半角に統一）", "expected": "山田 太郎", "observe": false}, {"id": "E10_4", "label": "式A の結果の文字数", "expected": "5", "observe": false}, {"id": "E10_5", "label": "式B（途中も含めてスペースをすべて除去）", "expected": "山田太郎", "observe": false}, {"id": "E10_6", "label": "式A：ノーブレークスペースの除去", "expected": "ABC", "observe": false}, {"id": "E10_7", "label": "式A：値なし（null）", "expected": "（空文字）", "observe": false}, {"id": "E09_1", "label": "文字列の途中に改行を入れる（出力が2行で表示される）", "expected": "1行目⏎2行目（2行で表示）", "observe": false}, {"id": "E09_2", "label": "上の改行が1文字であること（文字数で確認）", "expected": "3", "observe": false}, {"id": "E09_3", "label": "HTMLメール用：改行を <br> に置換", "expected": "1行目<br>2行目", "observe": false}, {"id": "E09_4", "label": "CRLF（Windows形式の改行）も LF も <br> にする", "expected": "A<br>B<br>C", "observe": false}, {"id": "E09_5", "label": "配列を <br> で連結（箇条書きを本文にする）", "expected": "A<br>B<br>C", "observe": false}, {"id": "E09_6", "label": "【観察】\\n と書いた場合（改行になるか）", "expected": "4（予想：\\n が文字として残る。3なら改行として解釈されている）", "observe": true}];
+  function copyText(t, btn){
+    function ok(){ if(btn){ var o=btn.textContent; btn.textContent='コピーしました'; btn.classList.add('done'); setTimeout(function(){btn.textContent=o;btn.classList.remove('done');},1500);} }
+    if (navigator.clipboard && window.isSecureContext !== false) {
+      navigator.clipboard.writeText(t).then(ok, fallback);
+    } else { fallback(); }
+    function fallback(){
+      var ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); ok(); }catch(e){ window.prompt('Ctrl+C でコピーしてください', t); }
+      document.body.removeChild(ta);
+    }
+  }
+  document.querySelectorAll('.copy').forEach(function(b){
+    b.addEventListener('click', function(){ copyText(document.getElementById(b.dataset.target).textContent, b); });
+  });
+  document.getElementById('mk').addEventListener('click', function(){
+    var lines=['【式の検証結果】'];
+    cases.forEach(function(c){
+      var el=document.querySelector('.case[data-id="'+c.id+'"]');
+      var a=el.querySelector('.actual').value.trim();
+      var j=el.querySelector('.judge').value;
+      if(!a && !j) return;
+      lines.push(c.id+' | 判定: '+(j||'-')+' | 実際の出力: '+(a||'-'));
+    });
+    if(lines.length===1) lines.push('（まだ何も書き込まれていません）');
+    document.getElementById('out').value=lines.join('\n');
+  });
+  document.getElementById('cp').addEventListener('click', function(){
+    var t=document.getElementById('out').value;
+    if(!t){ document.getElementById('mk').click(); t=document.getElementById('out').value; }
+    copyText(t, this);
+  });
+})();
+</script>
+</body></html>
