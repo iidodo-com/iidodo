@@ -195,6 +195,8 @@ svg .st{fill:var(--fg)}svg .ss{fill:var(--sub)}svg .sw{fill:#fff}svg .sw2{fill:v
 <table>
 <tr><th>自動で置き換える</th><th>置き換え後</th></tr>
 <tr><td>メールアドレス</td><td><span class="en">user@example.com</span></td></tr>
+<tr><td>OneDrive のファイルID（<span class="en">01</span> で始まる長い英数字）</td><td><span class="en">FILE_ID_1</span>、<span class="en">FILE_ID_2</span> …（同じIDは同じ名前）</td></tr>
+<tr><td>ファイルのパス（<span class="en">/…/ファイル名.xlsx</span> など）</td><td><span class="en">/FOLDER/PATH/FILE_1.xlsx</span> …</td></tr>
 <tr><td>SharePoint のサイトURL（<span class="en">….sharepoint.com</span>）</td><td><span class="en">https://contoso.sharepoint.com/sites/SITE</span></td></tr>
 <tr><td>庁内らしいURL（<span class="en">.lg.jp</span>、<span class="en">.go.jp</span> など）</td><td><span class="en">https://example.com/</span></td></tr>
 <tr><td>GUID（8-4-4-4-12 の英数字：リストID・テナントID・ユーザーIDなど）</td><td><span class="en">00000000-0000-0000-0000-000000000000</span></td></tr>
@@ -291,9 +293,17 @@ svg .st{fill:var(--fg)}svg .ss{fill:var(--sub)}svg .sw{fill:#fff}svg .sw2{fill:v
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
 
   /* ---------- 伏字ツール ---------- */
+  var numMap = {}, numCnt = {};
+  function numbered(prefix, orig){
+    var k = prefix + '|' + orig;
+    if(!numMap[k]){ numCnt[prefix] = (numCnt[prefix] || 0) + 1; numMap[k] = prefix + '_' + numCnt[prefix]; }
+    return numMap[k];
+  }
   var RULES = [
     ['Teams のID', /19:[A-Za-z0-9_\-]+@thread\.(?:tacv2|skype|v2)/g, function(){return '19:CHANNEL_ID@thread.tacv2';}],
     ['メールアドレス', /[A-Za-z0-9._%+\-]+@(?!thread\.)[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g, function(){return 'user@example.com';}],
+    ['OneDrive のファイルID', /\b01[A-Z0-9]{25,}\b/g, function(m){ return numbered('FILE_ID', m); }],
+    ['ファイルのパス', /"(\/[^"\n]*?\.(?:xlsx|xlsm|xls|docx|doc|pptx|ppt|csv|pdf|txt|zip))"/gi, function(m, inner){ var ext = inner.slice(inner.lastIndexOf('.')); return '"/FOLDER/PATH/' + numbered('FILE', inner).replace(/^FILE_/, 'FILE_') + ext + '"'; }],
     ['SharePoint のURL', /https:\/\/[A-Za-z0-9\-]+(?:-my)?\.sharepoint\.com[^"\\\s]*/g, function(){return 'https://contoso.sharepoint.com/sites/SITE';}],
     ['庁内らしいURL', /https?:\/\/[A-Za-z0-9.\-]+\.(?:lg\.jp|go\.jp|ed\.jp|or\.jp)[^"\\\s]*/g, function(){return 'https://example.com/';}],
     ['GUID', /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g, function(){return '00000000-0000-0000-0000-000000000000';}],
@@ -307,6 +317,7 @@ svg .st{fill:var(--fg)}svg .ss{fill:var(--sub)}svg .sw{fill:#fff}svg .sw2{fill:v
   }
   $('mGo').addEventListener('click', function(){
     var src = $('mIn').value, txt = src, counts = [];
+    numMap = {}; numCnt = {};
     if(!src.trim()){ $('mRes').innerHTML = '<div class="box ngb">左の枠に、Code view の文字を貼り付けてください。</div>'; return; }
     RULES.forEach(function(r){
       var n = 0;
