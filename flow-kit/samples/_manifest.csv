@@ -1,0 +1,2 @@
+﻿file,connector_ja,connector_en,action_ja,action_en,ui_language,variant_note,captured_on,masked,memo
+control__scope__run_after_failed.json,（組み込み・要確認）,（組み込み・要確認）,（要確認）,Scope（中の Send an email (V2) を含む）,en,Catch：実行条件を Try の「Has timed out」「Has failed」にした,2026-10-07,yes,"スコープ内の最初のアクションには runAfter が無い。Body は HTML(<p class=editor-paragraph>)で保存される"
