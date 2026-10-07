@@ -1,0 +1,97 @@
+﻿# 式の提案
+
+- 要件: 日本時間の今日の日付を yyyy/MM/dd で出したい
+- 採用: 日本時間の今日の日付（yyyy/MM/dd）（ID: E01 / ファイル: expressions/01_today_jst.md）
+- 一致したキーワード: 今日, 日付, yyyy/MM/dd, 日本時間
+- 検証状況: **未検証**（Compose での検証待ち。結果は VERIFY.md に記入）
+
+## 用途
+
+日本時間の「今日の日付」を `2026/10/07` の形式で取り出します。メール本文・ファイルの項目・SharePoint の文字列列などに入れる用途です。
+
+## 式（貼り付け用）
+
+Compose（作成）の入力欄で **「式」タブ（fx）** を開き、下の式を貼り付けます（先頭の `@` は付けません）。
+
+### 式（貼り付け用・yyyy/MM/dd）
+
+```text
+convertTimeZone(utcNow(), 'UTC', 'Tokyo Standard Time', 'yyyy/MM/dd')
+```
+
+### 派生式（ハイフン区切り yyyy-MM-dd）
+
+```text
+convertTimeZone(utcNow(), 'UTC', 'Tokyo Standard Time', 'yyyy-MM-dd')
+```
+
+### 派生式（2026年10月7日 のように月日のゼロを付けない）
+
+```text
+convertTimeZone(utcNow(), 'UTC', 'Tokyo Standard Time', 'yyyy年M月d日')
+```
+
+### Compose_JST を使う場合（00_now_jst.md 参照）
+
+```text
+formatDateTime(outputs('Compose_JST'), 'yyyy/MM/dd')
+```
+
+## 入力の想定
+
+入力なし。実行した瞬間の日時を使います。
+
+## 出力例
+
+日本時間 2026年10月7日 00:30 に実行した場合：
+
+| 式 | 出力 |
+| --- | --- |
+| yyyy/MM/dd | `2026/10/07` |
+| yyyy-MM-dd | `2026-10-07` |
+| yyyy年M月d日 | `2026年10月7日` |
+
+## よくある誤り
+
+- `formatDateTime(utcNow(), 'yyyy/MM/dd')` と書く。UTC の日付になり、日本時間 0:00〜8:59 は **前日** が出ます（ケース E01_4 で再現）。
+- 書式を `yyyy/mm/dd` と小文字の `mm` にする。`mm` は「分」、`MM` が「月」です（例：2026/30/07 のようになる）。
+- 書式の文字列が **1文字だけ** の場合（例：`'d'` や `'M'`）は標準書式として解釈される（`'d'` は短い日付、`'M'` は月日）。1文字の書式を使いたいときは `'%d'` と書く。`yyyy年M月d日` のように2文字以上なら問題ない。
+- Compose の出力は実行履歴で `"2026/10/07"` のように引用符付きで表示されるが、値は引用符を含まない。
+
+## 検証方法（Compose）
+
+1. 手動でトリガーするテスト用フローを作り、「作成（Compose）」アクションを追加する。
+2. Compose の入力欄で「式」タブ（fx）を開き、下の検証用の式を貼り付ける（先頭の @ は不要）。
+3. フローを保存して手動実行し、実行履歴で Compose の出力を開いて、期待出力と一致するか確認する。
+4. 他のケースと、観察ケースを含む全手順は expressions/VERIFY.md を参照。
+
+### E01_1 日本時間 23:59:59（同じ日）
+
+- 期待出力: `2026/10/06`
+
+```text
+convertTimeZone('2026-10-06T14:59:59Z', 'UTC', 'Tokyo Standard Time', 'yyyy/MM/dd')
+```
+
+### E01_2 日本時間 0:00:00（日付が変わる境目）
+
+- 期待出力: `2026/10/07`
+
+```text
+convertTimeZone('2026-10-06T15:00:00Z', 'UTC', 'Tokyo Standard Time', 'yyyy/MM/dd')
+```
+
+### E01_3 年またぎ（日本時間 2027/01/01）
+
+- 期待出力: `2027/01/01`
+
+```text
+convertTimeZone('2026-12-31T15:00:00Z', 'UTC', 'Tokyo Standard Time', 'yyyy/MM/dd')
+```
+
+## 他の候補
+
+- E00: 日本時間の現在日時（基準となる Compose_JST）（一致: 今, 日本時間）
+- E06: Excelのシリアル値 → 日付（一致: 日付）
+
+他の候補を見るには -Id（例: -Id E00）か -Top 2 を指定する。

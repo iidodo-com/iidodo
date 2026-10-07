@@ -1,0 +1,12 @@
+﻿# 使えるコネクタの一覧（このファイルを connectors.txt にコピーして記入する）
+# 書式: コネクタ名（画面の表記） | 英語名 | 区分 | 備考
+# 区分は Standard / Premium / 組み込み のいずれか。分からなければ 不明 と書く。
+# 使えないコネクタ（Premium など）は、この一覧に書かない。
+
+Office 365 Outlook | Office 365 Outlook | （記入） |
+Microsoft Teams | Microsoft Teams | （記入） |
+SharePoint | SharePoint | （記入） |
+OneDrive for Business | OneDrive for Business | （記入） |
+Excel Online (Business) | Excel Online (Business) | （記入） |
+Microsoft Forms | Microsoft Forms | （記入） |
+承認 | Approvals | （記入） |
