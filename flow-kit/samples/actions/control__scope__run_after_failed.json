@@ -1,0 +1,27 @@
+{
+  "type": "Scope",
+  "actions": {
+    "Send_an_email_(V2)": {
+      "type": "OpenApiConnection",
+      "inputs": {
+        "parameters": {
+          "emailMessage/To": "user@example.com",
+          "emailMessage/Subject": "失敗しました。",
+          "emailMessage/Body": "<p class=\"editor-paragraph\">失敗しました。</p>",
+          "emailMessage/Importance": "Normal"
+        },
+        "host": {
+          "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365",
+          "connection": "shared_office365",
+          "operationId": "SendEmailV2"
+        }
+      }
+    }
+  },
+  "runAfter": {
+    "Try": [
+      "TimedOut",
+      "Failed"
+    ]
+  }
+}
