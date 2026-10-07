@@ -1,0 +1,3 @@
+# ツールの出力・配布用zipはコミットしない（.gitkeep だけ残す）
+output/*
+!output/.gitkeep
