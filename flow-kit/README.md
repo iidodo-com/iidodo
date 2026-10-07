@@ -41,6 +41,7 @@ flow-kit/
 - 一覧と使い方：[expressions/README.md](expressions/README.md)
 - 各式の **Compose（作成）での検証手順・結果記入表**：[expressions/VERIFY.md](expressions/VERIFY.md)
 - **すべて「未検証」です。** 検証結果が確認できるまで、本番のフローには使わないでください。
+- 画面での検証は、**一括版マニュアル** [docs/manual_expression_check_bulk.html](docs/manual_expression_check_bulk.html)（箱3個＋集計＋隔離1個で全81ケース）が手早いです。ケースごとに確認する詳細版は [docs/manual_expression_check.html](docs/manual_expression_check.html) です。
 
 ### `make_expression`（要件から式を探して出力）
 
