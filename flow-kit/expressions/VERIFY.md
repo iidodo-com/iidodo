@@ -88,7 +88,7 @@
 | E08_4 | 値なし（null）でも安全に 0 にする | 0 |  |  |
 | E08_5 | 文字列の length は文字数（日本語も1文字=1） | 3 |  |  |
 | E08_6 | 件数が0かどうかの判定 | true |  |  |
-| E08_7 | 【誤りの再現】null を length に直接渡す | （エラーまたは 0。結果を知らせてください） |  |  |
+| E08_7 | 【誤りの再現】null を length に直接渡す（実機で確認済み） | エラー：The template language function 'length' expects its parameter to be an array or a string. The provided value is of type 'Null'. |  |  |
 | E09_1 | 文字列の途中に改行を入れる（出力が2行で表示される） | 1行目⏎2行目（2行で表示） |  |  |
 | E09_2 | 上の改行が1文字であること（文字数で確認） | 3 |  |  |
 | E09_3 | HTMLメール用：改行を <br> に置換 | 1行目<br>2行目 |  |  |
@@ -528,8 +528,8 @@ length('あいう')
 equals(length(json('[]')), 0)
 ```
 
-**E08_7** 【誤りの再現】null を length に直接渡す  
-期待: （エラーまたは 0。結果を知らせてください）
+**E08_7** 【誤りの再現】null を length に直接渡す（実機で確認済み）  
+期待: エラー：The template language function 'length' expects its parameter to be an array or a string. The provided value is of type 'Null'.
 
 ```text
 length(null)

@@ -97,9 +97,9 @@ summary{cursor:pointer;font-weight:bold}
 <h2>4. 最後に、隔離用の箱（G4）を作る</h2>
 <p>RESULT の<b>後ろ</b>に、もう1つ Compose を追加し、下の式を貼って、名前を <span class="en">G4</span> にします。エラーになるかもしれない少数のケースだけを入れてあります。RESULT より後ろに置くので、この箱が赤くなっても RESULT の結果は見られます。</p>
 <ol class="steps">
-<li><b>箱 G4</b>（6ケース分：エラーになるかもしれない少数のケース（別の箱に隔離））<br>
-<small>含まれるケース：E07_6, E07_9, E08_4, E08_7, E10_7, E11_0</small>
-<div class="codewrap"><pre class="code" id="g4">createArray(concat(&#x27;E07_6=&#x27;,string(empty(trim(replace(replace(string(null),decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;),decodeUriComponent(&#x27;%C2%A0&#x27;),&#x27; &#x27;))))),concat(&#x27;E07_9=&#x27;,string(equals(null, &#x27;&#x27;))),concat(&#x27;E08_4=&#x27;,string(length(coalesce(null, json(&#x27;[]&#x27;))))),concat(&#x27;E08_7=&#x27;,string(length(null))),concat(&#x27;E10_7=&#x27;,string(trim(replace(replace(string(null),decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;),decodeUriComponent(&#x27;%C2%A0&#x27;),&#x27; &#x27;)))),concat(&#x27;E11_0=&#x27;,string(int(&#x27;03&#x27;))))</pre><button class="copy" type="button" data-target="g4">コピー</button></div>
+<li><b>箱 G4</b>（5ケース分：エラーになるかもしれない少数のケース（別の箱に隔離））<br>
+<small>含まれるケース：E07_6, E07_9, E08_4, E10_7, E11_0</small>
+<div class="codewrap"><pre class="code" id="g4">createArray(concat(&#x27;E07_6=&#x27;,string(empty(trim(replace(replace(string(null),decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;),decodeUriComponent(&#x27;%C2%A0&#x27;),&#x27; &#x27;))))),concat(&#x27;E07_9=&#x27;,string(equals(null, &#x27;&#x27;))),concat(&#x27;E08_4=&#x27;,string(length(coalesce(null, json(&#x27;[]&#x27;))))),concat(&#x27;E10_7=&#x27;,string(trim(replace(replace(string(null),decodeUriComponent(&#x27;%E3%80%80&#x27;),&#x27; &#x27;),decodeUriComponent(&#x27;%C2%A0&#x27;),&#x27; &#x27;)))),concat(&#x27;E11_0=&#x27;,string(int(&#x27;03&#x27;))))</pre><button class="copy" type="button" data-target="g4">コピー</button></div>
 </li></ol>
 
 <h2>5. 実行して、結果をコピーする</h2>
