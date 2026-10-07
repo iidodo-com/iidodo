@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>サンプル取り出しマニュアル</title>
+<style>
+:root{--bg:#f7f8fa;--fg:#1f2430;--sub:#5a6272;--line:#d9dde5;--card:#fff;--acc:#0b5fd3;--warn-bg:#fff4e0;--warn:#a05a00;--ok-bg:#e8f6ec;--ok:#1c6b35;--ng-bg:#fdecec;--ng:#a12020;--code:#10151f;--code-fg:#e8edf7}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--fg:#e8ebf2;--sub:#a3abbb;--line:#2e3442;--card:#1b1f27;--acc:#6aa5ff;--warn-bg:#3a2b12;--warn:#ffc46b;--ok-bg:#16301f;--ok:#7fd69a;--ng-bg:#3a1a1a;--ng:#ff9c9c;--code:#0b0e14}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Yu Gothic UI","Meiryo UI","Hiragino Sans",sans-serif;line-height:1.8;font-size:17px}
+.wrap{max-width:920px;margin:0 auto;padding:16px}
+h1{font-size:1.7rem;margin:.4em 0}
+h2{font-size:1.35rem;border-left:6px solid var(--acc);padding-left:.6em;margin:2.2em 0 .6em}
+h3{font-size:1.1rem;margin:1.4em 0 .2em}
+p,li{margin:.4em 0}
+.lead{color:var(--sub)}
+.box{border-radius:10px;padding:.8em 1em;margin:1em 0;border:1px solid var(--line);background:var(--card)}
+.warn{background:var(--warn-bg);border-color:var(--warn)}
+.warn b.t{color:var(--warn)}
+.okb{background:var(--ok-bg);border-color:var(--ok)}
+.ngb{background:var(--ng-bg);border-color:var(--ng)}
+nav.toc{display:flex;flex-wrap:wrap;gap:.4em .9em;font-size:.95rem}
+nav.toc a{color:var(--acc)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.7em 1em .7em 3.4em;margin:.7em 0}
+.steps>li::before{content:counter(s);position:absolute;left:.8em;top:.7em;width:1.9em;height:1.9em;border-radius:50%;background:var(--acc);color:#fff;text-align:center;font-weight:bold;line-height:1.9em}
+.en{font-family:Consolas,monospace;background:var(--line);padding:0 .35em;border-radius:4px;font-size:.92em}
+table{border-collapse:collapse;width:100%;background:var(--card);font-size:.95rem}
+th,td{border:1px solid var(--line);padding:.4em .7em;text-align:left;vertical-align:top}
+th{background:var(--bg)}
+details{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.5em 1em;margin:.6em 0}
+summary{cursor:pointer;font-weight:bold}
+button{font:inherit;cursor:pointer}
+.btn{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:.45em 1.1em}
+.btn.sub{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+.btn.ok{background:#1c8a46}
+input[type=text],input[type=date],select,textarea{font:inherit;padding:.3em .5em;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);max-width:100%}
+textarea{width:100%;font-family:Consolas,"Yu Gothic UI",monospace;font-size:.88rem;line-height:1.5}
+pre.code{background:var(--code);color:var(--code-fg);padding:.7em .9em;border-radius:8px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:.88em;line-height:1.5;font-family:Consolas,monospace;margin:.4em 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:.6em 1em}
+.grid label{display:flex;flex-direction:column;font-size:.92rem;color:var(--sub)}
+.chk{display:flex;gap:.6em;align-items:flex-start;padding:.35em .2em;border-bottom:1px dashed var(--line)}
+.chk input{margin-top:.55em;width:1.2em;height:1.2em}
+.chk small{color:var(--sub);display:block}
+.pri{font-weight:bold;color:var(--warn)}
+.bar{height:.7em;background:var(--line);border-radius:6px;overflow:hidden}
+.bar>i{display:block;height:100%;background:#1c8a46;width:0}
+.res{font-size:.95rem}
+.res li{margin:.2em 0}
+.tag{display:inline-block;font-size:.8em;border:1px solid var(--line);border-radius:6px;padding:0 .5em;margin-right:.3em;color:var(--sub)}
+@media print{.btn,input,select,textarea{display:none}details{break-inside:avoid}body{font-size:12pt}}
+@media (max-width:600px){body{font-size:16px}}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>サンプル取り出しマニュアル</h1>
+<p class="lead">Power Automate の「アクションの書き方」の見本（サンプル）を取り出して、私に渡すための手順書です。素人の方でも、上から順にやれば進められるように書いています。</p>
+
+<nav class="toc box">
+<a href="#why">0. なぜ必要か</a><a href="#flow">1. 全体の流れ</a><a href="#make">2. 見本用フローを作る</a><a href="#get">3. コードを取り出す</a><a href="#settings">4. 設定を変えて取る</a><a href="#mask">5. 伏字にする</a><a href="#name">6. ファイル名を決める</a><a href="#conn">7. 使えるコネクタを書く</a><a href="#send">8. 私に渡す</a><a href="#check">9. 取り出しチェック</a><a href="#faq">10. 困ったとき</a>
+</nav>
+
+<h2 id="why">0. なぜ必要か</h2>
+<div class="box">
+<ul>
+<li>次の工程（構築手順書・引継ぎ仕様書・チェック機能）は、Power Automate が内部で持っている<b>アクションの書き方</b>が分からないと、正しく作れません。</li>
+<li>私が記憶で書くと間違えるので、<b>あなたの画面の実物をコピー</b>して見せてほしいのです。</li>
+<li>見せていただくのは「アクションの設定の文字（JSON）」です。<b>中身の個人情報や場所は、伏字にしてから</b>渡します（第5章に、自動でほぼ処理してくれる道具があります）。</li>
+<li>全部そろわなくても構いません。<b>◎の4種類</b>だけでも、まず進められます。</li>
+</ul>
+</div>
+<div class="box warn"><b class="t">画面の名前について</b><br>
+この手順の画面名は、実際にお見せいただいた英語の画面（Power Automate の編集画面にある「Parameters／Settings／Code view／About」のタブ）をもとにしています。私の想定で書いた部分は「（想定）」と書いています。違っていたら、<b>画面を撮って送ってください</b>。</div>
+
+<h2 id="flow">1. 全体の流れ</h2>
+<table>
+<tr><th>手順</th><th>やること</th><th>目安</th></tr>
+<tr><td>A</td><td>見本にするアクションを用意する（見本用のフローを1本作る）</td><td>20〜30分</td></tr>
+<tr><td>B</td><td>各アクションの「Code view」（コードの表示）をコピーする</td><td>1つ2分</td></tr>
+<tr><td>C</td><td>設定を変えたバージョン（ページ分け・並列実行・失敗時の実行）も取る</td><td>1つ5分</td></tr>
+<tr><td>D</td><td>伏字ツールで個人情報などを置き換える</td><td>1つ1分</td></tr>
+<tr><td>E</td><td>ファイル名を付けて、私に渡す</td><td>1つ1分</td></tr>
+</table>
+<p class="lead">全部で約1〜1.5時間です。日を分けても構いません。</p>
+
+<h2 id="make">2. 見本用フローを作る（最初の1回だけ）</h2>
+<p>新しい練習用フローを1本作って、そこに「見本にしたいアクション」を並べます。<b>本番のフローを使うより安全</b>で、個人情報も入りません。すでに同じ種類のアクションを使っている本番フローがある場合は、そこから取っても構いません。</p>
+
+<h3>用意するもの</h3>
+<ul>
+<li>OneDrive に、表（テーブル）のある練習用の Excel ファイル（データは適当な数行でよい）。</li>
+<li>練習用の自分宛のメールアドレス（失敗通知の送り先に使う）。</li>
+</ul>
+
+<h3>作るフローの形（◎の4種類が全部入ります）</h3>
+<pre class="code">[Manually trigger a flow]                      ← 手動で実行するトリガー
+ ├ [Scope]  名前：Try（本処理）
+ │   ├ [Excel] 表内に存在する行を一覧表示（List rows present in a table）
+ │   └ [Apply to each] 一覧の value に対して
+ │        └ [Compose] 中の1件を表示するだけ
+ └ [Scope]  名前：Catch（失敗時の通知）          ← 「Try が失敗したときだけ」動かす
+     └ [Outlook] メールの送信（Send an email (V2)）  → 自分宛</pre>
+
+<ol class="steps">
+<li><span class="en">Create</span> →「<span class="en">Instant cloud flow</span>」→ 名前を <span class="en">見本づくり</span> にして、<span class="en">Manually trigger a flow</span> を選んで <span class="en">Create</span>。</li>
+<li><span class="en">＋</span> →「<span class="en">Scope</span>」を追加し、名前を <span class="en">Try</span> にします（箱の「…」→「Rename」）。<br><small>※ 検索欄に <span class="en">Scope</span> と入れると出ます（コントロールの仲間）。</small></li>
+<li><span class="en">Try</span> の中の <span class="en">＋</span> で、<span class="en">Excel Online (Business)</span> の <span class="en">List rows present in a table</span> を追加し、練習用の Excel ファイルとテーブルを選びます。</li>
+<li>その下に <span class="en">Apply to each</span> を追加し、「Select an output」には、一覧取得の <span class="en">value</span>（動的なコンテンツ）を選びます。中に <span class="en">Compose</span> を1つ追加し、入力は何でもよい（例：<span class="en">test</span>）。</li>
+<li><span class="en">Try</span> の<b>外の下</b>に、もう1つ <span class="en">Scope</span> を追加し、名前を <span class="en">Catch</span> にします。</li>
+<li><span class="en">Catch</span> の中に <span class="en">Outlook</span> の <span class="en">Send an email (V2)</span>（メールの送信）を追加し、宛先に自分、件名と本文に「失敗しました」などを入れます。</li>
+<li><span class="en">Catch</span> を、<b>「Try が失敗したときだけ動く」</b>設定にします（第4章の「実行条件の構成」）。</li>
+<li>保存します。<b>実行しなくても</b>、見本は取れます（実行すると、失敗時のメールを試すこともできます）。</li>
+</ol>
+<div class="box warn"><b class="t">うまく作れないとき</b><br>
+どの手順でも、分からなければ画面を撮って送ってください。一緒に進めます。作れたアクションだけでも、先に取り出して渡してもらえれば、そこから進められます。</div>
+
+<h2 id="get">3. 「Code view」からコードを取り出す（基本）</h2>
+<p>1つのアクションの設定を、文字としてコピーします。すべてのアクションで同じ手順です。</p>
+<ol class="steps">
+<li>フローを<b>編集</b>画面で開きます。</li>
+<li>取り出したいアクションの<b>箱をクリック</b>します。左側にパネルが開き、上に <span class="en">Parameters</span>／<span class="en">Settings</span>／<span class="en">Code view</span>／<span class="en">About</span> のタブが並んでいます（お見せいただいた画面で確認済み）。</li>
+<li><span class="en">Code view</span>（コードの表示）のタブをクリックします。<br><small>※ 古い画面では、箱の「…」→「<span class="en">Peek code</span>」（コードのプレビュー）という名前のことがあります。</small></li>
+<li>表示された文字（<span class="en">{ ... }</span> で始まるもの）を、<b>全部選んでコピー</b>します（文字の中をクリック → Ctrl＋A → Ctrl＋C）。</li>
+<li>メモ帳を開き、貼り付けます（Ctrl＋V）。</li>
+<li>次の第5章の「伏字ツール」に貼り付けて、個人情報などを置き換えます。</li>
+</ol>
+<div class="box okb"><b>最初の1つで確認</b><br>
+最初に Compose（いちばん簡単なもの）で試して、<b>表示された内容を私に貼って</b>ください。取り出し方がこれで合っているか、私が確認します。その後で、他のアクションに進んでください。</div>
+<div class="box warn"><b class="t">注意</b>
+<ul>
+<li>「Parameters」タブの画面そのもの（スクリーンショット）ではなく、<b>Code view の文字</b>が必要です。</li>
+<li>コピーした文字を、手で直したり、並べ替えたりしないでください。<b>画面に出たままの形</b>が大事です。</li>
+<li>スコープや Apply to each は、中のアクションをまとめて含む形で取れる場合があります。そのまま1つのファイルにしてください。</li>
+</ul></div>
+
+<h2 id="settings">4. 設定を変えたバージョンも取る</h2>
+<p>同じアクションでも、設定を変えると書き方が変わります。<b>変える前と後の2つ</b>を取ってください（ファイル名の付け方は第6章）。</p>
+
+<table>
+<tr><th>取りたいもの</th><th>どこを変えるか（想定）</th><th>取る回数</th></tr>
+<tr><td><b>Excel：ページ分け（ページネーション）</b></td><td><span class="en">List rows present in a table</span> の箱 →「<span class="en">Settings</span>」タブ → <span class="en">Pagination</span>（ページネーション）をオン／オフ。オンのときは「しきい値（Threshold）」に数字（例：<span class="en">5000</span>）</td><td>オフ・オンの2回</td></tr>
+<tr><td><b>Apply to each：並列実行（コンカレンシー）</b></td><td><span class="en">Apply to each</span> の箱 →「<span class="en">Settings</span>」タブ → <span class="en">Concurrency control</span> をオン／オフ。オンのときは並列度（例：<span class="en">4</span>）</td><td>オフ・オンの2回</td></tr>
+<tr><td><b>失敗時にだけ動く（実行条件の構成）</b></td><td><span class="en">Catch</span> の箱（またはその中のメール送信）→ <span class="en">Settings</span> タブの中の <span class="en">Run after</span>（実行条件の構成）。「<span class="en">is successful</span>」を外して、「<span class="en">has failed</span>」「<span class="en">has timed out</span>」にチェック</td><td>変更後の1回（必要なら変更前も）</td></tr>
+<tr><td><b>Excel：日付の形式</b></td><td><span class="en">List rows present in a table</span> の「<span class="en">Parameters</span>」タブの <span class="en">Advanced parameters</span> の中の <span class="en">Date Time Format</span>（日付/時刻の形式）（想定）。「<span class="en">ISO 8601</span>」を選ぶ</td><td>選んだ状態の1回</td></tr>
+<tr><td>トリガー条件</td><td>トリガーの箱 →「<span class="en">Settings</span>」タブ → <span class="en">Trigger conditions</span>（トリガー条件）に、条件の式を1つ入れる（例：<span class="en">@equals(1,1)</span>）</td><td>設定後の1回</td></tr>
+<tr><td>定期実行のタイムゾーン</td><td><span class="en">Recurrence</span>（定期的に実行）トリガーの <span class="en">Time zone</span> を日本時間（<span class="en">(UTC+09:00) Osaka, Sapporo, Tokyo</span>）に</td><td>設定後の1回</td></tr>
+</table>
+<div class="box warn"><b class="t">この表の画面名は「想定」です</b><br>
+項目名は私の想定で、実際の画面と違うかもしれません。見つからないときは、その箱の「Settings」タブと「Parameters」タブの画面を、撮って送ってください。</div>
+
+<h3>「Try が失敗したときだけ」の設定（実行条件の構成）のやり方（想定）</h3>
+<ol class="steps">
+<li><span class="en">Catch</span> のスコープの箱をクリックします。</li>
+<li>左のパネルの <span class="en">Settings</span> タブを開き、<span class="en">Run after</span>（実行条件の構成）を探します。</li>
+<li>前の箱の名前（<span class="en">Try</span>）が表示されます。その下の「<span class="en">is successful</span>」のチェックを<b>外し</b>、「<span class="en">has failed</span>」と「<span class="en">has timed out</span>」に<b>チェック</b>を付けます。</li>
+<li>保存してから、<span class="en">Catch</span> の箱の <span class="en">Code view</span> を取り出します（<span class="en">runAfter</span> の中身が変わります）。</li>
+</ol>
+
+<h2 id="mask">5. 伏字にする（伏字ツール）</h2>
+<div class="box warn"><b class="t">大事なこと</b>
+<ul>
+<li>このツールは<b>ブラウザの中だけで動き、文字をどこにも送信しません</b>（インターネットに接続していなくても動きます）。</li>
+<li>ただし<b>自動で見つけられるものには限りがあります。置き換え後は、必ず自分の目でも確認してください</b>（氏名・案件名・課の名前など）。</li>
+<li>置き換えるのは<b>中身（値）だけ</b>です。項目名や構造は変えません。</li>
+</ul></div>
+
+<ol class="steps">
+<li>下の左の枠に、第3章でコピーした Code view の文字を貼り付けます。</li>
+<li>「伏字にする」を押します。</li>
+<li>右の枠に、置き換え後の文字が出ます。<b>下の「要確認」の一覧</b>を見て、残っている個人情報がないか確認します。</li>
+<li>問題なければ、「コピー」か「ファイルに保存」を押します。</li>
+</ol>
+
+<div class="box">
+<div class="grid">
+<div><b>置き換え前（貼り付け）</b><textarea id="mIn" rows="12" placeholder="Code view の文字をここに貼り付け"></textarea></div>
+<div><b>置き換え後</b><textarea id="mOut" rows="12" readonly placeholder="ここに結果が出ます"></textarea></div>
+</div>
+<p style="margin-top:.7em">
+<button class="btn" id="mGo" type="button">伏字にする</button>
+<button class="btn sub" id="mCp" type="button">置き換え後をコピー</button>
+<button class="btn sub" id="mSave" type="button">ファイルに保存</button>
+<label style="margin-left:.6em;color:var(--sub)">保存名 <input type="text" id="mFile" placeholder="例：excel__list_rows_in_table__basic.json" size="38"></label>
+</p>
+<div id="mRes" class="res"></div>
+</div>
+
+<details><summary>このツールが自動で置き換えるもの・置き換えないもの</summary>
+<table>
+<tr><th>自動で置き換える</th><th>置き換え後</th></tr>
+<tr><td>メールアドレス</td><td><span class="en">user@example.com</span></td></tr>
+<tr><td>SharePoint のサイトURL（<span class="en">….sharepoint.com</span>）</td><td><span class="en">https://contoso.sharepoint.com/sites/SITE</span></td></tr>
+<tr><td>庁内らしいURL（<span class="en">.lg.jp</span>、<span class="en">.go.jp</span> など）</td><td><span class="en">https://example.com/</span></td></tr>
+<tr><td>GUID（8-4-4-4-12 の英数字：リストID・テナントID・ユーザーIDなど）</td><td><span class="en">00000000-0000-0000-0000-000000000000</span></td></tr>
+<tr><td>OneDrive／Excel のドライブID（<span class="en">b!…</span>）</td><td><span class="en">b!DRIVE_ID</span></td></tr>
+<tr><td>Teams のチャネルID（<span class="en">19:…@thread.tacv2</span> など）</td><td><span class="en">19:CHANNEL_ID@thread.tacv2</span></td></tr>
+<tr><td>接続名の識別子部分（<span class="en">shared_…</span> の後ろ）</td><td><span class="en">shared_sharepointonline-CONNECTION_ID</span> の形</td></tr>
+</table>
+<p><b>自動では置き換えないもの（自分で確認）</b>：氏名、部署名、案件名、ファイルのパス（<span class="en">/Shared Documents/…</span>）、メール本文のメッセージ、リスト名、ファイル名、表の名前。下の「要確認」に候補が出るので、手で置き換えてください。</p>
+</details>
+
+<h2 id="name">6. ファイル名を決める（ファイル名メーカー）</h2>
+<p>ファイル名は、<span class="en">コネクタ略称__アクション内容__バリエーション.json</span> の形にします。<b>半角英数字と <span class="en">_</span> だけ</b>（日本語は使わない）。下の道具で作れます。管理表（<span class="en">_manifest.csv</span>）の1行も一緒にできます。</p>
+<div class="box">
+<div class="grid">
+<label>種類
+<select id="nKind"><option value="actions">アクション（actions）</option><option value="triggers">トリガー（triggers）</option><option value="flows">フロー全体（flows）</option></select></label>
+<label>コネクタ略称
+<input type="text" id="nCon" list="dCon" placeholder="outlook">
+<datalist id="dCon"><option>outlook</option><option>teams</option><option>sharepoint</option><option>onedrive</option><option>excel</option><option>forms</option><option>approvals</option><option>control</option><option>data</option><option>variables</option><option>schedule</option><option>request</option></datalist></label>
+<label>アクション内容（英語・スネークケース）
+<input type="text" id="nAct" list="dAct" placeholder="send_email">
+<datalist id="dAct"><option>send_email</option><option>post_message</option><option>get_items</option><option>create_item</option><option>update_item</option><option>list_rows_in_table</option><option>add_row_to_table</option><option>create_and_wait</option><option>get_response_details</option><option>apply_to_each</option><option>scope</option><option>condition</option><option>switch</option><option>compose</option><option>initialize_variable</option><option>set_variable</option><option>recurrence</option><option>manual</option><option>new_response</option></datalist></label>
+<label>バリエーション
+<input type="text" id="nVar" list="dVar" placeholder="basic">
+<datalist id="dVar"><option>basic</option><option>html_body</option><option>filter_query</option><option>pagination_off</option><option>pagination_on</option><option>concurrency_off</option><option>concurrency_on</option><option>run_after_failed</option><option>trigger_condition</option><option>tokyo_tz</option><option>date_iso8601</option></datalist></label>
+</div>
+<div class="grid" style="margin-top:.6em">
+<label>画面の表示名：コネクタ（日本語）<input type="text" id="nCJ"></label>
+<label>画面の表示名：コネクタ（英語）<input type="text" id="nCE"></label>
+<label>画面の表示名：アクション（日本語）<input type="text" id="nAJ"></label>
+<label>画面の表示名：アクション（英語）<input type="text" id="nAE"></label>
+<label>画面の言語<select id="nLang"><option>en</option><option>ja</option></select></label>
+<label>設定の違い（メモ）<input type="text" id="nNote" placeholder="例：ページネーションをオンにした（しきい値5000）"></label>
+</div>
+<p style="margin-top:.6em"><button class="btn" id="nGo" type="button">ファイル名と管理表の行を作る</button></p>
+<div id="nRes"></div>
+</div>
+
+<h2 id="conn">7. 使えるコネクタを書く（<span class="en">connectors.txt</span> メーカー）</h2>
+<p>「使えるコネクタ」の一覧を、次の道具で作ります。<b>使うものにチェック</b>を入れ、<b>区分</b>（Standard／Premium／組み込み）を、画面のコネクタの表示を見て選んでください。分からなければ「不明」で構いません。</p>
+<div class="box warn"><b class="t">Premium のコネクタは、この一覧に入れません</b>（使えない前提のため）。「Premium」を選んだ行は、出力から除きます。</div>
+<div class="box">
+<table id="cTbl"><tr><th>使う</th><th>コネクタ名</th><th>英語名</th><th>区分</th><th>備考</th></tr></table>
+<p><button class="btn" id="cGo" type="button">connectors.txt の内容を作る</button> <button class="btn sub" id="cCp" type="button">コピー</button></p>
+<textarea id="cOut" rows="10" readonly placeholder="ここに結果が出ます"></textarea>
+<p class="lead">できた文章は、メモ帳に貼り付けて、<span class="en">connectors.txt</span>（UTF-8）として保存するか、そのまま私に貼って送ってください。</p>
+</div>
+
+<h2 id="send">8. 私に渡す</h2>
+<ol class="steps">
+<li>伏字にした文字（第5章の「置き換え後」）を、<b>このチャット画面に貼り付けて</b>送ってください。1回の送信に、<b>1〜3ファイル分</b>ずつが目安です。長いときは、分けて送ってください。</li>
+<li>貼り付けるときは、<b>ファイル名</b>（第6章）を最初の行に書いてください。例：<br><span class="en">【excel__list_rows_in_table__pagination_on.json】</span></li>
+<li>管理表の行（第6章で作ったもの）も、いっしょに貼ってください。</li>
+<li>私が受け取ったら、<code>flow-kit/samples/</code> に保存して、Git に反映します。<b>あなたが Git やファイル操作をする必要はありません。</b></li>
+<li><span class="en">connectors.txt</span> の内容（第7章）も、貼り付けて送ってください。</li>
+</ol>
+<div class="box okb">まず<b>Compose の1つ</b>だけ送ってください。取り出し方が合っているかを確認して、続けて進める順番を案内します。</div>
+
+<h2 id="check">9. 取り出しチェック</h2>
+<p>取り出したものにチェックを入れてください（このページを閉じるまで、または同じブラウザなら次回も覚えています）。<b>◎が最優先</b>です。</p>
+<div class="bar"><i id="pBar"></i></div>
+<p id="pTxt" class="lead"></p>
+<div class="box" id="chkBox"></div>
+
+<h2 id="faq">10. 困ったとき</h2>
+<details open><summary>「Code view」のタブが見つからない</summary>
+<p>箱をクリックしたあとの、左のパネルの上に、<span class="en">Parameters</span>・<span class="en">Settings</span>・<span class="en">Code view</span>・<span class="en">About</span> のタブがあるはずです。見つからないときは、箱の「…」メニューに「<span class="en">Peek code</span>」（コードのプレビュー）があるかも探してください。それでも見つからなければ、画面を撮って送ってください。</p></details>
+<details><summary>表示された文字が長すぎて、全部コピーできない</summary>
+<p>文字の中をクリックして <b>Ctrl＋A</b>（全部選ぶ）→ <b>Ctrl＋C</b>（コピー）を押してください。マウスで選ぶより確実です。</p></details>
+<details><summary>伏字ツールで「JSONとして読み取れません」と出た</summary>
+<p>コピーの途中が切れているか、最初や最後の <span class="en">{</span> <span class="en">}</span> が抜けている可能性があります。もう一度、Ctrl＋A でコピーし直してください。</p></details>
+<details><summary>何を伏字にすればいいか分からない</summary>
+<p>迷ったときは、<b>置き換えてください</b>。構造（項目名）は変わらないので、中身を置き換えても問題ありません。置き換えて困ることは、ほとんどありません。</p></details>
+<details><summary>個人名や案件名が入っていた</summary>
+<p>手で <span class="en">担当者名</span>、<span class="en">案件名</span> などに置き換えてください。アクションの<b>名前</b>に個人名が入っているときは、名前を参照している式の中も同じ名前に直してください（分からなければ、そのまま送らず、相談してください）。</p></details>
+<details><summary>見本用フローを作る時間がない</summary>
+<p>すでに動いている本番フローから、同じ種類のアクションを取り出しても構いません。その場合も、必ず伏字にしてください。本番の個人情報が多いときは、見本用フローの方が安全です。</p></details>
+
+</div>
+
+<script>
+(function(){
+  function $(id){return document.getElementById(id);}
+  function copyText(t, btn){
+    function ok(){ if(btn){ var o=btn.textContent; btn.textContent='コピーしました'; btn.classList.add('ok'); setTimeout(function(){btn.textContent=o;btn.classList.remove('ok');},1500);} }
+    function fb(){
+      var ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); ok(); }catch(e){ window.prompt('Ctrl+C でコピーしてください', t); }
+      document.body.removeChild(ta);
+    }
+    if(navigator.clipboard){ navigator.clipboard.writeText(t).then(ok, fb); } else { fb(); }
+  }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  /* ---------- 伏字ツール ---------- */
+  var RULES = [
+    ['Teams のID', /19:[A-Za-z0-9_\-]+@thread\.(?:tacv2|skype|v2)/g, function(){return '19:CHANNEL_ID@thread.tacv2';}],
+    ['メールアドレス', /[A-Za-z0-9._%+\-]+@(?!thread\.)[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g, function(){return 'user@example.com';}],
+    ['SharePoint のURL', /https:\/\/[A-Za-z0-9\-]+(?:-my)?\.sharepoint\.com[^"\\\s]*/g, function(){return 'https://contoso.sharepoint.com/sites/SITE';}],
+    ['庁内らしいURL', /https?:\/\/[A-Za-z0-9.\-]+\.(?:lg\.jp|go\.jp|ed\.jp|or\.jp)[^"\\\s]*/g, function(){return 'https://example.com/';}],
+    ['GUID', /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g, function(){return '00000000-0000-0000-0000-000000000000';}],
+    ['ドライブID', /b![A-Za-z0-9_\-]{10,}/g, function(){return 'b!DRIVE_ID';}],
+    ['接続名の識別子', /("(?:connectionName|connectionReferenceName)"\s*:\s*"shared_[A-Za-z0-9]+)[-_][A-Za-z0-9_\-]+"/g, function(m, p1){return p1 + '-CONNECTION_ID"';}]
+  ];
+  function collectStrings(v, out){
+    if(typeof v === 'string'){ out.push(v); }
+    else if(Array.isArray(v)){ v.forEach(function(x){collectStrings(x,out);}); }
+    else if(v && typeof v === 'object'){ Object.keys(v).forEach(function(k){collectStrings(v[k],out);}); }
+  }
+  $('mGo').addEventListener('click', function(){
+    var src = $('mIn').value, txt = src, counts = [];
+    if(!src.trim()){ $('mRes').innerHTML = '<div class="box ngb">左の枠に、Code view の文字を貼り付けてください。</div>'; return; }
+    RULES.forEach(function(r){
+      var n = 0;
+      txt = txt.replace(r[1], function(){ n++; return r[2].apply(null, arguments); });
+      if(n>0) counts.push(r[0] + '：' + n + '件');
+    });
+    $('mOut').value = txt;
+    var html = '', ok = true, parsed = null;
+    try { parsed = JSON.parse(txt); } catch(e){ ok = false; html += '<div class="box ngb"><b>JSONとして読み取れません。</b>コピーの途中が切れていないか確認してください。（' + esc(e.message) + '）</div>'; }
+    if(ok) html += '<div class="box okb">JSONとして正しく読み取れました。置き換えは次のとおりです。</div>';
+    html += '<ul>' + (counts.length ? counts.map(function(c){return '<li>'+esc(c)+'</li>';}).join('') : '<li>自動で置き換えたものはありません（本当に個人情報が無いか、確認してください）</li>') + '</ul>';
+    if(parsed !== null){
+      var strs = []; collectStrings(parsed, strs);
+      var seen = {}, jp = [], path = [];
+      strs.forEach(function(s){
+        if(seen[s]) return; seen[s] = 1;
+        if(/[^\x00-\x7F]/.test(s) && s.length < 300) jp.push(s);
+        if(/^\/[^\s]*|\\\\|\.(xlsx|xls|xlsm|docx|doc|csv|pdf|txt|pptx)$/i.test(s) && s.indexOf('@') !== 0 && s.indexOf('/providers/') !== 0) path.push(s);
+      });
+      html += '<h3>要確認（自動では置き換えていません。自分の目で確認してください）</h3>';
+      html += '<p><b>日本語を含む値</b>（個人名・案件名・課名・メッセージの可能性）：' + jp.length + '件</p>';
+      if(jp.length) html += '<ul>' + jp.slice(0,40).map(function(s){return '<li><span class="tag">日本語</span>'+esc(s.length>80?s.slice(0,80)+'…':s)+'</li>';}).join('') + '</ul>';
+      html += '<p><b>ファイルのパスらしい値</b>：' + path.length + '件</p>';
+      if(path.length) html += '<ul>' + path.slice(0,40).map(function(s){return '<li><span class="tag">パス</span>'+esc(s.length>80?s.slice(0,80)+'…':s)+'</li>';}).join('') + '</ul>';
+      html += '<p class="lead">※ アクションの「名前」（キーの名前）に個人名や案件名が入っていないかも、見てください。</p>';
+    }
+    $('mRes').innerHTML = html;
+  });
+  $('mCp').addEventListener('click', function(){ copyText($('mOut').value, this); });
+  $('mSave').addEventListener('click', function(){
+    var t = $('mOut').value; if(!t){ alert('先に「伏字にする」を押してください。'); return; }
+    var name = ($('mFile').value || 'sample.json').trim();
+    if(!/\.json$/i.test(name)) name += '.json';
+    var blob = new Blob([t], {type:'application/json;charset=utf-8'});
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  });
+
+  /* ---------- ファイル名メーカー ---------- */
+  function csvq(s){ s = String(s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; }
+  $('nGo').addEventListener('click', function(){
+    var con = $('nCon').value.trim(), act = $('nAct').value.trim(), v = $('nVar').value.trim() || 'basic';
+    var warn = [];
+    [['コネクタ略称',con],['アクション内容',act],['バリエーション',v]].forEach(function(p){
+      if(!p[1]) warn.push(p[0] + 'が空です。');
+      else if(!/^[a-z0-9_]+$/.test(p[1])) warn.push(p[0] + '（' + p[1] + '）は、半角の小文字英数字と _ だけにしてください。');
+    });
+    if(warn.length){ $('nRes').innerHTML = '<div class="box ngb">' + warn.map(esc).join('<br>') + '</div>'; return; }
+    var fn = con + '__' + act + '__' + v + '.json';
+    var kind = $('nKind').value;
+    var d = new Date(); var today = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+    var row = [fn, $('nCJ').value, $('nCE').value, $('nAJ').value, $('nAE').value, $('nLang').value, $('nNote').value, today, 'yes', ''].map(csvq).join(',');
+    $('nRes').innerHTML = '<p><b>ファイル名</b>（保存先：<span class="en">samples/' + esc(kind) + '/</span>）</p><pre class="code" id="nFn">' + esc(fn) + '</pre><button class="btn sub" id="nFnCp" type="button">ファイル名をコピー</button> <button class="btn sub" id="nFnUse" type="button">伏字ツールの保存名に入れる</button>' +
+      '<p><b>管理表の行</b>（<span class="en">_manifest.csv</span> に1行）</p><pre class="code" id="nRow">' + esc(row) + '</pre><button class="btn sub" id="nRowCp" type="button">行をコピー</button>';
+    $('nFnCp').addEventListener('click', function(){ copyText(fn, this); });
+    $('nFnUse').addEventListener('click', function(){ $('mFile').value = fn; this.textContent = '入れました'; });
+    $('nRowCp').addEventListener('click', function(){ copyText(row, this); });
+  });
+
+  /* ---------- connectors.txt メーカー ---------- */
+  var CONS = [['Office 365 Outlook','Office 365 Outlook'],['Microsoft Teams','Microsoft Teams'],['SharePoint','SharePoint'],['OneDrive for Business','OneDrive for Business'],['Excel Online (Business)','Excel Online (Business)'],['Microsoft Forms','Microsoft Forms'],['承認','Approvals'],['Office 365 Users','Office 365 Users'],['（その他）',''],['（その他）','']];
+  var tbl = $('cTbl');
+  CONS.forEach(function(c, i){
+    var tr = document.createElement('tr');
+    var other = c[0] === '（その他）';
+    tr.innerHTML = '<td><input type="checkbox" class="cUse"' + (i<7?' checked':'') + '></td>' +
+      '<td><input type="text" class="cJa" value="' + esc(other?'':c[0]) + '" size="22"' + '></td>' +
+      '<td><input type="text" class="cEn" value="' + esc(c[1]) + '" size="22"></td>' +
+      '<td><select class="cKind"><option>不明</option><option>Standard</option><option>Premium</option><option>組み込み</option></select></td>' +
+      '<td><input type="text" class="cMemo" size="18"></td>';
+    tbl.appendChild(tr);
+  });
+  $('cGo').addEventListener('click', function(){
+    var lines = ['# 使えるコネクタの一覧', '# 書式: コネクタ名（画面の表記） | 英語名 | 区分 | 備考', '# 区分は Standard / Premium / 組み込み / 不明 のいずれか。', ''];
+    var skipped = [];
+    var rows = tbl.querySelectorAll('tr');
+    for(var i=1;i<rows.length;i++){
+      var r = rows[i];
+      if(!r.querySelector('.cUse').checked) continue;
+      var ja = r.querySelector('.cJa').value.trim(), en = r.querySelector('.cEn').value.trim(), k = r.querySelector('.cKind').value, m = r.querySelector('.cMemo').value.trim();
+      if(!ja && !en) continue;
+      if(k === 'Premium'){ skipped.push(ja || en); continue; }
+      lines.push((ja||en) + ' | ' + (en||ja) + ' | ' + k + ' | ' + m);
+    }
+    if(skipped.length) lines.push('', '# 除外（Premium のため使えない前提）: ' + skipped.join(', '));
+    $('cOut').value = lines.join('\n') + '\n';
+  });
+  $('cCp').addEventListener('click', function(){ copyText($('cOut').value, this); });
+
+  /* ---------- 取り出しチェック ---------- */
+  var ITEMS = [
+    ['◎','Compose（作成）','式を入れたもの','control/data'],
+    ['◎','Scope（スコープ）','中にアクションを入れたもの',''],
+    ['◎','実行条件の構成を「失敗した」にしたアクション','Catch のスコープ（またはその中のメール送信）','runAfter'],
+    ['◎','Outlook：メールの送信（Send an email (V2)）','基本形','' ],
+    ['◎','Excel：表内に存在する行を一覧表示','ページネーション オフ',''],
+    ['◎','Excel：表内に存在する行を一覧表示','ページネーション オン（しきい値あり）',''],
+    ['◎','Apply to each','コンカレンシー オフ',''],
+    ['◎','Apply to each','コンカレンシー オン（並列度あり）',''],
+    ['◎','トリガー：手動（Manually trigger a flow）','',''],
+    ['◎','トリガー：定期的に実行（Recurrence）','日本時間のタイムゾーン設定あり',''],
+    ['◎','トリガー条件を設定したトリガー','',''],
+    ['◎','フロー全体の定義（見本用フロー1本）','取れる方法が分かれば',''],
+    ['◎','connectors.txt','第7章',''],
+    ['○','Teams：メッセージの投稿','チャネル／チャット',''],
+    ['○','SharePoint：項目の取得','フィルタークエリあり／上位の件数',''],
+    ['○','SharePoint：項目の作成・更新','',''],
+    ['○','OneDrive：ファイルの作成','',''],
+    ['○','承認：承認の作成と待機','',''],
+    ['○','Forms：応答の詳細を取得する','',''],
+    ['○','Forms：新しい応答が送信されるとき（トリガー）','',''],
+    ['○','変数：初期化／設定／インクリメント／追加','',''],
+    ['○','条件（Condition）／スイッチ（Switch）','',''],
+    ['○','Do until／配列のフィルター処理／選択／JSON の解析／終了','あれば','']
+  ];
+  var KEY = 'sample_manual_checks_v1';
+  function load(){ try{ return JSON.parse(localStorage.getItem(KEY) || '{}'); }catch(e){ return {}; } }
+  function save(o){ try{ localStorage.setItem(KEY, JSON.stringify(o)); }catch(e){} }
+  var state = load();
+  var box = $('chkBox');
+  ITEMS.forEach(function(it, i){
+    var d = document.createElement('div'); d.className = 'chk';
+    d.innerHTML = '<input type="checkbox" id="ck' + i + '"' + (state[i] ? ' checked' : '') + '><label for="ck' + i + '"><span class="' + (it[0]==='◎'?'pri':'') + '">' + it[0] + '</span> ' + esc(it[1]) + (it[2] ? '<small>' + esc(it[2]) + '</small>' : '') + '</label>';
+    box.appendChild(d);
+    d.querySelector('input').addEventListener('change', function(){ state[i] = this.checked; save(state); upd(); });
+  });
+  function upd(){
+    var tot = 0, done = 0, pt = 0, pd = 0;
+    ITEMS.forEach(function(it, i){ tot++; if(state[i]) done++; if(it[0]==='◎'){ pt++; if(state[i]) pd++; } });
+    $('pBar').style.width = Math.round(done / tot * 100) + '%';
+    $('pTxt').textContent = '全体 ' + done + ' / ' + tot + '　（◎ 最優先 ' + pd + ' / ' + pt + '）';
+  }
+  upd();
+})();
+</script>
+</body></html>
