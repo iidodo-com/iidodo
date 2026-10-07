@@ -1,0 +1,28 @@
+{
+  "type": "OpenApiConnection",
+  "inputs": {
+    "parameters": {
+      "source": "me",
+      "drive": "b!DRIVE_ID",
+      "file": "FILE_ID_1",
+      "table": "{00000000-0000-0000-0000-000000000000}",
+      "extractSensitivityLabel": true,
+      "fetchSensitivityLabelMetadata": true
+    },
+    "host": {
+      "apiId": "/providers/Microsoft.PowerApps/apis/shared_excelonlinebusiness",
+      "connection": "shared_excelonlinebusiness",
+      "operationId": "GetItems"
+    }
+  },
+  "runtimeConfiguration": {
+    "paginationPolicy": {
+      "minimumItemCount": 5000
+    }
+  },
+  "metadata": {
+    "FILE_ID_2": "/FOLDER/PATH/FILE_2.xlsx",
+    "FILE_ID_1": "/FOLDER/PATH/sample_table.xlsx",
+    "tableId": "{00000000-0000-0000-0000-000000000000}"
+  }
+}
