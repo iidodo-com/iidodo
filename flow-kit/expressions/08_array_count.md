@@ -37,8 +37,8 @@ equals(length(<配列>), 0)
 ## 入力の想定
 
 `<配列>` に、配列を返す動的なコンテンツ（例：取得アクションの `value`）を入れます。
-- 取得アクションの出力から配列を取り出す書き方（例：`body('アクション名')?['value']`）は **要確認（サンプルなし）** です。動的なコンテンツから「value」を選んで挿入し、式タブに表示された内容をそのまま使ってください。
-- **件数は取得アクション側のページネーション・上限件数の設定に左右されます**（既定の上限で打ち切られていると、実際より少ない件数になる）。設定項目名は **要確認（サンプルなし）**。
+- 取得アクション（Excel の一覧取得）の出力から配列を取り出す書き方は、サンプルで確認済みです：`outputs('List_rows_present_in_a_table')?['body/value']`（`samples/actions/control__apply_to_each__concurrency_off.json` の `foreach`）。アクション名は自分のフローの名前に合わせてください（空白は `_` に変わります）。
+- **件数は取得アクション側のページネーション設定に左右されます。** 画面の Settings の Pagination をオンにすると、JSON に `runtimeConfiguration.paginationPolicy.minimumItemCount`（しきい値）が追加されます（`samples/actions/excel__list_rows_in_table__pagination_on.json`）。この設定がない一覧取得は、既定の上限で打ち切られる恐れがあります（既定の上限の件数は、サンプルにないため **要確認（サンプルなし）**）。
 
 ## 出力例
 
