@@ -57,65 +57,8 @@ if ([string]::IsNullOrEmpty($ExpressionsDir)) {
     $ExpressionsDir = Join-Path (Join-Path $PSScriptRoot '..') 'expressions'
 }
 
-# --- ファイルを UTF-8 として読む（文字コードを明示） ---
-function Read-Utf8Lines([string]$Path) {
-    $text = [System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8)
-    return ,($text -split "\r?\n")
-}
-
-# --- ライブラリの読み込み ---
-function Get-Library([string]$Dir) {
-    if (-not (Test-Path -LiteralPath $Dir)) {
-        throw "式ライブラリのフォルダーが見つかりません: $Dir"
-    }
-    $items = New-Object System.Collections.ArrayList
-    $files = Get-ChildItem -LiteralPath $Dir -Filter '*.md' | Where-Object { $_.Name -match '^[0-9][0-9]_' } | Sort-Object Name
-    foreach ($f in $files) {
-        $lines = Read-Utf8Lines $f.FullName
-        $title = ''
-        $exprId = ''
-        $kw = ''
-        $status = ''
-        foreach ($ln in $lines) {
-            if ($title -eq '' -and $ln.StartsWith('# ')) { $title = $ln.Substring(2).Trim() }
-            elseif ($ln.StartsWith('- ID: ')) { $exprId = $ln.Substring(6).Trim() }
-            elseif ($ln.StartsWith('- キーワード: ')) { $kw = $ln.Substring(9).Trim() }
-            elseif ($ln.StartsWith('- 検証状況: ')) { $status = $ln.Substring(8).Trim() }
-        }
-        if ($exprId -eq '' -or $title -eq '') { continue }
-        $kwList = @()
-        foreach ($k in ($kw -split '[,、]')) {
-            $kk = $k.Trim()
-            if ($kk -ne '') { $kwList += $kk }
-        }
-        $o = New-Object PSObject -Property @{
-            Id       = $exprId
-            Title    = $title
-            File     = $f.Name
-            Keywords = $kwList
-            Status   = $status
-            Lines    = $lines
-        }
-        [void]$items.Add($o)
-    }
-    return ,$items
-}
-
-# --- 「## 見出し」ごとに本文を取り出す ---
-function Get-Sections($Lines) {
-    $sec = [ordered]@{}
-    $cur = ''
-    foreach ($ln in $Lines) {
-        if ($ln.StartsWith('## ')) {
-            $cur = $ln.Substring(3).Trim()
-            $sec[$cur] = New-Object System.Collections.ArrayList
-        }
-        elseif ($cur -ne '') {
-            [void]$sec[$cur].Add($ln)
-        }
-    }
-    return $sec
-}
+# --- 式ライブラリを読む共通部品（build_guide と共用） ---
+. (Join-Path $PSScriptRoot '_expr_lib.ps1')
 
 # --- 検証ケース（### Exx_n）のうち、観察ではないものを先頭から n 件取り出す ---
 function Get-VerifyCases($SectionLines, [int]$Max) {
@@ -191,19 +134,7 @@ else {
         Write-Output '要件を -Requirement で指定してください（例: -Requirement "翌営業日を求めたい"）。一覧は -List で表示できます。'
         exit 1
     }
-    foreach ($e in $lib) {
-        $score = 0
-        $hits = @()
-        foreach ($k in $e.Keywords) {
-            if ($Requirement.IndexOf($k, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-                $score += $k.Length
-                $hits += $k
-            }
-        }
-        if ($score -gt 0) {
-            [void]$ranked.Add((New-Object PSObject -Property @{ Entry = $e; Score = $score; Hits = $hits }))
-        }
-    }
+    $ranked = @(Get-RankedExpr $lib $Requirement)
     if ($ranked.Count -eq 0) {
         $msg = New-Object System.Collections.ArrayList
         [void]$msg.Add('該当する式がライブラリにありません。')
@@ -220,8 +151,6 @@ else {
         }
         exit 2
     }
-    # スコアの降順（同点は ID 順）
-    $ranked = @($ranked | Sort-Object @{ Expression = 'Score'; Descending = $true }, @{ Expression = { $_.Entry.Id }; Descending = $false })
 }
 
 if ($Top -lt 1) { $Top = 1 }

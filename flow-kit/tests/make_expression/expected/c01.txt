@@ -91,7 +91,7 @@ convertTimeZone('2026-12-31T15:00:00Z', 'UTC', 'Tokyo Standard Time', 'yyyy/MM/d
 
 ## 他の候補
 
-- E00: 日本時間の現在日時（基準となる Compose_JST）（一致: 今, 日本時間）
+- E00: 日本時間の現在日時（基準となる Compose_JST）（一致: 日本時間）
 - E06: Excelのシリアル値 → 日付（一致: 日付）
 
 他の候補を見るには -Id（例: -Id E00）か -Top 2 を指定する。

@@ -7,7 +7,7 @@
   すべて成功なら終了コード 0、失敗があれば 1。
 
 .PARAMETER Target
-  実行するテスト。all / make_expression / ps51（PowerShell 5.1 互換の静的チェック）
+  実行するテスト。all / make_expression / build_guide / ps51（PowerShell 5.1 互換の静的チェック）
 
 .PARAMETER UpdateGolden
   期待出力（expected/*.txt）を、現在のツールの出力で作り直す。作り直した内容は必ず目視で確認すること。
@@ -17,7 +17,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('all', 'make_expression', 'ps51')]
+    [ValidateSet('all', 'make_expression', 'build_guide', 'ps51')]
     [string]$Target = 'all',
     [switch]$UpdateGolden
 )
@@ -157,6 +157,75 @@ function Test-MakeExpression {
     }
 }
 
+# ======================= build_guide =======================
+function Test-BuildGuide {
+    Write-Host '--- build_guide ---'
+    $tool = Join-Path (Join-Path $Root 'tools') 'build_guide.ps1'
+    $dir = Join-Path (Join-Path $Root 'tests') 'build_guide'
+    $cases = Import-Csv -LiteralPath (Join-Path $dir 'cases.csv') -Encoding UTF8
+    $goldenCases = @('b01', 'b02', 'b04')
+
+    foreach ($c in $cases) {
+        $specPath = Join-Path $Root $c.spec
+        $r = Invoke-Tool $tool @{ Spec = $specPath }
+        $name = 'build_guide ' + $c.case
+        Report ($r.Code -eq [int]$c.expected_exit) ($name + ' 終了コード') ('期待 ' + $c.expected_exit + ' / 実際 ' + $r.Code)
+        if ($c.must_contain -ne '') {
+            foreach ($needle in ($c.must_contain -split '\|\|')) {
+                Report $r.Text.Contains($needle) ($name + ' に含まれる: ' + $needle) '出力に見つからない'
+            }
+        }
+        if ($c.must_not_contain -ne '') {
+            foreach ($needle in ($c.must_not_contain -split '\|\|')) {
+                Report (-not $r.Text.Contains($needle)) ($name + ' に含まれない: ' + $needle) '含まれてはいけない文字が出力にある'
+            }
+        }
+        if ($goldenCases -contains $c.case) {
+            $gpath = Join-Path (Join-Path $dir 'expected') ($c.case + '.md')
+            if ($UpdateGolden) {
+                [System.IO.File]::WriteAllText($gpath, ((Normalize $r.Text) + "`n"), (New-Object System.Text.UTF8Encoding($true)))
+                Write-Host ('       期待出力を更新: ' + $gpath)
+            }
+            if (Test-Path -LiteralPath $gpath) {
+                Report ((Normalize (Read-Utf8 $gpath)) -eq (Normalize $r.Text)) ($name + ' 期待出力と完全一致') '期待出力ファイルと差異あり（意図した変更なら -UpdateGolden で更新）'
+            }
+            else { Report $false ($name + ' 期待出力ファイル') ('見つからない: ' + $gpath) }
+        }
+    }
+
+    # 出力に書いた「サンプルで確認済み」の根拠が、samples/ のサンプルに実在するか
+    $sd = Join-Path (Join-Path $Root 'samples') 'actions'
+    $excelOn = (Read-Utf8 (Join-Path $sd 'excel__list_rows_in_table__pagination_on.json')) | ConvertFrom-Json
+    $excelOff = (Read-Utf8 (Join-Path $sd 'excel__list_rows_in_table__pagination_off.json')) | ConvertFrom-Json
+    $feOn = (Read-Utf8 (Join-Path $sd 'control__apply_to_each__concurrency_on.json')) | ConvertFrom-Json
+    $feOff = (Read-Utf8 (Join-Path $sd 'control__apply_to_each__concurrency_off.json')) | ConvertFrom-Json
+    $scope = (Read-Utf8 (Join-Path $sd 'control__scope__run_after_failed.json')) | ConvertFrom-Json
+    Report ($excelOn.runtimeConfiguration.paginationPolicy.minimumItemCount -eq 5000) '根拠サンプル: Excel の paginationPolicy.minimumItemCount' ''
+    Report ($null -eq $excelOff.PSObject.Properties['runtimeConfiguration']) '根拠サンプル: ページネーションなしは runtimeConfiguration がない' ''
+    Report ($excelOn.inputs.host.operationId -eq 'GetItems') '根拠サンプル: Excel の operationId GetItems' ''
+    Report ($feOn.runtimeConfiguration.concurrency.repetitions -eq 4) '根拠サンプル: Apply to each の concurrency.repetitions' ''
+    Report ($null -eq $feOff.PSObject.Properties['runtimeConfiguration']) '根拠サンプル: 並列なしは runtimeConfiguration がない' ''
+    Report ($feOff.foreach -eq "@outputs('List_rows_present_in_a_table')?['body/value']") '根拠サンプル: foreach の式' ''
+    Report ((@($scope.runAfter.Try) -join ',') -eq 'TimedOut,Failed') '根拠サンプル: スコープの runAfter（TimedOut, Failed）' ''
+    Report ($scope.actions.'Send_an_email_(V2)'.inputs.host.operationId -eq 'SendEmailV2') '根拠サンプル: メール送信の operationId SendEmailV2' ''
+
+    # HTML 出力
+    $tmpH = Join-Path ([System.IO.Path]::GetTempPath()) ('build_guide_test_' + [guid]::NewGuid().ToString('N') + '.html')
+    $tmpM = Join-Path ([System.IO.Path]::GetTempPath()) ('build_guide_test_' + [guid]::NewGuid().ToString('N') + '.md')
+    try {
+        [void](Invoke-Tool $tool @{ Spec = (Join-Path (Join-Path $Root 'docs') 'spec_example.md'); Html = $tmpH; OutFile = $tmpM })
+        $html = Read-Utf8 $tmpH
+        Report ($html.Contains('class="copy"') -and $html.Contains('<table>') -and $html.Contains('<h2>')) 'build_guide -Html: コピーボタン・表・見出しがある' ''
+        Report (-not $html.Contains('**')) 'build_guide -Html: Markdown の記号（**）が残っていない' ''
+        Report (-not $html.Contains('<script>alert')) 'build_guide -Html: 想定外のスクリプトがない' ''
+        $bytes = [System.IO.File]::ReadAllBytes($tmpM)
+        Report ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) 'build_guide -OutFile は BOM 付き UTF-8' ''
+    }
+    finally {
+        foreach ($t in @($tmpH, $tmpM)) { if (Test-Path -LiteralPath $t) { Remove-Item -LiteralPath $t -Force } }
+    }
+}
+
 # ======================= PowerShell 5.1 互換の静的チェック =======================
 function Test-Ps51 {
     Write-Host '--- ps51 互換チェック ---'
@@ -232,6 +301,7 @@ function Test-Ps51 {
 
 if ($Target -eq 'all' -or $Target -eq 'ps51') { Test-Ps51 }
 if ($Target -eq 'all' -or $Target -eq 'make_expression') { Test-MakeExpression }
+if ($Target -eq 'all' -or $Target -eq 'build_guide') { Test-BuildGuide }
 
 Write-Host ''
 Write-Host ('結果: 成功 {0} / 失敗 {1}' -f $script:Pass, $script:Fail)

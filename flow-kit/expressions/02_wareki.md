@@ -1,7 +1,7 @@
 # 和暦表示（令和・平成・昭和）
 
 - ID: E02
-- キーワード: 和暦, 令和, 平成, 昭和, 元号, 年号, 西暦, 和暦変換, 元年
+- キーワード: 和暦, 令和, 平成, 昭和, 元号, 年号, 西暦, 和暦変換, 元年, 和暦で, 和暦表示, 和暦に
 - 使用関数: formatDateTime, int, if, equals, greaterOrEquals, concat, string, sub
 - 根拠: https://learn.microsoft.com/en-us/azure/logic-apps/workflow-definition-language-functions-reference
 - 書式の根拠: https://learn.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings

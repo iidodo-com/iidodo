@@ -3,7 +3,7 @@
 Power Automate のクラウドフローを **画面上で人が作る** ときに使う、手順書・式・点検用のツール群です。
 JSON を丸ごと生成してインポートする方式は採りません。
 
-> **この README は途中版です。** 工程1（式ライブラリ）まで完成しており、工程2〜5（build_guide / explain_flow / check_flow、README 仕上げ）は、アクションのJSONサンプルがそろってから作成します。
+> **この README は途中版です。** 工程1（式ライブラリ）と工程2（build_guide）まで完成しています。工程3〜5（explain_flow / check_flow、README 仕上げ）は、確認を取りながら順に作成します。
 
 ## 作業の進み具合
 
@@ -11,8 +11,8 @@ JSON を丸ごと生成してインポートする方式は採りません。
 | --- | --- | --- |
 | 事前 | サンプル収集チェックリスト（[docs/sample_checklist.md](docs/sample_checklist.md)） | 完成 |
 | 1 | 式ライブラリ（[expressions/](expressions/)）と `tools/make_expression.ps1` | **完成・実機検証済み**（2026-10-07、全81ケース期待どおり。[expressions/VERIFIED_RESULTS.md](expressions/VERIFIED_RESULTS.md)） |
-| 構造メモ | `docs/structure_notes.md`（サンプルを読んでアクション構造の規則をまとめる） | サンプル待ち（承認が必要） |
-| 2 | `tools/build_guide`（構築手順書の出力） | サンプル待ち |
+| 構造メモ | [docs/structure_notes.md](docs/structure_notes.md)（サンプルを読んでアクション構造の規則をまとめる） | **承認済み**（2026-10-08・第1版。サンプルが増えたら更新） |
+| 2 | `tools/build_guide.ps1`（構築手順書の出力）と書式 [docs/spec_format.md](docs/spec_format.md) | **完成**（確認待ち）。対応する箱はサンプルがあるもののみ |
 | 3 | `tools/explain_flow`（引継ぎ仕様書の出力） | サンプル待ち |
 | 4 | `tools/check_flow`（静的チェック） | サンプル待ち |
 | 5 | README 仕上げ | 工程4のあと |
@@ -35,6 +35,24 @@ flow-kit/
 - アクション名・パラメータ名は `samples/` にある書き方だけを根拠にします。サンプルにないものは推測で書かず「**要確認（サンプルなし）**」と明記します。
 - 式は Workflow Definition Language の関数だけを使います（[Microsoft Learn の関数リファレンス](https://learn.microsoft.com/en-us/azure/logic-apps/workflow-definition-language-functions-reference)に載っているもの）。
 - `utcNow()` は UTC を返します。日本時間が必要な箇所は必ず `convertTimeZone(…, 'UTC', 'Tokyo Standard Time')` で変換します。
+
+## 構築手順書を作る（工程2：build_guide）
+
+日本語で書いた業務手順書（Markdown）から、**画面で組み立てるための構築手順書**を作ります。
+
+- 業務手順書の書き方：[docs/spec_format.md](docs/spec_format.md)　記入例：[docs/spec_example.md](docs/spec_example.md)
+- 出力に含まれるもの：トリガーの設定／アクションごとの コネクタ名・アクション名（英語表示。日本語表示は「要確認（サンプルなし）」）・各項目の設定値・使う式／エラー処理（スコープと実行条件の構成）／構築後のテスト（テストデータと期待結果）／要確認の一覧
+- 画面で確認した名前は **［画面で確認済み］**、サンプルJSONにある書き方は **［サンプルで確認済み］**、まだ画面で確認していない名前は **［想定］**、サンプルがないものは **［要確認（サンプルなし）］** と区別して出力します。推測で書くことはありません。
+- 現在の対応範囲（サンプルがあるもの）：手動トリガー／変数の初期化／スコープ／Excel の一覧取得（ページ分け含む）／Apply to each（並列実行含む）／作成（Compose）／メール送信（Outlook）。それ以外の動作は、手順書の記載をそのまま載せて「要確認（サンプルなし）」と表示します。
+- 業務手順書に `{{式: 日本語の要件}}` と書くと、式ライブラリの式を手順書に載せます（日本時間の日付などを使うときは、`Compose_JST` の箱も自動で追加します）。
+
+```powershell
+# 構築手順書を画面に表示
+powershell -NoProfile -File .\tools\build_guide.ps1 .\docs\spec_example.md
+
+# Markdown と HTML（コピーボタン・チェック欄つき）を保存
+powershell -NoProfile -File .\tools\build_guide.ps1 .\docs\spec_example.md -OutFile .\output\guide.md -Html .\output\guide.html
+```
 
 ## 式ライブラリの使い方（工程1）
 
@@ -115,7 +133,7 @@ powershell -NoProfile -File .\tests\run_tests.ps1
 
 | 状態 | 優先 | 種類 | 必要なサンプル（バリエーション） |
 | --- | --- | --- | --- |
-| 未提供 | ◎ | トリガー | 手動／定期的に実行（日本時間のタイムゾーン設定あり）／Forms 新しい応答／SharePoint 項目の作成／Outlook 新着メール |
+| 一部提供済み（手動のみ） | ◎ | トリガー | 手動／定期的に実行（日本時間のタイムゾーン設定あり）／Forms 新しい応答／SharePoint 項目の作成／Outlook 新着メール |
 | 未提供 | ◎ | トリガー | **トリガー条件を設定したトリガー**（check_flow の「トリガー条件なし」判定の根拠） |
 | 一部提供済み（スコープのサンプル内。単独・動的な宛先は未） | ◎ | Outlook | メールを送信する（HTML 本文／動的な宛先） |
 | 未提供 | ◎ | Teams | チャネル／チャットへのメッセージ投稿 |
@@ -125,7 +143,7 @@ powershell -NoProfile -File .\tests\run_tests.ps1
 | 未提供 | ◎ | 承認 | 承認の作成と待機（または作成／待機を分けた構成） |
 | 未提供 | ◎ | Forms | 応答の詳細を取得する |
 | **提供済み**（Apply to each のサンプル内） | ◎ | 作成（Compose） | 式を入れたもの |
-| 未提供 | ◎ | 変数 | 初期化／設定／インクリメント／文字列・配列に追加 |
+| 一部提供済み（初期化のみ） | ◎ | 変数 | 初期化／設定／インクリメント／文字列・配列に追加 |
 | **提供済み**（コンカレンシーなし／あり） | ◎ | Apply to each | コンカレンシー制御なし／あり（check_flow の並列実行判定の根拠） |
 | 未提供 | ◎ | 条件・スイッチ | AND/OR を使う条件 |
 | **提供済み**（実行条件 Try 失敗時・メール送信を含む） | ◎ | スコープ | スコープ＋**実行条件の構成（失敗時）で動く通知アクション**（エラー処理の根拠） |
