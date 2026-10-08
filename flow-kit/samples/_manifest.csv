@@ -4,3 +4,5 @@ excel__list_rows_in_table__pagination_off.json,Excel Online (Business),Excel Onl
 excel__list_rows_in_table__pagination_on.json,Excel Online (Business),Excel Online (Business),（要確認）,List rows present in a table,en,Settings の Pagination をオン・しきい値5000,2026-10-07,yes,"runtimeConfiguration.paginationPolicy.minimumItemCount=5000 が追加される。生データで受領→こちらで伏字化"
 control__apply_to_each__concurrency_off.json,（組み込み・要確認）,（組み込み・要確認）,（要確認）,Apply to each,en,コンカレンシー制御なし（既定）,2026-10-07,yes,"中の Compose（type: Compose, inputs: test）の書き方もこのファイルで確認できる。foreach は @outputs(...)?[body/value] の式"
 control__apply_to_each__concurrency_on.json,（組み込み・要確認）,（組み込み・要確認）,（要確認）,Apply to each,en,Settings の Concurrency control をオン・並列度4,2026-10-07,yes,runtimeConfiguration.concurrency.repetitions=4 が追加される
+request__manual__basic.json,（組み込み・要確認）,（組み込み・要確認）,（要確認）,Manually trigger a flow,en,既定のまま（入力なし表示。schema に location と key-button-date が入る）,2026-10-08,yes,type=Request / kind=Button。runAfter なし
+variables__initialize_variable__basic.json,（組み込み・要確認）,（組み込み・要確認）,（要確認）,Initialize variable,en,名前 counter・整数・値0,2026-10-08,yes,"トリガー直後の最初の箱は runAfter が空のオブジェクト {}（スコープ内の最初の箱は runAfter 自体が無かった）"
