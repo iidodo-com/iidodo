@@ -217,6 +217,8 @@ function Test-BuildGuide {
         $html = Read-Utf8 $tmpH
         Report ($html.Contains('class="copy"') -and $html.Contains('<table>') -and $html.Contains('<h2>')) 'build_guide -Html: コピーボタン・表・見出しがある' ''
         Report (-not $html.Contains('**')) 'build_guide -Html: Markdown の記号（**）が残っていない' ''
+        Report ($html.Contains('<svg') -and $html.Contains('<details>') -and $html.Contains('</details>')) 'build_guide -Html: 図（SVG）と折りたたみ（くわしい情報）がある' ''
+        Report (-not $html.Contains(':::') -and -not $html.Contains('svgfig')) 'build_guide -Html: 内部の目印（:::／svgfig）が残っていない' ''
         Report (-not $html.Contains('<script>alert')) 'build_guide -Html: 想定外のスクリプトがない' ''
         $bytes = [System.IO.File]::ReadAllBytes($tmpM)
         Report ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) 'build_guide -OutFile は BOM 付き UTF-8' ''

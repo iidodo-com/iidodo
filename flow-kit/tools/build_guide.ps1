@@ -45,6 +45,7 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot '_expr_lib.ps1')
+. (Join-Path $PSScriptRoot '_figures.ps1')   # 画面の見取り図（SVG）
 if ([string]::IsNullOrEmpty($ExpressionsDir)) {
     $ExpressionsDir = Join-Path (Join-Path $PSScriptRoot '..') 'expressions'
 }
@@ -428,90 +429,238 @@ foreach ($n in $nodes) { if ($null -ne $n.Step) { $stepNode[$n.Step.Num] = $n } 
 # ===================== 文書の出力 =====================
 function Mark-Name([bool]$seen) { if ($seen) { return $M_UI } else { return $M_GUESS } }
 
-L ('# 構築手順書：' + $SpecData.Title)
+# ---- 読みやすくするための道具 ----
+function Strip-Marks([string]$s) {
+    $t = [regex]::Replace($s, '\s*［(?:画面で確認済み|サンプルで確認済み|想定)］', '')
+    $t = [regex]::Replace($t, '（[^）]*想定[^）]*）', '')
+    return $t.Trim()
+}
+function Polite([string]$w) { return ([regex]::Replace($w, '押す$', '押します')) }
+function Details-Begin([string]$title) { L (':::details ' + $title) }
+function Details-End { L ':::' }
+$script:FigComposeShown = $false
+$script:FigApplyShown = $false
+
+# ---- 図（SVG）。Markdown 出力では取り除き、HTML 出力だけに入れる ----
+function Svg-Esc([string]$s) { return [System.Net.WebUtility]::HtmlEncode($s) }
+function Svg-Clip([string]$s, [int]$max) {
+    $w = 0
+    $o = ''
+    foreach ($ch in $s.ToCharArray()) {
+        $u = 2
+        if ([int]$ch -lt 128) { $u = 1 }
+        if ($w + $u -gt $max) { return ($o + '…') }
+        $w += $u
+        $o += [string]$ch
+    }
+    return $o
+}
+function Svg-Head([int]$w, [int]$h, [string]$label) {
+    return ('<figure class="fig"><svg viewBox="0 0 ' + $w + ' ' + $h + '" role="img" aria-label="' + (Svg-Esc $label) + '" xmlns="http://www.w3.org/2000/svg" font-family="Yu Gothic UI, Meiryo UI, Hiragino Sans, sans-serif">' +
+        '<defs><marker id="ahx" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--sub)"/></marker></defs>')
+}
+function Write-Svg($lines) {
+    L '```svgfig'
+    foreach ($x in $lines) { L $x }
+    L '```'
+}
+function Write-Figure([string]$figHtml) {
+    L '```svgfig'
+    foreach ($x in ($figHtml -split "`r?`n")) { L $x }
+    L '```'
+}
+$KindColor = @{ InitVar = '#7a52b3'; Scope = '#8c3a00'; ExcelList = '#107c41'; Foreach = '#5f6b7a'; Compose = '#7a52b3'; Mail = '#0f6cbd'; Try = '#8c3a00'; Catch = '#8c3a00'; CatchMail = '#0f6cbd'; JstCompose = '#7a52b3' }
+
+# 入力欄の見取り図（どの欄に何を入れるか）
+function New-PanelSvg([string]$title, [string]$color, $rows) {
+    $n = $rows.Count
+    $h = 124 + $n * 66
+    $s = New-Object System.Collections.ArrayList
+    [void]$s.Add((Svg-Head 760 $h ('入力欄の見取り図：' + $title)))
+    [void]$s.Add('<rect x="10" y="10" width="740" height="' + ($h - 20) + '" rx="8" fill="var(--bg)" stroke="var(--line)"/>')
+    [void]$s.Add('<rect x="26" y="26" width="24" height="24" rx="4" fill="' + $color + '"/>')
+    [void]$s.Add('<text x="62" y="45" class="st" font-size="16" font-weight="bold">' + (Svg-Esc $title) + '</text>')
+    [void]$s.Add('<text x="26" y="80" class="st" font-size="13" font-weight="bold">Parameters</text><text x="116" y="80" class="ss" font-size="13">Settings</text><text x="186" y="80" class="ss" font-size="13">Code view</text><text x="270" y="80" class="ss" font-size="13">About</text>')
+    [void]$s.Add('<rect x="26" y="88" width="84" height="3" rx="1" fill="var(--acc)"/>')
+    for ($i = 0; $i -lt $n; $i++) {
+        $r = $rows[$i]
+        $y = 108 + $i * 66
+        $val = $r.Short
+        if ($null -eq $val -or $val -eq '') { $val = (Strip-Marks $r.Value) }
+        $val = Svg-Clip $val 78
+        [void]$s.Add('<circle cx="42" cy="' + ($y + 34) + '" r="13" fill="var(--warn)"/><text x="42" y="' + ($y + 39) + '" text-anchor="middle" font-size="14" font-weight="bold" fill="#fff">' + ($i + 1) + '</text>')
+        [void]$s.Add('<text x="70" y="' + ($y + 12) + '" class="ss" font-size="12">' + (Svg-Esc (Svg-Clip $r.Ui 80)) + '</text>')
+        [void]$s.Add('<rect x="70" y="' + ($y + 18) + '" width="660" height="34" rx="4" fill="var(--card)" stroke="var(--acc)" stroke-width="2"/>')
+        [void]$s.Add('<text x="82" y="' + ($y + 40) + '" class="st" font-size="14">' + (Svg-Esc $val) + '</text>')
+    }
+    [void]$s.Add('</svg><figcaption>入力欄の見取り図（実際の画面と、色や並びが少し違うことがあります）。丸い番号は、上の表の番号と同じです。</figcaption></figure>')
+    return @($s)
+}
+
+# 完成図（箱の並び）
+function New-FlowSvg($nodeList, [string]$trigText, [string]$trigSub) {
+    $items = New-Object System.Collections.ArrayList
+    [void]$items.Add(@{ T1 = $trigText; T2 = $trigSub; Color = '#0f6cbd'; Depth = 0; Cont = $false })
+    $topDepth = 0
+    foreach ($n in $nodeList) {
+        $k = $n.Kind
+        $col = '#a12020'
+        if ($KindColor.ContainsKey($k)) { $col = $KindColor[$k] }
+        $cont = ($k -eq 'Try' -or $k -eq 'Catch' -or $k -eq 'Scope' -or $k -eq 'Foreach')
+        $d = 0
+        if ($k -eq 'Try' -or $k -eq 'Catch') { $d = 0; $topDepth = 0 }
+        elseif ($k -eq 'CatchMail') { $d = 1 }
+        elseif ($null -ne $n.Parent) { $d = $topDepth + 1 }
+        elseif ($k -eq 'InitVar') { $d = 0 }
+        elseif ($hasError) { $d = 1 }
+        if ($null -eq $n.Parent -and $k -ne 'Try' -and $k -ne 'Catch' -and $k -ne 'CatchMail') { $topDepth = $d }
+        $t1 = $n.Title
+        $t2 = $n.ActionName
+        if ($k -eq 'Try') { $t1 = 'Try（本処理をまとめる箱）'; $t2 = '' }
+        if ($k -eq 'Catch') { $t1 = 'catch（失敗したときだけ動く箱）'; $t2 = '' }
+        if ($k -eq 'CatchMail') { $t1 = '失敗を知らせるメールを送る'; $t2 = $Catalog['Mail'].En }
+        if ($k -eq 'JstCompose') { $t1 = '現在の日時（日本時間）を作る'; $t2 = 'Compose_JST' }
+        [void]$items.Add(@{ T1 = $t1; T2 = $t2; Color = $col; Depth = $d; Cont = $cont })
+    }
+    $cnt = $items.Count
+    $last = @{}
+    $closing = New-Object 'int[]' $cnt
+    for ($i = 0; $i -lt $cnt; $i++) {
+        if ($items[$i].Cont) {
+            $j = $i + 1
+            while ($j -lt $cnt -and $items[$j].Depth -gt $items[$i].Depth) { $j++ }
+            $lastIdx = $j - 1
+            $last[$i] = $lastIdx
+            if ($lastIdx -gt $i) { $closing[$lastIdx] = $closing[$lastIdx] + 1 }
+        }
+    }
+    $y = 16
+    $pos = New-Object System.Collections.ArrayList
+    for ($i = 0; $i -lt $cnt; $i++) {
+        $h = 50
+        if ($items[$i].Cont) { $h = 38 }
+        $d = $items[$i].Depth
+        [void]$pos.Add(@{ X = (30 + $d * 46); W = (700 - $d * 92); Y = $y; H = $h })
+        $y = $y + $h + 10 * $closing[$i] + 18
+    }
+    $total = $y + 6
+    $s = New-Object System.Collections.ArrayList
+    [void]$s.Add((Svg-Head 760 $total '完成図（箱の並び）'))
+    for ($i = 0; $i -lt $cnt; $i++) {
+        if ($items[$i].Cont -and $last[$i] -gt $i) {
+            $li = $last[$i]
+            $extra = 1
+            for ($m = $i + 1; $m -le $li; $m++) { if ($items[$m].Cont -and $last[$m] -eq $li -and $last[$m] -gt $m -and $items[$m].Depth -gt $items[$i].Depth) { $extra++ } }
+            $bh = ($pos[$li].Y + $pos[$li].H + 10 * $extra) - $pos[$i].Y
+            [void]$s.Add('<rect x="' + ($pos[$i].X - 8) + '" y="' + $pos[$i].Y + '" width="' + ($pos[$i].W + 16) + '" height="' + $bh + '" rx="8" fill="var(--bg)" stroke="' + $items[$i].Color + '" stroke-width="2"/>')
+        }
+    }
+    for ($i = 0; $i -lt $cnt; $i++) {
+        $it = $items[$i]
+        $p = $pos[$i]
+        if ($i -gt 0) {
+            $cx = $p.X + [int]($p.W / 2)
+            $prevBottom = $pos[$i - 1].Y + $pos[$i - 1].H + 10 * $closing[$i - 1]
+            [void]$s.Add('<line x1="' + $cx + '" y1="' + ($prevBottom + 1) + '" x2="' + $cx + '" y2="' + ($p.Y - 2) + '" stroke="var(--sub)" stroke-width="2" marker-end="url(#ahx)"/>')
+        }
+        if ($it.Cont) {
+            [void]$s.Add('<rect x="' + $p.X + '" y="' + $p.Y + '" width="' + $p.W + '" height="' + $p.H + '" rx="6" fill="' + $it.Color + '"/>')
+            [void]$s.Add('<text x="' + ($p.X + 14) + '" y="' + ($p.Y + 25) + '" class="sw" font-size="14" font-weight="bold">' + (Svg-Esc (Svg-Clip ($it.T1 + $(if ($it.T2 -ne '') { '（' + $it.T2 + '）' } else { '' })) 80)) + '</text>')
+        }
+        else {
+            [void]$s.Add('<rect x="' + $p.X + '" y="' + $p.Y + '" width="' + $p.W + '" height="' + $p.H + '" rx="6" fill="' + $it.Color + '"/>')
+            [void]$s.Add('<text x="' + ($p.X + 14) + '" y="' + ($p.Y + 22) + '" class="sw" font-size="14" font-weight="bold">' + (Svg-Esc (Svg-Clip $it.T1 76)) + '</text>')
+            if ($it.T2 -ne '') { [void]$s.Add('<text x="' + ($p.X + 14) + '" y="' + ($p.Y + 40) + '" class="sw" font-size="11">' + (Svg-Esc (Svg-Clip $it.T2 90)) + '</text>') }
+        }
+    }
+    [void]$s.Add('</svg><figcaption>完成図：上から下へ、順番に動きます。枠で囲まれた箱は、中に箱が入っています。</figcaption></figure>')
+    return @($s)
+}
+
+# ---------------- 冒頭 ----------------
+L ('# ' + $SpecData.Title + ' の作り方（構築手順書）')
 L ''
-L ('> この手順書は `tools/build_guide.ps1` が、業務手順書（`' + (Split-Path -Leaf $Spec) + '`）から作成しました。')
-L '> **画面でフローを人が組み立てる**ための手順です（JSONを取り込む方式ではありません）。'
+L '> Power Automate の画面を見ながら、**上から順に**進めると、このフローが作れます。難しい言葉は、最後の「用語の説明」にあります。'
+L '> 画面の表示がこの手順書と少し違うときは、**近い名前のものを選んでください**。分からないときは、画面を撮って相談してください。'
 L ''
 
 $script:WarnInsertAt = $script:O.Count   # 警告の欄は、手順を書き終えたあとにここへ差し込む
 
-L '## 0. この手順書の見方'
-L ''
-L ('- ' + $M_UI + '：実際の画面に表示された名前を、確認した項目です。')
-L ('- ' + $M_JSON + '：`samples/` のサンプルJSONにある書き方です。')
-L ('- ' + $M_GUESS + '：画面の名前を、まだ実際の画面で確認していない項目です（画面の表示と違うときは、画面の名前を優先してください）。')
-L ('- ' + $M_NG + '：サンプルがなく、書き方を断定できない項目です。最後の「要確認の一覧」にまとめています。')
-L '- 日本語の画面表示の名前は、サンプルがないため **すべて「要確認（サンプルなし）」** です。画面が日本語表示のときは、英語名の意味から探し、見つけた名前を教えてください。'
-L ''
-
-L '## 1. 概要'
+L '## このフローでできること'
 L ''
 if ($SpecData.Purpose.Count -gt 0) { foreach ($p in $SpecData.Purpose) { L ('- ' + $p) } } else { L '- （目的の記載なし）' }
 L ''
-L '### 使うコネクタ'
+
+L '## 完成図'
 L ''
-$usedKinds = New-Object System.Collections.ArrayList
-foreach ($n in $nodes) { if ($n.Kind -ne '' -and $Catalog.Contains($n.Kind) -and -not $usedKinds.Contains($n.Kind)) { [void]$usedKinds.Add($n.Kind) } }
-if ($hasError -and -not $usedKinds.Contains('Mail')) { [void]$usedKinds.Add('Mail') }
-if ($hasError -and -not $usedKinds.Contains('Scope')) { [void]$usedKinds.Add('Scope') }
-foreach ($k in $usedKinds) {
-    $c = $Catalog[$k]
-    L ('- ' + $c.Connector + ' ／ ' + $c.En + '（日本語表示名：' + $M_NG + '）')
-}
-foreach ($n in $nodes) { if ($n.Kind -eq '' -and $null -ne $n.Step) { L ('- ' + $M_NG + ' 手順 ' + $n.Step.Num + '「' + $n.Step.Title + '」の動作（' + $n.Step['ActionText'] + '）') } }
+L '作り終わると、画面には次のような「箱」が、上から下へ並びます。'
 L ''
-L '### 完成後のフローの形'
-L ''
-L '```text'
+L '```tree'
 L ($(if ($trigKind -eq 'Manual') { '[トリガー] Manually trigger a flow' } else { '[トリガー] ' + $trigType + '（要確認）' }))
 function Tree-Lines {
-    $inTry = $false
     foreach ($n in $nodes) {
         $indent = ''
-        if ($n.Kind -eq 'Try' -or $n.Kind -eq 'Catch') { $indent = ''; $inTry = $true }
-        elseif ($null -ne $n.Parent) { $indent = '      ' }
+        if ($n.Kind -eq 'Try' -or $n.Kind -eq 'Catch') { $indent = '' }
         elseif ($n.Kind -eq 'InitVar') { $indent = '' }
         elseif ($hasError) { $indent = '   ' }
         $label = '[' + $n.ActionName + ']'
         $extra = ''
         if ($null -ne $n.Step -and $n.Kind -eq 'InitVar') { $v = Get-Field $n.Step.Fields @('変数名', '名前'); if ($null -ne $v) { $extra = '  変数 ' + $v } }
         if ($n.Kind -eq 'Try' -or $n.Kind -eq 'Catch') { $label = '[Scope] ' + $n.ActionName }
-        if ($n.Kind -eq 'CatchMail') { $indent = '   ' }
         if ($null -ne $n.Parent -and $n.Kind -ne 'CatchMail') { $indent = '      ' }
         L ($indent + $label + $extra + $(if ($n.Kind -eq '') { '  ← 要確認（サンプルなし）' } else { '' }))
     }
 }
 Tree-Lines
 L '```'
+$trigLabel = 'Manually trigger a flow'
+$trigSubTxt = '手動で実行する（ボタンを押す）'
+if ($trigKind -ne 'Manual') { $trigLabel = [string]$trigType; $trigSubTxt = '要確認（サンプルなし）' }
+Write-Svg (New-FlowSvg $nodes $trigLabel $trigSubTxt)
 L ''
 
-if ($SpecData.Prep.Count -gt 0) {
-    L '## 2. 事前に用意するもの'
-    L ''
-    foreach ($p in $SpecData.Prep) { L ('- [ ] ' + $p) }
-    L ''
+L '## 作る前に用意するもの'
+L ''
+foreach ($p in $SpecData.Prep) { L ('- [ ] ' + $p) }
+L '- [ ] Microsoft 365 のアカウントで、Power Automate（make.powerautomate.com）を開けること'
+L ''
+
+$stepCount = 0
+foreach ($n in $nodes) { if ($n.Kind -ne 'Catch' -and $n.Kind -ne 'CatchMail') { $stepCount++ } }
+L ('## 作り方の流れ（全 ' + $stepCount + ' 手順）')
+L ''
+L '- **はじめに**：フローを新しく作る'
+foreach ($n in $nodes) {
+    if ($n.Kind -eq 'Catch' -or $n.Kind -eq 'CatchMail') { continue }
+    L ('- **手順 ' + $n.Seq + '**：' + $n.Title)
 }
-else {
-    L '## 2. 事前に用意するもの'
-    L ''
-    L '- （記載なし）'
-    L ''
-}
+if ($hasError) { L '- **失敗したときの通知**を作る（エラー処理）' }
+L '- **テスト**で、正しく動くか確認する'
+L ''
 
 # ---------- トリガー ----------
-L '## 3. トリガー（フローが動くきっかけ）'
+L '## はじめに：フローを新しく作る'
 L ''
 if ($trigKind -eq 'Manual') {
-    L ('- 種類：手動（ボタンを押したときに動く） ' + $M_JSON)
+    L 'フローの「入れ物」を作ります。ボタンを押したときに動く、手動で実行するフローです。'
+    L ''
+    L '1. Power Automate の左のメニューで「Create」を押します。'
+    L '2. 上の段の「Instant cloud flow」をクリックします。'
+    L ('3. 「Flow name」に、フローの名前（例：`' + $SpecData.Title + '`）を入力します。')
+    L '4. トリガーの一覧から「Manually trigger a flow」を選び、「Create」を押します。'
+    L ''
+    L '→ 編集画面が開き、一番上に「Manually trigger a flow」という箱が1つできます。ここから、箱を下へ足していきます。'
+    L ''
+    Details-Begin 'くわしい情報（確認したい方向け）'
     L ('- 画面の名前（英語表示）：`Manually trigger a flow` ' + $M_UI + '／日本語表示：' + $M_NG)
-    L ('- 作り方：「Create」→「Instant cloud flow」→ フロー名を入力 → トリガーに `Manually trigger a flow` を選んで「Create」 ' + $M_UI)
+    L ('- 作り方の画面の名前（Create → Instant cloud flow）：' + $M_UI)
     L '- 設定値：なし（既定のまま）。'
-    L ('- Code view で確認するポイント：`"type": "Request"`、`"kind": "Button"`（`samples/triggers/request__manual__basic.json`）')
+    L ('- Code view で確認するポイント：`"type": "Request"`、`"kind": "Button"` ' + $M_JSON + '（`samples/triggers/request__manual__basic.json`）')
+    Details-End
 }
 else {
     L ('- 種類：' + $(if ($null -ne $trigType) { $trigType } else { '（記載なし）' }) + ' ' + $M_NG)
-    L ('- 画面の名前・設定値・Code view の確認ポイント：' + $M_NG + '（手動以外のトリガーのサンプルがありません）')
+    L ('- 画面の名前・設定値・作り方：' + $M_NG + '（手動以外のトリガーのサンプルがありません）')
     Add-Unconfirmed 'トリガー' ('「' + $(if ($null -ne $trigType) { $trigType } else { '（種類の記載なし）' }) + '」のトリガーのサンプルがありません')
     foreach ($f in $SpecData.TriggerFields) { if ((Norm $f.Label) -ne (Norm '種類') -and (Norm $f.Label) -ne (Norm 'トリガー条件')) { L ('- ' + $f.Label + '：' + $f.Value + '（手順書の記載をそのまま載せています）') } }
 }
@@ -522,33 +671,40 @@ if ($null -ne $tc) {
 }
 L ''
 
-# ---------- 各手順 ----------
-function Add-Row($rows, [string]$ui, [bool]$seen, [string]$value, [string]$json) {
-    [void]$rows.Add(@{ Ui = $ui; Seen = $seen; Value = $value; Json = $json })
+# ---------- 各手順の部品 ----------
+function Add-Row($rows, [string]$ui, [bool]$seen, [string]$value, [string]$json, [string]$short = '') {
+    [void]$rows.Add(@{ Ui = $ui; Seen = $seen; Value = $value; Json = $json; Short = $short })
 }
 function Write-Rows($rows) {
     if ($rows.Count -eq 0) { return }
-    L '| 画面の項目（英語表示） | 設定する値 | JSON での書き方（サンプル） |'
+    L '| 番号 | 画面の入力欄 | 入れる内容 |'
     L '| --- | --- | --- |'
+    $i = 0
     foreach ($r in $rows) {
-        L ('| ' + (Cell $r.Ui) + ' ' + (Mark-Name $r.Seen) + ' | ' + (Cell $r.Value) + ' | ' + (Cell $r.Json) + ' |')
+        $i++
+        L ('| ' + $i + ' | ' + (Cell $r.Ui) + ' | ' + (Cell (Strip-Marks $r.Value)) + ' |')
     }
 }
 function Write-Exprs($exprs) {
     if ($exprs.Count -eq 0) { return }
     L ''
-    L '**使う式**（式ライブラリ。Compose で実機検証済みのもの）'
-    if ($script:MixedExpr) { L ('- ※ 文章の途中に式を入れる項目です。入れ方（文字を入力したあと、式を入れたい位置で「fx」から挿入する、など）は ' + $M_NG + '。まず文章だけを入力し、式の部分は、画面の動的なコンテンツ／式の窓から挿入してください。') }
+    L '**使う式（コピーして、貼ります）**'
+    if ($script:MixedExpr) { L ('- ※ 文章の途中に式を入れる項目です。入れ方は ' + $M_NG + '。まず文章だけを入力し、式の部分は、画面の動的なコンテンツ／式の窓から挿入してください。') }
     foreach ($x in $exprs) {
         L ''
-        L ('- 式 ' + $x.Id + '：' + $x.Title + '　（要件：' + $x.Req + '）')
-        L ('- 貼り方：その項目の入力欄をクリック →「fx」（Expression）の欄に貼る → 「Add」か「Update」。先頭に @ は付けません。')
+        L ('- 式 ' + $x.Id + '：' + $x.Title + '（要件：' + $x.Req + '）')
         L ''
         L '  ```text'
         foreach ($el in ($x.Expr -split "`n")) { L ('  ' + $el) }
         L '  ```'
-        if ($x.Expr.Contains("outputs('Compose_JST')")) { L '  - ※ この式は、手順の中の `Compose_JST` の箱（現在日時・日本時間）を使います。' }
-        L ('  - ' + $x.Status)
+        if ($x.Expr.Contains("outputs('Compose_JST')")) { L '  - ※ この式は、「現在日時（日本時間）」の箱（`Compose_JST`）を使います。名前を変えないでください。' }
+    }
+    L ''
+    L '貼り方：その項目の入力欄をクリックし、開いた窓の **「式（fx）」の欄**に貼って、「Add」（または「Update」）を押します。先頭に @ は付けません。'
+    if (-not $script:FigComposeShown) {
+        $script:FigComposeShown = $true
+        L ''
+        Write-Figure $script:FigCompose
     }
 }
 function Write-Extras($step, [string[]]$consumed) {
@@ -570,34 +726,39 @@ function Write-Extras($step, [string[]]$consumed) {
         }
     }
 }
+function Write-AddBoxSteps($n, [string]$en, [string]$connector, [string]$renameTo) {
+    L ('1. ' + (Polite $n.Where) + '。')
+    L ('2. 出てきた画面の検索欄に `' + $en + '` と入力し、候補の中の「' + $en + '」（' + $connector + '）を選びます。')
+    if ($renameTo -ne '') { L ('3. できた箱の右上の「…」→「Rename」を選び、名前を `' + $renameTo + '` に変えます。') }
+}
 
-L '## 4. 構築手順（上から順に、画面で作る）'
+L '## 手順（上から順に、箱を足していく）'
 L ''
 if ($hasError) {
-    L ('> エラー処理のため、**すべての手順を「Try」というスコープの中**に作ります。「catch」は最後に作ります（第5章）。' + $(if ($initSteps.Count -gt 0) { '変数の初期化だけは、Try の外（トリガーの直下）に作ります。' } else { '' }))
+    L ('> **すべての手順は、「Try」という名前のまとめる箱の中**に作ります（失敗したときに通知するため）。' + $(if ($initSteps.Count -gt 0) { '変数の初期化だけは、Try の外（トリガーのすぐ下）に作ります。' } else { '' }))
     L ''
 }
 foreach ($n in $nodes) {
+    if ($n.Kind -eq 'Catch' -or $n.Kind -eq 'CatchMail') { continue }
     $script:StepExprs.Clear()
     $script:MixedExpr = $false
     $kind = $n.Kind
     $step = $n.Step
-    $head = '### 手順 ' + $n.Seq + '：' + $n.Title
-    if ($null -ne $step) { $head = $head + '（業務手順書の手順 ' + $step.Num + '）' }
-    L $head
+    L ('### 手順 ' + $n.Seq + '：' + $n.Title)
     L ''
+    if ($null -ne $step) { L ('（業務手順書の手順 ' + $step.Num + '）'); L '' }
 
-    if ($kind -eq 'Try' -or $kind -eq 'Catch' -or $kind -eq 'CatchMail') {
-        if ($kind -eq 'Try') {
-            L ('- 置く場所：' + $n.Where)
-            L ('- 作る箱：`Scope`（スコープ）を追加し、名前を `Try` に変える ' + $M_GUESS)
-            L ('- 名前の変え方：箱の右上の「…」→「Rename」 ' + $M_GUESS)
-            L '- このあとの手順は、すべて Try の中に作ります。'
-            L ('- Code view で確認するポイント：`"type": "Scope"`')
-        }
-        else {
-            L ('- この手順は「第5章 エラー処理」で説明します。')
-        }
+    if ($kind -eq 'Try') {
+        L 'エラー処理のために、最初に「Try」という名前の**まとめる箱（スコープ）**を作ります。このあとの手順は、すべてこの箱の中に作ります。'
+        L ''
+        L '**やること**'
+        L ''
+        Write-AddBoxSteps $n 'Scope' '組み込み' 'Try'
+        L ''
+        Details-Begin 'くわしい情報（確認したい方向け）'
+        L ('- 「Scope」の名前と「Rename」の操作は、画面で確認していません ' + $M_GUESS)
+        L ('- Code view で確認するポイント：`"type": "Scope"`')
+        Details-End
         L ''
         continue
     }
@@ -606,29 +767,40 @@ foreach ($n in $nodes) {
         $jstE = $null
         foreach ($e in $script:Lib) { if ($e.Id -eq 'E00') { $jstE = $e } }
         $info = @{ Id = $jstE.Id; Title = $jstE.Title; Status = $jstE.Status; Expr = (Get-FirstExprBlock $jstE) }
-        L ('- 置く場所：' + $n.Where)
-        L ('- コネクタ：' + $Catalog['Compose'].Connector + ' ' + $M_GUESS)
-        L ('- 作る箱：`Compose` ' + $M_UI + '／日本語表示：' + $M_NG)
-        L '- 名前：`Compose_JST`（箱の「…」→「Rename」で変える。**この名前のとおりにしてください。式がこの名前を使います**）'
-        L '- 設定する値（Inputs 欄の「fx」に貼る）：'
+        L 'このあとの手順で、「日本時間の今日」を使う式を貼ります。そのために、先に「現在の日時（日本時間）」を入れておく箱を作ります。'
+        L ''
+        L '**やること**'
+        L ''
+        Write-AddBoxSteps $n 'Compose' '組み込み（データ操作）' 'Compose_JST'
+        L '4. 「Inputs」の欄をクリックし、開いた窓の「式（fx）」の欄に、下の文字を貼って、「Add」を押します。'
         L ''
         L '```text'
         foreach ($el in ($info.Expr -split "`n")) { L $el }
         L '```'
         L ''
+        L '※ 箱の名前は、必ず `Compose_JST` にしてください（あとの式が、この名前で呼び出します）。'
+        if (-not $script:FigComposeShown) {
+            $script:FigComposeShown = $true
+            L ''
+            Write-Figure $script:FigCompose
+        }
+        L ''
+        Details-Begin 'くわしい情報（確認したい方向け）'
         L ('- 式 ' + $info.Id + '：' + $info.Title + '（' + $info.Status + '）')
-        L '- 日本時間にする理由：`utcNow()` は UTC を返すため、必ず `convertTimeZone` で `Tokyo Standard Time` に変換します。'
+        L '- 日本時間にする理由：`utcNow()` は UTC（世界標準時）を返すため、必ず `convertTimeZone` で `Tokyo Standard Time` に変換します。'
         L ('- Code view で確認するポイント：`"type": "Compose"`')
+        Details-End
         L ''
         continue
     }
 
     if ($kind -eq '') {
-        L ('- 置く場所：' + $n.Where)
-        L ('- 動作：' + $step['ActionText'] + ' ' + $M_NG)
-        L ('- コネクタ名・アクション名（英語・日本語）・項目名・JSON の書き方：' + $M_NG + '（この動作のサンプルがありません）')
-        Add-Unconfirmed ('手順 ' + $step.Num) ('動作「' + $step['ActionText'] + '」のサンプルがありません（箱の名前・項目名・JSON）')
+        L ('この動作（' + $step['ActionText'] + '）は、サンプルがないため、箱の名前や入力欄の名前を、この手順書では案内できません ' + $M_NG + '。手順書に書かれた内容を、そのまま載せます。')
         L ''
+        L ('1. ' + (Polite $n.Where) + '。')
+        L '2. 作りたい処理に合う箱を、画面の検索欄から探して選びます。'
+        L ''
+        Add-Unconfirmed ('手順 ' + $step.Num) ('動作「' + $step['ActionText'] + '」のサンプルがありません（箱の名前・項目名・JSON）')
         L '**手順書の記載（そのまま）**'
         L ''
         foreach ($f in $step.Fields) { if ((Norm $f.Label) -ne (Norm '動作')) { L ('- ' + $f.Label + '：' + (Expand-Value $f.Value)) } }
@@ -638,11 +810,12 @@ foreach ($n in $nodes) {
     }
 
     $def = $Catalog[$kind]
-    L ('- 置く場所：' + $n.Where)
-    L ('- コネクタ：' + $def.Connector + ' ' + $(if ($def.ConnectorSeen) { $M_UI } else { $M_GUESS }))
-    L ('- アクション名（英語表示）：`' + $def.En + '` ' + (Mark-Name $def.EnSeen) + '／日本語表示：' + $M_NG)
-    L ('- 根拠のサンプル：`' + $def.Sample + '`')
-
+    L ('**使う箱：** `' + $def.En + '`（' + $def.Connector + '）')
+    L ''
+    L '**やること**'
+    L ''
+    Write-AddBoxSteps $n $def.En $def.Connector ''
+    L '3. 左に開いたパネルで、次の欄に入力します（下の図と表のとおり）。'
     $rows = New-Object System.Collections.ArrayList
     $consumed = @('動作')
     $checks = New-Object System.Collections.ArrayList
@@ -674,7 +847,7 @@ foreach ($n in $nodes) {
         'Scope' {
             $consumed += @('名前')
             $nm = Get-Field $step.Fields @('名前')
-            if ($null -ne $nm) { L ('- 名前：`' + $nm + '`（箱の「…」→「Rename」） ' + $M_UI) }
+            if ($null -ne $nm) { [void]$sub.Add('- 箱の名前を `' + $nm + '` に変えます（箱の右上の「…」→「Rename」）。') }
             [void]$checks.Add('"type": "Scope"')
             [void]$checks.Add('"actions": { … }（中の箱）')
         }
@@ -742,7 +915,7 @@ foreach ($n in $nodes) {
                 }
             }
             else { Add-Warning ('手順 ' + $step.Num + '：「繰り返す対象」がありません。') }
-            Add-Row $rows 'Select an output from previous steps' $true $tgShown 'foreach（@outputs(...)?[''body/value''] の式）'
+            Add-Row $rows 'Select an output from previous steps' $true $tgShown 'foreach（@outputs(...)?[''body/value''] の式）' 'value（⚡の一覧から選ぶ）'
             $par = Get-Field $step.Fields @('並列度')
             $parN = 0
             if ($null -ne $par) { [void][int]::TryParse(($par -replace '[^\d]', ''), [ref]$parN) }
@@ -782,74 +955,112 @@ foreach ($n in $nodes) {
     }
 
     L ''
-    Write-Rows $rows
-    L ''
-    foreach ($s2 in $sub) { L $s2 }
+    if ($rows.Count -gt 0) {
+        Write-Svg (New-PanelSvg $def.En $KindColor[$kind] $rows)
+        L ''
+        Write-Rows $rows
+        L ''
+    }
+    if ($sub.Count -gt 0) {
+        L '**あわせてやること**'
+        L ''
+        foreach ($s2 in $sub) { L (Strip-Marks $s2) }
+    }
+    if ($kind -eq 'Foreach' -and -not $script:FigApplyShown) {
+        $script:FigApplyShown = $true
+        L ''
+        L '**「繰り返す対象」の入れ方（図）**'
+        L ''
+        Write-Figure $script:FigApply
+    }
     Write-Exprs $script:StepExprs
     Write-Extras $step $consumed
     L ''
-    L '**Code view で確認するポイント**（作ったあと、箱の「Code view」タブを開いて見比べる。取り出し方は `docs/manual_sample_extraction.html`）'
-    L ''
-    foreach ($c in $checks) { L ('- `' + ($c -replace '`', '') + '`') }
+    Details-Begin 'くわしい情報（確認したい方向け）'
+    L ('- 根拠のサンプル：`' + $def.Sample + '`')
+    L ('- アクション名（英語表示）：`' + $def.En + '` ' + (Mark-Name $def.EnSeen) + '／日本語表示：' + $M_NG)
+    L ('- コネクタ：' + $def.Connector + ' ' + $(if ($def.ConnectorSeen) { $M_UI } else { $M_GUESS }))
+    foreach ($r in $rows) { L ('- 入力欄 `' + $r.Ui + '` ' + (Mark-Name $r.Seen) + ' → JSON：' + $r.Json) }
+    foreach ($s2 in $sub) { if ($s2.Contains('［')) { L $s2 } }
+    L '- Code view で確認するポイント（作ったあと、箱の「Code view」タブと見比べる。取り出し方は `docs/manual_sample_extraction.html`）：'
+    foreach ($c in $checks) { L ('  - `' + ($c -replace '`', '') + '`') }
+    Details-End
     L ''
 }
 
 # ---------- エラー処理 ----------
-L '## 5. エラー処理（失敗したときにメールで知らせる）'
+L '## 失敗したときにメールで知らせる（エラー処理）'
 L ''
 if ($hasError) {
     $ens = Get-Field $SpecData.ErrorFields @('通知先')
     $esj = Get-Field $SpecData.ErrorFields @('件名')
     $ebd = Get-Field $SpecData.ErrorFields @('本文')
     if ($null -eq $ens) { Add-Warning '「## エラー処理」に「通知先」がありません。' }
-    L '仕組み：すべての手順を `Try`（スコープ）に入れ、`catch`（スコープ）を **Try が失敗した／タイムアウトしたときだけ** 動かして、メールを送ります。'
+    L '処理の途中で失敗したときに、担当者へメールが届くようにします。'
     L ''
-    L '### 5-1. catch（スコープ）を作る'
+    L 'しくみ：本処理を「Try」の箱に入れ、もう1つ「catch」という名前の箱を作ります。**catch は、Try が失敗したときだけ動いて、メールを送ります。**（正常に終わったときは、catch は動きません。）'
     L ''
-    L ('1. **Try の下**の「＋」→「Add an action」→ `Scope` を追加 ' + $M_GUESS)
-    L ('2. 名前を `catch` に変える（「…」→「Rename」） ' + $M_GUESS)
+    L '### ① catch（まとめる箱）を作る'
     L ''
-    L '### 5-2. catch の中に、失敗通知のメールを作る'
+    L '1. 「Try」の箱の**下**の「＋」を押します。'
+    L '2. 検索欄に `Scope` と入力し、「Scope」を選びます。'
+    L '3. できた箱の右上の「…」→「Rename」を選び、名前を `catch` に変えます。'
     L ''
-    L ('1. `catch` の中の「＋」→ `Send an email (V2)`（Outlook） ' + $M_UI + '（`Send an email (V2)` の名前は画面で確認）')
+    L '### ② catch の中に、失敗を知らせるメールを作る'
     L ''
+    L '1. `catch` の箱の中の「＋」を押します。'
+    L '2. 検索欄に `Send an email (V2)` と入力し、「Send an email (V2)」（Office 365 Outlook）を選びます。'
+    L '3. 左のパネルで、次の欄に入力します（下の図と表のとおり）。'
+    L ''
+    $script:StepExprs.Clear()
+    $script:MixedExpr = $false
     $rows = New-Object System.Collections.ArrayList
     Add-Row $rows 'To' $false $(if ($null -ne $ens) { $ens } else { '（手順書に記載なし）' }) 'emailMessage/To'
     Add-Row $rows 'Subject' $false $(if ($null -ne $esj) { (Expand-Value $esj) } else { '（手順書に記載なし）' }) 'emailMessage/Subject'
     Add-Row $rows 'Body' $false $(if ($null -ne $ebd) { (Expand-Value $ebd) } else { '（手順書に記載なし）' }) 'emailMessage/Body（HTML で保存される）'
+    Write-Svg (New-PanelSvg 'Send an email (V2)' $KindColor['Mail'] $rows)
+    L ''
     Write-Rows $rows
+    Write-Exprs $script:StepExprs
     L ''
-    L '### 5-3. catch を「Try が失敗したときだけ動く」設定にする（実行条件の構成）'
+    L '### ③ catch を「Try が失敗したときだけ動く」設定にする（実行条件）'
     L ''
-    L ('1. `catch` の箱をクリックし、左のパネルの「**Settings**」タブを開く ' + $M_UI)
-    L ('2. 「**Run after**」の下に、いま動かすきっかけの箱（直前の箱）が出る ' + $M_UI)
-    L ('3. 「**＋ Select actions**」を押し、一覧から **`Try`** にチェックを入れる ' + $M_UI)
-    L ('4. `Try` の行で、「**Is successful**」の**チェックを外し**、「**Has timed out**」と「**Has failed**」に**チェック**を付ける ' + $M_UI + '（「Is skipped」は外したまま）')
-    L ('5. **直前の箱（例：Apply to each や別の箱）の行が残っていたら、右端のゴミ箱で削除する。** 残すと、その箱が成功し、かつ Try が失敗しないと動かない設定になり、catch が動きません ' + $M_UI)
-    L '6. 保存する'
+    L '1. `catch` の箱をクリックし、左のパネルの「Settings」タブを開きます。'
+    L '2. 「Run after」の下に、いま動かすきっかけになっている箱（直前の箱）が出ています。'
+    L '3. 「＋ Select actions」を押し、一覧から **Try** にチェックを入れます。'
+    L '4. Try の行で、「Is successful」の**チェックを外し**、「Has timed out」と「Has failed」に**チェック**を付けます（「Is skipped」は外したまま）。'
+    L '5. 直前の箱（例：Apply to each など）の行が残っていたら、右端の**ゴミ箱**で削除します。残すと、その箱が成功し、かつ Try が失敗しないと動かない設定になり、catch が動かなくなります。'
+    L '6. 保存します。'
     L ''
-    L ('**Code view で確認するポイント**（`catch` の箱）：`"type": "Scope"`、`"runAfter": { "Try": ["TimedOut", "Failed"] }` ' + $M_JSON + '（`samples/actions/control__scope__run_after_failed.json`）')
+    Write-Figure $script:FigRunAfter
     L ''
-    L '> 正常に終わったときは、catch の箱は灰色（実行されない）のままになります（実行結果の画面で確認）。'
+    L '> 正常に終わったときは、catch の箱は灰色（実行されない）のままになります。'
+    L ''
+    Details-Begin 'くわしい情報（確認したい方向け）'
+    L ('- Settings タブ、Run after、Select actions、Is successful／Has timed out／Is skipped／Has failed、ゴミ箱の表示は、実際の画面で確認しました ' + $M_UI)
+    L ('- 「Scope」の名前、「Rename」、「Add an action」の操作は、画面で確認していません ' + $M_GUESS)
+    L ('- メールの入力欄の名前（To・Subject・Body）は、画面で確認していません ' + $M_GUESS + '。JSON：`emailMessage/To`、`emailMessage/Subject`、`emailMessage/Body`（HTML で保存） ' + $M_JSON)
+    L ('- Code view で確認するポイント（catch の箱）：`"type": "Scope"`、`"runAfter": { "Try": ["TimedOut", "Failed"] }` ' + $M_JSON + '（`samples/actions/control__scope__run_after_failed.json`）')
+    Details-End
     L ''
 }
 else {
-    L ('- 手順書に「## エラー処理」がないため、エラー処理は含めていません。⚠ 失敗しても誰にも通知されません。')
+    L '- 手順書に「## エラー処理」がないため、エラー処理は含めていません。⚠ 失敗しても誰にも通知されません。'
     L ''
 }
 
 # ---------- テスト ----------
-L '## 6. 構築後のテスト'
+L '## テスト：正しく動くか確認する'
 L ''
-L '### 6-1. 保存と実行のしかた'
+L '### 保存して、実行する'
 L ''
-L '1. 右上の「Save」（保存）を押す。**赤い印（Invalid parameters）の箱が残っていると保存できません。** 赤い箱を開いて、必須の項目（赤い * の項目）を入力する。'
-L ('2. 「Test」→「Manually」→「Run flow」→「Done」で実行する。 ' + $M_GUESS)
-L '3. 実行結果の画面で、各箱の緑（成功）／赤（失敗）／灰色（実行されない）を確認し、箱をクリックして入力と出力を見る。'
+L '1. 右上の「Save」（保存）を押します。**赤い印（Invalid parameters）が付いた箱が残っていると、保存できません。** 赤い箱を開いて、赤い * の付いた欄を入力してください。'
+L ('2. 「Test」→「Manually」→「Run flow」→「Done」の順に押して、実行します。（画面の表記が違うときは、近い名前を選びます）')
+L '3. 実行が終わると、各箱に印が付きます。**緑＝成功、赤＝失敗、灰色＝実行されなかった**です。箱をクリックすると、入力と出力が見られます。'
 L ''
 $ti = 0
 if ($SpecData.Tests.Count -gt 0) {
-    L '### 6-2. 業務手順書のテスト'
+    L '### 業務手順書のテスト（あなたが決めたもの）'
     L ''
     foreach ($t in $SpecData.Tests) {
         $ti++
@@ -864,7 +1075,7 @@ if ($SpecData.Tests.Count -gt 0) {
         L ''
     }
 }
-L '### 6-3. 標準のテスト（このツールが追加）'
+L '### 標準のテスト（このツールが追加）'
 L ''
 L '#### 標準テスト A：最後まで正常に動く'
 L ''
@@ -877,7 +1088,7 @@ if ($hasError) {
     L ''
     L '- [ ] 準備：**練習用のデータ**で行う（本番のデータでは行わない）。Try の中の箱が失敗する状態にする（例：Excel のファイル名を一時的に変える）'
     L '- [ ] 操作：フローを手動で実行する'
-    L '- [ ] 期待結果：`Try` が赤になり、`catch` が緑で動いて、失敗通知のメールが届く（宛先・件名・本文が第5章の設定どおり）'
+    L '- [ ] 期待結果：`Try` が赤になり、`catch` が緑で動いて、失敗通知のメールが届く（宛先・件名・本文が、上の設定どおり）'
     L '- [ ] 後片付け：変えた名前などを元に戻す'
     L ''
 }
@@ -888,18 +1099,18 @@ if ($hasExcel) {
     L ''
     L '- [ ] 準備：Excel の表に、多めの行数のテストデータを入れる（ページ分けのしきい値より多い行数）'
     L '- [ ] 操作：フローを手動で実行する'
-    L '- [ ] 期待結果：Excel の一覧取得の出力の件数が、表の行数と一致する（件数は式ライブラリ 08「配列の件数」の式で数えられる）'
+    L '- [ ] 期待結果：Excel の一覧取得の出力の件数が、表の行数と一致する（件数は、式ライブラリ 08「配列の件数」の式で数えられます）'
     L '- 注意：ページ分けの設定がない場合、既定の上限で打ち切られる恐れがあります。既定の上限の件数は、サンプルがなく**要確認**です。'
     L ''
 }
 
 # ---------- 要確認の一覧 ----------
-L '## 7. 要確認の一覧（サンプルなし）'
+L '## 最後に：まだ分かっていないこと（サンプルがないもの）'
 L ''
-L '日本語の画面表示の名前は、すべての箱で **要確認（サンプルなし）** です（英語表示は、画面で確認できたものと想定のものを区別して書いています）。'
+L '日本語の画面表示の名前は、サンプルがないため、すべて **要確認** です。この手順書は英語表示の名前で書いています。日本語表示の画面のときは、英語名の意味から探してください。'
 L ''
 if ($script:Unconfirmed.Count -eq 0) {
-    L '- この手順書の範囲で、サンプルがなくて書けなかった項目はありません（日本語の画面表示の名前を除く）。'
+    L '- この手順書の範囲で、サンプルがなくて書けなかった項目は、ほかにありません。'
 }
 else {
     L '| 場所 | 要確認の内容 |'
@@ -909,8 +1120,21 @@ else {
         L ('| ' + (Cell $parts[0]) + ' | ' + (Cell $parts[1]) + ' |')
     }
     L ''
-    L 'これらは、該当する箱のサンプル（`docs/sample_checklist.md` の手順で取り出したコードのプレビュー）を `samples/` に追加すると、次の版から確認済みの書き方で出力できます。'
+    L 'これらは、該当する箱のサンプル（`docs/sample_checklist.md` の手順で取り出したコードのプレビュー）を `samples/` に追加すると、次の版から、確認済みの書き方で出力できます。'
 }
+L ''
+
+# ---------- 用語の説明 ----------
+L '## 用語の説明'
+L ''
+L '- **箱（アクション）**：フローの中の、1つ1つの処理です。画面では、四角い箱で表示されます。'
+L '- **トリガー**：フローが動き出す「きっかけ」です。一番上の箱です。'
+L '- **＋（プラス）**：箱を足すためのボタンです。箱と箱の間や、まとめる箱の中にあります。'
+L '- **スコープ（Scope）**：いくつかの箱を、まとめて入れる大きな箱です。この手順書では、「Try」と「catch」に使います。'
+L '- **式（fx）**：日付の計算などを行う「命令」です。この手順書に載っているものを、コピーして貼ります。'
+L '- **動的なコンテンツ（⚡）**：前の箱の結果を、入力欄に入れる機能です。'
+L '- **Run after（実行条件）**：前の箱が、どうなったとき（成功／失敗…）に、その箱を動かすかの設定です。'
+L '- **Code view**：箱の設定を、文字で見る画面です。作った内容を確認したい人向けです。'
 L ''
 
 # 警告の欄（手順の書き出し中に増えた警告も含めて、冒頭に差し込む）
@@ -934,6 +1158,7 @@ function ConvertTo-InlineHtml([string]$s) {
 function ConvertTo-HtmlGuide($Lines, [string]$Title) {
     $h = New-Object System.Collections.ArrayList
     $inCode = $false
+    $codeLang = ''
     $codeBuf = New-Object System.Collections.ArrayList
     $codeId = 0
     $listType = ''
@@ -962,19 +1187,40 @@ function ConvertTo-HtmlGuide($Lines, [string]$Title) {
         $ln = $raw
         if ($inCode) {
             if ($ln.Trim().StartsWith('```')) {
-                $codeId++
-                $txt = [System.Net.WebUtility]::HtmlEncode(($codeBuf -join "`n"))
-                [void]$h.Add('<div class="codewrap"><pre class="code" id="c' + $codeId + '">' + $txt + '</pre><button class="copy" type="button" data-target="c' + $codeId + '">コピー</button></div>')
+                if ($codeLang -eq 'svgfig') {
+                    [void]$h.Add(($codeBuf -join "`n"))
+                }
+                elseif ($codeLang -eq 'tree') {
+                    # 完成図（SVG）があるので、文字の図は HTML では出さない
+                }
+                else {
+                    $codeId++
+                    $txt = [System.Net.WebUtility]::HtmlEncode(($codeBuf -join "`n"))
+                    [void]$h.Add('<div class="codewrap"><pre class="code" id="c' + $codeId + '">' + $txt + '</pre><button class="copy" type="button" data-target="c' + $codeId + '">コピー</button></div>')
+                }
                 $codeBuf.Clear()
                 $inCode = $false
             }
-            else { [void]$codeBuf.Add(($ln -replace '^  ', '').TrimEnd()) }
+            else { if ($codeLang -eq 'svgfig') { [void]$codeBuf.Add($ln) } else { [void]$codeBuf.Add(($ln -replace '^  ', '').TrimEnd()) } }
             continue
         }
         if ($ln.Trim().StartsWith('```')) {
             . $closeList
             . $flushTable
             $inCode = $true
+            $codeLang = $ln.Trim().Substring(3).Trim()
+            continue
+        }
+        if ($ln.StartsWith(':::details ')) {
+            . $closeList
+            . $flushTable
+            [void]$h.Add('<details><summary>' + (ConvertTo-InlineHtml $ln.Substring(11)) + '</summary>')
+            continue
+        }
+        if ($ln.Trim() -eq ':::') {
+            . $closeList
+            . $flushTable
+            [void]$h.Add('</details>')
             continue
         }
         if ($ln.StartsWith('|')) {
@@ -1028,7 +1274,11 @@ function ConvertTo-HtmlGuide($Lines, [string]$Title) {
         '.box{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:.6em 1em;margin:.8em 0}code.en{font-family:Consolas,monospace;background:var(--line);padding:0 .3em;border-radius:4px;font-size:.92em}' +
         '.codewrap{position:relative}pre.code{background:var(--code);color:var(--code-fg);padding:.7em 5em .7em .8em;border-radius:8px;white-space:pre-wrap;word-break:break-all;font-size:.88em;line-height:1.5;font-family:Consolas,monospace;margin:.4em 0}' +
         '.copy{position:absolute;right:.4em;top:.4em;background:var(--acc);color:#fff;border:0;border-radius:6px;padding:.2em .8em;cursor:pointer;font:inherit}.copy.done{background:#1c8a46}' +
-        'ul.chk{list-style:none;padding-left:.2em}li{margin:.25em 0}@media print{.copy{display:none}}'
+        'ul.chk{list-style:none;padding-left:.2em}li{margin:.25em 0}@media print{.copy{display:none}details{display:block}}' +
+        ':root{--warn:#a05a00;--warn-bg2:#fff4e0;--ng:#a12020;--ng-bg2:#fdecec}@media (prefers-color-scheme:dark){:root{--warn:#ffc46b;--warn-bg2:#4a3515;--ng:#ff9c9c;--ng-bg2:#3a1a1a}}' +
+        '.fig{margin:1em 0}.fig svg{width:100%;height:auto;max-width:900px;display:block;margin:0 auto}.fig figcaption{color:var(--sub);font-size:.9rem;text-align:center;margin-top:.3em}' +
+        'svg .st{fill:var(--fg)}svg .ss{fill:var(--sub)}svg .sw{fill:#fff}svg .sw2{fill:var(--warn)}svg .sred{fill:var(--ng)}' +
+        'details{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.4em 1em;margin:.8em 0}summary{cursor:pointer;font-weight:bold;color:var(--sub)}'
     $js = '(function(){function cp(t,b){function ok(){var o=b.textContent;b.textContent="コピーしました";b.classList.add("done");setTimeout(function(){b.textContent=o;b.classList.remove("done");},1500);}' +
         'function fb(){var a=document.createElement("textarea");a.value=t;a.style.position="fixed";a.style.opacity="0";document.body.appendChild(a);a.select();try{document.execCommand("copy");ok();}catch(e){window.prompt("Ctrl+C でコピーしてください",t);}document.body.removeChild(a);}' +
         'if(navigator.clipboard){navigator.clipboard.writeText(t).then(ok,fb);}else{fb();}}' +
@@ -1039,7 +1289,20 @@ function ConvertTo-HtmlGuide($Lines, [string]$Title) {
 }
 
 # ===================== 出力 =====================
-$md = ($script:O -join "`n")
+function ConvertTo-PlainMd($Lines) {
+    $res = New-Object System.Collections.ArrayList
+    $skip = $false
+    foreach ($ln in $Lines) {
+        if ($skip) { if ($ln.Trim().StartsWith('```')) { $skip = $false }; continue }
+        if ($ln.Trim() -eq '```svgfig') { $skip = $true; continue }
+        if ($ln.Trim() -eq '```tree') { [void]$res.Add('```text'); continue }
+        if ($ln.StartsWith(':::details ')) { [void]$res.Add('**' + $ln.Substring(11) + '**'); [void]$res.Add(''); continue }
+        if ($ln.Trim() -eq ':::') { continue }
+        [void]$res.Add($ln)
+    }
+    return $res
+}
+$md = ((ConvertTo-PlainMd $script:O) -join "`n")
 Write-Output $md
 if ($OutFile -ne '') {
     [System.IO.File]::WriteAllText($OutFile, ($md -replace "`n", "`r`n") + "`r`n", (New-Object System.Text.UTF8Encoding($true)))

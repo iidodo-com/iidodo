@@ -6,6 +6,8 @@
 | --- | --- |
 | `build_expr.py` | `expressions/*.md`、`expressions/VERIFY.md`、`expressions/README.md` を生成します。**式・ケース・注意書きを直すときは、このファイルを直してから再生成**してください。期待値は Python の別計算で、実機の結果ではありません。 |
 | `mk_results.py` | `expressions/VERIFIED_RESULTS.md` を生成します。 |
+| `diagrams.py` | 画面の見取り図（SVG）を作る関数集です。 |
+| `make_figures_ps1.py` | `diagrams.py` の図を `tools/_figures.ps1`（build_guide が読み込む）に書き出します。図を直したら `python3 dev/make_figures_ps1.py` で再生成します。 |
 | `result_raw.txt` | 実機（2026-10-07、Power Automate 英語表示）の Compose 出力の生データです（`mk_results.py` の入力）。 |
 
 ```text
