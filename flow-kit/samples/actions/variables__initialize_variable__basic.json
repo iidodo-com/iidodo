@@ -1,0 +1,13 @@
+{
+  "type": "InitializeVariable",
+  "inputs": {
+    "variables": [
+      {
+        "name": "counter",
+        "type": "integer",
+        "value": 0
+      }
+    ]
+  },
+  "runAfter": {}
+}
