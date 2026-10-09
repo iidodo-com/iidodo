@@ -271,28 +271,51 @@ function Resolve-Expr([string]$req) {
     return $info
 }
 
-function Expand-Value([string]$v) {
+function Expand-Value([string]$v, [string]$label = '') {
     if ($null -eq $v) { return '' }
-    $res = $v
-    foreach ($m in $script:ExprRx.Matches($v)) {
+    $ms = $script:ExprRx.Matches($v)
+    if ($ms.Count -eq 0) { return $v }
+    $pure = ($ms.Count -eq 1 -and $v.Trim() -eq $ms[0].Value)
+
+    if ($pure) {
+        $info = Resolve-Expr $ms[0].Groups[1].Value.Trim()
+        if ($info.Found) {
+            $dup = $false
+            foreach ($x in $script:StepExprs) { if ($x.Id -eq $info.Id -and -not $x.ContainsKey('Combined')) { $dup = $true } }
+            if (-not $dup) { [void]$script:StepExprs.Add($info) }
+            return ('（式 ' + $info.Id + '：下の「使う式」を、この欄に貼る）')
+        }
+        Add-Unconfirmed '式' ('要件「' + $info.Req + '」に合う式が式ライブラリにありません')
+        return '（式：要確認。式ライブラリにありません）'
+    }
+
+    # 文章と式が混ざっている → 欄全体を、concat で1つの式にする
+    $parts = New-Object System.Collections.ArrayList
+    $ids = New-Object System.Collections.ArrayList
+    $pos = 0
+    $ok = $true
+    foreach ($m in $ms) {
+        if ($m.Index -gt $pos) { [void]$parts.Add("'" + $v.Substring($pos, $m.Index - $pos).Replace("'", "''") + "'") }
         $info = Resolve-Expr $m.Groups[1].Value.Trim()
         if ($info.Found) {
-            $repl = '〔式 ' + $info.Id + '：下の「使う式」を貼る〕'
-            $dup = $false
-            foreach ($x in $script:StepExprs) { if ($x.Id -eq $info.Id) { $dup = $true } }
-            if (-not $dup) { [void]$script:StepExprs.Add($info) }
+            [void]$parts.Add(([regex]::Replace($info.Expr, '\s*\r?\n\s*', '')))
+            if (-not $ids.Contains($info.Id)) { [void]$ids.Add($info.Id) }
         }
         else {
-            $repl = '〔式：要確認（式ライブラリにありません）〕'
+            $ok = $false
             Add-Unconfirmed '式' ('要件「' + $info.Req + '」に合う式が式ライブラリにありません')
         }
-        if ($v.Trim() -ne $m.Value) {
-            $script:MixedExpr = $true
-            Add-Unconfirmed '式' '文章の途中に式を入れる操作と、JSON での書き方（@{...} の埋め込み）のサンプルがありません'
-        }
-        $res = $res.Replace($m.Value, $repl)
+        $pos = $m.Index + $m.Length
     }
-    return $res
+    if ($pos -lt $v.Length) { [void]$parts.Add("'" + $v.Substring($pos).Replace("'", "''") + "'") }
+    if (-not $ok) { return '（式：要確認。式ライブラリにありません）' }
+    $reqText = [regex]::Replace([regex]::Replace($v, '\{\{式[:：]\s*', '〔'), '\}\}', '〕')
+    $combined = @{
+        Id = ($ids -join '・'); Title = '文章と式をつなげた式'; Req = $reqText
+        Expr = ('concat(' + ($parts -join ',') + ')'); Status = ''; Label = $label; Combined = $true
+    }
+    [void]$script:StepExprs.Add($combined)
+    return '（この欄は、文章と式をつなげた1つの式にします。下の式を、この欄に貼る）'
 }
 
 # ===================== 読み込みと前処理 =====================
@@ -322,9 +345,9 @@ foreach ($s in $allSteps) {
         $s['ActionText'] = $act
         $s.Kind = Resolve-Kind $act
     }
-    foreach ($f in $s.Fields) { [void](Expand-Value $f.Value) }
+    foreach ($f in $s.Fields) { [void](Expand-Value $f.Value $f.Label) }
 }
-foreach ($f in $SpecData.ErrorFields) { [void](Expand-Value $f.Value) }
+foreach ($f in $SpecData.ErrorFields) { [void](Expand-Value $f.Value $f.Label) }
 $script:StepExprs.Clear()
 
 # トリガー
@@ -390,9 +413,11 @@ if ($script:NeedJst) {
     $prevInContainer = 'Compose_JST'
 }
 
+$prevHadChildren = $false
 foreach ($s in $topSteps) {
     $kind = $s.Kind
     $n = New-Node $kind $s $s.Title $null (Get-Where $container $prevInContainer $null)
+    $n['AfterContainer'] = $prevHadChildren
     if ($kind -ne '') { $n.ActionName = $Catalog[$kind].En } else { $n.ActionName = $s['ActionText'] }
     if ($kind -eq 'Scope') {
         $nm = Get-Field $s.Fields @('名前')
@@ -400,6 +425,7 @@ foreach ($s in $topSteps) {
     }
     [void]$nodes.Add($n)
     $prevInContainer = $n.ActionName
+    $prevHadChildren = ($s.Children.Count -gt 0)
     $prevChild = ''
     foreach ($c in $s.Children) {
         $ck = $c.Kind
@@ -689,18 +715,25 @@ function Write-Exprs($exprs) {
     if ($exprs.Count -eq 0) { return }
     L ''
     L '**使う式（コピーして、貼ります）**'
-    if ($script:MixedExpr) { L ('- ※ 文章の途中に式を入れる項目です。入れ方は ' + $M_NG + '。まず文章だけを入力し、式の部分は、画面の動的なコンテンツ／式の窓から挿入してください。') }
     foreach ($x in $exprs) {
         L ''
-        L ('- 式 ' + $x.Id + '：' + $x.Title + '（要件：' + $x.Req + '）')
+        if ($x.ContainsKey('Combined') -and $x.Combined) {
+            $lab = $x.Label
+            if ($lab -eq '') { $lab = 'この' }
+            L ('- **「' + $lab + '」の欄に貼る式**（文章と、式 ' + $x.Id + ' をつなげたもの。つなげ方：' + $x.Req + '）')
+        }
+        else {
+            L ('- 式 ' + $x.Id + '：' + $x.Title + '（要件：' + $x.Req + '）')
+        }
         L ''
         L '  ```text'
         foreach ($el in ($x.Expr -split "`n")) { L ('  ' + $el) }
         L '  ```'
         if ($x.Expr.Contains("outputs('Compose_JST')")) { L '  - ※ この式は、「現在日時（日本時間）」の箱（`Compose_JST`）を使います。名前を変えないでください。' }
+        if ($x.ContainsKey('Combined') -and $x.Combined) { L '  - 実行すると、式の部分が、実行したときの値（日付など）に変わった1つの文章になります。' }
     }
     L ''
-    L '貼り方：その項目の入力欄をクリックし、開いた窓の **「式（fx）」の欄**に貼って、「Add」（または「Update」）を押します。先頭に @ は付けません。'
+    L '貼り方：その項目の入力欄をクリックし、開いた窓の **「式（fx）」の欄**に貼って、「Add」（または「Update」）を押します。先頭に @ は付けません。欄の中が、式の札（fx）1つになれば成功です。'
     if (-not $script:FigComposeShown) {
         $script:FigComposeShown = $true
         L ''
@@ -721,13 +754,14 @@ function Write-Extras($step, [string[]]$consumed) {
         L ('**その他の記載** ' + $M_NG + '（この動作では、この項目の書き方のサンプルがありません。手順書の記載をそのまま載せます）')
         L ''
         foreach ($f in $ex) {
-            L ('- ' + $f.Label + '：' + (Expand-Value $f.Value))
+            L ('- ' + $f.Label + '：' + (Expand-Value $f.Value $f.Label))
             Add-Unconfirmed ('手順 ' + $step.Num) ('項目「' + $f.Label + '」の設定のしかた・JSON の書き方')
         }
     }
 }
 function Write-AddBoxSteps($n, [string]$en, [string]$connector, [string]$renameTo) {
     L ('1. ' + (Polite $n.Where) + '。')
+    if ($n.ContainsKey('AfterContainer') -and $n.AfterContainer) { L '   - ※ 直前の箱の**枠の外**（枠の下側）にある「＋」です。枠の中に入れないでください。' }
     L ('2. 出てきた画面の検索欄に `' + $en + '` と入力し、候補の中の「' + $en + '」（' + $connector + '）を選びます。')
     if ($renameTo -ne '') { L ('3. できた箱の右上の「…」→「Rename」を選び、名前を `' + $renameTo + '` に変えます。') }
 }
@@ -803,7 +837,7 @@ foreach ($n in $nodes) {
         Add-Unconfirmed ('手順 ' + $step.Num) ('動作「' + $step['ActionText'] + '」のサンプルがありません（箱の名前・項目名・JSON）')
         L '**手順書の記載（そのまま）**'
         L ''
-        foreach ($f in $step.Fields) { if ((Norm $f.Label) -ne (Norm '動作')) { L ('- ' + $f.Label + '：' + (Expand-Value $f.Value)) } }
+        foreach ($f in $step.Fields) { if ((Norm $f.Label) -ne (Norm '動作')) { L ('- ' + $f.Label + '：' + (Expand-Value $f.Value $f.Label)) } }
         Write-Exprs $script:StepExprs
         L ''
         continue
@@ -933,7 +967,8 @@ foreach ($n in $nodes) {
         'Compose' {
             $consumed += @('入力', '値')
             $inp = Get-Field $step.Fields @('入力', '値')
-            Add-Row $rows 'Inputs' $true $(if ($null -ne $inp) { (Expand-Value $inp) } else { '（手順書に記載なし）' }) 'inputs（値がそのまま入る）'
+            Add-Row $rows 'Inputs' $true $(if ($null -ne $inp) { (Expand-Value $inp 'Inputs') } else { '（手順書に記載なし）' }) 'inputs（値がそのまま入る）'
+            if ($null -ne $inp -and -not $script:ExprRx.IsMatch($inp)) { [void]$sub.Add('- 「Inputs」には、**文字をそのまま入力**します（式は使いません）。') }
             [void]$checks.Add('"type": "Compose"')
             [void]$checks.Add('"inputs": <入力した値>')
         }
@@ -945,8 +980,8 @@ foreach ($n in $nodes) {
             $im = Get-Field $step.Fields @('重要度')
             if ($null -eq $to) { Add-Warning ('手順 ' + $step.Num + '（メール送信）：宛先がありません。') }
             Add-Row $rows 'To' $false $(if ($null -ne $to) { $to } else { '（手順書に記載なし）' }) 'emailMessage/To'
-            Add-Row $rows 'Subject' $false $(if ($null -ne $sj) { (Expand-Value $sj) } else { '（手順書に記載なし）' }) 'emailMessage/Subject'
-            Add-Row $rows 'Body' $false $(if ($null -ne $bd) { (Expand-Value $bd) } else { '（手順書に記載なし）' }) 'emailMessage/Body（HTML で保存される）'
+            Add-Row $rows 'Subject' $false $(if ($null -ne $sj) { (Expand-Value $sj 'Subject') } else { '（手順書に記載なし）' }) 'emailMessage/Subject'
+            Add-Row $rows 'Body' $false $(if ($null -ne $bd) { (Expand-Value $bd 'Body') } else { '（手順書に記載なし）' }) 'emailMessage/Body（HTML で保存される）'
             if ($null -ne $im) { Add-Row $rows 'Importance' $false $im 'emailMessage/Importance（サンプルは Normal）' }
             [void]$sub.Add('- メール本文は **HTML として保存されます** ' + $M_JSON + '。改行は `<br>` を使います（式ライブラリ 09 参照）。')
             [void]$checks.Add('"operationId": "SendEmailV2"')
@@ -1016,8 +1051,8 @@ if ($hasError) {
     $script:MixedExpr = $false
     $rows = New-Object System.Collections.ArrayList
     Add-Row $rows 'To' $false $(if ($null -ne $ens) { $ens } else { '（手順書に記載なし）' }) 'emailMessage/To'
-    Add-Row $rows 'Subject' $false $(if ($null -ne $esj) { (Expand-Value $esj) } else { '（手順書に記載なし）' }) 'emailMessage/Subject'
-    Add-Row $rows 'Body' $false $(if ($null -ne $ebd) { (Expand-Value $ebd) } else { '（手順書に記載なし）' }) 'emailMessage/Body（HTML で保存される）'
+    Add-Row $rows 'Subject' $false $(if ($null -ne $esj) { (Expand-Value $esj 'Subject') } else { '（手順書に記載なし）' }) 'emailMessage/Subject'
+    Add-Row $rows 'Body' $false $(if ($null -ne $ebd) { (Expand-Value $ebd 'Body') } else { '（手順書に記載なし）' }) 'emailMessage/Body（HTML で保存される）'
     Write-Svg (New-PanelSvg 'Send an email (V2)' $KindColor['Mail'] $rows)
     L ''
     Write-Rows $rows
