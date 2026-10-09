@@ -219,6 +219,7 @@ function Test-BuildGuide {
         Report (-not $html.Contains('**')) 'build_guide -Html: Markdown の記号（**）が残っていない' ''
         Report ($html.Contains('<svg') -and $html.Contains('<details>') -and $html.Contains('</details>')) 'build_guide -Html: 図（SVG）と折りたたみ（くわしい情報）がある' ''
         Report (-not $html.Contains(':::') -and -not $html.Contains('svgfig')) 'build_guide -Html: 内部の目印（:::／svgfig）が残っていない' ''
+        Report ($html.Contains('式を貼る場所：Send an email (V2) の Subject') -and -not $html.Contains('G2')) 'build_guide -Html: 式を貼る場所の図が、その箱・欄に合わせてあり、検証用の名前（G2）が出ない' ''
         Report ($html.Contains('どの「＋」を押すか') -and $html.Contains('<ol start="2">')) 'build_guide -Html: 枠の外の＋の図と、番号の続き（start）がある' ''
         Report (-not $html.Contains('<script>alert')) 'build_guide -Html: 想定外のスクリプトがない' ''
         $bytes = [System.IO.File]::ReadAllBytes($tmpM)
