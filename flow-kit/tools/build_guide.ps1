@@ -282,7 +282,12 @@ function Expand-Value([string]$v, [string]$label = '') {
         if ($info.Found) {
             $dup = $false
             foreach ($x in $script:StepExprs) { if ($x.Id -eq $info.Id -and -not $x.ContainsKey('Combined')) { $dup = $true } }
-            if (-not $dup) { [void]$script:StepExprs.Add($info) }
+            if (-not $dup) {
+                $copy = @{}
+                foreach ($k in $info.Keys) { $copy[$k] = $info[$k] }
+                $copy['Label'] = $label
+                [void]$script:StepExprs.Add($copy)
+            }
             return ('（式 ' + $info.Id + '：下の「使う式」を、この欄に貼る）')
         }
         Add-Unconfirmed '式' ('要件「' + $info.Req + '」に合う式が式ライブラリにありません')
@@ -523,6 +528,45 @@ function New-PanelSvg([string]$title, [string]$color, $rows) {
     return @($s)
 }
 
+# 式を貼る場所の図（その箱・その欄に合わせて作る）
+function New-ExprSvg([string]$boxTitle, [string]$fieldLabel, [string]$exprText) {
+    $s = New-Object System.Collections.ArrayList
+    [void]$s.Add((Svg-Head 880 440 ('式を貼る場所：' + $boxTitle + ' の ' + $fieldLabel)))
+    [void]$s.Add('<rect x="10" y="10" width="320" height="250" rx="8" fill="var(--bg)" stroke="var(--line)"/>')
+    [void]$s.Add('<rect x="24" y="24" width="24" height="24" rx="4" fill="#7a52b3"/>')
+    [void]$s.Add('<text x="58" y="43" class="st" font-size="15" font-weight="bold">' + (Svg-Esc (Svg-Clip $boxTitle 28)) + '</text>')
+    [void]$s.Add('<text x="24" y="80" class="st" font-size="13" font-weight="bold">Parameters</text><text x="106" y="80" class="ss" font-size="13">Settings</text><text x="176" y="80" class="ss" font-size="13">Code view</text><text x="250" y="80" class="ss" font-size="13">About</text>')
+    [void]$s.Add('<rect x="24" y="88" width="78" height="3" rx="1" fill="var(--acc)"/>')
+    [void]$s.Add('<text x="24" y="122" class="ss" font-size="12">' + (Svg-Esc (Svg-Clip $fieldLabel 30)) + '</text>')
+    [void]$s.Add('<rect x="24" y="130" width="290" height="36" rx="4" fill="var(--card)" stroke="var(--acc)" stroke-width="3"/>')
+    [void]$s.Add('<text x="34" y="153" class="ss" font-size="12">（ここをクリック）</text>')
+    [void]$s.Add('<circle cx="40" cy="206" r="13" fill="var(--warn)"/><text x="40" y="211" text-anchor="middle" font-size="14" font-weight="bold" fill="#fff">1</text>')
+    [void]$s.Add('<text x="62" y="211" class="sw2" font-size="14" font-weight="bold">この「' + (Svg-Esc (Svg-Clip $fieldLabel 14)) + '」欄をクリックする</text>')
+    [void]$s.Add('<text x="24" y="240" class="ss" font-size="12">（右のような、式の窓が開きます）</text>')
+    [void]$s.Add('<rect x="350" y="10" width="520" height="420" rx="8" fill="var(--bg)" stroke="var(--acc)" stroke-width="2"/>')
+    [void]$s.Add('<rect x="364" y="26" width="492" height="130" rx="4" fill="var(--card)" stroke="var(--warn)" stroke-width="3"/>')
+    $e1 = Svg-Clip $exprText 66
+    $rest = ''
+    if ($exprText.Length -gt 33) { $rest = $exprText.Substring([Math]::Min($exprText.Length, 33)) }
+    [void]$s.Add('<text x="376" y="54" class="st" font-size="12">' + (Svg-Esc (Svg-Clip $exprText 62)) + '</text>')
+    if ($exprText.Length -gt 40) { [void]$s.Add('<text x="376" y="74" class="st" font-size="12">…</text>') }
+    [void]$s.Add('<circle cx="836" cy="46" r="13" fill="var(--warn)"/><text x="836" y="51" text-anchor="middle" font-size="14" font-weight="bold" fill="#fff">2</text>')
+    [void]$s.Add('<text x="376" y="144" class="sw2" font-size="13" font-weight="bold">← ここに式を貼り付ける（Ctrl＋V）。先頭に @ は付けない</text>')
+    [void]$s.Add('<rect x="364" y="172" width="262" height="34" rx="6" fill="var(--card)" stroke="var(--ng)" stroke-width="2" stroke-dasharray="5 4"/>')
+    [void]$s.Add('<text x="376" y="194" class="ss" font-size="13">Create an expression with Copilot</text>')
+    [void]$s.Add('<text x="640" y="194" class="sred" font-size="13" font-weight="bold">✕ これは使わない（AI用の別の欄）</text>')
+    [void]$s.Add('<text x="376" y="240" class="st" font-size="13" font-weight="bold">Function</text><text x="460" y="240" class="ss" font-size="13">Dynamic content</text>')
+    [void]$s.Add('<rect x="376" y="246" width="66" height="3" rx="1" fill="var(--acc)"/>')
+    [void]$s.Add('<rect x="364" y="258" width="492" height="28" rx="4" fill="var(--card)" stroke="var(--line)"/><text x="376" y="277" class="ss" font-size="12">Search</text>')
+    [void]$s.Add('<rect x="364" y="296" width="492" height="66" rx="4" fill="var(--card)" stroke="var(--line)"/><text x="376" y="320" class="ss" font-size="12">（関数の一覧です。ここは使わなくてかまいません）</text>')
+    [void]$s.Add('<rect x="364" y="376" width="92" height="40" rx="6" fill="var(--acc)"/><text x="410" y="401" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff">Update</text>')
+    [void]$s.Add('<text x="470" y="401" class="ss" font-size="12">（「Add」「OK」のこともあります）</text>')
+    [void]$s.Add('<circle cx="680" cy="396" r="13" fill="var(--warn)"/><text x="680" y="401" text-anchor="middle" font-size="14" font-weight="bold" fill="#fff">3</text>')
+    [void]$s.Add('<text x="702" y="401" class="sw2" font-size="13" font-weight="bold">最後に、押して確定する</text>')
+    [void]$s.Add('</svg><figcaption>式を貼る場所の見取り図（実際の画面の窓をもとにした図。見た目は少し違うことがあります）。</figcaption></figure>')
+    return @($s)
+}
+
 # 「枠の外の＋」を押す位置の図
 function New-PlusSvg([string]$containerName, [string]$innerName, [string]$newName) {
     $s = New-Object System.Collections.ArrayList
@@ -731,7 +775,7 @@ function Write-Rows($rows) {
         L ('| ' + $i + ' | ' + (Cell $r.Ui) + ' | ' + (Cell (Strip-Marks $r.Value)) + ' |')
     }
 }
-function Write-Exprs($exprs) {
+function Write-Exprs($exprs, [string]$boxTitle = '') {
     if ($exprs.Count -eq 0) { return }
     L ''
     L '**使う式（コピーして、貼ります）**'
@@ -743,7 +787,9 @@ function Write-Exprs($exprs) {
             L ('- **「' + $lab + '」の欄に貼る式**（文章と、式 ' + $x.Id + ' をつなげたもの。つなげ方：' + $x.Req + '）')
         }
         else {
-            L ('- 式 ' + $x.Id + '：' + $x.Title + '（要件：' + $x.Req + '）')
+            $into = ''
+            if ($x.ContainsKey('Label') -and $x.Label -ne '') { $into = '　貼る欄：「' + $x.Label + '」' }
+            L ('- 式 ' + $x.Id + '：' + $x.Title + '（要件：' + $x.Req + '）' + $into)
         }
         L ''
         L '  ```text'
@@ -756,8 +802,13 @@ function Write-Exprs($exprs) {
     L '貼り方：その項目の入力欄をクリックし、開いた窓の **「式（fx）」の欄**に貼って、「Add」（または「Update」）を押します。先頭に @ は付けません。欄の中が、式の札（fx）1つになれば成功です。'
     if (-not $script:FigComposeShown) {
         $script:FigComposeShown = $true
+        $first = $exprs[0]
+        $lab = 'Inputs'
+        if ($first.ContainsKey('Label') -and $first.Label -ne '') { $lab = $first.Label }
+        $bt = $boxTitle
+        if ($bt -eq '') { $bt = 'この箱' }
         L ''
-        Write-Figure $script:FigCompose
+        Write-Svg (New-ExprSvg $bt $lab $first.Expr)
     }
 }
 function Write-Extras($step, [string[]]$consumed) {
@@ -840,7 +891,7 @@ foreach ($n in $nodes) {
         if (-not $script:FigComposeShown) {
             $script:FigComposeShown = $true
             L ''
-            Write-Figure $script:FigCompose
+            Write-Svg (New-ExprSvg 'Compose' 'Inputs' $info.Expr)
         }
         L ''
         Details-Begin 'くわしい情報（確認したい方向け）'
@@ -862,7 +913,7 @@ foreach ($n in $nodes) {
         L '**手順書の記載（そのまま）**'
         L ''
         foreach ($f in $step.Fields) { if ((Norm $f.Label) -ne (Norm '動作')) { L ('- ' + $f.Label + '：' + (Expand-Value $f.Value $f.Label)) } }
-        Write-Exprs $script:StepExprs
+        Write-Exprs $script:StepExprs 'この箱'
         L ''
         continue
     }
@@ -1032,7 +1083,7 @@ foreach ($n in $nodes) {
         L ''
         Write-Figure $script:FigApply
     }
-    Write-Exprs $script:StepExprs
+    Write-Exprs $script:StepExprs $def.En
     Write-Extras $step $consumed
     L ''
     Details-Begin 'くわしい情報（確認したい方向け）'
@@ -1080,7 +1131,7 @@ if ($hasError) {
     Write-Svg (New-PanelSvg 'Send an email (V2)' $KindColor['Mail'] $rows)
     L ''
     Write-Rows $rows
-    Write-Exprs $script:StepExprs
+    Write-Exprs $script:StepExprs 'Send an email (V2)'
     L ''
     L '### ③ catch を「Try が失敗したときだけ動く」設定にする（実行条件）'
     L ''
