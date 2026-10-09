@@ -523,6 +523,26 @@ function New-PanelSvg([string]$title, [string]$color, $rows) {
     return @($s)
 }
 
+# 「枠の外の＋」を押す位置の図
+function New-PlusSvg([string]$containerName, [string]$innerName, [string]$newName) {
+    $s = New-Object System.Collections.ArrayList
+    [void]$s.Add((Svg-Head 760 330 ('どの「＋」を押すか：' + $containerName + ' の枠の外')))
+    [void]$s.Add('<rect x="170" y="16" width="420" height="176" rx="8" fill="var(--bg)" stroke="#5f6b7a" stroke-width="2"/>')
+    [void]$s.Add('<rect x="170" y="16" width="420" height="36" rx="6" fill="#5f6b7a"/>')
+    [void]$s.Add('<text x="186" y="40" class="sw" font-size="14" font-weight="bold">' + (Svg-Esc (Svg-Clip $containerName 50)) + '</text>')
+    [void]$s.Add('<rect x="220" y="68" width="320" height="44" rx="6" fill="#7a52b3"/>')
+    [void]$s.Add('<text x="236" y="96" class="sw" font-size="14" font-weight="bold">' + (Svg-Esc (Svg-Clip $innerName 48)) + '</text>')
+    [void]$s.Add('<circle cx="380" cy="150" r="15" fill="var(--card)" stroke="var(--ng)" stroke-width="3"/><text x="380" y="156" text-anchor="middle" font-size="18" class="sred" font-weight="bold">＋</text>')
+    [void]$s.Add('<text x="408" y="148" class="sred" font-size="13" font-weight="bold">✕ 枠の中の「＋」（ここではありません）</text>')
+    [void]$s.Add('<line x1="380" y1="192" x2="380" y2="228" stroke="var(--sub)" stroke-width="2"/>')
+    [void]$s.Add('<circle cx="380" cy="244" r="17" fill="var(--card)" stroke="#1c8a46" stroke-width="4"/><text x="380" y="251" text-anchor="middle" font-size="20" fill="#1c8a46" font-weight="bold">＋</text>')
+    [void]$s.Add('<text x="410" y="242" font-size="14" font-weight="bold" fill="#1c8a46">○ 枠の外（枠の下側）の「＋」を押す</text>')
+    [void]$s.Add('<rect x="220" y="274" width="320" height="40" rx="6" fill="none" stroke="#1c8a46" stroke-width="2" stroke-dasharray="6 5"/>')
+    [void]$s.Add('<text x="236" y="299" class="st" font-size="13">新しい箱（' + (Svg-Esc (Svg-Clip $newName 30)) + '）ができる</text>')
+    [void]$s.Add('</svg><figcaption>「＋」は、枠の中と外の両方にあります。この手順は、枠の外（下側）の「＋」を押します。</figcaption></figure>')
+    return @($s)
+}
+
 # 完成図（箱の並び）
 function New-FlowSvg($nodeList, [string]$trigText, [string]$trigSub) {
     $items = New-Object System.Collections.ArrayList
@@ -761,7 +781,11 @@ function Write-Extras($step, [string[]]$consumed) {
 }
 function Write-AddBoxSteps($n, [string]$en, [string]$connector, [string]$renameTo) {
     L ('1. ' + (Polite $n.Where) + '。')
-    if ($n.ContainsKey('AfterContainer') -and $n.AfterContainer) { L '   - ※ 直前の箱の**枠の外**（枠の下側）にある「＋」です。枠の中に入れないでください。' }
+    if ($n.ContainsKey('AfterContainer') -and $n.AfterContainer) {
+        L '   - ※ 直前の箱の**枠の外**（枠の下側）にある「＋」です。**枠の中に入れないでください**（枠の中に入れると、繰り返しのたびに、その箱が動いてしまいます）。'
+        $pc = $n.Where -replace '^直前の箱（', '' -replace '）の下.*$', ''
+        Write-Svg (New-PlusSvg $pc '（枠の中の箱）' $en)
+    }
     L ('2. 出てきた画面の検索欄に `' + $en + '` と入力し、候補の中の「' + $en + '」（' + $connector + '）を選びます。')
     if ($renameTo -ne '') { L ('3. できた箱の右上の「…」→「Rename」を選び、名前を `' + $renameTo + '` に変えます。') }
 }
@@ -1290,10 +1314,16 @@ function ConvertTo-HtmlGuide($Lines, [string]$Title) {
             [void]$h.Add('<li>' + (ConvertTo-InlineHtml $m.Groups[1].Value) + '</li>')
             continue
         }
-        $m = [regex]::Match($ln, '^\s*\d+\.\s+(.*)$')
+        $m = [regex]::Match($ln, '^\s*(\d+)\.\s+(.*)$')
         if ($m.Success) {
-            if ($listType -ne 'ol') { . $closeList; [void]$h.Add('<ol>'); $listType = 'ol' }
-            [void]$h.Add('<li>' + (ConvertTo-InlineHtml $m.Groups[1].Value) + '</li>')
+            if ($listType -ne 'ol') {
+                . $closeList
+                $startAttr = ''
+                if ($m.Groups[1].Value -ne '1') { $startAttr = ' start="' + $m.Groups[1].Value + '"' }
+                [void]$h.Add('<ol' + $startAttr + '>')
+                $listType = 'ol'
+            }
+            [void]$h.Add('<li>' + (ConvertTo-InlineHtml $m.Groups[2].Value) + '</li>')
             continue
         }
         . $closeList
