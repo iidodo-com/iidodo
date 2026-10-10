@@ -1,6 +1,5 @@
 # android-transcriber の APK をビルドする（手動実行のみ）。
 # sherpa-onnx の Kotlin API とネイティブライブラリは、ビルド時に公式リポジトリ/Releases から取得する（リポジトリには含めない）。
-# 注意: このワークフローは作成環境（github.com への接続不可）では実行できておらず、未検証。
 name: android-transcriber
 on:
   workflow_dispatch:
@@ -26,11 +25,14 @@ jobs:
         run: |
           SHERPA_REF="v${{ inputs.sherpa_version }}" ./scripts/fetch_sherpa.sh
           ./scripts/fetch_sherpa_libs.sh "${{ inputs.sherpa_version }}"
+      - name: Fetch models (bundled into the APK)
+        run: ./scripts/fetch_models.sh app/src/main/assets/models
       - name: Unit tests
         run: ./gradlew :core:test :app:testDebugUnitTest --console=plain
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --console=plain
       - uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: minutes-voice-debug-apk
           path: android-transcriber/app/build/outputs/apk/debug/app-debug.apk
+          compression-level: 0
