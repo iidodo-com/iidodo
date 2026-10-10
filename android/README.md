@@ -10,3 +10,7 @@ CLI の場合（Android SDK と `local.properties` の `sdk.dir` が必要）:
     gradle :app:testDebugUnitTest :app:assembleDebug
 
 APK は `app/build/outputs/apk/debug/` に出力されます。
+
+## 買い物リスト
+トップ画面の「買い物リスト」から開きます。品名を追加、タップでチェック、
+長押しで削除、「チェック済みを削除」で一括削除。端末内に自動保存されます。
