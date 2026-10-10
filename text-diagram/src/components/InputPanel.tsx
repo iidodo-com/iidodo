@@ -19,14 +19,14 @@ export function InputPanel({ text, setText, preset, setPreset, onGenerate, onSam
   useLayoutEffect(() => {
     const el = ta.current!;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(Math.max(el.scrollHeight, 180), 520)}px`;
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, 220), 520)}px`;
   }, [text]);
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
+    <div className="flex h-full flex-col gap-4 overflow-y-auto p-3 md:p-4">
       <section>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">図解タイプ</h3>
-        <div className="grid gap-1.5" role="radiogroup" aria-label="図解プリセット">
+        <div className="grid grid-cols-3 gap-1.5 md:grid-cols-1" role="radiogroup" aria-label="図解プリセット">
           {PRESETS.map((p) => (
             <button
               key={p.id}
@@ -34,20 +34,20 @@ export function InputPanel({ text, setText, preset, setPreset, onGenerate, onSam
               role="radio"
               aria-checked={preset === p.id}
               onClick={() => setPreset(p.id)}
-              className={`rounded-xl border px-3 py-2 text-left transition ${
+              className={`rounded-xl border px-2 py-2 text-center transition md:px-3 md:text-left ${
                 preset === p.id
                   ? 'border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/60'
                   : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800'
               }`}
             >
-              <div className="text-sm font-semibold">{p.label}</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">{p.hint}</div>
+              <div className="text-xs font-semibold md:text-sm">{p.label}</div>
+              <div className="hidden text-xs text-slate-500 dark:text-slate-400 md:block">{p.hint}</div>
             </button>
           ))}
         </div>
       </section>
 
-      <section className="flex min-h-0 flex-col">
+      <section className="flex shrink-0 flex-col">
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">テキスト</h3>
           <span className="text-xs text-slate-400">{text.length} 文字</span>
@@ -61,7 +61,7 @@ export function InputPanel({ text, setText, preset, setPreset, onGenerate, onSam
           }}
           spellCheck={false}
           placeholder={'会議メモ・ニュース・物語のあらすじなどを貼り付け\n\n書き方の例:\nA → B: 関係名\nA vs B\n- 箇条書きの項目'}
-          className="field resize-none leading-relaxed"
+          className="field shrink-0 resize-none text-base leading-relaxed md:text-sm"
         />
         <details className="mt-2 text-xs text-slate-500 dark:text-slate-400">
           <summary className="cursor-pointer select-none">書式ヒント</summary>
@@ -98,7 +98,7 @@ export function InputPanel({ text, setText, preset, setPreset, onGenerate, onSam
         </div>
       </section>
 
-      <div className="sticky bottom-0 -mx-4 mt-auto border-t border-slate-200 bg-slate-50/90 px-4 pb-1 pt-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
+      <div className="sticky bottom-0 -mx-3 mt-auto border-t md:-mx-4 border-slate-200 bg-slate-50/90 px-3 pb-2 pt-3 md:px-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
         <button
           type="button"
           className="btn-primary w-full py-2.5"

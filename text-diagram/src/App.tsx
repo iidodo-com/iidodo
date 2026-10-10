@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, Moon, Network, Settings as SettingsIcon, Sun } from 'lucide-react';
+import { AlertTriangle, Moon, PencilLine, Workflow as FlowIcon, Network, Settings as SettingsIcon, Sun } from 'lucide-react';
 import type { DNode, Graph, Preset, RawGraph, Settings, Theme, View } from './types';
 import { autoLayout, buildGraph, nodeSize } from './lib/layout';
 import { parseText } from './lib/parser';
@@ -53,6 +53,7 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [modal, setModal] = useState<'settings' | 'data' | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<'input' | 'diagram'>('input'); // mobile only
   const [notice, setNotice] = useState<{ kind: 'warn' | 'info'; msg: string } | null>(null);
 
   const aiOn = settings.provider !== 'none' && settings.apiKey.length > 0;
@@ -97,6 +98,7 @@ export default function App() {
         return;
       }
       applyRaw(raw, p);
+      setTab('diagram');
     },
     [text, preset, aiOn, settings, applyRaw],
   );
@@ -143,7 +145,7 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900">
+      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-3 py-2 md:px-4 md:py-2.5 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center gap-2.5">
           <div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-900 text-white dark:bg-blue-500">
             <Network size={17} />
@@ -180,7 +182,9 @@ export default function App() {
       </header>
 
       <main className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="max-h-[55vh] w-full shrink-0 border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950 md:max-h-none md:w-[380px] md:border-b-0 md:border-r">
+        <aside
+          className={`${tab === 'input' ? 'block' : 'hidden'} min-h-0 w-full flex-1 bg-slate-50 dark:bg-slate-950 md:block md:w-[380px] md:flex-none md:border-r md:border-slate-200 md:dark:border-slate-800`}
+        >
           <InputPanel
             text={text}
             setText={setText}
@@ -193,7 +197,7 @@ export default function App() {
           />
         </aside>
 
-        <section className="relative min-h-[60vh] flex-1 md:min-h-0">
+        <section className={`${tab === 'diagram' ? 'block' : 'hidden'} relative min-h-0 flex-1 md:block`}>
           <Canvas
             nodes={graph.nodes}
             edges={graph.edges}
@@ -246,6 +250,29 @@ export default function App() {
           </AnimatePresence>
         </section>
       </main>
+
+      <nav className="grid grid-cols-2 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-slate-800 dark:bg-slate-900 md:hidden">
+        {(
+          [
+            ['input', '入力', PencilLine],
+            ['diagram', '図解', FlowIcon],
+          ] as const
+        ).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => {
+              setTab(id);
+              if (id === 'diagram') setFitSignal((n) => n + 1);
+            }}
+            className={`flex items-center justify-center gap-1.5 py-3 text-sm font-medium ${
+              tab === id ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'
+            }`}
+          >
+            <Icon size={16} /> {label}
+          </button>
+        ))}
+      </nav>
 
       <SettingsModal
         open={modal === 'settings'}

@@ -115,7 +115,9 @@ function layered(g: Graph, dir: 'LR' | 'TB'): DNode[] {
   const GAP_LAYER = 110;
   const GAP_NODE = 36;
   const GAP_ROW = 90;
-  const WRAP = dir === 'LR' ? 1500 : 1100; // wrap long chains into extra rows / columns
+  // wrap long chains into extra rows / columns; portrait phones want narrow rows and tall columns
+  const narrow = typeof window !== 'undefined' && window.innerWidth < 768;
+  const WRAP = dir === 'LR' ? (narrow ? 560 : 1500) : narrow ? 4000 : 1100;
 
   const info = layerList.map((l) => {
     const main = Math.max(...l.map((id) => (dir === 'LR' ? byId.get(id)!.w : byId.get(id)!.h)));
