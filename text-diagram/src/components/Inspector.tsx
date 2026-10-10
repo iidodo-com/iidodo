@@ -24,7 +24,7 @@ export function Inspector({
       initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -12 }}
-      className="absolute left-4 top-4 w-64 rounded-xl border border-slate-200 bg-white/95 p-3 text-sm shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-800/95"
+      className="absolute left-2 top-14 w-60 md:left-4 md:top-4 md:w-64 rounded-xl border border-slate-200 bg-white/95 p-3 text-sm shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-800/95"
     >
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">ノード編集</span>

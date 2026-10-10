@@ -33,6 +33,8 @@ export function Canvas({ nodes, edges, selectedId, theme, view, setView, onSelec
     | { type: 'node'; id: string; sx: number; sy: number; ox: number; oy: number; moved: boolean }
     | null
   >(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ dist: number; cx: number; cy: number; v: View } | null>(null);
   const [panning, setPanning] = useState(false);
   const c = CANVAS[theme];
 
@@ -40,6 +42,8 @@ export function Canvas({ nodes, edges, selectedId, theme, view, setView, onSelec
     const ns = nodesRef.current;
     if (ns.length === 0) return setView({ x: 0, y: 0, k: 1 });
     const b = bounds(ns);
+    const el = wrap.current;
+    if (el && el.clientWidth > 0) size.current = { w: el.clientWidth, h: el.clientHeight };
     const { w, h } = size.current;
     const pad = 70;
     const k = clamp(Math.min((w - pad * 2) / (b.maxX - b.minX), (h - pad * 2) / (b.maxY - b.minY), 1.2));
@@ -88,6 +92,15 @@ export function Canvas({ nodes, edges, selectedId, theme, view, setView, onSelec
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
+    const r0 = e.currentTarget.getBoundingClientRect();
+    pointers.current.set(e.pointerId, { x: e.clientX - r0.left, y: e.clientY - r0.top });
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      pinch.current = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, v: view };
+      drag.current = null;
+      setPanning(false);
+      return;
+    }
     const target = (e.target as Element).closest('[data-node-id]');
     e.currentTarget.setPointerCapture(e.pointerId);
     if (target) {
@@ -100,6 +113,19 @@ export function Canvas({ nodes, edges, selectedId, theme, view, setView, onSelec
     }
   };
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (pointers.current.has(e.pointerId)) {
+      const r = e.currentTarget.getBoundingClientRect();
+      pointers.current.set(e.pointerId, { x: e.clientX - r.left, y: e.clientY - r.top });
+    }
+    const pz = pinch.current;
+    if (pz && pointers.current.size >= 2) {
+      const [a, b] = [...pointers.current.values()];
+      const k = clamp((pz.v.k * (Math.hypot(a.x - b.x, a.y - b.y) || 1)) / pz.dist);
+      const cx = (a.x + b.x) / 2;
+      const cy = (a.y + b.y) / 2;
+      setView({ k, x: cx - ((pz.cx - pz.v.x) * k) / pz.v.k, y: cy - ((pz.cy - pz.v.y) * k) / pz.v.k });
+      return;
+    }
     const d = drag.current;
     if (!d) return;
     const dx = e.clientX - d.sx;
@@ -109,7 +135,13 @@ export function Canvas({ nodes, edges, selectedId, theme, view, setView, onSelec
     if (d.type === 'pan') setView((v) => ({ ...v, x: d.ox + dx, y: d.oy + dy }));
     else onMoveNode(d.id, d.ox + dx / view.k, d.oy + dy / view.k);
   };
-  const onPointerUp = () => {
+  const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    pointers.current.delete(e.pointerId);
+    if (pinch.current) {
+      if (pointers.current.size < 2) pinch.current = null;
+      drag.current = null;
+      return;
+    }
     const d = drag.current;
     drag.current = null;
     setPanning(false);
@@ -140,7 +172,7 @@ export function Canvas({ nodes, edges, selectedId, theme, view, setView, onSelec
         </g>
       </svg>
 
-      <div className="absolute bottom-4 left-4 flex items-center gap-1 rounded-xl border border-slate-200 bg-white/90 p-1 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-800/90">
+      <div className="absolute bottom-3 left-3 flex items-center gap-1 md:bottom-4 md:left-4 rounded-xl border border-slate-200 bg-white/90 p-1 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-800/90">
         <IconBtn label="縮小" onClick={() => zoomBy(1 / 1.25)}>
           <Minus size={16} />
         </IconBtn>
