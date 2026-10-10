@@ -69,3 +69,30 @@ fun ConfirmDialog(title: String, message: String, confirmLabel: String, onDismis
         dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
     )
 }
+
+/** 再処理（話者分離の ON/OFF・話者数を変えて最初からやり直す）。 */
+@Composable
+fun ReprocessDialog(initialDiarize: Boolean, initialSpeakers: Int?, onDismiss: () -> Unit, onConfirm: (Boolean, Int?) -> Unit) {
+    var diarize by remember { mutableStateOf(initialDiarize) }
+    var n by remember { mutableStateOf(initialSpeakers?.toString() ?: "") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("再処理") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("文字起こし結果・話者名・修正履歴を消して、最初から処理し直します。")
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Switch(diarize, { diarize = it }); Text("話者を分離する")
+                }
+                if (diarize) {
+                    OutlinedTextField(
+                        n, { n = it.filter(Char::isDigit).take(2) },
+                        label = { Text("話者数（空欄なら自動推定）") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(diarize, n.toIntOrNull()?.takeIf { it > 0 }) }) { Text("再処理する") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
+    )
+}

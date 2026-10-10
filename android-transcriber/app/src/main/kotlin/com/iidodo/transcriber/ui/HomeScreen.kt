@@ -70,6 +70,10 @@ fun HomeScreen(onRecord: () -> Unit, onOpen: (Long) -> Unit, onSettings: () -> U
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> picked = uri }
     val notif = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    // 通知の許可は Android 13 以上でのみ必要（進捗通知を出すため）
+    fun requestNotification() {
+        if (android.os.Build.VERSION.SDK_INT >= 33) notif.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    }
 
     Scaffold(
         topBar = {
@@ -85,13 +89,13 @@ fun HomeScreen(onRecord: () -> Unit, onOpen: (Long) -> Unit, onSettings: () -> U
             }
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = {
-                    notif.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    requestNotification()
                     onRecord()
                 }, modifier = Modifier.weight(1f)) {
                     Icon(Icons.Default.Mic, null); Text(" 録音")
                 }
                 OutlinedButton(onClick = {
-                    notif.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    requestNotification()
                     picker.launch(arrayOf("audio/*", "video/*"))
                 }, modifier = Modifier.weight(1f)) {
                     Icon(Icons.Default.FolderOpen, null); Text(" ファイル取込")

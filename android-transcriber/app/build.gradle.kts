@@ -11,7 +11,8 @@ android {
 
     defaultConfig {
         applicationId = "com.iidodo.transcriber"
-        minSdk = 26
+        // 動的カラー(31)・型付きフォアグラウンドサービスを前提にする。Android 12 以上。
+        minSdk = 31
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
