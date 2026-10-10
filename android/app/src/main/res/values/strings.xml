@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">かんたん割り勘</string>
+    <string name="total">合計金額（円）</string>
+    <string name="people">人数</string>
+    <string name="unit">切り上げ単位</string>
+    <string name="unit_1">1円</string>
+    <string name="unit_10">10円</string>
+    <string name="unit_100">100円</string>
+    <string name="unit_500">500円</string>
+    <string name="share">結果を共有</string>
+    <string name="clear">クリア</string>
+</resources>
