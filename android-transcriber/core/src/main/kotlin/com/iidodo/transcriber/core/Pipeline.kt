@@ -26,7 +26,7 @@ interface Diarizer {
 data class RecognizedText(val text: String, val words: List<Word> = emptyList())
 
 /** 音声認識。engine ごとに hotwords / prompt の扱いは異なる（使えない場合は無視してよい）。 */
-interface Recognizer {
+fun interface Recognizer {
     fun transcribe(samples: FloatArray, sampleRate: Int, hotwords: List<String>, prompt: String): RecognizedText
 }
 
