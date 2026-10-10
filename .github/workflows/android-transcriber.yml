@@ -24,7 +24,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
+      - name: Ensure Android SDK packages
+        working-directory: .
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
       - name: Fetch sherpa-onnx Kotlin API and native libs
         run: |
           SHERPA_REF="v${{ inputs.sherpa_version || '1.13.8' }}" ./scripts/fetch_sherpa.sh
