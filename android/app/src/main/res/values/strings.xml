@@ -9,4 +9,10 @@
     <string name="unit_500">500円</string>
     <string name="share">結果を共有</string>
     <string name="clear">クリア</string>
+    <string name="open_shopping">買い物リスト</string>
+    <string name="shopping_title">買い物リスト</string>
+    <string name="item_hint">品名（長押しで削除）</string>
+    <string name="add">追加</string>
+    <string name="empty_list">リストは空です</string>
+    <string name="clear_checked">チェック済みを削除</string>
 </resources>

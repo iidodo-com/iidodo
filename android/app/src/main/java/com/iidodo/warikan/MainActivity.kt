@@ -60,6 +60,9 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
+        findViewById<Button>(R.id.btnShopping).setOnClickListener {
+            startActivity(Intent(this, ShoppingActivity::class.java))
+        }
         update()
     }
 
