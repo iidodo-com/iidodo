@@ -1,12 +1,16 @@
-# android-transcriber の APK をビルドする（手動実行のみ）。
+# android-transcriber の APK をビルドして artifact に出力する。
 # sherpa-onnx の Kotlin API とネイティブライブラリは、ビルド時に公式リポジトリ/Releases から取得する（リポジトリには含めない）。
 name: android-transcriber
 on:
+  # デフォルトブランチに無い間は workflow_dispatch が使えないため、この開発ブランチへの push でも実行する
+  push:
+    branches: [ccr-8f9a4f1f-pafggk]
+    paths: ["android-transcriber/**", ".github/workflows/android-transcriber.yml"]
   workflow_dispatch:
     inputs:
       sherpa_version:
         description: "sherpa-onnx のバージョン（例: 1.13.8）。Kotlin API と .so を同じ版で取得する"
-        required: true
+        required: false
         default: "1.13.8"
 jobs:
   build:
@@ -23,8 +27,8 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Fetch sherpa-onnx Kotlin API and native libs
         run: |
-          SHERPA_REF="v${{ inputs.sherpa_version }}" ./scripts/fetch_sherpa.sh
-          ./scripts/fetch_sherpa_libs.sh "${{ inputs.sherpa_version }}"
+          SHERPA_REF="v${{ inputs.sherpa_version || '1.13.8' }}" ./scripts/fetch_sherpa.sh
+          ./scripts/fetch_sherpa_libs.sh "${{ inputs.sherpa_version || '1.13.8' }}"
       - name: Fetch models (bundled into the APK)
         run: ./scripts/fetch_models.sh app/src/main/assets/models
       - name: Unit tests
