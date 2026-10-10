@@ -1,0 +1,9 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+# sherpa-onnx: スクリプトで取得するもの（再配布しない）
+app/src/main/java/com/k2fsa/
+app/src/main/jniLibs/
+app/src/main/assets/models/
