@@ -38,6 +38,10 @@ describe('parseText', () => {
     expect(g.nodes.find((n) => n.label === '劉備')?.category).toBe('君主');
     expect(g.nodes.find((n) => n.label === '関羽')?.category).toBe('蜀');
   });
+  it('parenthesized category overrides section category', () => {
+    const g = parseText('# 経営陣\n森田 → 中村: a\n# 開発部\n中村(部長) → 佐々木: b', 'relation');
+    expect(g.nodes.find((n) => n.label === '中村')?.category).toBe('部長');
+  });
   it('parses simple Japanese sentences', () => {
     const g = parseText('田中は佐藤にデザイン作成を依頼した。', 'relation');
     expect(g.edges[0]).toMatchObject({ source: '田中', target: '佐藤', label: 'デザイン作成を依頼した' });

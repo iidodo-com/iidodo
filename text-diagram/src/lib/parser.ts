@@ -20,11 +20,13 @@ class Builder {
     let label = token.trim().replace(/^[「『"'“]|[」』"'”]$/g, '').trim();
     let cat = category;
     let explicit = category !== undefined;
+    let paren = false;
     const m = NODE_CAT.exec(label);
     if (m && m[1].trim()) {
       label = m[1].trim();
       cat = m[2].trim();
       explicit = true;
+      paren = true;
     }
     label = label.replace(/[。.、,]$/, '');
     if (!label) return null;
@@ -35,7 +37,7 @@ class Builder {
       n = { label, category: cat, explicit };
       this.index.set(key, n);
       this.nodes.push(n);
-    } else if (explicit && !n.explicit) {
+    } else if (paren || (explicit && !n.explicit)) {
       n.category = cat;
       n.explicit = true;
     }
