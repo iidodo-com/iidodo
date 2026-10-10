@@ -33,6 +33,8 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    // onnx モデルは圧縮しない（展開時間を短縮）
+    androidResources { noCompress += listOf("onnx") }
     buildFeatures {
         compose = true
     }

@@ -38,7 +38,11 @@ class App : Application() {
         nm.createNotificationChannel(NotificationChannel(CHANNEL_REC, "録音", NotificationManager.IMPORTANCE_LOW))
         nm.createNotificationChannel(NotificationChannel(CHANNEL_JOB, "文字起こし", NotificationManager.IMPORTANCE_LOW))
         // プロセスが落ちて RUNNING のまま残ったジョブを再開可能(CANCELED)へ戻す
-        io.execute { db.dao().markInterrupted() }
+        io.execute {
+            db.dao().markInterrupted()
+            // 同梱モデルを初回に展開（以後は何もしない）
+            com.iidodo.transcriber.engine.ModelInstaller.ensure(this, storage.modelsDir)
+        }
     }
 
     companion object {
