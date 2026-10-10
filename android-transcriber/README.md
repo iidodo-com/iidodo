@@ -54,7 +54,7 @@ cd android-transcriber
 ./scripts/fetch_sherpa.sh                 # Kotlin API を app/src/main/java/com/k2fsa/ へ（v1.13.8。raw.githubusercontent.com から取得）
 ./scripts/fetch_sherpa_libs.sh 1.13.8     # arm64 の .so を app/src/main/jniLibs/ へ（GitHub Releases から取得）
 ```
-- 2 つ目は `github.com` に接続できる環境で実行してください。アセット名は公式の命名規則に基づく想定で、**未検証**です（失敗したら Releases ページで実名を確認）。
+- 2 つ目は `github.com` に接続できる環境で実行してください。`v1.13.8` のアセット（`sherpa-onnx-v1.13.8-android.tar.bz2`）の取得と、JNI 関数 31 個が `.so` に存在することは確認済みです。
 - Kotlin API と `.so` は**同じバージョン**にしてください。`v1.13.8` の Kotlin API でアプリがコンパイルできることは確認済みです。
 
 ### 3. ビルドとインストール
@@ -66,7 +66,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 PC に Android 環境がない場合は、GitHub Actions の `android-transcriber` ワークフロー（手動実行）で APK を作れます（**未検証**）。
 
-### 4. モデルの配置（初回のみ）
+### 4. モデルの配置
+**配布 APK にはモデルを同梱しています**（`./scripts/fetch_models.sh app/src/main/assets/models` を実行してからビルドすると同梱され、初回起動時に端末内へ展開されます。APK は約 360MB）。同梱せずに adb で送る場合は以下です。
 ```bash
 ./scripts/fetch_models.sh ./models            # 約 280MB（話者分離を使わないなら --no-diarization）
 ./scripts/push_models.sh ./models             # adb で端末のアプリ専用領域へ送る（USB デバッグ要。アプリを一度起動してから）
@@ -131,7 +132,7 @@ canonical,variants,use_prompt
 
 ## 未検証（正直に）
 - スマホ実機での動作全般（復号・録音・サービス継続・UI・発熱・メモリ）。AQUOS sense9 での 1 時間音声の処理時間。
-- GitHub Actions ワークフロー、`fetch_sherpa_libs.sh` のアセット名。
+- GitHub Actions ワークフロー。
 - 日本語会議音声での認識精度（CER）と話者分離精度。
 - Android 16 のバックグラウンド制限下で、画面オフ・省電力設定時に処理が止まらないか。
 - 話者分離の `processWithCallback` のコールバック戻り値の意味（中断に使えるか）。現状は常に 0 を返し、キャンセルは前後で確認。

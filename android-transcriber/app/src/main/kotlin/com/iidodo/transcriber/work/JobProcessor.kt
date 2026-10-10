@@ -45,6 +45,7 @@ object JobProcessor {
             }
             FilePcmSource(pcm, header).use { source ->
                 if (job.durationSec <= 0.0) dao.setDuration(jobId, source.totalSamples / 16000.0)
+                com.iidodo.transcriber.engine.ModelInstaller.ensure(app, app.storage.modelsDir)
                 val engine = app.engine()
                 val pipeline = TranscriptionPipeline(
                     detector = engine.detector,
