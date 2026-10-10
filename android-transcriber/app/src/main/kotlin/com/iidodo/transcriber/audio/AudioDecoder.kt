@@ -112,22 +112,26 @@ object AudioDecoder {
     private fun MediaFormat.getIntegerOrDefault(key: String, default: Int) =
         if (containsKey(key)) getInteger(key) else default
 
-    /** ストリーミング線形補間リサンプラ（入力レート可変 → 16kHz）。音声認識用途なので簡易で十分。 */
+    /**
+     * ストリーミング線形補間リサンプラ（入力レート可変 → 16kHz）。音声認識用途なので簡易で十分。
+     * k 番目の出力は入力上の位置 k*inRate/outRate。位置は整数カウンタから都度計算し、長時間でも誤差を溜めない。
+     */
     internal class LinearResampler(private val outRate: Int = AudioMath.SAMPLE_RATE) {
         private var prev = 0f
-        private var pos = 0.0 // 入力サンプル上の次の出力位置（prev を 0 とする）
-        private var first = true
+        private var n = -1L // 直近に受け取った入力サンプルの番号
+        private var k = 0L // 次に出す出力サンプルの番号
 
         inline fun push(x: Float, inRate: Int, emit: (Float) -> Unit) {
             if (inRate == outRate) { emit(x); return }
-            if (first) { prev = x; first = false; pos = 0.0 }
-            val step = inRate.toDouble() / outRate
-            // prev(位置0) と x(位置1) の間にある出力点を出す
-            while (pos < 1.0) {
-                emit((prev + (x - prev) * pos).toFloat())
-                pos += step
+            n++
+            if (n == 0L) prev = x
+            while (true) {
+                val pos = k * inRate.toDouble() / outRate
+                if (pos > n) break
+                val frac = (pos - (n - 1)).coerceIn(0.0, 1.0)
+                emit((prev + (x - prev) * frac).toFloat())
+                k++
             }
-            pos -= 1.0
             prev = x
         }
     }

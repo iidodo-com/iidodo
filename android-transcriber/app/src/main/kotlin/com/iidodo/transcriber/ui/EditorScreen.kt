@@ -377,14 +377,12 @@ fun EditorScreen(jobId: Long, onBack: () -> Unit) {
     // --- 再処理 ---
     if (showReprocess) {
         job?.let { j ->
-            ConfirmDialog(
-                "再処理しますか？",
-                "文字起こし結果・話者名・修正履歴を消して、最初から処理し直します。話者分離は${if (j.diarize) "ON" else "OFF"}のまま実行します（切り替える場合はホームで削除して取り込み直してください）。",
-                "再処理",
+            ReprocessDialog(
+                j.diarize, j.numSpeakers,
                 onDismiss = { showReprocess = false },
-                onConfirm = {
+                onConfirm = { d, n ->
                     showReprocess = false
-                    scope.launch { withContext(Dispatchers.IO) { Actions.reprocess(ctx, jobId, j.diarize, j.numSpeakers) } }
+                    scope.launch { withContext(Dispatchers.IO) { Actions.reprocess(ctx, jobId, d, n) } }
                     onBack()
                 },
             )

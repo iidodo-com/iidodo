@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -47,7 +48,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val app = App.instance
     val scope = rememberCoroutineScope()
     val paths = remember { ModelPaths(app.storage.modelsDir) }
-    var refresh by remember { mutableStateOf(0) }
+    var refresh by remember { mutableIntStateOf(0) }
     val missingAsr = remember(refresh) { paths.missingAsr().map(paths::relative) }
     val missingDia = remember(refresh) { paths.missingDiarization().map(paths::relative) }
     var glossary by remember { mutableStateOf(runCatching { app.storage.glossaryFile.readText() }.getOrDefault(GLOSSARY_TEMPLATE)) }
