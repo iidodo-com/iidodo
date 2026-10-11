@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>集中クエスト</title>
+<style>
+:root {
+  --bg1: #0b0720; --bg2: #1a0f3d;
+  --card: rgba(255,255,255,.07); --line: rgba(255,255,255,.14);
+  --text: #f3efff; --muted: #a79fc9;
+  --c1: #ff3d9a; --c2: #7c4dff; --c3: #00e5ff; --ok: #5dffb0;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; color: var(--text);
+  font-family: "Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+  background: radial-gradient(1200px 700px at 15% -10%, #3b1a8a55, transparent),
+              radial-gradient(900px 600px at 100% 10%, #ff3d9a33, transparent),
+              linear-gradient(160deg, var(--bg1), var(--bg2));
+  background-attachment: fixed;
+}
+#fx { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 60px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 {
+  margin: 0; font-size: 1.6rem; letter-spacing: .04em;
+  background: linear-gradient(90deg, var(--c3), var(--c1), var(--c2));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 12px #7c4dff88);
+}
+.player { display: flex; align-items: center; gap: 12px; min-width: 240px; }
+.lv {
+  font-weight: 800; padding: 6px 12px; border-radius: 999px;
+  background: linear-gradient(135deg, var(--c1), var(--c2)); box-shadow: 0 0 18px #ff3d9a66;
+}
+.xpbar { flex: 1; height: 10px; border-radius: 99px; background: #ffffff1c; overflow: hidden; }
+.xpbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--c3), var(--ok)); box-shadow: 0 0 12px var(--c3); transition: width .6s; }
+.xptxt { font-size: .75rem; color: var(--muted); white-space: nowrap; }
+.grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; margin-top: 18px; }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 20px;
+  backdrop-filter: blur(14px); box-shadow: 0 10px 40px #0006;
+}
+h2 { margin: 0 0 12px; font-size: 1rem; color: var(--muted); font-weight: 600; letter-spacing: .08em; }
+/* timer */
+.modes { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; }
+.modes button {
+  border: 1px solid var(--line); background: transparent; color: var(--muted);
+  padding: 6px 14px; border-radius: 99px; cursor: pointer; font-size: .85rem;
+}
+.modes button.on { color: #fff; background: #ffffff1f; border-color: var(--c3); box-shadow: 0 0 12px #00e5ff55; }
+.ringbox { position: relative; width: min(320px, 80vw); margin: 0 auto; aspect-ratio: 1; }
+.ringbox svg { width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+.ringbox .bg { stroke: #ffffff18; }
+.ringbox .fg { stroke: url(#g); stroke-linecap: round; filter: drop-shadow(0 0 10px #ff3d9a) drop-shadow(0 0 18px #7c4dff); transition: stroke-dashoffset .4s linear; }
+.time { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+.time b { font-size: clamp(2.6rem, 14vw, 4rem); font-variant-numeric: tabular-nums; letter-spacing: .03em; text-shadow: 0 0 22px #7c4dffaa; }
+.time span { display: block; font-size: .85rem; color: var(--muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.running .fg { animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 50% { filter: drop-shadow(0 0 16px #00e5ff) drop-shadow(0 0 30px #ff3d9a); } }
+.ctl { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
+button.btn {
+  border: 0; cursor: pointer; color: #fff; font-weight: 700; font-size: 1rem;
+  padding: 12px 26px; border-radius: 14px; background: linear-gradient(135deg, var(--c1), var(--c2));
+  box-shadow: 0 6px 24px #ff3d9a55; transition: transform .1s;
+}
+button.btn:active { transform: scale(.96); }
+button.btn.ghost { background: #ffffff1a; box-shadow: none; }
+/* tasks */
+.add { display: flex; gap: 8px; }
+.add input {
+  flex: 1; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line);
+  background: #00000033; color: var(--text); font-size: .95rem; outline: none;
+}
+.add input:focus { border-color: var(--c3); box-shadow: 0 0 12px #00e5ff44; }
+ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; max-height: 340px; overflow: auto; }
+li {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
+  background: #ffffff0d; border: 1px solid transparent; animation: pop .3s;
+}
+li.active { border-color: var(--c1); box-shadow: 0 0 14px #ff3d9a55; }
+li.done .t { text-decoration: line-through; color: var(--muted); }
+li .t { flex: 1; cursor: pointer; word-break: break-all; }
+li .pm { font-size: .75rem; color: var(--c3); white-space: nowrap; }
+li button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 1.1rem; }
+li input[type=checkbox] { accent-color: var(--ok); width: 18px; height: 18px; }
+@keyframes pop { from { transform: scale(.9); opacity: 0; } }
+.empty { color: var(--muted); font-size: .9rem; text-align: center; padding: 14px 0; }
+/* stats */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.stat { text-align: center; padding: 12px 6px; border-radius: 14px; background: #ffffff0d; }
+.stat b { display: block; font-size: 1.5rem; background: linear-gradient(90deg, var(--c3), var(--ok)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.stat small { color: var(--muted); font-size: .72rem; }
+.chart { display: flex; align-items: flex-end; gap: 8px; height: 120px; }
+.bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; font-size: .7rem; color: var(--muted); }
+.bar i { width: 100%; max-width: 34px; border-radius: 8px 8px 3px 3px; background: linear-gradient(180deg, var(--c1), var(--c2)); box-shadow: 0 0 10px #7c4dff66; min-height: 3px; transition: height .6s; }
+.bar.today i { background: linear-gradient(180deg, var(--c3), var(--ok)); box-shadow: 0 0 12px #00e5ff88; }
+.bar.today { color: var(--text); }
+.badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.badge { padding: 6px 12px; border-radius: 99px; font-size: .78rem; background: #ffffff0d; color: var(--muted); filter: grayscale(1); opacity: .6; }
+.badge.on { filter: none; opacity: 1; color: #fff; background: linear-gradient(135deg, #ffb30088, #ff3d9a88); box-shadow: 0 0 14px #ffb30066; }
+.full { grid-column: 1 / -1; }
+.toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 120px); z-index: 60;
+  padding: 12px 22px; border-radius: 99px; font-weight: 700;
+  background: linear-gradient(135deg, var(--c1), var(--c2)); box-shadow: 0 0 30px #ff3d9a99; transition: transform .4s;
+}
+.toast.show { transform: translate(-50%, 0); }
+.foot { text-align: center; color: var(--muted); font-size: .75rem; margin-top: 24px; }
+.foot a { color: var(--c3); cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="wrap">
+  <header>
+    <h1>⚡ 集中クエスト</h1>
+    <div class="player">
+      <span class="lv" id="lv">Lv.1</span>
+      <div style="flex:1">
+        <div class="xpbar"><i id="xpbar"></i></div>
+        <div class="xptxt" id="xptxt"></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="card" id="timerCard">
+      <h2>FOCUS TIMER</h2>
+      <div class="modes" id="modes">
+        <button data-m="focus" class="on">集中 25</button>
+        <button data-m="short">休憩 5</button>
+        <button data-m="long">長休憩 15</button>
+      </div>
+      <div class="ringbox">
+        <svg viewBox="0 0 200 200">
+          <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#00e5ff"/><stop offset=".5" stop-color="#7c4dff"/><stop offset="1" stop-color="#ff3d9a"/>
+          </linearGradient></defs>
+          <circle class="bg" cx="100" cy="100" r="88" fill="none" stroke-width="10"/>
+          <circle class="fg" id="ring" cx="100" cy="100" r="88" fill="none" stroke-width="10"
+                  stroke-dasharray="552.92" stroke-dashoffset="0"/>
+        </svg>
+        <div class="time"><div><b id="clock">25:00</b><span id="curTask">タスクを選んで開始</span></div></div>
+      </div>
+      <div class="ctl">
+        <button class="btn" id="start">▶ スタート</button>
+        <button class="btn ghost" id="reset">↺ リセット</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>QUESTS</h2>
+      <form class="add" id="addForm">
+        <input id="newTask" placeholder="今日のクエストを追加…" maxlength="80" autocomplete="off">
+        <button class="btn" style="padding:10px 18px">＋</button>
+      </form>
+      <ul id="tasks"></ul>
+    </section>
+
+    <section class="card full">
+      <h2>STATS</h2>
+      <div class="stats">
+        <div class="stat"><b id="sToday">0</b><small>今日の集中(分)</small></div>
+        <div class="stat"><b id="sStreak">0</b><small>連続日数 🔥</small></div>
+        <div class="stat"><b id="sTotal">0</b><small>累計ポモドーロ</small></div>
+      </div>
+      <div class="chart" id="chart"></div>
+      <div class="badges" id="badges"></div>
+    </section>
+  </div>
+  <p class="foot">データはこのブラウザ内にのみ保存されます ・ <a id="wipe">データを全消去</a> ・ Space で開始/停止</p>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const KEY = "focusquest.v1";
+  const MODES = { focus: 25, short: 5, long: 15 };
+  const CIRC = 2 * Math.PI * 88;
+  const BADGES = [
+    { id: "first", label: "🌱 はじめの一歩", ok: s => s.total >= 1 },
+    { id: "five", label: "⚔️ 5ポモ達成", ok: s => s.total >= 5 },
+    { id: "ten", label: "🏆 10ポモ達成", ok: s => s.total >= 10 },
+    { id: "streak3", label: "🔥 3日連続", ok: s => streak(s) >= 3 },
+    { id: "streak7", label: "🌋 7日連続", ok: s => streak(s) >= 7 },
+    { id: "tasks5", label: "✅ クエスト5個クリア", ok: s => s.cleared >= 5 },
+    { id: "lv5", label: "👑 Lv.5到達", ok: s => levelOf(s.xp).lv >= 5 },
+  ];
+
+  const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  let S = load();
+  function load() {
+    try { return { xp: 0, total: 0, cleared: 0, days: {}, tasks: [], ...JSON.parse(localStorage.getItem(KEY)) }; }
+    catch { return { xp: 0, total: 0, cleared: 0, days: {}, tasks: [] }; }
+  }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
+
+  // XP: Lv n -> n+1 needs n*100
+  function levelOf(xp) {
+    let lv = 1, need = 100;
+    while (xp >= need) { xp -= need; lv++; need = lv * 100; }
+    return { lv, cur: xp, need };
+  }
+  function streak(s) {
+    let n = 0; const d = new Date();
+    if (!s.days[dayKey(d)]) d.setDate(d.getDate() - 1);
+    while (s.days[dayKey(d)]) { n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+
+  // ---------- timer ----------
+  let mode = "focus", total = MODES.focus * 60, left = total, timer = null, endAt = 0, activeId = null;
+  const fmt = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  function drawTimer() {
+    $("clock").textContent = fmt(Math.max(0, Math.ceil(left)));
+    $("ring").style.strokeDashoffset = CIRC * (1 - left / total);
+    $("start").textContent = timer ? "❚❚ 一時停止" : "▶ スタート";
+    $("timerCard").classList.toggle("running", !!timer);
+    const t = S.tasks.find(t => t.id === activeId);
+    $("curTask").textContent = mode !== "focus" ? "ひと息つこう ☕" : t ? "🎯 " + t.text : "タスクを選んで開始";
+    document.title = timer ? `${fmt(Math.ceil(left))} 集中クエスト` : "集中クエスト";
+  }
+  function setMode(m) {
+    stop(); mode = m; total = left = MODES[m] * 60;
+    document.querySelectorAll("#modes button").forEach(b => b.classList.toggle("on", b.dataset.m === m));
+    drawTimer();
+  }
+  function stop() { clearInterval(timer); timer = null; }
+  function toggle() {
+    audio();
+    if (timer) { left = Math.max(0, (endAt - Date.now()) / 1000); stop(); drawTimer(); return; }
+    endAt = Date.now() + left * 1000;
+    timer = setInterval(() => {
+      left = Math.max(0, (endAt - Date.now()) / 1000);
+      drawTimer();
+      if (left <= 0) finish();
+    }, 250);
+    drawTimer();
+  }
+  function finish() {
+    stop(); beep();
+    if (mode === "focus") {
+      const mins = MODES.focus, k = dayKey();
+      const before = levelOf(S.xp).lv;
+      S.total++; S.xp += 50;
+      S.days[k] = (S.days[k] || 0) + mins;
+      const t = S.tasks.find(t => t.id === activeId);
+      if (t) t.pomos = (t.pomos || 0) + 1;
+      const newly = checkBadges();
+      save(); render();
+      confetti(160);
+      toast(`+50 XP！ ${S.total % 4 === 0 ? "長めの休憩を！" : "お疲れさま 🎉"}`);
+      if (levelOf(S.xp).lv > before) setTimeout(() => { confetti(260); toast(`LEVEL UP！ Lv.${levelOf(S.xp).lv} 🚀`); }, 2200);
+      else newly.forEach(b => setTimeout(() => toast("バッジ獲得：" + b.label), 2200));
+      notify("集中完了！", "休憩しましょう");
+      setMode(S.total % 4 === 0 ? "long" : "short");
+    } else {
+      toast("休憩終了。次のクエストへ ⚡");
+      notify("休憩終了", "次の集中を始めましょう");
+      setMode("focus");
+    }
+  }
+  function checkBadges() {
+    S.badges = S.badges || [];
+    const out = BADGES.filter(b => !S.badges.includes(b.id) && b.ok(S));
+    out.forEach(b => S.badges.push(b.id));
+    return out;
+  }
+
+  // ---------- tasks ----------
+  function render() {
+    const ul = $("tasks"); ul.innerHTML = "";
+    if (!S.tasks.length) ul.innerHTML = '<div class="empty">クエストを追加して冒険を始めよう</div>';
+    S.tasks.forEach(t => {
+      const li = document.createElement("li");
+      li.className = (t.done ? "done " : "") + (t.id === activeId ? "active" : "");
+      const cb = Object.assign(document.createElement("input"), { type: "checkbox", checked: t.done });
+      cb.onchange = () => {
+        t.done = cb.checked;
+        if (t.done) { S.cleared++; S.xp += 20; confetti(70); toast("クエストクリア！ +20 XP ✨"); checkBadges().forEach(b => toast("バッジ獲得：" + b.label)); if (activeId === t.id) activeId = null; }
+        else S.cleared = Math.max(0, S.cleared - 1);
+        save(); render(); drawTimer();
+      };
+      const txt = document.createElement("span"); txt.className = "t"; txt.textContent = t.text;
+      txt.onclick = () => { if (!t.done) { activeId = activeId === t.id ? null : t.id; render(); drawTimer(); } };
+      const pm = document.createElement("span"); pm.className = "pm"; pm.textContent = t.pomos ? "🍅".repeat(Math.min(t.pomos, 6)) + (t.pomos > 6 ? "+" : "") : "";
+      const del = document.createElement("button"); del.textContent = "✕"; del.title = "削除";
+      del.onclick = () => { S.tasks = S.tasks.filter(x => x !== t); if (activeId === t.id) activeId = null; save(); render(); drawTimer(); };
+      li.append(cb, txt, pm, del); ul.append(li);
+    });
+
+    const L = levelOf(S.xp);
+    $("lv").textContent = "Lv." + L.lv;
+    $("xpbar").style.width = (L.cur / L.need * 100) + "%";
+    $("xptxt").textContent = `${L.cur} / ${L.need} XP`;
+    $("sToday").textContent = S.days[dayKey()] || 0;
+    $("sStreak").textContent = streak(S);
+    $("sTotal").textContent = S.total;
+
+    const chart = $("chart"); chart.innerHTML = "";
+    const days = [...Array(7)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d; });
+    const max = Math.max(60, ...days.map(d => S.days[dayKey(d)] || 0));
+    days.forEach((d, i) => {
+      const v = S.days[dayKey(d)] || 0;
+      const b = document.createElement("div"); b.className = "bar" + (i === 6 ? " today" : "");
+      b.innerHTML = `<span>${v || ""}</span><i style="height:${v / max * 85}%"></i><span>${"日月火水木金土"[d.getDay()]}</span>`;
+      chart.append(b);
+    });
+    $("badges").innerHTML = BADGES.map(b => `<span class="badge ${(S.badges||[]).includes(b.id) ? "on" : ""}">${b.label}</span>`).join("");
+  }
+
+  // ---------- effects ----------
+  let actx;
+  function audio() { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch {} }
+  function beep() {
+    if (!actx) return;
+    [660, 880, 1320].forEach((f, i) => {
+      const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + i * .16;
+      o.frequency.value = f; o.type = "sine"; o.connect(g); g.connect(actx.destination);
+      g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.25, t + .02); g.gain.exponentialRampToValueAtTime(.0001, t + .3);
+      o.start(t); o.stop(t + .32);
+    });
+  }
+  function notify(title, body) {
+    try { if ("Notification" in window && Notification.permission === "granted") new Notification(title, { body }); } catch {}
+  }
+  let toastT;
+  function toast(msg) {
+    const el = $("toast"); el.textContent = msg; el.classList.add("show");
+    clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("show"), 2000);
+  }
+
+  const cv = $("fx"), cx = cv.getContext("2d"); let parts = [], raf = 0;
+  const size = () => { cv.width = innerWidth; cv.height = innerHeight; };
+  addEventListener("resize", size); size();
+  function confetti(n) {
+    const cols = ["#ff3d9a", "#7c4dff", "#00e5ff", "#5dffb0", "#ffd84d"];
+    for (let i = 0; i < n; i++) parts.push({
+      x: innerWidth / 2, y: innerHeight * .4, vx: (Math.random() - .5) * 18, vy: Math.random() * -16 - 4,
+      w: 6 + Math.random() * 6, h: 4 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - .5) * .4,
+      c: cols[i % cols.length], life: 120 + Math.random() * 60,
+    });
+    if (!raf) raf = requestAnimationFrame(tick);
+  }
+  function tick() {
+    cx.clearRect(0, 0, cv.width, cv.height);
+    parts = parts.filter(p => p.life-- > 0 && p.y < cv.height + 20);
+    parts.forEach(p => {
+      p.vy += .4; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      cx.save(); cx.translate(p.x, p.y); cx.rotate(p.r); cx.globalAlpha = Math.min(1, p.life / 40);
+      cx.fillStyle = p.c; cx.shadowColor = p.c; cx.shadowBlur = 8; cx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); cx.restore();
+    });
+    raf = parts.length ? requestAnimationFrame(tick) : 0;
+  }
+
+  // ---------- events ----------
+  $("start").onclick = () => {
+    try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); } catch {}
+    toggle();
+  };
+  $("reset").onclick = () => setMode(mode);
+  $("modes").onclick = e => { if (e.target.dataset.m) setMode(e.target.dataset.m); };
+  $("addForm").onsubmit = e => {
+    e.preventDefault();
+    const v = $("newTask").value.trim(); if (!v) return;
+    S.tasks.unshift({ id: Date.now(), text: v, done: false, pomos: 0 });
+    $("newTask").value = ""; save(); render();
+  };
+  $("wipe").onclick = () => { if (confirm("全データを削除しますか？")) { localStorage.removeItem(KEY); S = load(); activeId = null; setMode("focus"); render(); } };
+  addEventListener("keydown", e => {
+    if (e.code === "Space" && !/INPUT|TEXTAREA|BUTTON/.test(document.activeElement.tagName)) { e.preventDefault(); toggle(); }
+  });
+
+  render(); drawTimer();
+})();
+</script>
+</body>
+</html>
