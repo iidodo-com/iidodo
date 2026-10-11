@@ -23,11 +23,17 @@
         <p class="lead">むずかしい式はゼロ。約15分。<br>さわって遊ぶうちに、量子コンピュータの<br>「ほんとうの仕組み」がわかります。</p>
       </div>
     </div>
+    <div class="roadmap">
+      <div class="rm-title">この旅の全体像</div>
+      <p>量子コンピュータは、3つの量子のルールで動きます。このアプリでは、それを<b>順番に体験</b>して、最後に全部つなげます。</p>
+      <div class="rm-flow"><span><em>①</em>重ね合わせ<small>同時に複数の状態</small></span><b>→</b><span><em>②</em>干渉<small>正解を強め、誤りを消す</small></span><b>→</b><span><em>③</em>もつれ<small>ビット同士が連動</small></span></div>
+    </div>
     <div class="progress-row">
       <div class="progress-bar"><i id="progress-fill"></i></div>
       <span id="rank" class="rank">量子ビギナー</span><span id="progress-text">0 / 10</span>
     </div>
     <ol id="chapter-list" class="chapter-list"></ol>
+    <button id="gloss-btn2" class="btn ghost small mute">📖 用語ミニ辞典</button>
     <button id="mute-btn" class="btn ghost small mute" aria-label="効果音">🔊 効果音 ON</button>
     <button id="install-btn" class="btn ghost install" hidden>📲 ホーム画面に追加する</button>
     <p class="foot">※ここで動いているのは、本物の量子計算と同じルールで動く小さなシミュレータです。</p>
@@ -39,6 +45,7 @@
       <button id="back-btn" class="icon-btn" aria-label="ホームへ戻る">←</button>
       <div class="ch-title" id="ch-title"></div>
       <div class="dots" id="dots"></div>
+      <button id="gloss-btn" class="icon-btn sm" aria-label="用語ミニ辞典">📖</button>
       <button id="mute2" class="icon-btn sm" aria-label="効果音">🔊</button>
     </header>
     <div id="step" class="step"></div>
@@ -57,6 +64,12 @@
     <p class="clear-gist" id="clear-gist"></p>
     <button id="clear-next" class="btn primary"></button>
     <button id="clear-home" class="btn ghost">ホームへ</button>
+  </div>
+</div>
+<div id="gloss" class="clear" hidden>
+  <div class="sheet">
+    <div class="sheet-head"><b>📖 用語ミニ辞典</b><button id="gloss-close" class="icon-btn sm" aria-label="閉じる">✕</button></div>
+    <div id="gloss-body" class="sheet-body"></div>
   </div>
 </div>
 <canvas id="confetti" aria-hidden="true"></canvas>
