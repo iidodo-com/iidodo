@@ -193,8 +193,8 @@
       Q.apply1(s, 0, Q.H);
       spinning = true; coin.classList.add("spin"); coin.classList.remove("pop");
       timer = setInterval(() => { coin.textContent = Math.random() < 0.5 ? "0" : "1"; }, 110);
-      note.innerHTML = "回転中…<b>0でもあり、1でもある</b>状態です。";
-      refresh(); fx.gate();
+      note.innerHTML = "いま量子ビットは<b>回転中＝0と1の重ね合わせ</b>。まだ0とも1とも決まっていません。数字がチラつくのは、イメージです。次は「観測する」で止めてみよう。";
+      refresh(); fx.gate(); ctx.tick(0);
     } }, "🌀 重ね合わせにする");
     const mBtn = h("button", { class: "btn", onclick: () => {
       if (!spinning) return;
@@ -204,9 +204,9 @@
       tally[r]++;
       const n = tally[0] + tally[1];
       chart.set([tally[0] / n, tally[1] / n], { text: [tally[0] + "回", tally[1] + "回"] });
-      note.innerHTML = `観測した！ 結果は <b>${r}</b>。もう一度回して、何回か試してみよう（${n}回目）。`;
+      note.innerHTML = `止めたら <b>${r}</b> が出ました（${n}回目）。<br>観測した瞬間、「混ざった状態」は消えて、${r}にピタッと決まりました。もう一度「重ね合わせにする」で回せます。`;
       refresh(); fx.measure();
-      if (n >= 5) ctx.unlock(); else ctx.hint(`あと${5 - n}回、回して観測してみよう`);
+      ctx.tick(1); if (n >= 5) ctx.tick(2);
     } }, "👁 観測する");
     function refresh() { hBtn.disabled = spinning; mBtn.disabled = !spinning; }
     refresh(); ctx.hint("「重ね合わせ」→「観測」を5回くり返そう");
@@ -259,6 +259,7 @@
     }
 
     function update() {
+      if (phi !== 0) ctx.tick(0);
       const { a, b } = draw();
       chart.set([a * a, b * b]);
       info.innerHTML = `影の長さ <b>${sgn(a)}</b>（横）と <span style="color:#ff9d3d;font-weight:700">${sgn(b)}</span>（縦）。<br>2乗すると、0が出る確率 <b>${pct(a * a)}</b>、1が出る確率 <b>${pct(b * b)}</b>`;
@@ -287,7 +288,10 @@
       obsChart.hidden = false;
       obsChart.set([(100 - n1) / 100, n1 / 100], { text: [100 - n1 + "回", n1 + "回"] });
       obs.innerHTML = `100回観測した結果（理論値は 0:${pct(1 - p1)} / 1:${pct(p1)}）`;
-      fx.measure(); ctx.unlock();
+      fx.measure();
+      const dd = ((phi % 360) + 360) % 360;
+      if (Math.abs(dd - 45) <= 10) ctx.tick(1);
+      if (Math.abs(dd - 315) <= 10) ctx.tick(2);
     } }, "👁 100回観測");
 
     box.append(h("div", { class: "wlabel" }, "矢印をドラッグ！ または下のバーを動かす"), cv, slide,
@@ -348,8 +352,9 @@
       for (const [k, m] of marks) if (n >= k) msg = m;
       note.innerHTML = msg;
       mem.innerHTML = memText(n);
-      if (n >= 50) ctx.unlock();
-      else ctx.hint("スライダーを右へ！ 50個まで増やしてみよう");
+      if (n >= 10) ctx.tick(0);
+      if (n >= 33) ctx.tick(1);
+      if (n >= 50) ctx.tick(2);
     }
     const s = slider(1, 300, 3, 1, (v) => { update(v); if (v % 5 === 0) sfx.blip(); });
     box.append(h("div", { class: "wlabel" }, "量子ビットの数を増やしてみよう"),
@@ -388,8 +393,8 @@
         if (n >= 150) note.innerHTML = "<b>縞模様ができた！</b> 1個ずつ撃ったのに、波が干渉したときの形です。粒は<b>両方の穴を同時に通った</b>としか説明できません。";
         else if (n > 0) note.innerHTML = "1個ずつ、バラバラに着弾…。まだ模様は見えない。もっと撃ってみて！";
       } else if (n >= 80) note.innerHTML = "見張ると<b>縞が消えた！</b> ふつうの粒のように、2本の帯になりました。<b>見るだけで結果が変わる</b>のが量子の世界です。";
-      if (!observe && seen.wave >= 150 && seen.obs < 80) ctx.hint("次は「見張る」をONにして、また撃ってみよう");
-      if (seen.wave >= 150 && seen.obs >= 80) ctx.unlock();
+      if (seen.wave >= 150) ctx.tick(0);
+      if (seen.obs >= 80) ctx.tick(1);
     }
     function spawn() { parts.push({ t: 0, x: sampleX(), side: Math.random() < 0.5 ? -1 : 1 }); }
     function burst(n) { for (let i = 0; i < n; i++) land(sampleX()); fx.tap(); }
@@ -493,6 +498,7 @@
     const dpr = window.devicePixelRatio || 1;
     let v = [0, 0, 1], az = -0.6, el = 0.4, drag = false, lastX = 0, anim = null, raf = 0, used = 0;
     let trail = [];
+    const SEQ = ["H", "Z", "H"];
     const note = h("p", { class: "note" }, "ゲートのボタンを押すと、矢印が球の上を回ります。");
     const chart = bars(["|0⟩", "|1⟩"], { height: 56 });
     const r2 = Math.SQRT1_2;
@@ -587,14 +593,14 @@
       const gt = GATES[name];
       anim = { from: v.slice(), k: gt.k, a: gt.a, t0: performance.now() };
       note.innerHTML = gt.d; fx.gate();
-      used++; if (used >= 3) ctx.unlock(); else ctx.hint(`ゲートを押して矢印を動かそう（あと${3 - used}回）`);
+      if (name === SEQ[used]) { ctx.tick(used); used++; }
     } }, name)));
-    const reset = h("button", { class: "btn ghost small", onclick: () => { v = [0, 0, 1]; trail = []; anim = null; note.textContent = "|0⟩（北極）に戻しました。"; } }, "リセット");
+    const reset = h("button", { class: "btn ghost small", onclick: () => { v = [0, 0, 1]; trail = []; anim = null; note.textContent = "|0⟩（北極）に戻しました。"; used = 0; } }, "リセット");
     const obs = h("button", { class: "btn primary small", onclick: () => {
       if (anim) return;
       const r = Math.random() < (1 - v[2]) / 2 ? 1 : 0;
       v = [0, 0, r ? -1 : 1]; trail = [];
-      note.innerHTML = `👁 観測 → <b>${r}</b>。矢印は北極か南極にピタッと固定されました。`; fx.measure();
+      note.innerHTML = `👁 観測 → <b>${r}</b>。矢印は北極か南極にピタッと固定されました。`; fx.measure(); if (used >= 3) ctx.tick(3);
     } }, "👁 観測する");
     box.append(h("div", { class: "wlabel" }, "量子ビット＝球の上の矢印。高さ＝「0が出やすい度合い」"), cv, h("div", { class: "row" }, h("span", { class: "cap" }, "ゲート（球を回す操作）")), row,
       h("div", { class: "row" }, obs, reset), note, chart);
@@ -610,7 +616,7 @@
     cv.style.height = hh + "px";
     const dpr = window.devicePixelRatio || 1;
     const note = h("p", { class: "note" });
-    let ph = 0;
+    let ph = 0, seenCancel = false;
     function draw() {
       const w = cv.clientWidth || 320;
       cv.width = w * dpr; cv.height = hh * dpr;
@@ -639,7 +645,7 @@
       ctx.stroke();
       const strength = Math.abs(Math.cos(rad(ph) / 2));
       note.innerHTML = strength > 0.9 ? "山と山が重なる → <b>強め合う！</b>" : strength < 0.1 ? "山と谷が重なる → <b>打ち消し合って消えた！</b>" : "ずらし具合で、強さが変わります。";
-      if (strength < 0.1) api.unlock(); else api.hint("山と谷が重なって消えるところまで、バーを動かそう");
+      if (strength < 0.1) { seenCancel = true; api.tick(0); } else if (strength > 0.9 && seenCancel) api.tick(1);
     }
     const s = slider(0, 360, 0, 1, (v) => { ph = v; draw(); });
     box.append(h("div", { class: "wlabel" }, "波Bのズレを動かしてみよう"), cv, s, note);
@@ -663,18 +669,19 @@
       prob.set(Q.probs(s));
       histEl.textContent = hist.join(" → ");
       const p1 = s.amp[1] ** 2;
-      if (p1 > 0.999) { ctx.unlock(); }
+      if (p1 > 0.999 && hist.length > 1) ctx.tick(3);
       win.textContent = p1 > 0.999 ? "🎉 ミッション成功！ 必ず「1」が出る状態にできた！" : "";
       obsEl.textContent = "";
     }
     const gate = (name, m, desc) => h("button", { class: "btn", onclick: () => {
       Q.apply1(s, 0, m); hist.push(name); update(); note.innerHTML = desc; fx.gate();
-      presses++; if (presses >= 8) ctx.unlock();
+      if (hist.length === 2 && name === "H") ctx.tick(0);
+      if (hist.length >= 3 && hist.slice(-3).join() === "|0⟩,H,H") ctx.tick(1);
     } }, name);
     const reset = h("button", { class: "btn ghost", onclick: () => { s = Q.create(1); hist = ["|0⟩"]; update(); note.textContent = ""; } }, "リセット");
     const obs = h("button", { class: "btn primary small", onclick: () => {
       const c = Q.sample(s, 100);
-      obsEl.innerHTML = `100回観測 → 0が <b>${c[0]}</b>回 / 1が <b>${c[1]}</b>回`; buzz(30);
+      obsEl.innerHTML = `100回観測 → 0が <b>${c[0]}</b>回 / 1が <b>${c[1]}</b>回`; buzz(30); ctx.tick(2);
     } }, "👁 100回観測");
 
     box.append(h("div", { class: "wlabel" }, "上のバー＝矢印の長さ（＋は上、−は下）／下のバー＝確率"), amp,
@@ -702,19 +709,19 @@
     const stat = h("div", { class: "cap" });
     const statChart = bars(labels, { height: 70, fmt: (v) => v + "組" });
     statChart.hidden = true;
-    const b1 = h("button", { class: "btn primary", onclick: () => { Q.apply1(s, 0, Q.H); stage = 1; render("まずAだけ重ね合わせに。まだBとはつながっていません。"); } }, "① Aに H");
-    const b2 = h("button", { class: "btn primary", onclick: () => { Q.cnot(s, 0, 1); stage = 2; render("CNOTでAとBを<b>つなぎました</b>。確率を見て！ 00 と 11 だけ、01 と 10 は0%。"); buzz(30); } }, "② つなぐ(CNOT)");
+    const b1 = h("button", { class: "btn primary", onclick: () => { Q.apply1(s, 0, Q.H); stage = 1; ctx.tick(0); render("HゲートでAだけを<b>0と1の重ね合わせ</b>にしました。Bはまだ0のまま。棒グラフは「00」と「10」が半々（左の数字がA、右がB）。AとBはまだ無関係です。"); } }, "① Aに H");
+    const b2 = h("button", { class: "btn primary", onclick: () => { Q.cnot(s, 0, 1); stage = 2; ctx.tick(1); render("CNOTでAとBを<b>つなぎました</b>。「Aが1ならBも反転」という操作で、棒グラフが<b>「00」と「11」だけ</b>になりました。01と10は0%。A・Bは<b>もつれた状態</b>です。"); buzz(30); } }, "② つなぐ(CNOT)");
     const bA = h("button", { class: "btn", onclick: () => {
-      aRes = Q.measureQubit(s, 0); stage = 3; coinA.textContent = aRes; spinStop(coinA); render(`Aを観測 → <b>${aRes}</b>。さて、Bはまだ見ていないけど…？予想してから「Bを観測」を押してみて。`); buzz(40);
+      aRes = Q.measureQubit(s, 0); stage = 3; ctx.tick(2); coinA.textContent = aRes; spinStop(coinA); render(`Aを観測 → <b>${aRes}</b>。この瞬間、AもBも <b>${aRes}</b> に決まりました（00か11しか無かったから）。<br>Bはまだ見ていません。何が出ると思う？ 予想してから「Bを観測」を押そう。`); buzz(40);
     } }, "③ Aを観測");
     const bB = h("button", { class: "btn", onclick: () => {
-      bRes = Q.measureQubit(s, 1); stage = 4; coinB.textContent = bRes; spinStop(coinB); render(`Bは <b>${bRes}</b>！ Aと必ず同じ。ひとつ決まった瞬間、もうひとつも決まっていた。`); fx.measure(); ctx.unlock();
+      bRes = Q.measureQubit(s, 1); stage = 4; ctx.tick(3); coinB.textContent = bRes; spinStop(coinB); render(`Bは <b>${bRes}</b>！ Aと同じ！ Aを見た時点で、Bの結果はもう決まっていました。もう一度「最初から」やっても、必ず一致します。`); fx.measure();
     } }, "④ Bを観測");
     const bR = h("button", { class: "btn ghost", onclick: init }, "最初から");
     const bN = h("button", { class: "btn small", onclick: () => {
       const t = Q.create(2); Q.apply1(t, 0, Q.H); Q.cnot(t, 0, 1);
       const c = Q.sample(t, 100);
-      statChart.hidden = false; statChart.set(c.map((x) => x / 100), { text: c.map((x) => x + "組") });
+      ctx.tick(4); statChart.hidden = false; statChart.set(c.map((x) => x / 100), { text: c.map((x) => x + "組") });
       stat.innerHTML = `もつれペアを100組作って観測：<b>00と11だけ</b>。01・10は一度も出ません。`; buzz(30);
     } }, "🔁 100組まとめて観測");
     function spinStop(c) { c.classList.remove("unknown", "spin"); void c.offsetWidth; c.classList.add("pop"); }
@@ -779,6 +786,7 @@
       }
       const s = run();
       prob.set(Q.probs(s));
+      if (Q.probs(s)[5] > 0.999) ctx.tick(2);
       obs.textContent = "";
     }
     function place(r, c) {
@@ -786,7 +794,6 @@
       else if (cols[c] && cols[c].type === tool && cols[c].q === r) cols[c] = null;
       else cols[c] = { type: tool, q: r };
       fx.tap(); render();
-      placed++; if (placed >= 3) ctx.unlock(); else ctx.hint(`線をタップしてゲートを置こう（あと${3 - placed}回）`);
     }
     const palette = h("div", { class: "palette" });
     [["H", "H 重ね合わせ"], ["X", "X 反転"], ["Z", "Z 符号"], ["CNOT", "CNOT つなぐ"], ["erase", "消す"]].forEach(([k, t]) => {
@@ -799,10 +806,10 @@
     const set = (arr) => { cols.fill(null); arr.forEach((g, i) => { cols[i] = g; }); render(); };
     const presets = h("div", { class: "row" },
       h("button", { class: "btn small ghost", onclick: () => set([]) }, "クリア"),
-      h("button", { class: "btn small ghost", onclick: () => { set([{ type: "H", q: 0 }, { type: "CNOT", q: 0 }]); note.innerHTML = "<b>もつれ</b>：000 と 110 だけが出る（q0とq1が連動）"; } }, "例:もつれ"),
+      h("button", { class: "btn small ghost", onclick: () => { set([{ type: "H", q: 0 }, { type: "CNOT", q: 0 }]); note.innerHTML = "<b>もつれ</b>：000 と 110 だけが出る（q0とq1が連動）。Hで重ね合わせにして、CNOTでつないだ回路です。"; ctx.tick(0); } }, "例:もつれ"),
       h("button", { class: "btn small ghost", onclick: () => { set([{ type: "H", q: 0 }, { type: "H", q: 1 }, { type: "H", q: 2 }]); note.innerHTML = "<b>3個ぜんぶ重ね合わせ</b>：8通りが同じ確率に！"; } }, "例:全部H"),
       h("button", { class: "btn small ghost", onclick: () => { set([{ type: "H", q: 0 }, { type: "CNOT", q: 0 }, { type: "CNOT", q: 1 }]); note.innerHTML = "<b>3個もつれ</b>：000 と 111 だけ。（GHZ状態）"; } }, "例:3個もつれ"),
-      h("button", { class: "btn small ghost", onclick: () => { set([{ type: "H", q: 0 }, { type: "H", q: 0 }]); note.innerHTML = "H→H で<b>元に戻る</b>！（干渉）"; } }, "例:H→H"));
+      h("button", { class: "btn small ghost", onclick: () => { set([{ type: "H", q: 0 }, { type: "H", q: 0 }]); note.innerHTML = "H→H で<b>元に戻る</b>！（干渉：1へ向かう矢印が＋と−で打ち消し合う）"; ctx.tick(1); } }, "例:H→H"));
     const mBtn = h("button", { class: "btn primary small", onclick: () => {
       const s = run(); const k = Q.measureAll(s);
       obs.innerHTML = `1回だけ観測 → 結果は <b>${Q.label(k, 3)}</b>`; buzz(40);
@@ -830,7 +837,7 @@
         const b = h("button", { class: "box", onclick: () => {
           if (done || b.classList.contains("open")) return;
           tries++; buzz(15);
-          if (i === treasure) { done = true; ctx.unlock(); fx.win(); b.classList.add("found"); b.textContent = "💎"; note.innerHTML = `見つけた！ <b>${tries}回</b>で発見。<br>運が悪いと8回、平均は約4.5回かかります。`; }
+          if (i === treasure) { done = true; ctx.tick(0); fx.win(); b.classList.add("found"); b.textContent = "💎"; note.innerHTML = `見つけた！ <b>${tries}回</b>で発見。<br>運が悪いと8回、平均は約4.5回かかります。`; }
           else { b.classList.add("open"); b.textContent = "✕"; note.innerHTML = `ハズレ…（${tries}回目）`; }
         } }, i + 1);
         boxes.append(b);
@@ -872,11 +879,11 @@
       if (phase === 0) {
         a[target] = -a[target];
         note.innerHTML = "<b>① 目印</b>：正解の箱の矢印だけを<b>マイナスに反転</b>。確率はまだ変わっていないのがミソ！";
-        phase = 1;
+        phase = 1; ctx.tick(0);
       } else {
         const mean = a.reduce((x, y) => x + y, 0) / N;
         for (let i = 0; i < N; i++) a[i] = 2 * mean - a[i];
-        rounds++; phase = 0;
+        rounds++; phase = 0; ctx.tick(1); if (rounds >= 2) ctx.tick(2);
         const p = a[target] ** 2;
         note.innerHTML = `<b>② 増幅</b>：平均を軸に折り返す。マイナスだった正解が<b>大きく伸びた</b>！ 今、正解を引く確率は <b>${pct(p)}</b>。` + (rounds === 2 ? "<br>2周でほぼ完成。（ここで観測するのがベスト！）" : rounds >= 3 ? "<br>やり過ぎると行き過ぎて、また下がります。" : "");
       }
@@ -886,7 +893,7 @@
       const t = Q.clone(s); const k = Q.measureAll(t);
       obs.innerHTML = k === target ? `👁 観測 → <b>${k + 1}番</b>！ 💎 大当たり！` : `👁 観測 → ${k + 1}番… ハズレ。もう少し増幅してから観測しよう。`;
       if (k === target) confetti();
-      fx.measure(); ctx.unlock();
+      fx.measure(); ctx.tick(3);
     } }, "👁 観測する");
     for (let i = 0; i < N; i++) {
       pick.append(h("button", { class: "btn small ghost", onclick: () => { target = i; init(); } }, String(i + 1)));
@@ -916,7 +923,7 @@
         </div>
         <p class="note">およそ <b>${fmt(classic / grover)} 倍</b> の差。数が増えるほど、差は開きます。</p>`;
     }
-    const s = slider(2, 12, 6, 0.1, (v) => { update(v); ctx.unlock(); });
+    const s = slider(2, 12, 6, 0.1, (v) => { update(v); if (v >= 5.95) ctx.tick(0); if (v >= 11.5) ctx.tick(1); });
     box.append(h("div", { class: "wlabel" }, "探す相手の数（10の何乗か）"), h("div", { class: "slider-row" }, "100", s, "1兆", label), out);
     update(6); ctx.hint("バーを右に動かして、差の広がりを見よう");
   };
@@ -961,72 +968,225 @@
   };
 
   // =====================================================================
+  //  用語ミニ辞典
+  // =====================================================================
+  const GL = {
+    bit: ["ビット", "コンピュータが扱う情報の最小単位。スイッチのオン／オフのように、0か1のどちらか。"],
+    qubit: ["量子ビット（キュービット）", "量子コンピュータの情報の最小単位。0と1の「重ね合わせ」になれるビット。"],
+    sup: ["重ね合わせ", "0と1が「どちらか分からない」のではなく、「混ざった状態」そのものとして存在していること。回っているコインのイメージ。"],
+    obs: ["観測", "量子ビットを調べて、0か1かを読み取ること。読み取った瞬間、混ざった状態は0か1のどちらかに決まる。"],
+    prob: ["確率", "観測したとき、0や1がどれくらい出やすいか。矢印の長さを2乗したもの。"],
+    amp: ["振幅（矢印）", "確率のもとになる量。「長さ」と「向き（＋／−）」を持つ矢印のイメージ。長さの2乗が確率になる。"],
+    phase: ["位相", "矢印の「向き」のこと。確率には現れないが、干渉のときに結果を左右する。"],
+    interf: ["干渉", "波が重なって、強め合ったり打ち消し合ったりすること。量子では矢印の＋と−が打ち消し合う。"],
+    gate: ["量子ゲート", "量子ビットに対する「操作」。球の上の矢印を回す操作だと思えばOK。"],
+    H: ["Hゲート", "0を「0と1の半々」に、半々を0や1に変える操作。2回かけると元に戻る。"],
+    X: ["Xゲート", "0と1を入れ替える操作。ふつうのNOTと同じ。"],
+    Z: ["Zゲート", "1の側の矢印の向きだけをひっくり返す操作。確率は変わらない。"],
+    cnot: ["CNOTゲート", "2つの量子ビットをつなぐ操作。片方（制御）が1のときだけ、もう片方（ターゲット）を反転する。"],
+    ent: ["もつれ", "2つ以上の量子ビットが連動して、1つのまとまった状態になること。"],
+    circuit: ["量子回路", "ゲートを順番に並べた図。量子コンピュータのプログラム。"],
+    grover: ["グローバー法", "干渉を使って正解の矢印だけを大きくする探索法。N個の中から約√N回で探せる。"],
+  };
+  const D = (k, label) => `<dfn data-k="${k}">${label || GL[k][0]}</dfn>`;
+
+  function openGloss(key) {
+    const body = $("#gloss-body");
+    body.innerHTML = "";
+    let target = null;
+    Object.entries(GL).forEach(([k, [t, d]]) => {
+      const it = h("div", { class: "gl-item" + (k === key ? " hl" : "") }, h("b", {}, t), h("p", {}, d));
+      if (k === key) target = it;
+      body.append(it);
+    });
+    $("#gloss").hidden = false;
+    if (target) setTimeout(() => target.scrollIntoView({ block: "start" }), 30);
+    sfx.tap();
+  }
+  $("#gloss-close").addEventListener("click", () => { $("#gloss").hidden = true; });
+  $("#gloss").addEventListener("click", (e) => { if (e.target.id === "gloss") $("#gloss").hidden = true; });
+  document.addEventListener("click", (e) => {
+    const t = e.target.closest && e.target.closest("dfn[data-k]");
+    if (t) openGloss(t.dataset.k);
+  });
+  $("#gloss-btn").addEventListener("click", () => openGloss());
+  $("#gloss-btn2").addEventListener("click", () => openGloss());
+
+  // =====================================================================
   //  章の内容（ナビの「キュー」が案内します）
+  //   intro  : 章のはじまり（わかること／先に結論／たとえ）
+  //   what   : この実験は何をしているのか
+  //   look   : どこを見ればいいか
+  //   todo   : やること（実験側が自動でチェックします）
+  //   result : やり終えたあとに出る「わかったこと」
   // =====================================================================
   const CHAPTERS = [
     { emoji: "🌈", title: "ありえない実験", sub: "粒なのに、波になる",
+      goal: ["量子の粒が、ふつうの物体とはまったく違う動きをすること", "量子コンピュータの2大ルール「重ね合わせ」「干渉」のさわり"],
+      conclusion: "量子の粒は、見ていない間は<b>「両方の穴を同時に通る」</b>ようにふるまう。でも、どっちを通ったか見張ると、1つの穴だけを通る。",
+      analogy: "投げたボールが1球ずつなのに、なぜか「波」のような模様を描く…そんな不思議な実験です。",
       gist: "量子の粒は、見ていない間は「全部の道」を通る。見た瞬間に1つに決まる。",
       steps: [
-        { h: "まず、ありえない実験を見てください", need: true, w: "slit",
-          p: "ぼくは<b>キュー</b>。案内役だよ！<br>小さな粒を1個ずつ、<b>2つの穴</b>のある壁に向けて撃つよ。ふつうなら、壁の向こうには<b>2本の帯</b>ができるはず…。さあ、連射してみて！" },
-        { h: "粒なのに、波みたいに", p: "1個ずつ撃ったのに、だんだん<b>縞模様</b>ができたね。これは「波」が2つの穴を通って<span class='em'>干渉</span>したときの形。<br>つまり粒は、見ていない間は<b>両方の穴を同時に通っていた</b>としか説明できないんだ。<br>でも、どっちの穴を通ったか見張ると…縞は消える。" },
-        { h: "これが量子コンピュータの「燃料」", p: "この実験に量子の2大ルールが入っているよ。<ul><li><b>重ね合わせ</b>：同時にいくつもの状態になる</li><li><b>干渉</b>：波のように強め合い、打ち消し合う</li></ul>この2つを使って計算するのが量子コンピュータ。次の章から、1つずつ体験しよう！" },
+        { h: "実験：2つの穴に向けて、粒を撃つ", w: "slit",
+          p: "物理学者が実際に行ってきた有名な実験を、アプリで再現しました。<br>画面の下から、とても小さな粒（電子や光の粒）を<b>1個ずつ</b>撃ちます。粒は途中の壁にある<b>2つの穴</b>を通り抜けて、いちばん上の<b>スクリーン</b>にぶつかり、跡を残します。",
+          what: "スクリーンには「粒がぶつかった場所」が点と棒グラフでたまっていきます。ふつうのボールなら、穴の正面あたりに<b>2本の帯</b>ができるはずです。さて、実際は？",
+          look: ["上の棒グラフ ＝ 粒がたくさんぶつかった場所", "光る玉 ＝ 飛んでいる粒1個", "穴の上の水色の波紋 ＝ 粒が「波」としてふるまうイメージ"],
+          todo: ["「▶ 連射」を押して、粒を150個以上ためよう（模様が見えるまで待つ）", "「どっちの穴を通ったか見張る」をONにして、もう一度80個以上撃とう"],
+          result: "<b>見張らないとき</b>：棒グラフは<b>縞模様</b>（高い所と低い所が交互）になりました。粒は1個ずつ撃ったのに、波のように<b>干渉</b>しています。1個の粒が<b>両方の穴を同時に通って、自分自身と干渉した</b>と考えるしかありません。<br><br><b>見張ったとき</b>：縞が消えて、ふつうの<b>2本の帯</b>になりました。「どっちの穴か」を調べた瞬間、粒は片方しか通らなくなったのです。<br><br>👉 量子の世界では、<b>見ていない間は「全部の可能性」が同時にあり、見ると1つに決まる</b>。" },
+        { h: "この実験は、量子コンピュータと何の関係があるの？",
+          p: `縞模様ができた理由は、2つの穴を通る「可能性」が<b>波のように足し算された</b>から。山と山が重なる所は強め合って粒がたくさん来て、山と谷が重なる所は<b>打ち消し合って</b>粒が来ません。<br><br>この2つの性質を計算に使うのが量子コンピュータです。<ul><li><b>${D("sup")}</b>：たくさんの可能性が同時にある</li><li><b>${D("interf")}</b>：可能性どうしが強め合ったり、打ち消し合ったりする</li></ul>つまり量子コンピュータは、<b>「間違いの可能性を打ち消して、正解の可能性だけを強める」マシン</b>なのです。次の章から、1つずつ体験していきましょう。` },
       ] },
+
     { emoji: "🪙", title: "ビットと量子ビット", sub: "回っているコインの正体",
+      goal: ["「量子ビット」がふつうのビットと何が違うのか", "「重ね合わせ」と「観測」とは何か"],
+      conclusion: "量子ビットは、観測するまで<b>0と1が混ざった状態</b>。観測すると、確率にしたがって0か1のどちらかに決まる。",
+      analogy: "テーブルの上で回っているコイン。回っている間は「表でも裏でもある」。手で押さえて止めると、表か裏に決まる。",
       gist: "量子ビットは0と1の重ね合わせ。観測すると、確率にしたがって0か1に決まる。",
       steps: [
-        { h: "コンピュータの中身は「0と1」", w: "bit", p: "スマホもゲーム機も、中身はスイッチの「オフ＝0」「オン＝1」の並び。この1つぶんが<b>ビット</b>。いつ見ても、0か1のどちらかだよ。" },
-        { h: "量子ビットは「回っているコイン」", need: true, w: "qubit", p: "量子コンピュータの部品<b>量子ビット</b>は、テーブルで回るコインのように<b>0でもあり1でもある</b>状態になれる。これが<span class='em'>重ね合わせ</span>！<br>回してから観測（止める）してみて。" },
-        { h: "ここが大事！", p: "回っているコインは「決まっていないだけ」じゃなくて、<b>混ざった状態そのもの</b>がちゃんと存在するんだ。<br>そして<b>観測すると必ず0か1に決まって</b>、混ざった状態には戻れない。何回もやると、だいたい半々になったよね？ これが量子の「確率」。" },
+        { h: "ふつうのビット", w: "bit",
+          p: `パソコンやスマホの中の情報は、すべて<b>0か1</b>の並びでできています。その1つぶんを${D("bit")}と呼びます。スイッチの「オフ（0）」「オン（1）」のようなものです。`,
+          what: "1つのスイッチです。ボタンを押すと、0と1が入れ替わります。",
+          look: ["コインの数字は、いつ見ても0か1のどちらか1つ"] },
+        { h: "量子ビットを回してみよう", w: "qubit",
+          p: `量子コンピュータの部品は${D("qubit")}です。コインにたとえると、ふつうのビットは「表か裏が上を向いて止まっている」状態。量子ビットは<b>回転している状態</b>にもなれます。<br>この「0でもあり1でもある」状態が${D("sup")}。回っているコインを手で止める操作が${D("obs")}です。`,
+          what: "青いコインが量子ビットです。「重ね合わせにする」で回転（＝0と1が混ざった状態）。「観測する」で止まって、0か1に決まります。",
+          look: ["回転中は数字がチラチラ変わりますが、実際は「まだ決まっていない」状態", "下の棒グラフ ＝ これまでに観測して出た0と1の回数"],
+          todo: ["「重ね合わせにする」を押そう", "「観測する」を押して、0か1か見よう", "これを合計5回くり返そう"],
+          result: "5回やって、0と1の回数はどうでしたか？ 1回1回はランダムで予測できません。でも、たくさんやると<b>だいたい半々</b>に近づきます。<br><br>これが量子の「<b>確率</b>」です。1回ごとの結果は決められなくても、<b>出やすさ（確率）は決まっている</b>のです。" },
+        { h: "ここが、いちばん大事なポイント",
+          p: `回っているコインは「表か裏か、まだ分かっていないだけ」ではありません。<b>「0と1が混ざった状態」という、はっきりした1つの状態</b>です。<br><br>そして観測すると<b>必ず0か1のどちらか</b>に決まり、もう混ざった状態には戻れません（もう一度「重ね合わせにする」が必要）。<br><br>ふつうのビットとの違いは、この<b>「混ざった状態を作って、計算に使える」</b>こと。次の章では、この「混ざり具合」を矢印で見える化します。` },
       ] },
+
     { emoji: "🧭", title: "状態は「矢印」で表せる", sub: "平面から、立体の球へ",
+      goal: ["量子ビットの「状態」をどう表すか", "「確率」「矢印」「位相」「ゲート」の関係"],
+      conclusion: "量子ビットの状態は<b>「矢印」</b>で表せる。矢印の影の長さを<b>2乗すると確率</b>。ゲートは矢印を回す操作。",
+      analogy: "時計の針。針が指す向きで、「0の出やすさ・1の出やすさ」が決まります。",
       gist: "量子ビットの状態は球の上の矢印。ゲートは球を回す操作。高さが確率、向きが位相。",
       steps: [
-        { h: "混ざり具合を、矢印にしてみよう", need: true, w: "bloch", p: "横が<b>|0⟩</b>、縦が<b>|1⟩</b>。矢印をドラッグしてみて。矢印の「影の長さ」を<b>2乗</b>したものが、観測したときの<span class='em'>確率</span>だよ。" },
-        { h: "立体にすると、もっとわかる！", need: true, w: "sphere", p: "量子ビットの状態は、実は<b>球の上の矢印</b>。北極が0、南極が1、<b>高さ</b>が「0の出やすさ」。<br>そして<span class='em'>ゲート＝球を回す操作</span>！ いろいろ押してみよう。ZやSで<b>高さが変わらないのに矢印が動く</b>のに注目。" },
-        { h: "確率は同じでも、別の状態", p: "Zで回しても、高さ（確率）は同じ。でも矢印の<b>向き</b>は変わっているよね。この向きの違いを<span class='em'>位相</span>と呼ぶよ。<br>確率には見えない位相が、次の章の<b>干渉</b>の主役になるんだ。" },
+        { h: "混ざり具合を、矢印にしてみよう", w: "bloch",
+          p: `回っているコインにも、「どれくらい混ざっているか」の段階があります。それを<b>矢印</b>で表します。矢印が右向きなら「100%の0」、上向きなら「100%の1」、斜めなら「混ざっている」。<br>矢印の先から2本の影（横と縦）を落とすと、<b>影の長さの2乗</b>が、それぞれが出る${D("prob")}になります。`,
+          what: "円の上の矢印が量子ビットの状態です。下の棒グラフは、観測したとき0と1がどれくらい出るかの確率です。",
+          look: ["水色の線 ＝ 横の影（0らしさ）", "オレンジの線 ＝ 縦の影（1らしさ）", "影の長さを2乗したものが、棒グラフの%"],
+          todo: ["矢印をドラッグするか、バーを動かしてみよう", "「半々 45°」を押して「100回観測」。0と1がほぼ半々に", "「半々 315°」を押して「100回観測」。45°のときと同じ結果に"],
+          result: `45°と315°は、矢印の向きが違う<b>別の状態</b>なのに、観測結果（確率）は同じ半々でした。<br><br>この「矢印の向きの違い」は、確率には現れません。でも<b>隠れた重要な情報</b>で、${D("phase")}と呼びます。のちの「干渉」で効いてきます。` },
+        { h: "立体にすると、もっとわかる！", w: "sphere",
+          p: `実は量子ビットの状態は、<b>球の上の矢印</b>ですべて表せます。北極が0、南極が1。<b>矢印の高さ</b>が「0の出やすさ」で、赤道は半々です。<br>量子の操作である${D("gate")}は、<b>この球を回す操作</b>です。`,
+          what: "ゲートのボタンを押すと、矢印が球の上をくるっと回ります。黄色い点線の長さ＝矢印の高さです。",
+          look: ["黄色い点線と点 ＝ 高さ（これが確率のもと）", "金色の軌跡 ＝ 矢印が通ってきた道", "下の棒グラフ ＝ いま観測したときの確率"],
+          todo: ["H を押す：矢印が北極から赤道へ倒れ、0と1が半々に", "Z を押す：高さ（確率）は変わらないのに、矢印の向きだけ変わる", "もう一度 H を押す：矢印はどこへ行く？（予想してから！）", "「観測する」を押そう"],
+          result: `<b>H → Z → H</b> で、矢印は北極（0）から南極（1）へ行きました！<br>Hを2回続けると元の0に戻りますが、<b>間にZを挟むと1になる</b>のです。Zは確率を変えないのに、あとの結果を変えました。<br><br>👉 <b>見えない「向き」が、あとで結果を左右する</b>。これが量子計算のカラクリで、次々章の「干渉」の正体です。` },
       ] },
+
     { emoji: "🚀", title: "増えると爆発する", sub: "量子ビット n 個 = 2ⁿ の世界",
+      goal: ["量子ビットを増やすと、扱える情報がどれだけ増えるか", "なぜ「量子コンピュータは速い」と言われるのか"],
+      conclusion: "量子ビットがn個あると、<b>2のn乗個の矢印</b>を同時に持てる。ただし、取り出せるのは<b>観測した1つだけ</b>。",
+      analogy: "ふつうのビット3個は「8通りのうち1つ」を書いたメモ1枚。量子ビット3個は「8通りぜんぶに旗を立てた」状態です。",
       gist: "n個の量子ビットは2ⁿ個の矢印を持てる。でも取り出せるのは、観測した1つだけ。",
       steps: [
-        { h: "量子ビットを増やすと…？", need: true, w: "exp", p: "ふつうのビット3個は、000〜111の8通りのうち「1つ」しか表せない。でも量子ビット3個は、8通り<b>ぜんぶに矢印を持てる</b>。n個なら<span class='em'>2のn乗</span>！ スライダーで爆発を見てね。下には、ふつうのコンピュータで記録するのに必要な量も出るよ。" },
-        { h: "でも「全部の答え」は取り出せない", p: "ここ、よく誤解される所。矢印を大量に持てても、観測すると<b>取り出せるのは1つだけ</b>。<br>だから量子コンピュータは「<span class='em'>正解の矢印だけを大きく、間違いの矢印を小さく</span>してから観測する」ように作るんだ。それを可能にするのが、次の<b>干渉</b>！" },
+        { h: "量子ビットを増やすと…？", w: "exp",
+          p: "ふつうのビット3個は、000〜111の<b>8通り</b>のうち<b>どれか1つ</b>しか表せません。<br>量子ビット3個は、8通り<b>ぜんぶに「矢印」を持てます</b>。n個なら<b>2のn乗個</b>です。",
+          what: "スライダーで量子ビットの個数を増やすと、持てる矢印の数と、それを「ふつうのコンピュータで記録する」のに必要な容量が表示されます。",
+          look: ["大きな数字 ＝ 矢印の数（2のn乗）", "ピンクの枠 ＝ ふつうのコンピュータで記録する量", "1〜6個のときは、光る点で矢印の数が見えます"],
+          todo: ["10個まで増やそう", "33個まで増やそう（世界の人口より多くなる）", "50個以上に増やして、必要なメモリを見よう"],
+          result: "たった50個の量子ビットが持つ矢印は、約1000兆個。ふつうのコンピュータで<b>まるごと記録</b>しようとすると、スマホ約7万台ぶんのメモリが必要になります。<br><br>量子コンピュータは、この巨大な矢印の集まりを<b>そのまま物理的に持ち、操作できます</b>。これが「速くなる可能性」の源です。" },
+        { h: "ただし、大事な注意",
+          p: `矢印を2のn乗個持っていても、<b>観測すると取り出せるのは1つだけ</b>。「全部の答えが同時に出て、全部読める」わけではありません。<br><br>だから量子コンピュータの腕の見せどころは、<b>計算の途中で${D("interf")}を使って、正解の矢印だけを大きく、間違いの矢印を小さくしておく</b>こと。そうすれば、観測したときに高い確率で正解が出ます。<br><br>次の章で、その「干渉」を体験します。` },
       ] },
+
     { emoji: "🌊", title: "波が打ち消し合う（干渉）", sub: "量子計算の心臓部",
+      goal: ["「干渉」とは何か", "Hゲートを2回かけると何が起こるか", "なぜ干渉が量子計算の心臓部なのか"],
+      conclusion: "矢印の<b>＋と−が出会うと打ち消し合う</b>。これを使って、間違いの答えを消し、正解を残す。",
+      analogy: "ノイズキャンセリングイヤホン。逆向きの音をぶつけて、雑音を消します。",
       gist: "矢印は＋と−で打ち消し合う。正解を強め、間違いを消す。それが量子計算。",
       steps: [
-        { h: "水の波と同じルール", need: true, w: "waves", p: "山と山が重なると大きく、山と谷が重なると<b>消える</b>。量子の矢印も同じで、<b>＋と−が出会うと打ち消し合う</b>。バーを動かして、波を消してみよう。" },
-        { h: "実験：Hゲートを2回かけてみよう", need: true, w: "interf", p: "<b>H</b>は「0を、0と1の半々にする」操作。2回かけたら…「半々の半々」でランダム？ やってみて、100回観測しよう。" },
-        { h: "なにが起きたの？", p: "1回目のHで矢印は(＋0.71, ＋0.71)。2回目のHで、<b>「1」へ向かう道が2本</b>でき、矢印が<b>＋0.5</b>と<b>−0.5</b>で打ち消し合って<b>0</b>に。<br>「0」へ向かう道は<b>＋0.5</b>と<b>＋0.5</b>で強め合って<b>100%</b>。<br><br>ランダムに見えたのに、必ず0に戻る。<span class='em'>確率ではなく「矢印」が計算されている</span>。これが量子計算の核心だよ！" },
+        { h: "まずは、身近な「波」で", w: "waves",
+          p: `まず水の波で${D("interf")}を体験します。2つの波が重なるとき、山と山が重なれば<b>強め合い</b>、山と谷が重なれば<b>打ち消し合って消えます</b>。ノイズキャンセリングイヤホンの原理です。`,
+          what: "水色の波Aとピンクの波Bを足し合わせたものが、黄色い波（合成）です。バーで波Bを横にずらせます。",
+          look: ["黄色い波の高さ（振れ幅）が、強め合い・打ち消し合いの結果"],
+          todo: ["黄色い波がほぼ平らに「消える」所までバーを動かそう", "バーを動かして、黄色い波が一番大きくなる所を見つけよう"],
+          result: "ずらし具合が半周（180°）のとき、2つの波は<b>完全に打ち消し合って</b>消えました。<br>量子の矢印（＋と−）にも、まったく同じことが起こります。次は本物の量子ビットで確かめましょう。" },
+        { h: "実験：Hゲートを2回かけてみよう", w: "interf",
+          p: `${D("H")}は「0を、0と1の半々の状態にする」操作です。では、これを<b>2回</b>かけたらどうなるでしょう？<br>直感では「半々の半々だから、やっぱりランダム」ですよね。本当にそうか、確かめましょう。`,
+          what: "量子ビットにゲートを順番にかけていきます。上のバーは「矢印の長さ（＋は上、−は下）」、下のバーは「観測したときの確率」です。",
+          look: ["上のバーが上向き（水色）＝＋、下向き（ピンク）＝−", "「|0⟩ → H → H」のように、いま何をしたかが表示されます"],
+          todo: ["H を1回押す：確率が半々（50%・50%）になる", "もう一度 H を押す：さあ、どうなる？", "「100回観測」を押して確かめよう", "ミッション：必ず「1」が出る状態を作ろう（ヒント：X、または H → Z → H）"],
+          result: "<b>2回目のHで、確率は「半々」ではなく「100%で0」に戻りました。</b>ランダムを2回重ねたら確実になる、という不思議です。<br><br>理由：1回目のHで矢印は（＋0.71、＋0.71）。2回目のHは、それぞれを「0へ行く分」と「1へ行く分」に分けて足し算します。<br>・<b>0へ</b>：＋0.5 と ＋0.5 → <b>強め合って 1.0</b><br>・<b>1へ</b>：＋0.5 と −0.5 → <b>打ち消し合って 0</b><br><br>確率ではなく<b>「矢印」を足し算している</b>から、こうなるのです。" },
+        { h: "量子計算の基本レシピ",
+          p: `量子コンピュータの計算は、ざっくりこの3ステップです。<ol><li>量子ビットを${D("sup")}にして、たくさんの可能性を<b>同時に用意</b>する</li><li>ゲートで矢印を操作して、${D("interf")}で<b>間違いを打ち消し、正解を強める</b></li><li>最後に${D("obs")}して、答えを読む</li></ol>この「<b>用意 → 干渉で整える → 観測</b>」が、ほとんどの量子アルゴリズムの基本形です。` },
       ] },
+
     { emoji: "🔗", title: "ふしぎな「もつれ」", sub: "つながった2つの粒",
+      goal: ["「もつれ」とは何か", "2つの量子ビットが連動する様子"],
+      conclusion: "もつれた2つの量子ビットは、<b>どちらも単独ではランダム</b>なのに、<b>結果は必ず一致</b>する。",
+      analogy: "ペアの靴を別々の箱に入れて送る。片方の箱を開けて右足なら、もう片方は左足。ただし量子では、開ける前は「どちらとも決まっていない」のがミソです。",
       gist: "もつれた量子ビットは、結果が必ず連動する。量子ビット同士の連携プレーの源。",
       steps: [
-        { h: "2つのコインを「つなぐ」", need: true, w: "bell", p: "HゲートとCNOTゲートで2つの量子ビットをつなぐと、<span class='em'>もつれ</span>という状態になる。ボタンを順番に押して、2つのコインを観測してみて。" },
-        { h: "どちらも「決まっていない」のに", p: "AもBも、単独では0か1かランダム。<b>でも結果は必ず一致</b>。アインシュタインは「不気味な遠隔作用」と呼んで悩んだよ。<br><br>⚠️ ただし<b>これで超光速通信はできない</b>。Aの結果は自分で選べないから、会って比べて初めて一致がわかるんだ。<br>量子コンピュータでは、このもつれが量子ビット同士の<b>連携プレー</b>の源になる。" },
+        { h: "2つのコインを「つなぐ」", w: "bell",
+          p: `2つの量子ビットA・Bを、${D("H")}と${D("cnot")}という2つのゲートで「つなぐ」と、${D("ent")}という特別な状態になります。順番にボタンを押して組み立て、そのあと観測しましょう。`,
+          what: "コインA・Bが量子ビットです。上の棒グラフは、AとBを同時に観測したとき「00・01・10・11」のどれが出るかの確率です（左の数字がA、右がB）。",
+          look: ["「00」は「A=0、B=0」の意味", "観測のあと、AとBが同じ数字になるか"],
+          todo: ["① AにHをかける", "② CNOTでAとBをつなぐ", "③ Aを観測する", "④ Bを観測する（Aと同じ？）", "「100組まとめて観測」で、何度やっても一致するか確かめる"],
+          result: "AもBも、<b>単独ではランダム</b>（0か1か、やるまで分からない）。でも<b>2つの結果は必ず一致</b>しました。100組やっても、出たのは「00」と「11」だけ。「01」と「10」は一度も出ません。<br><br>Aを観測した瞬間、Bの結果も決まっていました。" },
+        { h: "なぜこれが大事なの？",
+          p: "アインシュタインはこれを「不気味な遠隔作用」と呼んで悩みました。ただし<b>これで通信はできません</b>。Aの結果は自分で選べない（ランダム）ので、メッセージを送れないからです。<br><br>量子コンピュータでは、この「もつれ」が<b>量子ビット同士が協力して計算する仕組み</b>になります。1個ずつバラバラに動かすのではなく、<b>全体でひとつの巨大な状態</b>として操作できるのが強みです。" },
       ] },
+
     { emoji: "🧪", title: "回路ラボ", sub: "自分で量子回路を組んでみよう",
+      goal: ["量子コンピュータの「プログラム」の正体", "ここまでのゲートを自由に組み合わせる"],
+      conclusion: "量子プログラム ＝ ゲートを順番に並べた<b>「量子回路」</b>。本物の量子コンピュータも、これを実行しているだけ。",
+      analogy: "楽譜。音符（ゲート）を、左から順に演奏（実行）していきます。",
       gist: "量子プログラム＝ゲートの並び。本物の量子コンピュータも同じ仕組みで動く。",
       steps: [
-        { h: "量子回路を組み立てよう", need: true, w: "lab", p: "量子コンピュータのプログラムは<b>量子回路</b>＝ゲートを並べたもの。ゲートを選んで線をタップ。確率がリアルタイムで変わるよ。下の「例」ボタンで、これまでの実験を一発で再現できる。" },
-        { h: "自由に遊んでみて！", p: "🎮 チャレンジ：<ul><li><b>「101」</b>だけを100%出す回路は？（ヒント：X）</li><li><b>「000」と「111」</b>だけが出る回路は？（もつれ！）</li><li>HをHで挟むと、確率はどうなる？</li></ul>本物の量子コンピュータが実行するのも、この<b>ゲートの並び</b>。数が桁違いに多いだけだよ。" },
+        { h: "量子回路を組み立てよう", w: "lab",
+          p: `3つの量子ビット（q0・q1・q2）の線の上に、ゲートを並べて${D("circuit")}を作ります。<b>左から右へ</b>順番に実行されます。`,
+          what: "上のボタンから「H・X・Z・CNOT」のどれかを選び、回路のマスをタップして置きます。もう一度タップで外せます。下の棒グラフが、観測したとき「000〜111」のどれが出るかの確率です。",
+          look: ["グラフの横軸は「q0 q1 q2」の観測結果（例：101 ＝ q0が1、q1が0、q2が1）", "CNOT：● が制御、⊕ がターゲット"],
+          todo: ["「例:もつれ」を押して、000と110だけが出ることを確認", "「例:H→H」を押して、000に戻ることを確認", "「クリア」→「X」を選び、q0とq2に置いて「101」を100%にしよう"],
+          result: "ゲートを並べるだけで、重ね合わせ・干渉・もつれが作れました。<b>本物の量子コンピュータが実行するのも、この「ゲートの並び」</b>です。違いは、量子ビットの数が多いことと、実際の物理的な部品で動いていることだけです。" },
+        { h: "自由に遊んでみて！",
+          p: "🎮 チャレンジ：<ul><li><b>「000」と「111」</b>だけが出る回路は？（ヒント：もつれを3個に）</li><li>H で全部の量子ビットを重ね合わせにすると、8通りはどんな確率に？</li><li>HをHで挟むと、確率はどうなる？</li></ul>どう組んでも、観測の結果は必ず確率どおりに出ます。" },
       ] },
+
     { emoji: "🔍", title: "量子で探す魔法", sub: "グローバー法：正解だけを増幅",
+      goal: ["量子コンピュータが「速い」ことの具体例", "正解だけを増幅する仕組み"],
+      conclusion: `${D("grover")}は、干渉で<b>正解の矢印だけを大きく</b>して探す。N個から探すのに、約<b>√N回</b>で済む。`,
+      analogy: "100人の合唱で、正解の1人の声だけが大きくなるように、他の人の声を打ち消し合わせていくイメージ。",
       gist: "グローバー法は干渉で正解を増幅する。調べる回数が N回 → √N回 に。",
       steps: [
-        { h: "まず、ふつうの探し方", need: true, w: "searchClassic", p: "8個の箱の1つに宝石。ふつうのコンピュータは<b>1個ずつ開けて調べる</b>しかない。平均で半分は開けることになるよ。" },
-        { h: "量子の探し方：矢印を増幅！", need: true, w: "searchQuantum", p: "グローバー法は2つの操作のくり返し。<ol><li><b>目印</b>：正解の矢印だけを<b>マイナス</b>に反転</li><li><b>増幅</b>：平均を軸に折り返す → 正解だけが伸びる！</li></ol>正解の棒がぐんぐん伸びるのを見よう。<b>干渉の力</b>だよ。" },
-        { h: "数が大きいほど、差は爆発", need: true, w: "searchScale", p: "ふつうは調べる数に比例（N回）。でもグローバー法は<span class='em'>√N回</span>くらい。探す相手が増えるほど、すごい差になるよ。" },
+        { h: "まず、ふつうの探し方", w: "searchClassic",
+          p: "8個の箱のうち1つに宝石💎が入っています。どの箱か分からないので、ふつうのコンピュータは<b>1個ずつ開けて</b>確かめるしかありません。",
+          what: "箱をタップして開けます。宝石が出るまで続けます。",
+          todo: ["宝石が見つかるまで、箱を開けよう"],
+          result: "平均で約半分（8個なら4〜5個）は開ける必要があります。数が増えれば、その分だけ手間も増えます（N個なら平均N/2回）。" },
+        { h: "量子の探し方：矢印を増幅！", w: "searchQuantum",
+          p: "最初は、8個の箱すべてに<b>同じ長さの矢印</b>を持たせます（重ね合わせ）。ここから次の2つの操作を<b>くり返す</b>と、正解の箱の矢印だけが長く伸びます。<ol><li><b>① 目印をつける</b>：正解の箱の矢印だけを、プラスからマイナスにひっくり返す</li><li><b>② 増幅する</b>：全部の矢印の「平均の高さ」を軸に、全体を折り返す</li></ol>",
+          what: "上のグラフ ＝ 8個の箱の矢印の長さ（＋は上、−は下）。下のグラフ ＝ 観測したとき、その箱が選ばれる確率。オレンジの棒が正解の箱です。",
+          look: ["①を押すと、オレンジの棒が下向き（−）に。確率はまだ同じ", "②を押すと、オレンジの棒が大きく伸び、他は短くなる"],
+          todo: ["① を押そう", "② を押そう：オレンジの棒が伸びる！", "もう一周（①②）して、確率が90%を超えるのを見よう", "「観測する」を押して、正解を引こう"],
+          result: "2周で正解の確率が約94%になりました。ふつうは平均4〜5回かかるのに、<b>干渉で正解を強め、はずれを弱めた</b>ので、観測1回でほぼ当たります。<br><br>おもしろいこと：3周目をやると確率が<b>下がります</b>（行き過ぎ）。最適な回数があるのです。" },
+        { h: "数が大きいほど、差は爆発", w: "searchScale",
+          p: "探す相手が増えるほど、差は劇的に広がります。ふつうは<b>N回</b>、グローバー法は約<b>√N回</b>（正確には π/4 × √N）です。",
+          what: "スライダーで探す数を増やして、必要な回数を比べます。",
+          todo: ["100万個まで動かそう", "1兆個まで動かそう"],
+          result: "100万個なら <b>約50万回 vs 約800回</b>。1兆個なら <b>約5000億回 vs 約80万回</b>。数が大きいほど差が開きます。<br>ただし「何でも一瞬」ではなく、√N回はかかります。それでも劇的な差です。" },
       ] },
+
     { emoji: "🌍", title: "何に使えるの？", sub: "夢と現実、正しい期待のしかた",
+      goal: ["量子コンピュータは結局、何に役立つのか", "よくある誤解と、本当のところ"],
+      conclusion: "万能の超高速パソコンではない。<b>特定の問題で、桁違いに速くなる可能性</b>がある。",
+      analogy: "F1カー。サーキットでは最速だけど、買い物には向きません。",
       gist: "万能ではない。化学・最適化・暗号など、特定の問題で桁違いに速くなる可能性がある。",
       steps: [
-        { h: "期待されている使い道", p: "<ul><li>🧬 <b>化学・新薬・新材料</b>：分子はもともと量子の世界。シミュレーションに向いている。</li><li>🚚 <b>最適化</b>：配送ルートや工場の段取りなど、組み合わせが爆発する問題。</li><li>🔐 <b>暗号</b>：大きな数の素因数分解（ショア法）が速くなり、今の暗号を破れる可能性。だから<b>耐量子暗号</b>への移行が世界で進んでいるよ。</li></ul>" },
-        { h: "よくある誤解・本当のところ", p: "<div class='myth'><b>❌「全部の答えを同時に出して、全部読める」</b>読めるのは観測した1つだけ。干渉で正解を強める工夫が必須。</div><div class='myth'><b>❌「今のパソコンより、何でも速い」</b>動画・ゲーム・SNSは速くならない。得意な問題だけ。</div><div class='myth'><b>❌「もうすぐスマホに入る」</b>多くの方式は極低温が必要で、ノイズでエラーが出やすい。エラー訂正が最大の課題。</div><div class='myth ok'><b>⭕「特定の問題で、桁違いに速くなる可能性がある」</b>だから世界中で研究されているんだ。</div>" },
+        { h: "期待されている使い道",
+          p: "<ul><li>🧬 <b>化学・新薬・新材料</b>：分子はもともと量子の世界のもの。量子コンピュータで自然にシミュレーションできる。</li><li>🚚 <b>最適化</b>：配送ルートや工場の段取りなど、組み合わせが爆発する問題。</li><li>🔐 <b>暗号</b>：大きな数の素因数分解（ショア法）が速くなり、今の暗号が破られる可能性。そのため<b>耐量子暗号</b>への移行が世界で進んでいます。</li></ul>" },
+        { h: "よくある誤解・本当のところ",
+          p: "<div class='myth'><b>❌「全部の答えを同時に出して、全部読める」</b>読めるのは観測した1つだけ。干渉で正解を強める工夫が必須です。</div><div class='myth'><b>❌「今のパソコンより、何でも速い」</b>動画・ゲーム・SNSは速くなりません。得意な問題だけです。</div><div class='myth'><b>❌「もうすぐスマホに入る」</b>多くの方式は極低温が必要で、ノイズでエラーが出やすい。エラー訂正が最大の課題です。</div><div class='myth ok'><b>⭕「特定の問題で、桁違いに速くなる可能性がある」</b>だから世界中で研究されています。</div>" },
       ] },
+
     { emoji: "🏆", title: "理解度チェック", sub: "全7問のクイズ",
+      goal: ["ここまでの理解を確認する"], conclusion: "全問正解を目指そう！", analogy: "",
       gist: "ここまで来たあなたは、量子コンピュータの基本をつかんだ！",
-      steps: [{ h: "クイズに挑戦！", w: "quiz", p: "ここまでの内容を、7問で確認しよう。" }] },
+      steps: [{ h: "クイズに挑戦！", w: "quiz", p: "ここまでの内容を、7問で確認しよう。間違えても解説が出るので大丈夫！" }] },
   ];
 
   const RANKS = [[0, "量子ビギナー"], [2, "量子見習い"], [5, "量子ハンター"], [8, "量子マスター"], [10, "量子博士 🎓"]];
@@ -1079,6 +1239,7 @@
     if (cleanup) { cleanup(); cleanup = null; }
     removeHint();
     $("#clear").hidden = true;
+    $("#gloss").hidden = true;
     cur = -1;
     if (!fromPop && history.state && history.state.ch != null) history.back();
     renderHome();
@@ -1094,35 +1255,81 @@
 
   function removeHint() { if (hintEl) { hintEl.remove(); hintEl = null; } }
 
+  // 章のはじまり画面
+  function introStep(ch, i) {
+    const box = h("div", { class: "intro" },
+      h("div", { class: "intro-emoji" }, ch.emoji),
+      h("div", { class: "ch-no" }, `CHAPTER ${i + 1}`),
+      h("h2", {}, ch.title),
+      h("div", { class: "icard" }, h("div", { class: "ilabel" }, "🎯 この章でわかること"), h("ul", {}, ch.goal.map((g) => h("li", {}, g)))),
+      h("div", { class: "icard key" }, h("div", { class: "ilabel" }, "💡 先に結論"), h("p", { html: ch.conclusion })));
+    if (ch.analogy) box.append(h("div", { class: "icard" }, h("div", { class: "ilabel" }, "🪄 たとえるなら"), h("p", {}, ch.analogy)));
+    return box;
+  }
+
   function renderStep() {
     if (cleanup) { cleanup(); cleanup = null; }
     removeHint();
     const ch = CHAPTERS[cur];
-    const st = ch.steps[stepNo];
+    const total = ch.steps.length + 1;
+    const el = $("#step");
+    el.innerHTML = "";
+    const next = $("#next-btn");
     $("#ch-title").textContent = `${cur + 1}. ${ch.title}`;
     const dots = $("#dots");
     dots.innerHTML = "";
-    ch.steps.forEach((_, k) => dots.append(h("i", { class: k === stepNo ? "on" : k < stepNo ? "past" : "" })));
-    const el = $("#step");
-    el.innerHTML = "";
+    for (let k = 0; k < total; k++) dots.append(h("i", { class: k === stepNo ? "on" : k < stepNo ? "past" : "" }));
+    $("#prev-btn").style.visibility = stepNo === 0 ? "hidden" : "visible";
+    window.scrollTo(0, 0);
+    unlocked = true; next.disabled = false;
+
+    if (stepNo === 0) {
+      el.append(introStep(ch, cur));
+      next.textContent = "はじめる ▶";
+      return;
+    }
+    const st = ch.steps[stepNo - 1];
+    const last = stepNo === ch.steps.length;
     el.append(h("h2", {}, st.h), h("div", { class: "guide" }, h("div", { class: "orb" }), h("div", { class: "bubble" }, h("p", { html: st.p }))));
-    const next = $("#next-btn");
-    const last = stepNo === ch.steps.length - 1;
-    unlocked = !st.need;
-    next.disabled = !!st.need;
+
+    const todo = st.todo || [];
+    let resultEl = null, taskEls = [];
+    const doneSet = new Set();
+    unlocked = !todo.length;
+    next.disabled = !!todo.length;
+
+    if (st.what) {
+      const wc = h("div", { class: "what" }, h("div", { class: "ilabel" }, "🔬 この実験は？"), h("p", { html: st.what }));
+      if (st.look) wc.append(h("div", { class: "ilabel", style: "margin-top:8px" }, "👀 ここを見よう"), h("ul", {}, st.look.map((l) => h("li", { html: l }))));
+      el.append(wc);
+    }
+    if (todo.length) {
+      const tc = h("div", { class: "tasks" }, h("div", { class: "ilabel" }, "✅ やること（やるとチェックが入ります）"));
+      todo.forEach((t) => { const li = h("div", { class: "task" }, h("i", {}), h("span", { html: t })); taskEls.push(li); tc.append(li); });
+      el.append(tc);
+    }
+    function finish() {
+      if (unlocked) return;
+      unlocked = true; next.disabled = false; removeHint(); fx.win();
+      if (resultEl) { resultEl.hidden = false; setTimeout(() => resultEl.scrollIntoView({ behavior: "smooth", block: "center" }), 80); }
+    }
+    function refreshHint() {
+      if (unlocked) return;
+      const k = todo.findIndex((_, j) => !doneSet.has(j));
+      if (k < 0) return;
+      if (!hintEl) {
+        hintEl = h("div", { class: "hint" }, h("span", {}, ""), h("button", { onclick: () => { todo.forEach((_, j) => doneSet.add(j)); taskEls.forEach((t) => t.classList.add("on")); finish(); } }, "とばす"));
+        $("#chapter").append(hintEl);
+      }
+      hintEl.firstChild.textContent = `👆 ${k + 1}. ${taskEls[k].textContent}`;
+    }
     const ctx = {
-      unlock() {
-        if (unlocked) return;
-        unlocked = true; next.disabled = false; removeHint(); fx.win();
+      tick(j) {
+        if (j >= todo.length || doneSet.has(j) || unlocked) return;
+        doneSet.add(j); taskEls[j].classList.add("on"); sfx.tap();
+        if (doneSet.size >= todo.length) finish(); else refreshHint();
       },
-      hint(msg) {
-        if (unlocked) return;
-        if (!hintEl) {
-          hintEl = h("div", { class: "hint" }, h("span", {}, ""), h("button", { onclick: () => ctx.unlock() }, "とばす"));
-          $("#chapter").append(hintEl);
-        }
-        hintEl.firstChild.textContent = "👆 " + msg;
-      },
+      unlock() {}, hint() {},
     };
     if (st.w) {
       const box = h("div", { class: "widget" });
@@ -1130,9 +1337,13 @@
       const r = W[st.w](box, ctx);
       if (typeof r === "function") cleanup = r;
     }
-    $("#prev-btn").style.visibility = stepNo === 0 ? "hidden" : "visible";
+    if (st.result) {
+      resultEl = h("div", { class: "result" }, h("div", { class: "ilabel" }, "🎉 わかったこと"), h("p", { html: st.result }));
+      resultEl.hidden = todo.length > 0;
+      el.append(resultEl);
+    }
+    if (todo.length) refreshHint();
     next.textContent = last ? (st.w === "quiz" ? "ホームへ" : "章をクリア 🎉") : "次へ";
-    window.scrollTo(0, 0);
   }
 
   function showClear() {
@@ -1152,8 +1363,8 @@
   $("#next-btn").addEventListener("click", () => {
     const ch = CHAPTERS[cur];
     sfx.tap();
-    if (stepNo < ch.steps.length - 1) { stepNo++; renderStep(); return; }
-    if (ch.steps[stepNo].w === "quiz") { markDone(); goHome(false); return; }
+    if (stepNo < ch.steps.length) { stepNo++; renderStep(); return; }
+    if (ch.steps[stepNo - 1].w === "quiz") { markDone(); goHome(false); return; }
     showClear();
   });
   $("#clear-home").addEventListener("click", () => goHome(false));

@@ -1,4 +1,4 @@
-const CACHE = "quantum-v2";
+const CACHE = "quantum-v3";
 const FILES = ["./", "index.html", "style.css", "sim.js", "app.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png"];
 
