@@ -212,3 +212,47 @@ canvas.w { display: block; width: 100%; border-radius: 14px; background: #0a1030
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- v2: ナビ・ヒント・クリア画面 ---------- */
+.rank { font-size: 12px; color: var(--yellow); font-weight: 700; white-space: nowrap; }
+.mute { display: block; margin: 14px auto 0; }
+.icon-btn.sm { width: 34px; height: 34px; font-size: 15px; }
+
+.guide { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 6px; }
+.orb { flex: none; width: 44px; height: 44px; border-radius: 50%; margin-top: 2px;
+  background: radial-gradient(circle at 32% 30%, #fff, #3de6ff 40%, #7a6bff 85%);
+  box-shadow: 0 0 22px #3de6ffaa; animation: float 2.6s ease-in-out infinite; position: relative; }
+.orb::before, .orb::after { content: ""; position: absolute; top: 17px; width: 5px; height: 8px; border-radius: 50%; background: #05163a; }
+.orb::before { left: 12px; } .orb::after { right: 12px; }
+@keyframes float { 50% { transform: translateY(-4px); } }
+.bubble { position: relative; flex: 1; min-width: 0; padding: 12px 14px; border-radius: 4px 18px 18px 18px;
+  background: #ffffff12; border: 1px solid #ffffff1c; }
+.bubble p:last-child { margin-bottom: 0; }
+
+.hint { position: fixed; left: 50%; bottom: calc(82px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  z-index: 7; display: flex; gap: 10px; align-items: center; max-width: calc(100% - 32px);
+  padding: 8px 8px 8px 16px; border-radius: 99px; font-size: 13px; font-weight: 700; color: #04122b;
+  background: linear-gradient(135deg, var(--yellow), #ff9d3d); box-shadow: 0 6px 24px #ff9d3d66; animation: pulse 1.6s ease-in-out infinite; }
+.hint button { border: 0; border-radius: 99px; padding: 4px 10px; font: inherit; font-size: 12px; background: #04122b22; color: #04122b; }
+@keyframes pulse { 50% { transform: translateX(-50%) scale(1.04); } }
+
+.clear { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 20px; background: #050816dd; backdrop-filter: blur(6px); }
+.clear[hidden] { display: none; }
+.clear-card { width: 100%; max-width: 380px; text-align: center; padding: 26px 22px; border-radius: 26px; border: 1px solid var(--line);
+  background: linear-gradient(160deg, #1a2456, #0e1532); box-shadow: 0 20px 80px #000a; animation: pop .45s ease; display: grid; gap: 8px; }
+.star { font-size: 54px; animation: spin 1.4s linear 1; }
+.clear-no { color: var(--cyan); font-size: 12px; letter-spacing: .25em; }
+.clear-card h3 { margin: 0; font-size: 22px; }
+.clear-label { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+.clear-gist { margin: 0 0 8px; padding: 12px; border-radius: 14px; background: #ffffff0f; font-size: 15.5px; font-weight: 700; color: var(--yellow); }
+
+.switch { display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 12px; padding: 10px 14px; border-radius: 14px;
+  background: #ffffff0c; border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 14px; font-weight: 700; width: 100%; }
+.switch i { width: 44px; height: 24px; border-radius: 99px; background: #3a4888; position: relative; transition: background .2s; flex: none; }
+.switch i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.switch.on i { background: var(--pink); }
+.switch.on i::after { transform: translateX(20px); }
+.mem { margin-top: 10px; padding: 10px 12px; border-radius: 14px; background: #ff5fa812; border: 1px solid #ff5fa833; font-size: 13.5px; text-align: center; }
+.mem b { color: var(--pink); }
+.hint { width: max-content; white-space: normal; text-align: left; line-height: 1.4; }
+.hint button { flex: none; white-space: nowrap; }

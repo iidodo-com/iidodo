@@ -20,6 +20,37 @@
   }
 
   const buzz = (ms = 25) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (_) { /* noop */ } };
+
+  // 効果音（WebAudio。ユーザー操作のあとに鳴る）
+  const sfx = (() => {
+    let ac = null, on = true;
+    try { on = localStorage.getItem("quantum.mute") !== "1"; } catch (_) { /* noop */ }
+    function tone(f, d = 0.12, type = "sine", v = 0.07, when = 0, slide) {
+      if (!on) return;
+      try {
+        ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+        if (ac.state === "suspended") ac.resume();
+        const t = ac.currentTime + when, o = ac.createOscillator(), gn = ac.createGain();
+        o.type = type; o.frequency.setValueAtTime(f, t);
+        if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + d);
+        gn.gain.setValueAtTime(v, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + d);
+        o.connect(gn); gn.connect(ac.destination); o.start(t); o.stop(t + d + 0.03);
+      } catch (_) { /* noop */ }
+    }
+    return {
+      get on() { return on; },
+      toggle() { on = !on; try { localStorage.setItem("quantum.mute", on ? "0" : "1"); } catch (_) { /* noop */ } return on; },
+      tap: () => tone(520, 0.08, "triangle"),
+      blip: () => tone(1200 + Math.random() * 900, 0.04, "sine", 0.025),
+      gate: () => tone(330, 0.2, "sine", 0.08, 0, 760),
+      measure: () => { tone(880, 0.1, "square", 0.04); tone(1320, 0.16, "sine", 0.06, 0.07); },
+      win: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.2, "sine", 0.07, i * 0.08)),
+    };
+  })();
+  const fx = {
+    tap() { buzz(12); sfx.tap(); }, gate() { buzz(18); sfx.gate(); },
+    measure() { buzz(40); sfx.measure(); }, win() { buzz([30, 40, 30]); sfx.win(); },
+  };
   const pct = (v) => Math.round(v * 100) + "%";
   const sgn = (v) => (Math.abs(v) < 1e-9 ? "0.00" : (v > 0 ? "+" : "−") + Math.abs(v).toFixed(2));
   const rad = (d) => (d * Math.PI) / 180;
@@ -148,7 +179,7 @@
   };
 
   // --- 1: 量子ビット（回るコイン）
-  W.qubit = (box) => {
+  W.qubit = (box, ctx) => {
     const s = Q.create(1);
     let spinning = false;
     let timer = 0;
@@ -163,7 +194,7 @@
       spinning = true; coin.classList.add("spin"); coin.classList.remove("pop");
       timer = setInterval(() => { coin.textContent = Math.random() < 0.5 ? "0" : "1"; }, 110);
       note.innerHTML = "回転中…<b>0でもあり、1でもある</b>状態です。";
-      refresh(); buzz(20);
+      refresh(); fx.gate();
     } }, "🌀 重ね合わせにする");
     const mBtn = h("button", { class: "btn", onclick: () => {
       if (!spinning) return;
@@ -174,17 +205,18 @@
       const n = tally[0] + tally[1];
       chart.set([tally[0] / n, tally[1] / n], { text: [tally[0] + "回", tally[1] + "回"] });
       note.innerHTML = `観測した！ 結果は <b>${r}</b>。もう一度回して、何回か試してみよう（${n}回目）。`;
-      refresh(); buzz(40);
+      refresh(); fx.measure();
+      if (n >= 5) ctx.unlock(); else ctx.hint(`あと${5 - n}回、回して観測してみよう`);
     } }, "👁 観測する");
     function refresh() { hBtn.disabled = spinning; mBtn.disabled = !spinning; }
-    refresh();
+    refresh(); ctx.hint("「重ね合わせ」→「観測」を5回くり返そう");
     box.append(h("div", { class: "wlabel" }, "量子ビット（キュービット）"), coin,
       h("div", { class: "row" }, hBtn, mBtn), note, chart);
     return () => clearInterval(timer);
   };
 
   // --- 2: 確率の矢印
-  W.bloch = (box) => {
+  W.bloch = (box, ctx) => {
     let phi = 0; // 度
     const cv = h("canvas", { class: "w" });
     const size = 280;
@@ -255,28 +287,30 @@
       obsChart.hidden = false;
       obsChart.set([(100 - n1) / 100, n1 / 100], { text: [100 - n1 + "回", n1 + "回"] });
       obs.innerHTML = `100回観測した結果（理論値は 0:${pct(1 - p1)} / 1:${pct(p1)}）`;
-      buzz(30);
+      fx.measure(); ctx.unlock();
     } }, "👁 100回観測");
 
     box.append(h("div", { class: "wlabel" }, "矢印をドラッグ！ または下のバーを動かす"), cv, slide,
       h("div", { class: "row" }, preset("|0⟩", 0), preset("半々 45°", 45), preset("|1⟩", 90), preset("半々 315°", 315)),
       info, chart, h("div", { class: "row" }, measure), obs, obsChart);
     setTimeout(update, 0);
+    ctx.hint("矢印を動かして「100回観測」を押そう");
   };
 
-  // --- 3: 指数の力
-  W.exp = (box) => {
+  // --- 3: 指数の力（メモリ換算つき）
+  W.exp = (box, ctx) => {
     const big = h("div", { class: "big-num" });
     const dots = h("div", { class: "dotgrid" });
     const label = h("div", { class: "val" });
     const note = h("p", { class: "note" });
+    const mem = h("div", { class: "mem" });
     const marks = [
       [1, "1個では 2通り。コインの表と裏と同じ。"],
-      [4, "4個で16通り。トランプの1スートより多い！"],
+      [4, "4個で16通り。"],
       [10, "10個で1024通り。"],
       [20, "20個で約100万通り。"],
       [33, "33個で約86億通り。<b>世界の人口（約80億）を超えた</b>！"],
-      [50, "50個で約1000兆通り。<b>世界最高クラスのスパコン</b>でも、全部を普通に記録するのは限界に近づく。"],
+      [50, "50個で約1000兆通り。<b>世界最高クラスのスパコン</b>でも苦しい規模。"],
       [80, "80個で約10²⁴通り。コップ1杯の水の分子の数に近い規模！"],
       [150, "150個で約10⁴⁵通り。もう想像できない数。"],
       [266, "266個で約10⁸⁰通り。<b>宇宙にある原子の総数</b>と同じくらい！"],
@@ -285,26 +319,292 @@
       if (n <= 50) return Math.pow(2, n).toLocaleString("ja-JP");
       const lg = n * Math.log10(2);
       const e = Math.floor(lg);
-      return (Math.pow(10, lg - e)).toFixed(2) + " × 10^" + e;
+      return Math.pow(10, lg - e).toFixed(2) + " × 10^" + e;
+    }
+    function memText(n) {
+      // 2^n 個の振幅 × 16バイト（複素数）。スマホは 256GB と仮定
+      const lgB = n * Math.log10(2) + Math.log10(16);
+      const units = [[24, "YB"], [21, "ZB"], [18, "EB"], [15, "PB"], [12, "TB"], [9, "GB"], [6, "MB"], [3, "KB"]];
+      let size = Math.pow(10, lgB) + " バイト";
+      if (lgB >= 3) {
+        const [e, u] = units.find((x) => lgB >= x[0]) || [3, "KB"];
+        size = lgB < 27 ? (Math.pow(10, lgB - e)).toFixed(1) + " " + u : "10^" + Math.floor(lgB) + " バイト";
+      } else size = Math.round(Math.pow(10, lgB)) + " バイト";
+      const lgP = lgB - Math.log10(256e9);
+      let phones;
+      if (lgP < 0) phones = "スマホ1台で余裕";
+      else if (lgP < 4) phones = `スマホ <b>${Math.round(Math.pow(10, lgP)).toLocaleString("ja-JP")}</b> 台ぶん`;
+      else if (lgP < 8) phones = `スマホ <b>${Math.round(Math.pow(10, lgP - 4)).toLocaleString("ja-JP")}万</b> 台ぶん`;
+      else phones = `スマホ <b>10^${Math.floor(lgP)}</b> 台ぶん`;
+      const extra = n >= 70 ? "<br>世界中のデータを全部集めても足りません。" : "";
+      return `ふつうのコンピュータで、この状態を<b>まるごと記録</b>するには…<br><b>${size}</b>（${phones}）${extra}`;
     }
     function update(n) {
       label.textContent = n + " 個";
-      big.innerHTML = fmtPow(n) + `<small>= 2 の ${n} 乗 通り</small>`;
+      big.innerHTML = fmtPow(n) + `<small>= 2 の ${n} 乗 通りの矢印</small>`;
       dots.innerHTML = "";
       if (n <= 6) for (let i = 0; i < 1 << n; i++) dots.append(h("i"));
       let msg = marks[0][1];
       for (const [k, m] of marks) if (n >= k) msg = m;
       note.innerHTML = msg;
+      mem.innerHTML = memText(n);
+      if (n >= 50) ctx.unlock();
+      else ctx.hint("スライダーを右へ！ 50個まで増やしてみよう");
     }
-    const s = slider(1, 300, 3, 1, update);
+    const s = slider(1, 300, 3, 1, (v) => { update(v); if (v % 5 === 0) sfx.blip(); });
     box.append(h("div", { class: "wlabel" }, "量子ビットの数を増やしてみよう"),
-      h("div", { class: "slider-row" }, "1", s, "300", label), big, dots, note,
+      h("div", { class: "slider-row" }, "1", s, "300", label), big, dots, note, mem,
       h("p", { class: "cap" }, "n個の量子ビットは、2ⁿ個の「矢印（振幅）」を同時に持てます"));
     update(3);
   };
 
+  // --- 1: 二重スリット実験
+  W.slit = (box, ctx) => {
+    const Hh = 430;
+    const cv = h("canvas", { class: "w" });
+    cv.style.height = Hh + "px";
+    const g = cv.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    let Wd = 320, raf = 0, last = 0, acc = 0, observe = false, auto = false;
+    let dots = [];
+    const parts = [];
+    const seen = { wave: 0, obs: 0 };
+    const env = (x, c = 0) => Math.exp(-(((x - c) / 0.5) ** 2));
+    const pdf = (x) => (observe ? 0.5 * (env(x, 0.12) + env(x, -0.12)) : env(x) * Math.cos(Math.PI * 6.5 * x) ** 2);
+    function sampleX() { for (;;) { const x = Math.random() * 2 - 1; if (Math.random() < pdf(x)) return x; } }
+    const note = h("p", { class: "note" }, "「連射」で粒を撃ってみよう。壁の向こうに、どんな形ができる？");
+    const count = h("div", { class: "cap" });
+
+    function land(x) {
+      dots.push({ x, j: Math.random() });
+      seen[observe ? "obs" : "wave"]++;
+      if (dots.length % 3 === 0) sfx.blip();
+      status();
+    }
+    function status() {
+      count.textContent = `撃った粒：${dots.length} 個`;
+      const n = dots.length;
+      if (!observe) {
+        if (n >= 150) note.innerHTML = "<b>縞模様ができた！</b> 1個ずつ撃ったのに、波が干渉したときの形です。粒は<b>両方の穴を同時に通った</b>としか説明できません。";
+        else if (n > 0) note.innerHTML = "1個ずつ、バラバラに着弾…。まだ模様は見えない。もっと撃ってみて！";
+      } else if (n >= 80) note.innerHTML = "見張ると<b>縞が消えた！</b> ふつうの粒のように、2本の帯になりました。<b>見るだけで結果が変わる</b>のが量子の世界です。";
+      if (!observe && seen.wave >= 150 && seen.obs < 80) ctx.hint("次は「見張る」をONにして、また撃ってみよう");
+      if (seen.wave >= 150 && seen.obs >= 80) ctx.unlock();
+    }
+    function spawn() { parts.push({ t: 0, x: sampleX(), side: Math.random() < 0.5 ? -1 : 1 }); }
+    function burst(n) { for (let i = 0; i < n; i++) land(sampleX()); fx.tap(); }
+
+    function geo() { return { cx: Wd / 2, Wx: Wd * 0.44, srcY: Hh - 34, barY: Hh * 0.6, scrY: Hh * 0.22, slit: Wd * 0.09 }; }
+    function glow(x, y, r, col, a = 1) {
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, `rgba(255,255,255,${a})`); gr.addColorStop(0.35, col.replace("A", a * 0.8)); gr.addColorStop(1, col.replace("A", 0));
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    }
+    function draw(ts) {
+      const w = cv.clientWidth || 320;
+      if (w !== Wd || cv.width !== Math.round(w * dpr)) { Wd = w; cv.width = Math.round(w * dpr); cv.height = Hh * dpr; }
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, Wd, Hh);
+      const { cx, Wx, srcY, barY, scrY, slit } = geo();
+      // 波紋（見張っていないときだけ）
+      if (!observe) {
+        for (const sx of [cx - slit, cx + slit]) for (let k = 0; k < 4; k++) {
+          const r = ((ts / 1000) * 45 + k * 36) % 144;
+          g.strokeStyle = `rgba(61,230,255,${0.22 * (1 - r / 144)})`; g.lineWidth = 2;
+          g.beginPath(); g.arc(sx, barY, r, Math.PI * 1.08, Math.PI * 1.92); g.stroke();
+        }
+      }
+      // 壁
+      g.fillStyle = "#5b6bb5";
+      g.fillRect(0, barY - 5, cx - slit - 9, 10);
+      g.fillRect(cx - slit + 9, barY - 5, slit * 2 - 18, 10);
+      g.fillRect(cx + slit + 9, barY - 5, Wd - (cx + slit + 9), 10);
+      // 発射口
+      glow(cx, srcY, 26, "rgba(255,209,102,A)");
+      g.fillStyle = "#98a4cf"; g.font = "12px sans-serif"; g.textAlign = "center";
+      g.fillText("粒の発射口", cx, srcY + 24);
+      g.textAlign = "left"; g.fillText("2つの穴のある壁", 8, barY - 12);
+      // スクリーン
+      g.strokeStyle = "#8fa0e8"; g.lineWidth = 2; g.beginPath(); g.moveTo(8, scrY); g.lineTo(Wd - 8, scrY); g.stroke();
+      g.fillStyle = "#98a4cf"; g.fillText("スクリーン（粒がぶつかった場所）", 8, scrY + 30);
+      // ヒストグラム + 着弾点
+      const bins = 64, cnt = new Array(bins).fill(0);
+      for (const d of dots) cnt[Math.min(bins - 1, Math.floor(((d.x + 1) / 2) * bins))]++;
+      const mx = Math.max(6, ...cnt), bw = (Wx * 2) / bins;
+      for (let i = 0; i < bins; i++) {
+        const hh = (cnt[i] / mx) * (scrY - 26);
+        const gr = g.createLinearGradient(0, scrY, 0, scrY - hh);
+        gr.addColorStop(0, observe ? "#ff5fa8" : "#9b7bff"); gr.addColorStop(1, observe ? "#ff9d3d" : "#3de6ff");
+        g.fillStyle = gr; g.fillRect(cx - Wx + i * bw + 0.5, scrY - hh, bw - 1, hh);
+      }
+      g.fillStyle = observe ? "#ffd2a8" : "#d6f6ff";
+      for (const d of dots.slice(-400)) { g.beginPath(); g.arc(cx + d.x * Wx, scrY + 4 + d.j * 14, 1.7, 0, 7); g.fill(); }
+      // 見張り
+      if (observe) {
+        g.font = "20px sans-serif"; g.textAlign = "center";
+        g.fillText("👁", cx - slit, barY + 28); g.fillText("👁", cx + slit, barY + 28);
+      }
+      // 飛んでいる粒
+      for (const p of parts) {
+        const tx = cx + p.x * Wx;
+        const sides = observe ? [p.side] : [-1, 1];
+        for (const sd of sides) {
+          const sxp = cx + sd * slit;
+          let x, y;
+          if (p.t < 0.5) { const u = p.t / 0.5; x = cx + (sxp - cx) * u; y = srcY + (barY - srcY) * u; }
+          else { const u = (p.t - 0.5) / 0.5; x = sxp + (tx - sxp) * u; y = barY + (scrY - barY) * u; }
+          glow(x, y, observe ? 13 : 11, observe ? "rgba(255,157,61,A)" : "rgba(155,123,255,A)", observe ? 1 : 0.8);
+        }
+      }
+      g.fillStyle = "#eaf0ff"; g.font = "bold 13px sans-serif"; g.textAlign = "right";
+      g.fillText(dots.length + " 個", Wd - 10, 18);
+    }
+    function frame(ts) {
+      raf = requestAnimationFrame(frame);
+      const dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+      if (auto) { acc += dt * 9; while (acc >= 1) { acc--; spawn(); } }
+      for (const p of parts) p.t += dt * 0.95;
+      for (let i = parts.length - 1; i >= 0; i--) if (parts[i].t >= 1) { land(parts[i].x); parts.splice(i, 1); }
+      draw(ts);
+    }
+
+    const autoBtn = h("button", { class: "btn primary", onclick: () => { auto = !auto; autoBtn.textContent = auto ? "⏸ 止める" : "▶ 連射"; fx.tap(); } }, "▶ 連射");
+    const one = h("button", { class: "btn", onclick: () => { spawn(); fx.tap(); } }, "1個だけ");
+    const bst = h("button", { class: "btn", onclick: () => burst(300) }, "⚡ 一気に300個");
+    const sw = h("button", { class: "switch", onclick: () => {
+      observe = !observe; sw.classList.toggle("on", observe);
+      sw.lastChild.textContent = observe ? "どっちの穴を通ったか見張る：ON" : "どっちの穴を通ったか見張る：OFF";
+      dots = []; parts.length = 0; seen[observe ? "obs" : "wave"] = 0;
+      note.textContent = observe ? "見張りON。もう一度、連射してみよう。" : "見張りOFF。";
+      count.textContent = ""; fx.gate();
+    } }, h("i"), h("span", {}, "どっちの穴を通ったか見張る：OFF"));
+    box.append(cv, h("div", { class: "row" }, autoBtn, one, bst), sw, count, note);
+    ctx.hint("まず「連射」で粒をたくさん撃とう");
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  };
+
+  // --- 3: 3D 量子ビット球（ブロッホ球）
+  W.sphere = (box, ctx) => {
+    const size = 330;
+    const cv = h("canvas", { class: "w" });
+    cv.style.height = size + "px";
+    const g = cv.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    let v = [0, 0, 1], az = -0.6, el = 0.4, drag = false, lastX = 0, anim = null, raf = 0, used = 0;
+    let trail = [];
+    const note = h("p", { class: "note" }, "ゲートのボタンを押すと、矢印が球の上を回ります。");
+    const chart = bars(["|0⟩", "|1⟩"], { height: 56 });
+    const r2 = Math.SQRT1_2;
+    const GATES = {
+      H: { k: [r2, 0, r2], a: Math.PI, d: "<b>H</b>：北極から赤道へ。矢印が<b>90°倒れて</b>、0と1が半々に。" },
+      X: { k: [1, 0, 0], a: Math.PI, d: "<b>X</b>：球をひっくり返す。0 ⇄ 1 の入れ替え。" },
+      Y: { k: [0, 1, 0], a: Math.PI, d: "<b>Y</b>：0 ⇄ 1 を入れ替えつつ、向きも変える。" },
+      Z: { k: [0, 0, 1], a: Math.PI, d: "<b>Z</b>：真上の軸のまわりに半回転。<b>高さ（確率）は変わらない</b>けど、向きは変わった！これが「位相」。" },
+      S: { k: [0, 0, 1], a: Math.PI / 2, d: "<b>S</b>：軸のまわりに90°。確率は同じ、向きだけ変化。" },
+      T: { k: [0, 0, 1], a: Math.PI / 4, d: "<b>T</b>：軸のまわりに45°。小さな位相の変化。" },
+    };
+    function rot(p, k, t) {
+      const c = Math.cos(t), s = Math.sin(t), dot = k[0] * p[0] + k[1] * p[1] + k[2] * p[2];
+      const cr = [k[1] * p[2] - k[2] * p[1], k[2] * p[0] - k[0] * p[2], k[0] * p[1] - k[1] * p[0]];
+      return [0, 1, 2].map((i) => p[i] * c + cr[i] * s + k[i] * dot * (1 - c));
+    }
+    function P(p, cx, cy, R) {
+      const ca = Math.cos(az), sa = Math.sin(az);
+      const x1 = p[0] * ca - p[1] * sa, y1 = p[0] * sa + p[1] * ca, z1 = p[2];
+      const ce = Math.cos(el), se = Math.sin(el);
+      return { x: cx + R * x1, y: cy - R * (y1 * se + z1 * ce), d: y1 * ce - z1 * se };
+    }
+    function ring(fn, cx, cy, R, col) {
+      let prev = null;
+      for (let i = 0; i <= 90; i++) {
+        const q = P(fn((i / 90) * Math.PI * 2), cx, cy, R);
+        if (prev) {
+          g.strokeStyle = col + ((q.d + prev.d) / 2 > 0 ? "30" : "88"); g.lineWidth = 1.4;
+          g.beginPath(); g.moveTo(prev.x, prev.y); g.lineTo(q.x, q.y); g.stroke();
+        }
+        prev = q;
+      }
+    }
+    function draw() {
+      const w = cv.clientWidth || 320;
+      if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = size * dpr; }
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, size);
+      const cx = w / 2, cy = size / 2 + 4, R = Math.min(w, size) / 2 - 56;
+      const bg = g.createRadialGradient(cx - R * 0.3, cy - R * 0.3, 4, cx, cy, R);
+      bg.addColorStop(0, "#2a3c8a66"); bg.addColorStop(1, "#0a103a22");
+      g.fillStyle = bg; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fill();
+      ring((t) => [Math.cos(t), Math.sin(t), 0], cx, cy, R, "#8fa0ff");
+      ring((t) => [Math.cos(t), 0, Math.sin(t)], cx, cy, R, "#8fa0ff");
+      ring((t) => [0, Math.cos(t), Math.sin(t)], cx, cy, R, "#8fa0ff");
+      // 軸とラベル
+      const ax = [[[0, 0, 1], "|0⟩", "#3de6ff"], [[0, 0, -1], "|1⟩", "#ff9d3d"], [[1, 0, 0], "|＋⟩", "#98a4cf"], [[-1, 0, 0], "|－⟩", "#98a4cf"]];
+      g.font = "bold 14px sans-serif"; g.textAlign = "center";
+      const o = P([0, 0, 0], cx, cy, R);
+      for (const [p, t, c] of ax) {
+        const q = P(p, cx, cy, R), l = P(p.map((x) => x * 1.22), cx, cy, R);
+        g.strokeStyle = c + "99"; g.lineWidth = 1.5; g.beginPath(); g.moveTo(o.x, o.y); g.lineTo(q.x, q.y); g.stroke();
+        g.fillStyle = c; g.fillText(t, l.x, l.y + 5);
+      }
+      // 軌跡
+      for (let i = 1; i < trail.length; i++) {
+        const a = P(trail[i - 1], cx, cy, R), b = P(trail[i], cx, cy, R);
+        g.strokeStyle = `rgba(255,209,102,${(i / trail.length) * 0.9})`; g.lineWidth = 3;
+        g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+      }
+      // 高さの投影（=確率）
+      const tip = P(v, cx, cy, R), foot = P([0, 0, v[2]], cx, cy, R);
+      g.setLineDash([4, 4]); g.strokeStyle = "#ffd166"; g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(tip.x, tip.y); g.lineTo(foot.x, foot.y); g.stroke(); g.setLineDash([]);
+      g.fillStyle = "#ffd166"; g.beginPath(); g.arc(foot.x, foot.y, 4, 0, 7); g.fill();
+      // 矢印
+      g.strokeStyle = "#fff"; g.lineWidth = 4; g.lineCap = "round";
+      g.beginPath(); g.moveTo(o.x, o.y); g.lineTo(tip.x, tip.y); g.stroke();
+      const gl = g.createRadialGradient(tip.x, tip.y, 0, tip.x, tip.y, 20);
+      gl.addColorStop(0, "#fff"); gl.addColorStop(0.3, "#9b7bff"); gl.addColorStop(1, "#9b7bff00");
+      g.fillStyle = gl; g.beginPath(); g.arc(tip.x, tip.y, 20, 0, 7); g.fill();
+      g.fillStyle = "#98a4cf"; g.font = "11px sans-serif"; g.fillText("ドラッグで球を回して見る", cx, size - 8);
+    }
+    function frame(ts) {
+      raf = requestAnimationFrame(frame);
+      if (!drag) az += 0.003;
+      if (anim) {
+        const u = Math.min(1, (ts - anim.t0) / 650), e = u < 0.5 ? 2 * u * u : 1 - ((-2 * u + 2) ** 2) / 2;
+        v = rot(anim.from, anim.k, anim.a * e);
+        trail.push(v.slice()); if (trail.length > 60) trail.shift();
+        if (u >= 1) { anim = null; }
+      } else if (trail.length) trail.shift();
+      chart.set([(1 + v[2]) / 2, (1 - v[2]) / 2]);
+      draw();
+    }
+    cv.addEventListener("pointerdown", (e) => { drag = true; lastX = e.clientX; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener("pointermove", (e) => { if (drag) { az += (e.clientX - lastX) * 0.012; lastX = e.clientX; } });
+    cv.addEventListener("pointerup", () => { drag = false; });
+    const row = h("div", { class: "row" });
+    Object.keys(GATES).forEach((name) => row.append(h("button", { class: "btn", onclick: (ev) => {
+      if (anim) return;
+      const gt = GATES[name];
+      anim = { from: v.slice(), k: gt.k, a: gt.a, t0: performance.now() };
+      note.innerHTML = gt.d; fx.gate();
+      used++; if (used >= 3) ctx.unlock(); else ctx.hint(`ゲートを押して矢印を動かそう（あと${3 - used}回）`);
+    } }, name)));
+    const reset = h("button", { class: "btn ghost small", onclick: () => { v = [0, 0, 1]; trail = []; anim = null; note.textContent = "|0⟩（北極）に戻しました。"; } }, "リセット");
+    const obs = h("button", { class: "btn primary small", onclick: () => {
+      if (anim) return;
+      const r = Math.random() < (1 - v[2]) / 2 ? 1 : 0;
+      v = [0, 0, r ? -1 : 1]; trail = [];
+      note.innerHTML = `👁 観測 → <b>${r}</b>。矢印は北極か南極にピタッと固定されました。`; fx.measure();
+    } }, "👁 観測する");
+    box.append(h("div", { class: "wlabel" }, "量子ビット＝球の上の矢印。高さ＝「0が出やすい度合い」"), cv, h("div", { class: "row" }, h("span", { class: "cap" }, "ゲート（球を回す操作）")), row,
+      h("div", { class: "row" }, obs, reset), note, chart);
+    ctx.hint("ゲートを押して矢印を動かそう（あと3回）");
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  };
+
   // --- 4: 波の干渉
-  W.waves = (box) => {
+  W.waves = (box, api) => {
     const cv = h("canvas", { class: "w" });
     const hh = 220;
     cv.style.height = hh + "px";
@@ -339,6 +639,7 @@
       ctx.stroke();
       const strength = Math.abs(Math.cos(rad(ph) / 2));
       note.innerHTML = strength > 0.9 ? "山と山が重なる → <b>強め合う！</b>" : strength < 0.1 ? "山と谷が重なる → <b>打ち消し合って消えた！</b>" : "ずらし具合で、強さが変わります。";
+      if (strength < 0.1) api.unlock(); else api.hint("山と谷が重なって消えるところまで、バーを動かそう");
     }
     const s = slider(0, 360, 0, 1, (v) => { ph = v; draw(); });
     box.append(h("div", { class: "wlabel" }, "波Bのズレを動かしてみよう"), cv, s, note);
@@ -346,9 +647,10 @@
   };
 
   // --- 4: Hゲート2回（干渉の実験）
-  W.interf = (box) => {
+  W.interf = (box, ctx) => {
     let s = Q.create(1);
     let hist = ["|0⟩"];
+    let presses = 0;
     const amp = bars(["|0⟩", "|1⟩"], { signed: true, height: 120 });
     const prob = bars(["0", "1"], { height: 70 });
     const histEl = h("div", { class: "cap" });
@@ -361,11 +663,13 @@
       prob.set(Q.probs(s));
       histEl.textContent = hist.join(" → ");
       const p1 = s.amp[1] ** 2;
+      if (p1 > 0.999) { ctx.unlock(); }
       win.textContent = p1 > 0.999 ? "🎉 ミッション成功！ 必ず「1」が出る状態にできた！" : "";
       obsEl.textContent = "";
     }
     const gate = (name, m, desc) => h("button", { class: "btn", onclick: () => {
-      Q.apply1(s, 0, m); hist.push(name); update(); note.innerHTML = desc; buzz(15);
+      Q.apply1(s, 0, m); hist.push(name); update(); note.innerHTML = desc; fx.gate();
+      presses++; if (presses >= 8) ctx.unlock();
     } }, name);
     const reset = h("button", { class: "btn ghost", onclick: () => { s = Q.create(1); hist = ["|0⟩"]; update(); note.textContent = ""; } }, "リセット");
     const obs = h("button", { class: "btn primary small", onclick: () => {
@@ -384,11 +688,11 @@
       h("div", { class: "row" }, obs), obsEl, note,
       h("div", { class: "explain" }, "🎯 ミッション：ゲートを組み合わせて、必ず「1」が出る状態を作ろう。方法は2通りあるよ！（ヒント：Xを使う方法と、Hで挟んで…）"),
       win);
-    update();
+    update(); ctx.hint("H を2回押してみよう！（ミッション達成でも次へ進める）");
   };
 
   // --- 5: もつれ
-  W.bell = (box) => {
+  W.bell = (box, ctx) => {
     let s, stage, aRes, bRes;
     const labels = ["00", "01", "10", "11"];
     const prob = bars(labels, { height: 90 });
@@ -404,7 +708,7 @@
       aRes = Q.measureQubit(s, 0); stage = 3; coinA.textContent = aRes; spinStop(coinA); render(`Aを観測 → <b>${aRes}</b>。さて、Bはまだ見ていないけど…？予想してから「Bを観測」を押してみて。`); buzz(40);
     } }, "③ Aを観測");
     const bB = h("button", { class: "btn", onclick: () => {
-      bRes = Q.measureQubit(s, 1); stage = 4; coinB.textContent = bRes; spinStop(coinB); render(`Bは <b>${bRes}</b>！ Aと必ず同じ。ひとつ決まった瞬間、もうひとつも決まっていた。`); buzz(40);
+      bRes = Q.measureQubit(s, 1); stage = 4; coinB.textContent = bRes; spinStop(coinB); render(`Bは <b>${bRes}</b>！ Aと必ず同じ。ひとつ決まった瞬間、もうひとつも決まっていた。`); fx.measure(); ctx.unlock();
     } }, "④ Bを観測");
     const bR = h("button", { class: "btn ghost", onclick: init }, "最初から");
     const bN = h("button", { class: "btn small", onclick: () => {
@@ -425,7 +729,7 @@
       s = Q.create(2); stage = 0;
       [coinA, coinB].forEach((c) => { c.className = "coin q unknown"; c.textContent = "?"; });
       stat.textContent = ""; statChart.hidden = true;
-      render("ボタンを順番に押していこう。");
+      render("ボタンを順番に押していこう。"); ctx.hint("①〜④のボタンを順番に押そう");
     }
     box.append(h("div", { class: "wlabel" }, "量子ビット A と B（観測したときの確率）"), prob,
       h("div", { class: "cols2", style: "margin-top:12px" }, h("div", {}, h("div", { class: "wlabel" }, "A"), coinA), h("div", {}, h("div", { class: "wlabel" }, "B"), coinB)),
@@ -434,8 +738,9 @@
   };
 
   // --- 6: 回路ラボ
-  W.lab = (box) => {
+  W.lab = (box, ctx) => {
     const NQ = 3, NC = 6;
+    let placed = 0;
     const cols = new Array(NC).fill(null); // {type, q}
     let tool = "H";
     const grid = h("div", { class: "circuit" });
@@ -480,7 +785,8 @@
       if (tool === "erase") cols[c] = null;
       else if (cols[c] && cols[c].type === tool && cols[c].q === r) cols[c] = null;
       else cols[c] = { type: tool, q: r };
-      buzz(10); render();
+      fx.tap(); render();
+      placed++; if (placed >= 3) ctx.unlock(); else ctx.hint(`線をタップしてゲートを置こう（あと${3 - placed}回）`);
     }
     const palette = h("div", { class: "palette" });
     [["H", "H 重ね合わせ"], ["X", "X 反転"], ["Z", "Z 符号"], ["CNOT", "CNOT つなぐ"], ["erase", "消す"]].forEach(([k, t]) => {
@@ -509,11 +815,11 @@
     box.append(h("div", { class: "wlabel" }, "量子回路（左→右へ実行）"), palette, grid, presets,
       h("div", { class: "wlabel", style: "margin-top:10px" }, "観測したときの確率（q0 q1 q2）"), prob,
       h("div", { class: "row" }, mBtn, m100), obs, note);
-    render();
+    render(); ctx.hint("「例」ボタンか、線をタップして回路を組もう");
   };
 
   // --- 7: 古典的な探索（宝箱）
-  W.searchClassic = (box) => {
+  W.searchClassic = (box, ctx) => {
     let treasure, tries, done;
     const boxes = h("div", { class: "boxes" });
     const note = h("p", { class: "note" });
@@ -524,7 +830,7 @@
         const b = h("button", { class: "box", onclick: () => {
           if (done || b.classList.contains("open")) return;
           tries++; buzz(15);
-          if (i === treasure) { done = true; b.classList.add("found"); b.textContent = "💎"; note.innerHTML = `見つけた！ <b>${tries}回</b>で発見。<br>運が悪いと8回、平均は約4.5回かかります。`; }
+          if (i === treasure) { done = true; ctx.unlock(); fx.win(); b.classList.add("found"); b.textContent = "💎"; note.innerHTML = `見つけた！ <b>${tries}回</b>で発見。<br>運が悪いと8回、平均は約4.5回かかります。`; }
           else { b.classList.add("open"); b.textContent = "✕"; note.innerHTML = `ハズレ…（${tries}回目）`; }
         } }, i + 1);
         boxes.append(b);
@@ -533,11 +839,11 @@
     }
     box.append(h("div", { class: "wlabel" }, "ふつうのコンピュータの探し方：1つずつ開ける"), boxes, note,
       h("div", { class: "row" }, h("button", { class: "btn small", onclick: init }, "もう一度")));
-    init();
+    init(); ctx.hint("箱をタップして宝石を探そう");
   };
 
   // --- 7: グローバー探索
-  W.searchQuantum = (box) => {
+  W.searchQuantum = (box, ctx) => {
     const N = 8;
     let target = 4, s, phase, rounds;
     const labels = Array.from({ length: N }, (_, i) => String(i + 1));
@@ -561,6 +867,7 @@
     }
     function label() { stepBtn.textContent = phase === 0 ? `① 正解に目印をつける（${rounds}周目）` : `② 平均で折り返して増幅（${rounds}周目）`; }
     stepBtn.addEventListener("click", () => {
+      fx.gate();
       const a = s.amp;
       if (phase === 0) {
         a[target] = -a[target];
@@ -579,7 +886,7 @@
       const t = Q.clone(s); const k = Q.measureAll(t);
       obs.innerHTML = k === target ? `👁 観測 → <b>${k + 1}番</b>！ 💎 大当たり！` : `👁 観測 → ${k + 1}番… ハズレ。もう少し増幅してから観測しよう。`;
       if (k === target) confetti();
-      buzz(40);
+      fx.measure(); ctx.unlock();
     } }, "👁 観測する");
     for (let i = 0; i < N; i++) {
       pick.append(h("button", { class: "btn small ghost", onclick: () => { target = i; init(); } }, String(i + 1)));
@@ -589,11 +896,11 @@
       h("div", { class: "wlabel", style: "margin-top:10px" }, "観測したときに選ばれる確率"), probChart,
       h("div", { class: "row" }, stepBtn, obsBtn), note, obs,
       h("div", { class: "row" }, h("button", { class: "btn small ghost", onclick: init }, "最初から")));
-    init();
+    init(); ctx.hint("①②を押して正解を増幅し、「観測」しよう");
   };
 
   // --- 7: 規模が大きいと…
-  W.searchScale = (box) => {
+  W.searchScale = (box, ctx) => {
     const out = h("div");
     const label = h("div", { class: "val" });
     const fmt = (x) => (x >= 1e12 ? (x / 1e12).toFixed(1) + " 兆" : x >= 1e8 ? (x / 1e8).toFixed(1) + " 億" : x >= 1e4 ? (x / 1e4).toFixed(1) + " 万" : Math.round(x).toLocaleString("ja-JP"));
@@ -609,9 +916,9 @@
         </div>
         <p class="note">およそ <b>${fmt(classic / grover)} 倍</b> の差。数が増えるほど、差は開きます。</p>`;
     }
-    const s = slider(2, 12, 6, 0.1, update);
+    const s = slider(2, 12, 6, 0.1, (v) => { update(v); ctx.unlock(); });
     box.append(h("div", { class: "wlabel" }, "探す相手の数（10の何乗か）"), h("div", { class: "slider-row" }, "100", s, "1兆", label), out);
-    update(6);
+    update(6); ctx.hint("バーを右に動かして、差の広がりを見よう");
   };
 
   // --- 9: クイズ
@@ -624,7 +931,7 @@
     { q: "100万個から1つを探す。ふつうは平均約50万回。グローバー法ではおよそ何回？", o: ["約800回", "約50万回", "1回"], a: 0, e: "約 π/4 × √100万 ≒ 785回。√N に減るのがグローバー法の力です。" },
     { q: "「量子コンピュータは全部の答えを同時に計算して、全部読み出せる」これは？", o: ["正しい", "まちがい（読み出せるのは観測した1つだけ）"], a: 1, e: "だから「正解の矢印だけを干渉で大きくしてから観測する」工夫が必要なのです。" },
   ];
-  W.quiz = (box) => {
+  W.quiz = (box, ctx) => {
     let i = 0, score = 0;
     const area = h("div");
     function show() {
@@ -654,77 +961,100 @@
   };
 
   // =====================================================================
-  //  章の内容
+  //  章の内容（ナビの「キュー」が案内します）
   // =====================================================================
   const CHAPTERS = [
-    { emoji: "🪙", title: "ビットと量子ビット", sub: "回っているコインの正体",
+    { emoji: "🌈", title: "ありえない実験", sub: "粒なのに、波になる",
+      gist: "量子の粒は、見ていない間は「全部の道」を通る。見た瞬間に1つに決まる。",
       steps: [
-        { h: "コンピュータの中身は「0と1」", p: "スマホもゲーム機も、中身はスイッチの「オフ＝0」と「オン＝1」の並びです。この1つぶんを<b>ビット</b>と呼びます。", w: "bit" },
-        { h: "量子ビットは「回っているコイン」", p: "量子コンピュータの部品<b>量子ビット（キュービット）</b>は、0と1が<b>混ざった状態</b>になれます。テーブルの上で回っているコインのように、表でも裏でもある状態。<br>これを<span class='em'>重ね合わせ</span>といいます。回してから、観測（コインを止める）してみよう。", w: "qubit" },
-        { h: "ここが大事！", p: "回っているコインは「決まっていないだけ」ではなく、<b>混ざった状態そのもの</b>が、ちゃんと存在する状態です。<br>そして<b>観測すると、必ず0か1のどちらかに決まり</b>、混ざった状態には戻れません。<br>何度も試すと、だいたい半々になりましたか？ これが量子の世界の「確率」です。" },
+        { h: "まず、ありえない実験を見てください", need: true, w: "slit",
+          p: "ぼくは<b>キュー</b>。案内役だよ！<br>小さな粒を1個ずつ、<b>2つの穴</b>のある壁に向けて撃つよ。ふつうなら、壁の向こうには<b>2本の帯</b>ができるはず…。さあ、連射してみて！" },
+        { h: "粒なのに、波みたいに", p: "1個ずつ撃ったのに、だんだん<b>縞模様</b>ができたね。これは「波」が2つの穴を通って<span class='em'>干渉</span>したときの形。<br>つまり粒は、見ていない間は<b>両方の穴を同時に通っていた</b>としか説明できないんだ。<br>でも、どっちの穴を通ったか見張ると…縞は消える。" },
+        { h: "これが量子コンピュータの「燃料」", p: "この実験に量子の2大ルールが入っているよ。<ul><li><b>重ね合わせ</b>：同時にいくつもの状態になる</li><li><b>干渉</b>：波のように強め合い、打ち消し合う</li></ul>この2つを使って計算するのが量子コンピュータ。次の章から、1つずつ体験しよう！" },
       ] },
-    { emoji: "🧭", title: "状態は「矢印」で表せる", sub: "0と1の混ざり具合を見える化",
+    { emoji: "🪙", title: "ビットと量子ビット", sub: "回っているコインの正体",
+      gist: "量子ビットは0と1の重ね合わせ。観測すると、確率にしたがって0か1に決まる。",
       steps: [
-        { h: "混ざり具合を矢印にしてみよう", p: "横軸が<b>|0⟩</b>、縦軸が<b>|1⟩</b>。矢印をぐるぐる動かしてみて。<br>矢印の「影の長さ」を<b>2乗</b>した値が、観測したときにその結果が出る<span class='em'>確率</span>になります。", w: "bloch" },
-        { h: "確率は「長さの2乗」", p: "たとえば45°のとき、影の長さは約0.71。2乗すると0.5＝50%。<br>ここで<b>不思議なこと</b>：315°（矢印を下向きに）にしても、確率は同じ50%。でも矢印の向きは違う、<b>別の状態</b>です。<br>この「向きの違い（＋と−）」が、次々章の主役<span class='em'>干渉</span>のタネになります。" },
+        { h: "コンピュータの中身は「0と1」", w: "bit", p: "スマホもゲーム機も、中身はスイッチの「オフ＝0」「オン＝1」の並び。この1つぶんが<b>ビット</b>。いつ見ても、0か1のどちらかだよ。" },
+        { h: "量子ビットは「回っているコイン」", need: true, w: "qubit", p: "量子コンピュータの部品<b>量子ビット</b>は、テーブルで回るコインのように<b>0でもあり1でもある</b>状態になれる。これが<span class='em'>重ね合わせ</span>！<br>回してから観測（止める）してみて。" },
+        { h: "ここが大事！", p: "回っているコインは「決まっていないだけ」じゃなくて、<b>混ざった状態そのもの</b>がちゃんと存在するんだ。<br>そして<b>観測すると必ず0か1に決まって</b>、混ざった状態には戻れない。何回もやると、だいたい半々になったよね？ これが量子の「確率」。" },
+      ] },
+    { emoji: "🧭", title: "状態は「矢印」で表せる", sub: "平面から、立体の球へ",
+      gist: "量子ビットの状態は球の上の矢印。ゲートは球を回す操作。高さが確率、向きが位相。",
+      steps: [
+        { h: "混ざり具合を、矢印にしてみよう", need: true, w: "bloch", p: "横が<b>|0⟩</b>、縦が<b>|1⟩</b>。矢印をドラッグしてみて。矢印の「影の長さ」を<b>2乗</b>したものが、観測したときの<span class='em'>確率</span>だよ。" },
+        { h: "立体にすると、もっとわかる！", need: true, w: "sphere", p: "量子ビットの状態は、実は<b>球の上の矢印</b>。北極が0、南極が1、<b>高さ</b>が「0の出やすさ」。<br>そして<span class='em'>ゲート＝球を回す操作</span>！ いろいろ押してみよう。ZやSで<b>高さが変わらないのに矢印が動く</b>のに注目。" },
+        { h: "確率は同じでも、別の状態", p: "Zで回しても、高さ（確率）は同じ。でも矢印の<b>向き</b>は変わっているよね。この向きの違いを<span class='em'>位相</span>と呼ぶよ。<br>確率には見えない位相が、次の章の<b>干渉</b>の主役になるんだ。" },
       ] },
     { emoji: "🚀", title: "増えると爆発する", sub: "量子ビット n 個 = 2ⁿ の世界",
+      gist: "n個の量子ビットは2ⁿ個の矢印を持てる。でも取り出せるのは、観測した1つだけ。",
       steps: [
-        { h: "量子ビットを増やすと…？", p: "ふつうのビット3個は、000〜111の8通りのうち「1つ」しか表せません。<br>でも量子ビット3個は、8通り<b>すべてに矢印を持てます</b>。n個なら <span class='em'>2のn乗</span>。スライダーを動かして、数の爆発を見てみよう。", w: "exp" },
-        { h: "でも「全部の答え」は取り出せない", p: "ここ、よく誤解されます。矢印をたくさん持てても、観測すると<b>取り出せるのは1つだけ</b>。<br>だから量子コンピュータは「<span class='em'>正解の矢印だけを大きく、間違いの矢印を小さく</span>してから観測する」ように作ります。<br>それを可能にするのが、次の<b>干渉</b>です。" },
+        { h: "量子ビットを増やすと…？", need: true, w: "exp", p: "ふつうのビット3個は、000〜111の8通りのうち「1つ」しか表せない。でも量子ビット3個は、8通り<b>ぜんぶに矢印を持てる</b>。n個なら<span class='em'>2のn乗</span>！ スライダーで爆発を見てね。下には、ふつうのコンピュータで記録するのに必要な量も出るよ。" },
+        { h: "でも「全部の答え」は取り出せない", p: "ここ、よく誤解される所。矢印を大量に持てても、観測すると<b>取り出せるのは1つだけ</b>。<br>だから量子コンピュータは「<span class='em'>正解の矢印だけを大きく、間違いの矢印を小さく</span>してから観測する」ように作るんだ。それを可能にするのが、次の<b>干渉</b>！" },
       ] },
     { emoji: "🌊", title: "波が打ち消し合う（干渉）", sub: "量子計算の心臓部",
+      gist: "矢印は＋と−で打ち消し合う。正解を強め、間違いを消す。それが量子計算。",
       steps: [
-        { h: "水の波と同じルール", p: "2つの波の山と山が重なると大きく、山と谷が重なると消えます。<br>量子の矢印（振幅）も同じ。<b>＋と−が出会うと、打ち消し合う</b>のです。", w: "waves" },
-        { h: "実験：Hゲートを2回かけてみよう", p: "<b>Hゲート</b>は「0を、0と1の半々にする」操作。では、2回かけたら？<br>「半々の半々」で、やっぱりランダム…？ 実際にやって、100回観測してみよう。", w: "interf" },
-        { h: "なにが起きたの？", p: "1回目のHで、矢印は (+0.71, +0.71)。<br>2回目のHのとき、<b>「1」へ向かう道が2本</b>あり、その矢印は <b>＋0.5</b> と <b>−0.5</b>。打ち消し合って<b>0</b>になります。<br>「0」へ向かう道は <b>＋0.5</b> と <b>＋0.5</b> で強め合い、<b>1（100%）</b>。<br><br>ランダムに見えたものが、必ず0に戻る。<span class='em'>確率ではなく「矢印」が計算されている</span>──これが、ふつうのコンピュータには真似できない量子計算の核心です。" },
+        { h: "水の波と同じルール", need: true, w: "waves", p: "山と山が重なると大きく、山と谷が重なると<b>消える</b>。量子の矢印も同じで、<b>＋と−が出会うと打ち消し合う</b>。バーを動かして、波を消してみよう。" },
+        { h: "実験：Hゲートを2回かけてみよう", need: true, w: "interf", p: "<b>H</b>は「0を、0と1の半々にする」操作。2回かけたら…「半々の半々」でランダム？ やってみて、100回観測しよう。" },
+        { h: "なにが起きたの？", p: "1回目のHで矢印は(＋0.71, ＋0.71)。2回目のHで、<b>「1」へ向かう道が2本</b>でき、矢印が<b>＋0.5</b>と<b>−0.5</b>で打ち消し合って<b>0</b>に。<br>「0」へ向かう道は<b>＋0.5</b>と<b>＋0.5</b>で強め合って<b>100%</b>。<br><br>ランダムに見えたのに、必ず0に戻る。<span class='em'>確率ではなく「矢印」が計算されている</span>。これが量子計算の核心だよ！" },
       ] },
-    { emoji: "🔗", title: "ふしぎな「もつれ」", sub: "離れていてもつながる2つの粒",
+    { emoji: "🔗", title: "ふしぎな「もつれ」", sub: "つながった2つの粒",
+      gist: "もつれた量子ビットは、結果が必ず連動する。量子ビット同士の連携プレーの源。",
       steps: [
-        { h: "2つのコインを「つなぐ」", p: "2つの量子ビットを、HゲートとCNOTゲートでつなぐと<span class='em'>もつれ</span>という状態に。<br>ボタンを順番に押して、2つのコインを観測してみよう。", w: "bell" },
-        { h: "どちらも「まだ決まっていない」のに", p: "AもBも、単独では0か1かランダム。<b>でも2つの結果は必ず一致</b>します。<br>アインシュタインは「不気味な遠隔作用」と呼んで悩みました。<br><br>⚠️ ただし、<b>これで超光速通信はできません</b>。Aの結果は自分で選べない（ランダム）ので、会って比べて初めて一致がわかるからです。<br>量子コンピュータでは、このもつれが「量子ビット同士の連携プレー」の源になります。" },
+        { h: "2つのコインを「つなぐ」", need: true, w: "bell", p: "HゲートとCNOTゲートで2つの量子ビットをつなぐと、<span class='em'>もつれ</span>という状態になる。ボタンを順番に押して、2つのコインを観測してみて。" },
+        { h: "どちらも「決まっていない」のに", p: "AもBも、単独では0か1かランダム。<b>でも結果は必ず一致</b>。アインシュタインは「不気味な遠隔作用」と呼んで悩んだよ。<br><br>⚠️ ただし<b>これで超光速通信はできない</b>。Aの結果は自分で選べないから、会って比べて初めて一致がわかるんだ。<br>量子コンピュータでは、このもつれが量子ビット同士の<b>連携プレー</b>の源になる。" },
       ] },
     { emoji: "🧪", title: "回路ラボ", sub: "自分で量子回路を組んでみよう",
+      gist: "量子プログラム＝ゲートの並び。本物の量子コンピュータも同じ仕組みで動く。",
       steps: [
-        { h: "量子回路を組み立てよう", p: "量子コンピュータのプログラムは<b>量子回路</b>──ゲートを並べたものです。ゲートを選んで線をタップ。結果の確率がリアルタイムで変わります。<br>下の「例」ボタンで、これまでの実験を一発で再現できます。", w: "lab" },
-        { h: "自由に遊んでみて！", p: "🎮 チャレンジ：<ul><li><b>「101」</b>だけを100%出す回路は？（ヒント：Xを使う）</li><li><b>「000」と「111」</b>だけが出る回路は？（もつれ！）</li><li>HをHで挟むと、確率はどうなる？</li></ul>実は、本物の量子コンピュータが実行するのも、この<b>ゲートの並び</b>です。数が桁違いに多いだけ。" },
+        { h: "量子回路を組み立てよう", need: true, w: "lab", p: "量子コンピュータのプログラムは<b>量子回路</b>＝ゲートを並べたもの。ゲートを選んで線をタップ。確率がリアルタイムで変わるよ。下の「例」ボタンで、これまでの実験を一発で再現できる。" },
+        { h: "自由に遊んでみて！", p: "🎮 チャレンジ：<ul><li><b>「101」</b>だけを100%出す回路は？（ヒント：X）</li><li><b>「000」と「111」</b>だけが出る回路は？（もつれ！）</li><li>HをHで挟むと、確率はどうなる？</li></ul>本物の量子コンピュータが実行するのも、この<b>ゲートの並び</b>。数が桁違いに多いだけだよ。" },
       ] },
     { emoji: "🔍", title: "量子で探す魔法", sub: "グローバー法：正解だけを増幅",
+      gist: "グローバー法は干渉で正解を増幅する。調べる回数が N回 → √N回 に。",
       steps: [
-        { h: "まずは、ふつうの探し方", p: "8個の箱の中の1つに宝石があるとき、ふつうのコンピュータは<b>1個ずつ開けて調べる</b>しかありません。平均で半分（約4〜5個）は開けることに。", w: "searchClassic" },
-        { h: "量子の探し方：矢印を増幅！", p: "グローバー法は、2つの操作をくり返します。<ol><li><b>目印</b>：正解の矢印だけを<b>マイナス</b>に反転</li><li><b>増幅</b>：全体の平均を軸に折り返す → 正解だけが伸びる！</li></ol>ボタンを押して、正解の箱の棒がぐんぐん伸びるのを見てみよう。<b>干渉の力</b>で正解だけを大きくしています。", w: "searchQuantum" },
-        { h: "数が大きいほど、差は爆発", p: "ふつうは調べる数に比例（N回）ですが、グローバー法は<span class='em'>√N回</span>程度。探す相手が増えるほどすごい差に。スライダーで見てみよう。", w: "searchScale" },
+        { h: "まず、ふつうの探し方", need: true, w: "searchClassic", p: "8個の箱の1つに宝石。ふつうのコンピュータは<b>1個ずつ開けて調べる</b>しかない。平均で半分は開けることになるよ。" },
+        { h: "量子の探し方：矢印を増幅！", need: true, w: "searchQuantum", p: "グローバー法は2つの操作のくり返し。<ol><li><b>目印</b>：正解の矢印だけを<b>マイナス</b>に反転</li><li><b>増幅</b>：平均を軸に折り返す → 正解だけが伸びる！</li></ol>正解の棒がぐんぐん伸びるのを見よう。<b>干渉の力</b>だよ。" },
+        { h: "数が大きいほど、差は爆発", need: true, w: "searchScale", p: "ふつうは調べる数に比例（N回）。でもグローバー法は<span class='em'>√N回</span>くらい。探す相手が増えるほど、すごい差になるよ。" },
       ] },
     { emoji: "🌍", title: "何に使えるの？", sub: "夢と現実、正しい期待のしかた",
+      gist: "万能ではない。化学・最適化・暗号など、特定の問題で桁違いに速くなる可能性がある。",
       steps: [
-        { h: "期待されている使い道", p: "<ul><li>🧬 <b>化学・新薬・新材料</b>：分子はそもそも量子の世界。シミュレーションに向いています。</li><li>🚚 <b>最適化</b>：配送ルートや工場の段取りなど、組み合わせが爆発する問題。</li><li>🔐 <b>暗号</b>：大きな数の素因数分解（ショア法）が高速になり、今の暗号を破れる可能性。そのため「<b>耐量子暗号</b>」への移行が世界で進んでいます。</li></ul>" },
-        { h: "よくある誤解・本当のところ", p: "<div class='myth'><b>❌「全部の答えを同時に出して、全部読める」</b>読めるのは観測した1つだけ。干渉で正解を強める工夫が必須です。</div><div class='myth'><b>❌「今のパソコンより、何でも速くなる」</b>動画・ゲーム・SNSは速くなりません。得意な問題だけ。</div><div class='myth'><b>❌「もうすぐスマホに入る」</b>多くの方式は絶対零度に近い極低温が必要。ノイズでエラーが起きやすく、エラー訂正の研究が最大の課題です。</div><div class='myth ok'><b>⭕「特定の問題で、桁違いに速くなる可能性がある」</b>だから世界中で研究が進んでいます。</div>" },
+        { h: "期待されている使い道", p: "<ul><li>🧬 <b>化学・新薬・新材料</b>：分子はもともと量子の世界。シミュレーションに向いている。</li><li>🚚 <b>最適化</b>：配送ルートや工場の段取りなど、組み合わせが爆発する問題。</li><li>🔐 <b>暗号</b>：大きな数の素因数分解（ショア法）が速くなり、今の暗号を破れる可能性。だから<b>耐量子暗号</b>への移行が世界で進んでいるよ。</li></ul>" },
+        { h: "よくある誤解・本当のところ", p: "<div class='myth'><b>❌「全部の答えを同時に出して、全部読める」</b>読めるのは観測した1つだけ。干渉で正解を強める工夫が必須。</div><div class='myth'><b>❌「今のパソコンより、何でも速い」</b>動画・ゲーム・SNSは速くならない。得意な問題だけ。</div><div class='myth'><b>❌「もうすぐスマホに入る」</b>多くの方式は極低温が必要で、ノイズでエラーが出やすい。エラー訂正が最大の課題。</div><div class='myth ok'><b>⭕「特定の問題で、桁違いに速くなる可能性がある」</b>だから世界中で研究されているんだ。</div>" },
       ] },
     { emoji: "🏆", title: "理解度チェック", sub: "全7問のクイズ",
-      steps: [
-        { h: "クイズに挑戦！", p: "ここまでの内容を、7問で確認しよう。", w: "quiz" },
-      ] },
+      gist: "ここまで来たあなたは、量子コンピュータの基本をつかんだ！",
+      steps: [{ h: "クイズに挑戦！", w: "quiz", p: "ここまでの内容を、7問で確認しよう。" }] },
   ];
+
+  const RANKS = [[0, "量子ビギナー"], [2, "量子見習い"], [5, "量子ハンター"], [8, "量子マスター"], [10, "量子博士 🎓"]];
 
   // =====================================================================
   //  画面制御
   // =====================================================================
   const store = {
-    get() { try { return JSON.parse(localStorage.getItem("quantum.done.v1") || "[]"); } catch (_) { return []; } },
-    set(v) { try { localStorage.setItem("quantum.done.v1", JSON.stringify(v)); } catch (_) { /* noop */ } },
+    get() { try { return JSON.parse(localStorage.getItem("quantum.done.v2") || "[]"); } catch (_) { return []; } },
+    set(v) { try { localStorage.setItem("quantum.done.v2", JSON.stringify(v)); } catch (_) { /* noop */ } },
   };
-  let cur = -1, stepNo = 0, cleanup = null;
+  let cur = -1, stepNo = 0, cleanup = null, hintEl = null, unlocked = true;
 
   function markDone() {
     if (cur < 0) return;
     const d = store.get();
     if (!d.includes(cur)) { d.push(cur); store.set(d); }
   }
-
   function show(id) {
     document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
     window.scrollTo(0, 0);
   }
+  function syncMute() {
+    const t = sfx.on;
+    $("#mute-btn").textContent = t ? "🔊 効果音 ON" : "🔇 効果音 OFF";
+    $("#mute2").textContent = t ? "🔊" : "🔇";
+  }
+  function toggleMute() { sfx.toggle(); syncMute(); sfx.tap(); }
 
   function renderHome() {
     const d = store.get();
@@ -732,19 +1062,23 @@
     list.innerHTML = "";
     CHAPTERS.forEach((c, i) => {
       list.append(h("li", { class: d.includes(i) ? "done" : "" },
-        h("button", { onclick: () => openChapter(i) },
+        h("button", { onclick: () => { sfx.tap(); openChapter(i); } },
           h("span", { class: "ch-emoji" }, c.emoji),
           h("span", { class: "ch-meta" }, h("div", { class: "ch-no" }, `CHAPTER ${i + 1}`), h("div", { class: "ch-name" }, c.title), h("div", { class: "ch-sub" }, c.sub)),
           d.includes(i) ? h("span", { class: "ch-done" }, "✓") : null)));
     });
     $("#progress-fill").style.width = (d.length / CHAPTERS.length) * 100 + "%";
     $("#progress-text").textContent = `${d.length} / ${CHAPTERS.length}`;
+    $("#rank").textContent = RANKS.filter((r) => d.length >= r[0]).pop()[1];
+    syncMute();
     show("home");
     startHero();
   }
 
   function goHome(fromPop) {
     if (cleanup) { cleanup(); cleanup = null; }
+    removeHint();
+    $("#clear").hidden = true;
     cur = -1;
     if (!fromPop && history.state && history.state.ch != null) history.back();
     renderHome();
@@ -758,8 +1092,11 @@
     renderStep();
   }
 
+  function removeHint() { if (hintEl) { hintEl.remove(); hintEl = null; } }
+
   function renderStep() {
     if (cleanup) { cleanup(); cleanup = null; }
+    removeHint();
     const ch = CHAPTERS[cur];
     const st = ch.steps[stepNo];
     $("#ch-title").textContent = `${cur + 1}. ${ch.title}`;
@@ -768,30 +1105,62 @@
     ch.steps.forEach((_, k) => dots.append(h("i", { class: k === stepNo ? "on" : k < stepNo ? "past" : "" })));
     const el = $("#step");
     el.innerHTML = "";
-    el.append(h("h2", {}, st.h), h("p", { html: st.p }));
+    el.append(h("h2", {}, st.h), h("div", { class: "guide" }, h("div", { class: "orb" }), h("div", { class: "bubble" }, h("p", { html: st.p }))));
+    const next = $("#next-btn");
+    const last = stepNo === ch.steps.length - 1;
+    unlocked = !st.need;
+    next.disabled = !!st.need;
+    const ctx = {
+      unlock() {
+        if (unlocked) return;
+        unlocked = true; next.disabled = false; removeHint(); fx.win();
+      },
+      hint(msg) {
+        if (unlocked) return;
+        if (!hintEl) {
+          hintEl = h("div", { class: "hint" }, h("span", {}, ""), h("button", { onclick: () => ctx.unlock() }, "とばす"));
+          $("#chapter").append(hintEl);
+        }
+        hintEl.firstChild.textContent = "👆 " + msg;
+      },
+    };
     if (st.w) {
       const box = h("div", { class: "widget" });
       el.append(box);
-      const r = W[st.w](box);
+      const r = W[st.w](box, ctx);
       if (typeof r === "function") cleanup = r;
     }
-    const last = stepNo === ch.steps.length - 1;
     $("#prev-btn").style.visibility = stepNo === 0 ? "hidden" : "visible";
-    const next = $("#next-btn");
-    next.textContent = last ? (st.w === "quiz" ? "ホームへ" : "完了 🎉") : "次へ";
+    next.textContent = last ? (st.w === "quiz" ? "ホームへ" : "章をクリア 🎉") : "次へ";
     window.scrollTo(0, 0);
+  }
+
+  function showClear() {
+    const ch = CHAPTERS[cur];
+    markDone();
+    $("#clear-no").textContent = `CHAPTER ${cur + 1} CLEAR`;
+    $("#clear-title").textContent = ch.title;
+    $("#clear-gist").textContent = ch.gist;
+    const hasNext = cur + 1 < CHAPTERS.length;
+    const nb = $("#clear-next");
+    nb.textContent = hasNext ? `次の章へ：${CHAPTERS[cur + 1].title}` : "ホームへ";
+    nb.onclick = () => { $("#clear").hidden = true; if (hasNext) { const n = cur + 1; goHome(false); setTimeout(() => openChapter(n), 30); } else goHome(false); };
+    $("#clear").hidden = false;
+    confetti(); fx.win();
   }
 
   $("#next-btn").addEventListener("click", () => {
     const ch = CHAPTERS[cur];
+    sfx.tap();
     if (stepNo < ch.steps.length - 1) { stepNo++; renderStep(); return; }
-    const first = !store.get().includes(cur);
-    markDone();
-    if (first && ch.steps[stepNo].w !== "quiz") confetti();
-    goHome(false);
+    if (ch.steps[stepNo].w === "quiz") { markDone(); goHome(false); return; }
+    showClear();
   });
+  $("#clear-home").addEventListener("click", () => goHome(false));
   $("#prev-btn").addEventListener("click", () => { if (stepNo > 0) { stepNo--; renderStep(); } });
   $("#back-btn").addEventListener("click", () => goHome(false));
+  $("#mute-btn").addEventListener("click", toggleMute);
+  $("#mute2").addEventListener("click", toggleMute);
   window.addEventListener("popstate", () => { if (cur >= 0) goHome(true); });
 
   // ---------- インストール & オフライン ----------
