@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>積立シミュレーター</title>
+<style>
+:root { --bg:#070b17; --card:#101830; --line:#ffffff1c; --text:#eef3ff; --muted:#8f9bbd;
+  --g:#00e0a4; --b:#3da5ff; --r:#ff6b8b; --y:#ffc94d; }
+* { box-sizing: border-box; }
+body { margin:0; color:var(--text); background: radial-gradient(900px 500px at 80% -10%, #1b3a8a55, transparent), radial-gradient(700px 500px at 0% 20%, #00e0a41f, transparent), var(--bg);
+  font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif; }
+.wrap { max-width:1000px; margin:0 auto; padding:20px 16px 60px; }
+h1 { margin:0 0 4px; font-size:1.5rem; background:linear-gradient(90deg,var(--g),var(--b)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.sub { color:var(--muted); font-size:.85rem; margin:0 0 18px; }
+.layout { display:grid; grid-template-columns: 330px 1fr; gap:16px; }
+@media (max-width:800px){ .layout{ grid-template-columns:1fr; } }
+.card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:18px; box-shadow:0 10px 40px #0007; }
+.row { margin-bottom:16px; }
+.row label { display:flex; justify-content:space-between; font-size:.85rem; color:var(--muted); margin-bottom:6px; }
+.row label b { color:var(--text); font-size:1rem; font-variant-numeric:tabular-nums; }
+input[type=range] { width:100%; accent-color:var(--g); }
+input[type=number] { width:100%; padding:9px 12px; border-radius:10px; border:1px solid var(--line); background:#0006; color:var(--text); font-size:1rem; }
+.sw { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-top:1px solid var(--line); font-size:.88rem; }
+.sw small { color:var(--muted); display:block; }
+.sw input { width:20px; height:20px; accent-color:var(--g); }
+.hero { text-align:center; padding:8px 0 16px; }
+.hero small { color:var(--muted); }
+.hero .big { font-size:clamp(2rem,8vw,3.2rem); font-weight:800; font-variant-numeric:tabular-nums;
+  background:linear-gradient(90deg,var(--g),var(--b)); -webkit-background-clip:text; background-clip:text; color:transparent; filter:drop-shadow(0 0 16px #00e0a455); }
+.kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
+.kpi { background:#ffffff0a; border-radius:12px; padding:10px; text-align:center; }
+.kpi small { color:var(--muted); font-size:.72rem; display:block; }
+.kpi b { font-size:1.05rem; font-variant-numeric:tabular-nums; }
+.kpi.g b { color:var(--g); } .kpi.r b { color:var(--r); }
+canvas { width:100%; height:300px; display:block; }
+.legend { display:flex; gap:14px; flex-wrap:wrap; font-size:.75rem; color:var(--muted); margin-top:8px; }
+.legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; }
+table { width:100%; border-collapse:collapse; font-size:.82rem; font-variant-numeric:tabular-nums; margin-top:6px; }
+th,td { padding:7px 6px; text-align:right; border-bottom:1px solid var(--line); }
+th:first-child,td:first-child { text-align:left; } th { color:var(--muted); font-weight:500; }
+.goal { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:4px; }
+.goal input { flex:1; min-width:120px; }
+.need { margin-top:10px; padding:12px; border-radius:12px; background:linear-gradient(135deg,#00e0a41a,#3da5ff1a); border:1px solid #00e0a444; font-size:.9rem; }
+.need b { color:var(--g); font-size:1.15rem; }
+h2 { font-size:.9rem; color:var(--muted); margin:0 0 10px; letter-spacing:.06em; font-weight:600; }
+.note { color:var(--muted); font-size:.72rem; margin-top:14px; line-height:1.6; }
+button { cursor:pointer; border:0; border-radius:10px; padding:9px 14px; font-weight:700; color:#05231a; background:linear-gradient(135deg,var(--g),var(--b)); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📈 積立シミュレーター</h1>
+  <p class="sub">毎月の積立から将来の資産額を試算。NISA・インフレ・目標額からの逆算に対応。設定はURLに保存されるので共有できます。</p>
+  <div class="layout">
+    <aside class="card">
+      <div class="row"><label>毎月の積立額 <b id="vMonthly"></b></label>
+        <input type="range" id="monthly" min="1000" max="300000" step="1000"></div>
+      <div class="row"><label>想定年利（名目） <b id="vRate"></b></label>
+        <input type="range" id="rate" min="0" max="12" step="0.1"></div>
+      <div class="row"><label>積立期間 <b id="vYears"></b></label>
+        <input type="range" id="years" min="1" max="50" step="1"></div>
+      <div class="row"><label>初期投資額（円）</label>
+        <input type="number" id="initial" min="0" step="10000"></div>
+      <div class="row"><label>毎年の積立増額 <b id="vStep"></b></label>
+        <input type="range" id="step" min="0" max="10" step="0.5"></div>
+      <div class="sw"><div>新NISA（非課税）<small>オフ時は利益に20.315%課税</small></div><input type="checkbox" id="nisa"></div>
+      <div class="sw"><div>インフレ補正<small>購入力ベースで表示</small></div><input type="checkbox" id="infl"></div>
+      <div class="row" style="margin-top:12px" id="inflRow"><label>想定インフレ率 <b id="vInfl"></b></label>
+        <input type="range" id="inflRate" min="0" max="6" step="0.1"></div>
+      <button id="share">🔗 この条件のURLをコピー</button>
+    </aside>
+
+    <main style="display:grid;gap:16px">
+      <section class="card">
+        <div class="hero"><small id="heroLabel"></small><div class="big" id="final"></div></div>
+        <div class="kpis">
+          <div class="kpi"><small>元本合計</small><b id="kPrin"></b></div>
+          <div class="kpi g"><small>運用益（税引後）</small><b id="kGain"></b></div>
+          <div class="kpi r"><small>税金</small><b id="kTax"></b></div>
+        </div>
+        <canvas id="chart"></canvas>
+        <div class="legend">
+          <span><i style="background:var(--y)"></i>元本</span>
+          <span><i style="background:var(--r)"></i>悲観（-2%）</span>
+          <span><i style="background:var(--g)"></i>想定</span>
+          <span><i style="background:var(--b)"></i>楽観（+2%）</span>
+        </div>
+      </section>
+      <section class="card">
+        <h2>目標からの逆算</h2>
+        <div class="goal"><span>目標額</span><input type="number" id="goal" min="0" step="1000000"><span>円を</span></div>
+        <div class="need" id="need"></div>
+      </section>
+      <section class="card">
+        <h2>年次推移（想定シナリオ）</h2>
+        <table><thead><tr><th>年</th><th>元本</th><th>評価額</th><th>益</th></tr></thead><tbody id="tbody"></tbody></table>
+        <p class="note">※ 月次複利・月末積立で計算。リターンは将来を保証しません。実際の運用では相場変動により元本割れすることがあります。税は期間終了時に全額売却した場合の概算（NISAの生涯投資枠1,800万円は考慮していません）。</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const DEF = { monthly: 30000, rate: 5, years: 20, initial: 0, step: 0, nisa: 1, infl: 0, inflRate: 2, goal: 30000000 };
+  const ids = Object.keys(DEF);
+  const yen = n => "¥" + Math.round(n).toLocaleString("ja-JP");
+  const man = n => n >= 1e8 ? (n / 1e8).toFixed(2) + "億円" : Math.round(n / 1e4).toLocaleString("ja-JP") + "万円";
+
+  // URL -> state
+  const P = new URLSearchParams(location.search);
+  ids.forEach(k => {
+    const el = $(k), v = P.has(k) ? P.get(k) : DEF[k];
+    if (el.type === "checkbox") el.checked = !!+v; else el.value = v;
+  });
+  const get = () => Object.fromEntries(ids.map(k => [k, $(k).type === "checkbox" ? +$(k).checked : (parseFloat($(k).value) || 0)]));
+
+  // simulate: returns yearly [{principal, value}] (pre-tax), month-by-month compounding
+  function sim(s, rate) {
+    const mr = rate / 100 / 12, out = [{ p: s.initial, v: s.initial }];
+    let v = s.initial, p = s.initial, m = s.monthly;
+    for (let y = 1; y <= s.years; y++) {
+      for (let i = 0; i < 12; i++) { v = v * (1 + mr) + m; p += m; }
+      out.push({ p, v });
+      m *= 1 + s.step / 100;
+    }
+    return out;
+  }
+  const afterTax = (s, pt) => {
+    const tax = s.nisa ? 0 : Math.max(0, pt.v - pt.p) * 0.20315;
+    return { net: pt.v - tax, tax };
+  };
+  const deflate = (s, val, y) => s.infl ? val / Math.pow(1 + s.inflRate / 100, y) : val;
+
+  function series(s, rate) {
+    return sim(s, rate).map((pt, y) => ({
+      y, p: deflate(s, pt.p, y), v: deflate(s, afterTax(s, pt).net, y),
+    }));
+  }
+
+  // required monthly to hit goal (binary search; goal in same terms as display)
+  function needMonthly(s) {
+    let lo = 0, hi = 1e8;
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2, t = { ...s, monthly: mid };
+      const last = series(t, s.rate).at(-1).v;
+      last < s.goal ? lo = mid : hi = mid;
+    }
+    return hi;
+  }
+
+  function draw(cv, base, lo, hi) {
+    const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    const c = cv.getContext("2d"); c.scale(dpr, dpr);
+    const pad = { l: 56, r: 12, t: 12, b: 24 };
+    const n = base.length - 1, maxV = Math.max(...hi.map(d => d.v), 1) * 1.05;
+    const X = i => pad.l + (W - pad.l - pad.r) * (n ? i / n : 0);
+    const Y = v => pad.t + (H - pad.t - pad.b) * (1 - v / maxV);
+    c.font = "11px system-ui"; c.fillStyle = "#8f9bbd"; c.strokeStyle = "#ffffff14"; c.textAlign = "right";
+    for (let i = 0; i <= 4; i++) {
+      const v = maxV * i / 4, y = Y(v);
+      c.beginPath(); c.moveTo(pad.l, y); c.lineTo(W - pad.r, y); c.stroke();
+      c.fillText(v >= 1e8 ? (v / 1e8).toFixed(1) + "億" : Math.round(v / 1e4) + "万", pad.l - 6, y + 4);
+    }
+    c.textAlign = "center";
+    const step = Math.max(1, Math.ceil(n / 8));
+    for (let i = 0; i <= n; i += step) c.fillText(i + "年", X(i), H - 6);
+    const line = (arr, col, w, glow) => {
+      c.beginPath(); arr.forEach((d, i) => i ? c.lineTo(X(i), Y(d.v)) : c.moveTo(X(i), Y(d.v)));
+      c.strokeStyle = col; c.lineWidth = w; c.shadowColor = glow ? col : "transparent"; c.shadowBlur = glow ? 14 : 0; c.lineJoin = "round"; c.stroke(); c.shadowBlur = 0;
+    };
+    // area under base
+    const grad = c.createLinearGradient(0, pad.t, 0, H - pad.b);
+    grad.addColorStop(0, "#00e0a455"); grad.addColorStop(1, "#00e0a400");
+    c.beginPath(); base.forEach((d, i) => i ? c.lineTo(X(i), Y(d.v)) : c.moveTo(X(i), Y(d.v)));
+    c.lineTo(X(n), Y(0)); c.lineTo(X(0), Y(0)); c.closePath(); c.fillStyle = grad; c.fill();
+    line(base.map(d => ({ v: d.p })), "#ffc94d", 2, false);
+    line(lo, "#ff6b8b", 1.5, false);
+    line(hi, "#3da5ff", 1.5, false);
+    line(base, "#00e0a4", 3, true);
+  }
+
+  function update() {
+    const s = get(), cv = $("chart");
+    ["monthly", "rate", "years", "step", "inflRate"].forEach(k => {});
+    $("vMonthly").textContent = yen(s.monthly);
+    $("vRate").textContent = s.rate.toFixed(1) + "%";
+    $("vYears").textContent = s.years + "年";
+    $("vStep").textContent = s.step.toFixed(1) + "%/年";
+    $("vInfl").textContent = s.inflRate.toFixed(1) + "%";
+    $("inflRow").style.display = s.infl ? "" : "none";
+
+    const base = series(s, s.rate), lo = series(s, Math.max(0, s.rate - 2)), hi = series(s, s.rate + 2);
+    const last = base.at(-1), raw = sim(s, s.rate).at(-1), t = afterTax(s, raw);
+    $("heroLabel").textContent = `${s.years}年後の資産${s.infl ? "（現在価値）" : ""}`;
+    $("final").textContent = man(last.v);
+    $("kPrin").textContent = man(last.p);
+    $("kGain").textContent = man(last.v - last.p);
+    $("kTax").textContent = s.nisa ? "非課税" : man(deflate(s, t.tax, s.years));
+    $("tbody").innerHTML = base.map((d, i) => i && (i % (s.years > 20 ? 5 : 1) === 0 || i === s.years)
+      ? `<tr><td>${i}年</td><td>${man(d.p)}</td><td>${man(d.v)}</td><td>${man(d.v - d.p)}</td></tr>` : "").join("");
+
+    if (s.goal > 0) {
+      const m = needMonthly(s);
+      $("need").innerHTML = last.v >= s.goal
+        ? `✅ 現在の設定で <b>達成可能</b>です（${man(last.v)}）。必要最低額は月 <b>${yen(m)}</b>。`
+        : `${s.years}年・年利${s.rate}%で達成するには、毎月 <b>${yen(m)}</b> の積立が必要です（現在比 ×${(m / Math.max(s.monthly, 1)).toFixed(1)}）。`;
+    } else $("need").textContent = "目標額を入力してください。";
+
+    draw(cv, base, lo, hi);
+    const q = new URLSearchParams(); ids.forEach(k => q.set(k, s[k]));
+    try { history.replaceState(null, "", "?" + q); } catch {}
+  }
+
+  document.querySelectorAll("input").forEach(el => el.addEventListener("input", update));
+  addEventListener("resize", update);
+  $("share").onclick = async () => {
+    try { await navigator.clipboard.writeText(location.href); $("share").textContent = "✅ コピーしました"; }
+    catch { $("share").textContent = "URLバーからコピーしてください"; }
+    setTimeout(() => $("share").textContent = "🔗 この条件のURLをコピー", 1800);
+  };
+  update();
+})();
+</script>
+</body>
+</html>
