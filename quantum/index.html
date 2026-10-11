@@ -20,14 +20,15 @@
       <div class="hero-text">
         <p class="eyebrow">さわって学ぶ</p>
         <h1>量子のひみつ</h1>
-        <p class="lead">むずかしい式はゼロ。<br>さわって遊ぶうちに、量子コンピュータの<br>「ほんとうの仕組み」がわかります。</p>
+        <p class="lead">むずかしい式はゼロ。約15分。<br>さわって遊ぶうちに、量子コンピュータの<br>「ほんとうの仕組み」がわかります。</p>
       </div>
     </div>
     <div class="progress-row">
       <div class="progress-bar"><i id="progress-fill"></i></div>
-      <span id="progress-text">0 / 9</span>
+      <span id="rank" class="rank">量子ビギナー</span><span id="progress-text">0 / 10</span>
     </div>
     <ol id="chapter-list" class="chapter-list"></ol>
+    <button id="mute-btn" class="btn ghost small mute" aria-label="効果音">🔊 効果音 ON</button>
     <button id="install-btn" class="btn ghost install" hidden>📲 ホーム画面に追加する</button>
     <p class="foot">※ここで動いているのは、本物の量子計算と同じルールで動く小さなシミュレータです。</p>
   </section>
@@ -38,6 +39,7 @@
       <button id="back-btn" class="icon-btn" aria-label="ホームへ戻る">←</button>
       <div class="ch-title" id="ch-title"></div>
       <div class="dots" id="dots"></div>
+      <button id="mute2" class="icon-btn sm" aria-label="効果音">🔊</button>
     </header>
     <div id="step" class="step"></div>
     <footer class="ch-foot">
@@ -45,6 +47,17 @@
       <button id="next-btn" class="btn primary">次へ</button>
     </footer>
   </section>
+</div>
+<div id="clear" class="clear" hidden>
+  <div class="clear-card">
+    <div class="star">⭐</div>
+    <div class="clear-no" id="clear-no"></div>
+    <h3 id="clear-title"></h3>
+    <p class="clear-label">この章のひとこと</p>
+    <p class="clear-gist" id="clear-gist"></p>
+    <button id="clear-next" class="btn primary"></button>
+    <button id="clear-home" class="btn ghost">ホームへ</button>
+  </div>
 </div>
 <canvas id="confetti" aria-hidden="true"></canvas>
 
