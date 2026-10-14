@@ -312,10 +312,10 @@ const doc=()=>stack[idx];
 async function openDoc(f){
   let d=f; sbBusy(`開いています: ${f.name}`);
   if(EXT(f.name)!=='pdf'){ d=await api('/api/convert',{id:f.id}); }
-  const info=await (await fetch('/api/info/'+d.id)).json();
+  const info=d.info||await (await fetch('/api/info/'+d.id)).json(); d.info=info;
   if(info.encrypted){ const pw=prompt('パスワードを入力してください'); if(!pw) return;
     d=await api('/api/edit',{id:d.id,op:'decrypt',password:pw}); }
-  stack=[{...d,info:d.info||await (await fetch('/api/info/'+d.id)).json()}]; idx=0; sel=new Set(); cur=0;
+  if(!d.info||d.info.encrypted||!d.info.tags) d.info=await (await fetch('/api/info/'+d.id)).json(); stack=[{...d}]; idx=0; sel=new Set(); cur=0;
   $('#editor').classList.remove('hidden'); show(); sbEnd('ok',`開きました: ${d.name}(${stack[0].info.pages}ページ)`);
 }
 $('#openPick').onchange=async e=>{
@@ -323,28 +323,32 @@ $('#openPick').onchange=async e=>{
   say($('#msgOpen'),'読み込み中…');
   try{ sbBusy(`アップロード中: ${f.name}`,0); const up=await upload(f,p=>sbBusy(`アップロード中: ${f.name}`,p*100)); await openDoc(up); say($('#msgOpen'),''); }catch(err){ say($('#msgOpen'),err.message,'err'); }
 };
+let thumbEls=[], gridFor=null;
 function show(){
   const d=doc(); $('#docName').textContent=d.name; $('#docInfo').textContent=` ${d.info.pages}ページ`;
   $('#dl').href='/api/file/'+d.id; sbInfo(); $('#undo').disabled=idx<=0; $('#redo').disabled=idx>=stack.length-1;
   cur=Math.min(cur,d.info.pages-1);
-  const g=$('#grid'); g.innerHTML='';
+  const g=$('#grid'); g.innerHTML=''; thumbEls=[]; const frag=document.createDocumentFragment();
   for(let i=0;i<d.info.pages;i++){
     const t=document.createElement('div'); t.className='th'+(sel.has(i)?' sel':'');
-    t.innerHTML=`<img loading="lazy" src="/api/thumb/${d.id}/${i+1}?dpi=36" alt=""><div>${i+1}</div>`;
+    const tg=d.info.tags[i];   // 編集していないページは同じURL=ブラウザが覚えているので再取得されない
+    t.innerHTML=`<img loading="lazy" decoding="async" src="/api/thumb/${tg[0]}/${tg[1]}?dpi=40" alt=""><div>${i+1}</div>`;
     t.onclick=e=>{
       if(e.shiftKey&&last!==null){ const [a,b]=[Math.min(last,i),Math.max(last,i)]; for(let k=a;k<=b;k++)sel.add(k); }
       else if(e.ctrlKey||e.metaKey){ sel.has(i)?sel.delete(i):sel.add(i); }
       else { sel=new Set([i]); }
-      last=i; cur=i; show();
+      last=i; const moved=cur!==i; cur=i; paintSel(); if(moved) drawStage();   // 全体を作り直さず、色とプレビューだけ更新
     };
-    g.appendChild(t);
+    thumbEls.push(t); frag.appendChild(t);
   }
+  g.appendChild(frag);
   drawStage();
 }
+function paintSel(){ thumbEls.forEach((t,i)=>t.classList.toggle('sel',sel.has(i))); }
 function pageList(){ return [...sel].sort((a,b)=>a-b).map(i=>i+1); }
 function drawStage(){
-  const d=doc(), w=$('#stageWrap'); const [pw,ph]=d.info.sizes[cur]||[595,842];
-  w.innerHTML=`<div class="stage" id="stage"><img src="/api/thumb/${d.id}/${cur+1}?dpi=90" alt="p${cur+1}"><div class="box hidden" id="box"></div></div><div class="hint">${cur+1} / ${d.info.pages} ページ</div>`;
+  const d=doc(), w=$('#stageWrap'); const [pw,ph]=d.info.sizes[cur]||[595,842]; const tg=d.info.tags[cur];
+  w.innerHTML=`<div class="stage" id="stage"><img src="/api/thumb/${tg[0]}/${tg[1]}?dpi=100" alt="p${cur+1}"><div class="box hidden" id="box"></div></div><div class="hint">${cur+1} / ${d.info.pages} ページ</div>`;
   const st=$('#stage'), img=st.querySelector('img'), box=$('#box');
   const pt=e=>{ const r=img.getBoundingClientRect(); return [(e.clientX-r.left)*pw/r.width,(e.clientY-r.top)*ph/r.height,r.width/pw]; };
   let start=null;
@@ -378,8 +382,8 @@ function newText(st,x,y,k,page){
 let segBusy=null;
 async function loadSegs(st,img,pw,ph,page){
   if(segBusy===st) return; segBusy=st;
-  const d=doc(); let j;
-  try{ const r=await fetch(`/api/text/${d.id}/${page+1}`); j=await r.json(); if(!r.ok) throw new Error(j.error); }
+  const d=doc(), tg=d.info.tags[page]; let j;
+  try{ const r=await fetch(`/api/text/${tg[0]}/${tg[1]}`); j=await r.json(); if(!r.ok) throw new Error(j.error); }
   catch(e){ say($('#msgB'),e.message,'err'); return; }
   if(!st.isConnected) return;
   if(!j.segments.length){ say($('#msgB'),'このページには編集できる文字データがありません(画像のPDFの可能性)','err'); return; }
@@ -417,8 +421,8 @@ async function run(op,params,extra){
 }
 $('#undo').onclick=()=>{ if(idx>0){idx--;show();sbEnd('ok','1つ前に戻しました')} };
 $('#redo').onclick=()=>{ if(idx<stack.length-1){idx++;show();sbEnd('ok','やり直しました')} };
-$('#selAll').onclick=()=>{ sel=new Set([...Array(doc().info.pages).keys()]); show(); };
-$('#selNone').onclick=()=>{ sel=new Set(); show(); };
+$('#selAll').onclick=()=>{ sel=new Set([...Array(doc().info.pages).keys()]); paintSel(); };
+$('#selNone').onclick=()=>{ sel=new Set(); paintSel(); };
 
 function moved(dir){ // 選択ページを1つ前後へ。新しい並び(1始まり)を返す
   const n=doc().info.pages, order=[...Array(n).keys()], s=new Set(sel);

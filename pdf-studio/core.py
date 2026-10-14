@@ -73,6 +73,11 @@ def cjk_font() -> str:
     return _font_name
 
 
+def font_for(text: str) -> str:
+    """英数字だけなら内蔵フォント(読み込み不要で速い)、日本語を含めば日本語フォント。"""
+    return "Helvetica" if str(text).isascii() else cjk_font()
+
+
 # --------------------------------------------------------------- ページ指定
 def parse_pages(spec, total: int) -> list[int]:
     """'1-3,5,8-' / 'odd' / 'even' / 'all' / [1,2] を 0 始まりの添字リストにする。"""
@@ -121,22 +126,49 @@ def find_soffice() -> str | None:
     return None
 
 
-_PROFILE_SLOTS = 2
+_PROFILE_SLOTS = max(2, min(4, (os.cpu_count() or 2)))
 _profiles: "queue.Queue[Path]" = queue.Queue()
 _profile_root: Path | None = None
 _profile_lock = threading.Lock()
 
 
 def _acquire_profile() -> Path:
-    """LibreOffice のプロファイルを使い回す(毎回の初期化が遅いため)。同時利用は1スロット1件。"""
+    """LibreOffice のプロファイルを使い回す。
+
+    ユーザーフォルダに残すので、2回目以降の起動では初期化(数秒〜十数秒)が不要になる。
+    1スロットは同時に1件だけ使う。
+    """
     global _profile_root
     with _profile_lock:
         if _profile_root is None:
-            _profile_root = Path(tempfile.mkdtemp(prefix="pdfstudio_lo_"))
-            atexit.register(shutil.rmtree, _profile_root, True)
+            root = Path.home() / ".pdfstudio" / "lo"
+            try:
+                root.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                root = Path(tempfile.mkdtemp(prefix="pdfstudio_lo_"))
+                atexit.register(shutil.rmtree, root, True)
+            _profile_root = root
             for i in range(_PROFILE_SLOTS):
-                _profiles.put(_profile_root / f"p{i}")
+                _profiles.put(root / f"p{i}")
     return _profiles.get()
+
+
+def warm_up() -> None:
+    """起動直後に裏で呼ぶ: フォント読み込み・主要ライブラリ・LibreOffice の初回起動を先に済ませる。"""
+    try:
+        cjk_font()
+        import pdfplumber  # noqa: F401
+        try:
+            import pypdfium2  # noqa: F401
+        except ImportError:
+            pass
+        if find_soffice():
+            with tempfile.TemporaryDirectory() as td:
+                t = Path(td, "w.txt")
+                t.write_text("warm", encoding="utf-8")
+                _office_to_pdf(t, Path(td, "w.pdf"))
+    except Exception:
+        pass
 
 
 def _office_to_pdf(src: Path, dst: Path) -> None:
@@ -302,21 +334,38 @@ def _color(value, alpha: float = 1.0):
     return Color(c.red, c.green, c.blue, alpha=alpha)
 
 
-def _overlay(page, draw) -> None:
-    """表示向き(左下原点・正立)の座標で draw(canvas, disp_w, disp_h) を描き、ページへ重ねる。"""
-    W, H = float(page.mediabox.width), float(page.mediabox.height)
-    dw, dh, rot = _disp_size(page)
+_ROT_MATRIX = lambda W, H: {0: (1, 0, 0, 1, 0, 0), 90: (0, 1, -1, 0, W, 0),
+                            180: (-1, 0, 0, -1, W, H), 270: (0, -1, 1, 0, 0, H)}
+
+
+def _overlay_many(jobs) -> None:
+    """jobs: [(page, draw)]。表示向き(左下原点・正立)の座標で draw(canvas, disp_w, disp_h) を描き、各ページへ重ねる。
+
+    全ページ分を1つのキャンバス(=フォントの埋め込みも1回)で作るので、多ページでも速い。
+    """
+    if not jobs:
+        return
     buf = io.BytesIO()
-    c = rl_canvas.Canvas(buf, pagesize=(W, H))
-    mat = {0: (1, 0, 0, 1, 0, 0), 90: (0, 1, -1, 0, W, 0),
-           180: (-1, 0, 0, -1, W, H), 270: (0, -1, 1, 0, 0, H)}[rot]
-    c.transform(*mat)
-    draw(c, dw, dh)
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+    for page, draw in jobs:
+        W, H = float(page.mediabox.width), float(page.mediabox.height)
+        dw, dh, rot = _disp_size(page)
+        c.setPageSize((W, H))
+        c.saveState()
+        c.transform(*_ROT_MATRIX(W, H)[rot])
+        draw(c, dw, dh)
+        c.restoreState()
+        c.showPage()
     c.save()
     buf.seek(0)
-    ov = PdfReader(buf).pages[0]
-    page.merge_transformed_page(
-        ov, Transformation().translate(float(page.mediabox.left), float(page.mediabox.bottom)))
+    ov = PdfReader(buf)
+    for k, (page, _) in enumerate(jobs):
+        page.merge_transformed_page(
+            ov.pages[k], Transformation().translate(float(page.mediabox.left), float(page.mediabox.bottom)))
+
+
+def _overlay(page, draw) -> None:
+    _overlay_many([(page, draw)])
 
 
 def _rewrite(src, dst, fn, password=None) -> Path:
@@ -378,22 +427,23 @@ def op_insert_blank(w, after=0, count=1):
 def op_watermark(w, text, pages="all", size=60, opacity=0.2, angle=45, color="#ff0000"):
     if not text:
         raise PdfStudioError("透かし文字が空です")
-    font = cjk_font()
-    for i in parse_pages(pages, len(w.pages)):
-        def draw(c, dw, dh):
-            c.saveState()
-            c.setFillColor(_color(color, float(opacity)))
-            c.setFont(font, float(size))
-            c.translate(dw / 2, dh / 2)
-            c.rotate(float(angle))
-            c.drawCentredString(0, -float(size) / 3, text)
-            c.restoreState()
-        _overlay(w.pages[i], draw)
+    font = font_for(text)
+
+    def draw(c, dw, dh):
+        c.saveState()
+        c.setFillColor(_color(color, float(opacity)))
+        c.setFont(font, float(size))
+        c.translate(dw / 2, dh / 2)
+        c.rotate(float(angle))
+        c.drawCentredString(0, -float(size) / 3, text)
+        c.restoreState()
+    _overlay_many([(w.pages[i], draw) for i in parse_pages(pages, len(w.pages))])
 
 
 def op_page_numbers(w, fmt="{n} / {total}", position="bottom-center", size=10, start=1, pages="all"):
-    font = cjk_font()
+    font = font_for(fmt)
     total = len(w.pages)
+    jobs = []
     for i in parse_pages(pages, total):
         label = fmt.replace("{n}", str(i + int(start))).replace("{total}", str(total + int(start) - 1))
 
@@ -408,14 +458,15 @@ def op_page_numbers(w, fmt="{n} / {total}", position="bottom-center", size=10, s
                 c.drawRightString(dw - m, y, label)
             else:
                 c.drawCentredString(dw / 2, y, label)
-        _overlay(w.pages[i], draw)
+        jobs.append((w.pages[i], draw))
+    _overlay_many(jobs)
 
 
 def op_add_text(w, page, x, y, text, size=14, color="#000000"):
     """x,y: 表示されているページの左上からの距離(pt)。文字の左端・ベースラインの位置。"""
     if not text:
         raise PdfStudioError("文字が空です")
-    font = cjk_font()
+    font = font_for(text)
     (i,) = parse_pages([page], len(w.pages))
 
     def draw(c, dw, dh):
@@ -512,9 +563,10 @@ def replace_text(src, dst, find, replace, pages="all", size=None, password=None)
             tmp.unlink(missing_ok=True)
     if not hits:
         raise PdfStudioError(f"「{find}」は見つかりませんでした(画像化されたPDFの文字は検索できません)")
-    font = cjk_font()
+    font = font_for(replace)
 
     def fn(w):
+        jobs = []
         for i, rects in hits.items():
             def draw(c, dw, dh, rects=rects):
                 for x0, top, x1, bottom, fs in rects:
@@ -523,7 +575,8 @@ def replace_text(src, dst, find, replace, pages="all", size=None, password=None)
                     c.setFillColor(HexColor("#000000"))
                     c.setFont(font, float(fs))
                     c.drawString(x0, dh - bottom + (bottom - top) * 0.2, replace)
-            _overlay(w.pages[i], draw)
+            jobs.append((w.pages[i], draw))
+        _overlay_many(jobs)
 
     out = _rewrite(src, dst, fn, password)
     return out
@@ -649,7 +702,6 @@ def edit_text(src, dst, items, password=None) -> Path:
     by_page: dict[int, list] = {}
     for it in items:
         by_page.setdefault(int(it["page"]) - 1, []).append(it)
-    font = cjk_font()
     # 背景色の推定用に、対象ページだけを72dpi(1px=1pt)で描画
     src_path = Path(src)
     tmp = None
@@ -662,12 +714,13 @@ def edit_text(src, dst, items, password=None) -> Path:
     bgs: dict[int, "Image.Image"] = {}
     try:
         for i in by_page:
-            bgs[i] = Image.open(io.BytesIO(render_pages(src_path, dpi=72, first=i + 1, last=i + 1)[0])).convert("RGB")
+            bgs[i] = render_pil(src_path, [i + 1], 72, keep=tmp is None)[0]
     finally:
         if tmp:
             tmp.unlink(missing_ok=True)
 
     def fn(w):
+        jobs = []
         for i, its in by_page.items():
             if not 0 <= i < len(w.pages):
                 raise PdfStudioError(f"ページ {i + 1} はありません")
@@ -683,51 +736,107 @@ def edit_text(src, dst, items, password=None) -> Path:
                     c.setFillColor(HexColor(bg))
                     c.rect(x0 - 0.8, dh - bottom - 0.8, (x1 - x0) + 1.6, (bottom - top) + 1.6, fill=1, stroke=0)
                     c.setFillColor(_color(it.get("color") or "#000000"))
-                    c.setFont(font, size)
+                    c.setFont(font_for(it["text"]), size)
                     # ベースラインは枠の下端から文字の下がり分だけ上
                     c.drawString(x0, dh - bottom + (bottom - top - size) / 2 + size * 0.2, str(it["text"]))
-            _overlay(w.pages[i], draw)
+            jobs.append((w.pages[i], draw))
+        _overlay_many(jobs)
     return _rewrite(src, dst, fn, password)
 
 
 # --------------------------------------------------------------- 画像化(黒塗りの確定)
 def flatten(src, dst, dpi=150, password=None) -> Path:
     """全ページを画像にしてPDFへ戻す。白塗り/黒塗りの下の文字を完全に消したいときに使う。"""
-    from PIL import Image
     r = _open(src, password)
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td, "in.pdf")
         w0 = PdfWriter(); w0.append(r)
         with open(tmp, "wb") as f:
             w0.write(f)
-        imgs = render_pages(tmp, dpi=int(dpi))
-        pages = [Image.open(io.BytesIO(b)).convert("RGB") for b in imgs]
-    pages[0].save(str(dst), "PDF", resolution=float(dpi), save_all=True, append_images=pages[1:])
+        pages = render_pil(tmp, None, int(dpi), keep=False)
+    pages[0].save(str(dst), "PDF", resolution=float(dpi), save_all=True, append_images=pages[1:], quality=85)
     return Path(dst)
 
 
-def render_pages(pdf, dpi=60, first=None, last=None) -> list[bytes]:
-    """PNGバイト列のリスト(サムネイル/プレビュー用)。pdftoppm か pypdfium2 を使う。"""
-    exe = shutil.which("pdftoppm")
-    if exe:
-        with tempfile.TemporaryDirectory() as td:
-            cmd = [exe, "-png", "-r", str(int(dpi))]
-            if first:
-                cmd += ["-f", str(first)]
-            if last:
-                cmd += ["-l", str(last)]
-            subprocess.run(cmd + [str(pdf), str(Path(td, "p"))], check=True, capture_output=True, timeout=300)
-            return [p.read_bytes() for p in sorted(Path(td).glob("p*.png"))]
+# pdfium(C製で高速)で描画。開いた文書は使い回す。pdfium は並行利用できないので1本ずつ。
+_pdfium_lock = threading.RLock()
+_pdfium_docs: "dict[tuple, object]" = {}
+
+
+def _pdfium_doc(path, password=None):
+    import pypdfium2 as pdfium
+    key = (str(path), password)
+    d = _pdfium_docs.get(key)
+    if d is None:
+        if len(_pdfium_docs) >= 6:  # 古いものから閉じる
+            old = next(iter(_pdfium_docs))
+            try:
+                _pdfium_docs.pop(old).close()
+            except Exception:
+                pass
+        d = pdfium.PdfDocument(str(path), password=password)
+        _pdfium_docs[key] = d
+    return d
+
+
+def close_pdfium() -> None:
+    with _pdfium_lock:
+        for d in _pdfium_docs.values():
+            try:
+                d.close()
+            except Exception:
+                pass
+        _pdfium_docs.clear()
+
+
+def render_pil(pdf, pages=None, dpi=60, password=None, keep=True) -> list:
+    """pages: 1始まりのページ番号のリスト(None=全ページ)。PIL画像のリストを返す。
+
+    keep=False は一時ファイル用(開いたままにするとWindowsで削除できないため、使い終わったら閉じる)。
+    """
     try:
-        import pypdfium2 as pdfium
+        import pypdfium2  # noqa: F401
     except ImportError:
-        raise PdfStudioError("プレビューには poppler(pdftoppm) か pypdfium2 が必要です。")
-    doc = pdfium.PdfDocument(str(pdf))
-    a, b = (first or 1) - 1, (last or len(doc))
+        return _render_pil_poppler(pdf, pages, dpi)
+    import pypdfium2 as pdfium
+    with _pdfium_lock:
+        doc = _pdfium_doc(pdf, password) if keep else pdfium.PdfDocument(str(pdf), password=password)
+        try:
+            n = len(doc)
+            idx = range(n) if pages is None else [p - 1 for p in pages if 1 <= p <= n]
+            return [doc[i].render(scale=dpi / 72).to_pil().convert("RGB") for i in idx]
+        finally:
+            if not keep:
+                doc.close()
+
+
+def _render_pil_poppler(pdf, pages, dpi):
+    from PIL import Image
+    exe = shutil.which("pdftoppm")
+    if not exe:
+        raise PdfStudioError("プレビューには pypdfium2(pip install pypdfium2) か poppler(pdftoppm) が必要です。")
     out = []
-    for i in range(a, b):
+    with tempfile.TemporaryDirectory() as td:
+        rng = [(p, p) for p in pages] if pages else [(None, None)]
+        for k, (a, b) in enumerate(rng):
+            cmd = [exe, "-png", "-r", str(int(dpi))]
+            if a:
+                cmd += ["-f", str(a), "-l", str(b)]
+            subprocess.run(cmd + [str(pdf), str(Path(td, f"p{k}_"))], check=True, capture_output=True, timeout=300)
+        for p in sorted(Path(td).glob("p*.png"), key=lambda x: (int(x.name[1:].split("_")[0]), x.name)):
+            out.append(Image.open(p).convert("RGB"))
+    return out
+
+
+def render_pages(pdf, dpi=60, first=None, last=None, password=None, quality=82) -> list[bytes]:
+    """JPEGバイト列のリスト(サムネイル/プレビュー用。PNGより数倍速く、小さい)。"""
+    first = first or 1
+    imgs = render_pil(pdf, None if last is None and first == 1 else list(range(first, (last or first) + 1)),
+                      dpi, password)
+    out = []
+    for im in imgs:
         bio = io.BytesIO()
-        doc[i].render(scale=dpi / 72).to_pil().save(bio, "PNG")
+        im.save(bio, "JPEG", quality=quality)
         out.append(bio.getvalue())
     return out
 
