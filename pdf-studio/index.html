@@ -42,9 +42,10 @@ ul.files li .t{font-size:11px;color:var(--mut);border:1px solid var(--line);bord
 .tools details{border-top:1px solid var(--line);padding:8px 0}
 .tools summary{cursor:pointer;font-weight:600}
 .tools .f{display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin:8px 0;font-size:13px}
+.b.on{background:var(--pri);color:var(--priT);border-color:var(--pri)}
 .seg{position:absolute;border:1px solid transparent;cursor:text;border-radius:2px}
 .seg:hover{border-color:var(--pri);background:rgba(36,87,214,.12)}
-.seg input{position:absolute;z-index:5;border:2px solid var(--pri);background:#fff;color:#000;padding:0 2px;margin:0;border-radius:2px;font-family:inherit;outline:none}
+.seg input,.stage input{position:absolute;z-index:5;border:2px solid var(--pri);background:#fff;color:#000;padding:0 2px;margin:0;border-radius:2px;font-family:inherit;outline:none}
 .hint{color:var(--mut);font-size:12px}
 .hidden{display:none}
 body{padding-bottom:44px}
@@ -132,15 +133,16 @@ body{padding-bottom:44px}
       <div class="card">
         <div class="row">
           <strong>プレビュー</strong>
-          <label>操作 <select id="mode">
-            <option value="">(なし)</option>
-            <option value="edit">既存の文字を直接編集(文字をクリック)</option>
-            <option value="text">クリックした位置に文字を書く</option>
-            <option value="rect">ドラッグで白く塗る</option>
-            <option value="black">ドラッグで黒く塗る</option>
-          </select></label>
-          <span class="hint" id="modeHint"></span>
+          <input type="hidden" id="mode" value="text">
+          <span id="tools" class="row" style="margin:0">
+            <button class="b on" data-mode="text" title="文字をクリックで書き換え / 空白をクリックで新しく書く">✎ 文字</button>
+            <button class="b" data-mode="rect" title="ドラッグで白く塗る">□ 白塗り</button>
+            <button class="b" data-mode="black" title="ドラッグで黒く塗る">■ 黒塗り</button>
+          </span>
+          <label class="hint">大きさ <input type="number" id="txSize" value="14" min="4" style="width:60px"></label>
+          <label class="hint">色 <input type="color" id="txCol" value="#000000"></label>
         </div>
+        <div class="hint" id="modeHint" style="margin-bottom:6px"></div>
         <div id="stageWrap"></div>
         <div class="grid" id="grid" style="margin-top:14px"></div>
       </div>
@@ -158,11 +160,7 @@ body{padding-bottom:44px}
           <span>位置</span><select id="pnPos"><option value="bottom-center">下中央</option><option value="bottom-right">下右</option><option value="bottom-left">下左</option><option value="top-center">上中央</option><option value="top-right">上右</option><option value="top-left">上左</option></select>
           <span>開始番号</span><input type="number" id="pnStart" value="1"></div>
           <button class="b" data-tool="page_numbers">番号を入れる</button></details>
-        <details><summary>文字を書く / 置換</summary>
-          <div class="f"><span>文字</span><textarea id="txText" rows="2">サンプル</textarea>
-          <span>大きさ</span><input type="number" id="txSize" value="14" min="4">
-          <span>色</span><input type="color" id="txCol" value="#000000"></div>
-          <p class="hint">「操作」で“文字を書く”を選び、プレビューをクリックすると、その位置に書きます。</p>
+        <details><summary>文字の一括置換</summary>
           <div class="f"><span>探す</span><input type="text" id="rpFind"><span>置換後</span><input type="text" id="rpTo"></div>
           <button class="b" data-tool="replace_text">既存の文字を置換</button>
           <p class="hint">置換は元の文字を白で隠して上書きします(白背景の文書向け・文字データのPDFのみ)。</p></details>
@@ -350,18 +348,32 @@ function drawStage(){
   const st=$('#stage'), img=st.querySelector('img'), box=$('#box');
   const pt=e=>{ const r=img.getBoundingClientRect(); return [(e.clientX-r.left)*pw/r.width,(e.clientY-r.top)*ph/r.height,r.width/pw]; };
   let start=null;
-  st.onmousedown=e=>{ const m=$('#mode').value; if(!m||m==='edit')return; e.preventDefault(); start=pt(e); };
-  if($('#mode').value==='edit') img.addEventListener('load',()=>loadSegs(st,img,pw,ph,cur),{once:true}), img.complete&&loadSegs(st,img,pw,ph,cur);
-  st.onmousemove=e=>{ if(!start)return; const m=$('#mode').value; if(m!=='rect'&&m!=='black')return;
+  const mode=()=>$('#mode').value;
+  st.onmousedown=e=>{ if(mode()==='text'||e.target.tagName==='INPUT')return; e.preventDefault(); start=pt(e); };
+  if(mode()==='text'){ img.addEventListener('load',()=>loadSegs(st,img,pw,ph,cur),{once:true}); if(img.complete) loadSegs(st,img,pw,ph,cur); }
+  st.onclick=e=>{ if(mode()!=='text'||e.target.closest('.seg')||e.target.tagName==='INPUT')return;
+    if(st.querySelector('input')) return;           // 入力中の欄があれば、まず確定(blurで処理)
+    const [x,y,k]=pt(e); newText(st,x,y,k,cur); };
+  st.onmousemove=e=>{ if(!start)return; const m=mode(); if(m!=='rect'&&m!=='black')return;
     const [x,y,k]=pt(e); box.classList.remove('hidden');
     box.style.left=Math.min(start[0],x)*k+'px'; box.style.top=Math.min(start[1],y)*k+'px';
     box.style.width=Math.abs(x-start[0])*k+'px'; box.style.height=Math.abs(y-start[1])*k+'px'; };
   st.onmouseup=async e=>{
-    if(!start)return; const m=$('#mode').value, [x,y]=pt(e), s=start; start=null; box.classList.add('hidden');
-    if(m==='text'){ await run('add_text',{page:cur+1,x:s[0],y:s[1]+(+$('#txSize').value||14),text:$('#txText').value,size:+$('#txSize').value||14,color:$('#txCol').value}); }
-    else if(m==='rect'||m==='black'){ const w=Math.abs(x-s[0]), h=Math.abs(y-s[1]); if(w<2||h<2)return;
-      await run('rect',{page:cur+1,x:Math.min(s[0],x),y:Math.min(s[1],y),width:w,height:h,color:m==='black'?'#000000':'#ffffff'}); }
+    if(!start)return; const m=mode(), [x,y]=pt(e), s=start; start=null; box.classList.add('hidden');
+    const w=Math.abs(x-s[0]), h=Math.abs(y-s[1]); if(w<2||h<2)return;
+    await run('rect',{page:cur+1,x:Math.min(s[0],x),y:Math.min(s[1],y),width:w,height:h,color:m==='black'?'#000000':'#ffffff'});
   };
+}
+/* 空白をクリック→その場に入力欄→Enterで確定して書き込む */
+function newText(st,x,y,k,page){
+  const size=+$('#txSize').value||14, color=$('#txCol').value;
+  const inp=document.createElement('input'); inp.placeholder='ここに入力';
+  Object.assign(inp.style,{left:x*k-2+'px',top:(y-size*0.6)*k+'px',height:size*1.3*k+'px',width:'180px',fontSize:size*k+'px',color:color});
+  st.appendChild(inp); inp.focus(); let done=false;
+  const commit=async()=>{ if(done)return; done=true; const t=inp.value; inp.remove(); if(!t.trim())return;
+    await run('add_text',{page:page+1,x:x,y:y+size*0.35,text:t,size:size,color:color}); };
+  inp.onkeydown=e=>{ if(e.key==='Enter'){e.preventDefault();commit()} else if(e.key==='Escape'){done=true;inp.remove()} };
+  inp.onblur=commit;
 }
 let segBusy=null;
 async function loadSegs(st,img,pw,ph,page){
@@ -392,7 +404,10 @@ function editSeg(st,box,sg,k,page){
   inp.onkeydown=e=>{ if(e.key==='Enter'){e.preventDefault();commit()} else if(e.key==='Escape'){done=true;inp.remove()} };
   inp.onblur=commit;
 }
-$('#mode').onchange=()=>{ drawStage(); $('#modeHint').textContent={edit:'文字をクリックすると書き換えられます(Enterで確定 / Escで取消)。元と同じ位置・大きさ・色で書き直します',text:'プレビューをクリックした位置に、右の「文字を書く」の内容を書き込みます',rect:'隠したい範囲をドラッグ',black:'隠したい範囲をドラッグ(完全に消すには「画像化して確定」)'}[$('#mode').value]||''; };
+const MODEHINT={text:'文字をクリック→その場で書き換え / 空白をクリック→そこに新しく書く(Enterで確定・Escで取消)',rect:'隠したい範囲をドラッグすると白く塗ります',black:'隠したい範囲をドラッグすると黒く塗ります(文字データまで消すには「画像化して確定」)'};
+function setMode(m){ $('#mode').value=m; $$('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===m)); $('#modeHint').textContent=MODEHINT[m]; if(doc()) drawStage(); }
+$$('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+$('#modeHint').textContent=MODEHINT.text;
 async function run(op,params,extra){
   say($('#msgB'),'処理中…'); sbBusy(`${OPNAME[op]||op} を実行中…`);
   try{
