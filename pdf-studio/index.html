@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PDF Studio</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--fg:#1d2433;--mut:#6b7385;--line:#d9dde5;--pri:#2457d6;--priT:#fff;--ok:#16794a;--err:#b42318;--sel:#dbe7ff}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--fg:#e8ebf1;--mut:#9aa3b5;--line:#343b49;--pri:#6c93ff;--priT:#0c1220;--ok:#4cc38a;--err:#ff8a80;--sel:#2a3a63}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 "Hiragino Sans","Yu Gothic UI","Meiryo",system-ui,sans-serif}
+header{padding:14px 20px;border-bottom:1px solid var(--line);background:var(--card);display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+h1{font-size:18px;margin:0}
+nav{display:flex;gap:6px}
+nav button{border:1px solid var(--line);background:none;color:var(--fg);padding:7px 16px;border-radius:8px;cursor:pointer;font:inherit}
+nav button.on{background:var(--pri);color:var(--priT);border-color:var(--pri)}
+main{max-width:1200px;margin:0 auto;padding:16px 20px 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px}
+button.b,label.b,a.b{display:inline-block;border:1px solid var(--line);background:var(--card);color:var(--fg);padding:6px 12px;border-radius:8px;cursor:pointer;font:inherit}
+button.b:hover,label.b:hover,a.b:hover{border-color:var(--pri)}
+button.p,a.p{background:var(--pri);color:var(--priT);border-color:var(--pri)}
+button:disabled{opacity:.45;cursor:default}
+input[type=text],input[type=number],input[type=password],select,textarea{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px;padding:5px 8px;font:inherit;max-width:100%}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:28px;text-align:center;color:var(--mut);cursor:pointer}
+.drop.over{border-color:var(--pri);background:var(--sel)}
+ul.files{list-style:none;margin:10px 0;padding:0}
+ul.files li{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-bottom:6px;background:var(--bg)}
+ul.files li .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ul.files li .t{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.msg{margin:8px 0;min-height:1.4em}.msg.err{color:var(--err)}.msg.ok{color:var(--ok)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.th{border:2px solid var(--line);border-radius:8px;padding:4px;text-align:center;cursor:pointer;background:var(--bg);font-size:12px}
+.th.sel{border-color:var(--pri);background:var(--sel)}
+.th img{max-width:100%;max-height:170px;display:block;margin:0 auto 2px;background:#fff}
+.edit{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px}
+@media(max-width:900px){.edit{grid-template-columns:1fr}}
+.stage{position:relative;display:inline-block;max-width:100%;border:1px solid var(--line);user-select:none}
+.stage img{display:block;max-width:100%;height:auto;background:#fff}
+.stage .box{position:absolute;border:2px dashed #e5484d;background:rgba(229,72,77,.12);pointer-events:none}
+.tools details{border-top:1px solid var(--line);padding:8px 0}
+.tools summary{cursor:pointer;font-weight:600}
+.tools .f{display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin:8px 0;font-size:13px}
+.hint{color:var(--mut);font-size:12px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>PDF Studio</h1>
+  <nav><button id="tabA" class="on">① 変換・結合</button><button id="tabB">② PDFを編集</button></nav>
+  <span class="hint" id="status"></span>
+</header>
+<main>
+
+<section id="viewA">
+  <div class="card">
+    <h2>ファイルを入れる(Word・Excel・PowerPoint・PDF・画像・テキスト・HTML など)</h2>
+    <div class="drop" id="drop">ここにドラッグ&ドロップ、またはクリックして選択(複数可)</div>
+    <input type="file" id="pick" multiple hidden>
+    <ul class="files" id="list"></ul>
+    <div class="row">
+      <label>結合後の名前 <input type="text" id="outName" value="結合.pdf" size="22"></label>
+      <label><input type="checkbox" id="bm" checked> 元のファイル名をしおり(目次)にする</label>
+    </div>
+    <div class="row">
+      <button class="b p" id="btnMerge" disabled>順番どおり1つのPDFに結合</button>
+      <button class="b" id="btnEach" disabled>1つずつPDFに変換</button>
+      <button class="b" id="btnClear" disabled>全部クリア</button>
+    </div>
+    <div class="msg" id="msgA"></div>
+    <div id="resA"></div>
+  </div>
+</section>
+
+<section id="viewB" class="hidden">
+  <div class="card" id="openCard">
+    <h2>編集するPDF</h2>
+    <div class="row">
+      <label class="b">PDFを開く<input type="file" id="openPick" accept=".pdf,.docx,.xlsx,.pptx,.doc,.xls,.ppt,.png,.jpg,.jpeg,.txt" hidden></label>
+      <span class="hint">PDF以外を選ぶと自動でPDFにしてから開きます</span>
+    </div>
+    <div class="msg" id="msgOpen"></div>
+  </div>
+
+  <div id="editor" class="hidden">
+    <div class="card">
+      <div class="row">
+        <strong id="docName"></strong><span class="hint" id="docInfo"></span>
+        <span style="flex:1"></span>
+        <button class="b" id="undo">↩ 元に戻す</button>
+        <button class="b" id="redo">↪ やり直し</button>
+        <a class="b p" id="dl" style="text-decoration:none;color:var(--priT)">⬇ ダウンロード</a>
+      </div>
+      <div class="row">
+        <span class="hint">ページをクリックで選択(Shiftで範囲 / Ctrl・⌘で追加)</span>
+        <button class="b" id="selAll">全選択</button><button class="b" id="selNone">解除</button>
+        <span style="width:12px"></span>
+        <button class="b" data-act="rotL">⟲ 左回転</button>
+        <button class="b" data-act="rotR">⟳ 右回転</button>
+        <button class="b" data-act="left">← 前へ</button>
+        <button class="b" data-act="right">→ 後ろへ</button>
+        <button class="b" data-act="dup">複製</button>
+        <button class="b" data-act="blank">後ろに空白ページ</button>
+        <button class="b" data-act="del">削除</button>
+        <button class="b" data-act="keep">選んだページだけ残す</button>
+      </div>
+      <div class="msg" id="msgB"></div>
+    </div>
+
+    <div class="edit">
+      <div class="card">
+        <div class="row">
+          <strong>プレビュー</strong>
+          <label>操作 <select id="mode">
+            <option value="">(なし)</option>
+            <option value="text">クリックした位置に文字を書く</option>
+            <option value="rect">ドラッグで白く塗る</option>
+            <option value="black">ドラッグで黒く塗る</option>
+          </select></label>
+          <span class="hint" id="modeHint"></span>
+        </div>
+        <div id="stageWrap"></div>
+        <div class="grid" id="grid" style="margin-top:14px"></div>
+      </div>
+      <div class="card tools">
+        <h2>ツール(選択ページ、未選択なら全ページ)</h2>
+        <details><summary>透かし文字</summary>
+          <div class="f"><span>文字</span><input type="text" id="wmText" value="社外秘">
+          <span>大きさ</span><input type="number" id="wmSize" value="60" min="8">
+          <span>濃さ</span><input type="number" id="wmOp" value="0.2" min="0.05" max="1" step="0.05">
+          <span>角度</span><input type="number" id="wmAng" value="45">
+          <span>色</span><input type="color" id="wmCol" value="#ff0000"></div>
+          <button class="b" data-tool="watermark">透かしを入れる</button></details>
+        <details><summary>ページ番号</summary>
+          <div class="f"><span>書式</span><input type="text" id="pnFmt" value="{n} / {total}">
+          <span>位置</span><select id="pnPos"><option value="bottom-center">下中央</option><option value="bottom-right">下右</option><option value="bottom-left">下左</option><option value="top-center">上中央</option><option value="top-right">上右</option><option value="top-left">上左</option></select>
+          <span>開始番号</span><input type="number" id="pnStart" value="1"></div>
+          <button class="b" data-tool="page_numbers">番号を入れる</button></details>
+        <details><summary>文字を書く / 置換</summary>
+          <div class="f"><span>文字</span><textarea id="txText" rows="2">サンプル</textarea>
+          <span>大きさ</span><input type="number" id="txSize" value="14" min="4">
+          <span>色</span><input type="color" id="txCol" value="#000000"></div>
+          <p class="hint">「操作」で“文字を書く”を選び、プレビューをクリックすると、その位置に書きます。</p>
+          <div class="f"><span>探す</span><input type="text" id="rpFind"><span>置換後</span><input type="text" id="rpTo"></div>
+          <button class="b" data-tool="replace_text">既存の文字を置換</button>
+          <p class="hint">置換は元の文字を白で隠して上書きします(白背景の文書向け・文字データのPDFのみ)。</p></details>
+        <details><summary>ページ分割</summary>
+          <div class="f"><span>範囲</span><input type="text" id="spRange" placeholder="1-3;4-5;6-(空=1ページずつ)"></div>
+          <button class="b" data-tool="split">ZIPで分割して保存</button></details>
+        <details><summary>文書のプロパティ</summary>
+          <div class="f"><span>タイトル</span><input type="text" id="mdTitle">
+          <span>作成者</span><input type="text" id="mdAuthor">
+          <span>件名</span><input type="text" id="mdSubject"></div>
+          <button class="b" data-tool="metadata">設定する</button></details>
+        <details><summary>パスワード・容量・確定</summary>
+          <div class="f"><span>パスワード</span><input type="password" id="pwNew"></div>
+          <button class="b" data-tool="encrypt">パスワードを付ける</button>
+          <button class="b" data-tool="decrypt">パスワードを外す</button>
+          <hr><button class="b" data-tool="compress">容量を小さくする</button>
+          <button class="b" data-tool="flatten">画像化して確定(黒塗りの下の文字も消す)</button></details>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const EXT=n=>(n.split('.').pop()||'').toLowerCase();
+const KIND={pdf:'PDF',docx:'Word',doc:'Word',docm:'Word',rtf:'Word',odt:'Word',xlsx:'Excel',xls:'Excel',xlsm:'Excel',ods:'Excel',csv:'CSV',pptx:'PowerPoint',ppt:'PowerPoint',odp:'PowerPoint',png:'画像',jpg:'画像',jpeg:'画像',gif:'画像',bmp:'画像',tif:'画像',tiff:'画像',webp:'画像',txt:'テキスト',md:'テキスト',html:'HTML',htm:'HTML'};
+async function api(path,body){
+  const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json(); if(!r.ok) throw new Error(j.error||'失敗しました'); return j;
+}
+async function upload(file){
+  const r=await fetch('/api/upload',{method:'POST',headers:{'X-Filename':encodeURIComponent(file.name)},body:file});
+  const j=await r.json(); if(!r.ok) throw new Error(j.error); return j;
+}
+function say(el,t,cls){el.textContent=t||'';el.className='msg '+(cls||'')}
+const dlLink=(f,label)=>`<a class="b" href="/api/file/${f.id}">⬇ ${label||f.name}</a>`;
+
+/* ---- タブ ---- */
+function tab(w){ $('#viewA').classList.toggle('hidden',w!=='A'); $('#viewB').classList.toggle('hidden',w!=='B');
+  $('#tabA').classList.toggle('on',w==='A'); $('#tabB').classList.toggle('on',w==='B'); }
+$('#tabA').onclick=()=>tab('A'); $('#tabB').onclick=()=>tab('B');
+fetch('/api/status').then(r=>r.json()).then(s=>{ if(!s.office) $('#status').textContent='⚠ LibreOffice 未導入: Word/Excel/PowerPointは変換できません'; });
+
+/* ---- ① 変換・結合 ---- */
+let files=[]; // {id,name}
+function renderList(){
+  const ul=$('#list'); ul.innerHTML='';
+  files.forEach((f,i)=>{
+    const li=document.createElement('li'); li.draggable=true;
+    li.innerHTML=`<span>${i+1}.</span><span class="t">${KIND[EXT(f.name)]||EXT(f.name)}</span><span class="n"></span>
+      <button class="b" data-a="up">↑</button><button class="b" data-a="dn">↓</button><button class="b" data-a="rm">✕</button>`;
+    li.querySelector('.n').textContent=f.name;
+    li.querySelector('[data-a=up]').onclick=()=>{ if(i>0){[files[i-1],files[i]]=[files[i],files[i-1]];renderList()} };
+    li.querySelector('[data-a=dn]').onclick=()=>{ if(i<files.length-1){[files[i+1],files[i]]=[files[i],files[i+1]];renderList()} };
+    li.querySelector('[data-a=rm]').onclick=()=>{ files.splice(i,1);renderList() };
+    li.ondragstart=e=>e.dataTransfer.setData('text/x-idx',i);
+    li.ondragover=e=>e.preventDefault();
+    li.ondrop=e=>{ const from=e.dataTransfer.getData('text/x-idx'); if(from==='')return; e.preventDefault(); e.stopPropagation();
+      const [m]=files.splice(+from,1); files.splice(i,0,m); renderList(); };
+    ul.appendChild(li);
+  });
+  const has=files.length>0;
+  $('#btnMerge').disabled=!has; $('#btnEach').disabled=!has; $('#btnClear').disabled=!has;
+}
+async function addFiles(list){
+  say($('#msgA'),'読み込み中…');
+  try{ for(const f of list) files.push(await upload(f)); say($('#msgA'),''); }catch(e){ say($('#msgA'),e.message,'err'); }
+  renderList();
+}
+const drop=$('#drop');
+drop.onclick=()=>$('#pick').click();
+$('#pick').onchange=e=>{addFiles([...e.target.files]);e.target.value=''};
+['dragenter','dragover'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',e=>{ if(e.dataTransfer.files.length) addFiles([...e.dataTransfer.files]) });
+$('#btnClear').onclick=()=>{files=[];renderList();$('#resA').innerHTML='';say($('#msgA'),'')};
+$('#btnMerge').onclick=async()=>{
+  say($('#msgA'),'結合中…(Office文書は少し時間がかかります)'); $('#resA').innerHTML='';
+  try{
+    const r=await api('/api/merge',{ids:files.map(f=>f.id),name:$('#outName').value,bookmarks:$('#bm').checked});
+    say($('#msgA'),`結合しました(${r.info.pages}ページ)`,'ok');
+    $('#resA').innerHTML=dlLink(r)+' <button class="b" id="toEdit">このPDFを編集する →</button>';
+    $('#toEdit').onclick=()=>{ openDoc(r); tab('B'); };
+  }catch(e){ say($('#msgA'),e.message,'err'); }
+};
+$('#btnEach').onclick=async()=>{
+  say($('#msgA'),'変換中…'); $('#resA').innerHTML='';
+  try{ const out=[]; for(const f of files){ out.push(await api('/api/convert',{id:f.id})); }
+    say($('#msgA'),`${out.length}件を変換しました`,'ok'); $('#resA').innerHTML=out.map(o=>dlLink(o)).join(' ');
+  }catch(e){ say($('#msgA'),e.message,'err'); }
+};
+
+/* ---- ② 編集 ---- */
+let stack=[], idx=-1, sel=new Set(), cur=0, last=null; // sel: 0始まりページ
+const doc=()=>stack[idx];
+async function openDoc(f){
+  let d=f;
+  if(EXT(f.name)!=='pdf'){ d=await api('/api/convert',{id:f.id}); }
+  const info=await (await fetch('/api/info/'+d.id)).json();
+  if(info.encrypted){ const pw=prompt('パスワードを入力してください'); if(!pw) return;
+    d=await api('/api/edit',{id:d.id,op:'decrypt',password:pw}); }
+  stack=[{...d,info:d.info||await (await fetch('/api/info/'+d.id)).json()}]; idx=0; sel=new Set(); cur=0;
+  $('#editor').classList.remove('hidden'); show();
+}
+$('#openPick').onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f)return;
+  say($('#msgOpen'),'読み込み中…');
+  try{ await openDoc(await upload(f)); say($('#msgOpen'),''); }catch(err){ say($('#msgOpen'),err.message,'err'); }
+};
+function show(){
+  const d=doc(); $('#docName').textContent=d.name; $('#docInfo').textContent=` ${d.info.pages}ページ`;
+  $('#dl').href='/api/file/'+d.id; $('#undo').disabled=idx<=0; $('#redo').disabled=idx>=stack.length-1;
+  cur=Math.min(cur,d.info.pages-1);
+  const g=$('#grid'); g.innerHTML='';
+  for(let i=0;i<d.info.pages;i++){
+    const t=document.createElement('div'); t.className='th'+(sel.has(i)?' sel':'');
+    t.innerHTML=`<img loading="lazy" src="/api/thumb/${d.id}/${i+1}?dpi=36" alt=""><div>${i+1}</div>`;
+    t.onclick=e=>{
+      if(e.shiftKey&&last!==null){ const [a,b]=[Math.min(last,i),Math.max(last,i)]; for(let k=a;k<=b;k++)sel.add(k); }
+      else if(e.ctrlKey||e.metaKey){ sel.has(i)?sel.delete(i):sel.add(i); }
+      else { sel=new Set([i]); }
+      last=i; cur=i; show();
+    };
+    g.appendChild(t);
+  }
+  drawStage();
+}
+function pageList(){ return [...sel].sort((a,b)=>a-b).map(i=>i+1); }
+function drawStage(){
+  const d=doc(), w=$('#stageWrap'); const [pw,ph]=d.info.sizes[cur]||[595,842];
+  w.innerHTML=`<div class="stage" id="stage"><img src="/api/thumb/${d.id}/${cur+1}?dpi=90" alt="p${cur+1}"><div class="box hidden" id="box"></div></div><div class="hint">${cur+1} / ${d.info.pages} ページ</div>`;
+  const st=$('#stage'), img=st.querySelector('img'), box=$('#box');
+  const pt=e=>{ const r=img.getBoundingClientRect(); return [(e.clientX-r.left)*pw/r.width,(e.clientY-r.top)*ph/r.height,r.width/pw]; };
+  let start=null;
+  st.onmousedown=e=>{ e.preventDefault(); const m=$('#mode').value; if(!m)return; start=pt(e); };
+  st.onmousemove=e=>{ if(!start)return; const m=$('#mode').value; if(m!=='rect'&&m!=='black')return;
+    const [x,y,k]=pt(e); box.classList.remove('hidden');
+    box.style.left=Math.min(start[0],x)*k+'px'; box.style.top=Math.min(start[1],y)*k+'px';
+    box.style.width=Math.abs(x-start[0])*k+'px'; box.style.height=Math.abs(y-start[1])*k+'px'; };
+  st.onmouseup=async e=>{
+    if(!start)return; const m=$('#mode').value, [x,y]=pt(e), s=start; start=null; box.classList.add('hidden');
+    if(m==='text'){ await run('add_text',{page:cur+1,x:s[0],y:s[1]+(+$('#txSize').value||14),text:$('#txText').value,size:+$('#txSize').value||14,color:$('#txCol').value}); }
+    else if(m==='rect'||m==='black'){ const w=Math.abs(x-s[0]), h=Math.abs(y-s[1]); if(w<2||h<2)return;
+      await run('rect',{page:cur+1,x:Math.min(s[0],x),y:Math.min(s[1],y),width:w,height:h,color:m==='black'?'#000000':'#ffffff'}); }
+  };
+}
+$('#mode').onchange=()=>{ $('#modeHint').textContent={text:'プレビューをクリックした位置に、右の「文字を書く」の内容を書き込みます',rect:'隠したい範囲をドラッグ',black:'隠したい範囲をドラッグ(完全に消すには「画像化して確定」)'}[$('#mode').value]||''; };
+async function run(op,params,extra){
+  say($('#msgB'),'処理中…');
+  try{
+    const r=await api('/api/edit',{id:doc().id,op,params,...extra});
+    stack=stack.slice(0,idx+1); stack.push({...r}); idx++; say($('#msgB'),'完了','ok'); show(); return r;
+  }catch(e){ say($('#msgB'),e.message,'err'); }
+}
+$('#undo').onclick=()=>{ if(idx>0){idx--;show()} };
+$('#redo').onclick=()=>{ if(idx<stack.length-1){idx++;show()} };
+$('#selAll').onclick=()=>{ sel=new Set([...Array(doc().info.pages).keys()]); show(); };
+$('#selNone').onclick=()=>{ sel=new Set(); show(); };
+
+function moved(dir){ // 選択ページを1つ前後へ。新しい並び(1始まり)を返す
+  const n=doc().info.pages, order=[...Array(n).keys()], s=new Set(sel);
+  if(dir<0){ for(let i=1;i<n;i++) if(s.has(order[i])&&!s.has(order[i-1])) [order[i-1],order[i]]=[order[i],order[i-1]]; }
+  else { for(let i=n-2;i>=0;i--) if(s.has(order[i])&&!s.has(order[i+1])) [order[i+1],order[i]]=[order[i],order[i+1]]; }
+  return order;
+}
+$$('[data-act]').forEach(b=>b.onclick=async()=>{
+  const a=b.dataset.act, pg=pageList(), n=doc().info.pages;
+  if(!pg.length){ say($('#msgB'),'先にページを選んでください','err'); return; }
+  if(a==='rotL') await run('rotate',{pages:pg,angle:-90});
+  else if(a==='rotR') await run('rotate',{pages:pg,angle:90});
+  else if(a==='del'){ if(confirm(`${pg.length}ページを削除しますか?`)){ sel=new Set(); await run('delete',{pages:pg}); } }
+  else if(a==='keep'){ sel=new Set(); await run('arrange',{pages:pg}); }
+  else if(a==='blank') await run('insert_blank',{after:Math.max(...pg),count:1});
+  else if(a==='dup'){ const o=[]; for(let i=1;i<=n;i++){o.push(i); if(sel.has(i-1))o.push(i);} sel=new Set(); await run('arrange',{pages:o}); }
+  else { const order=moved(a==='left'?-1:1); const ns=new Set(); order.forEach((o,i)=>{if(sel.has(o))ns.add(i)}); const r=await run('arrange',{pages:order.map(x=>x+1)}); if(r){sel=ns;show();} }
+});
+const scope=()=>{ const p=pageList(); return p.length?p:'all'; };
+const TOOLS={
+  watermark:()=>run('watermark',{text:$('#wmText').value,size:+$('#wmSize').value,opacity:+$('#wmOp').value,angle:+$('#wmAng').value,color:$('#wmCol').value,pages:scope()}),
+  page_numbers:()=>run('page_numbers',{fmt:$('#pnFmt').value,position:$('#pnPos').value,start:+$('#pnStart').value,pages:scope()}),
+  replace_text:()=>run('replace_text',{find:$('#rpFind').value,replace:$('#rpTo').value,pages:scope()}),
+  metadata:()=>run('metadata',{title:$('#mdTitle').value,author:$('#mdAuthor').value,subject:$('#mdSubject').value}),
+  encrypt:()=>run('encrypt',{new_password:$('#pwNew').value}),
+  decrypt:()=>run('decrypt',{}),
+  compress:()=>run('compress',{}),
+  flatten:()=>run('flatten',{dpi:150}),
+  split:async()=>{ say($('#msgB'),'分割中…'); try{ const r=await api('/api/split',{id:doc().id,ranges:$('#spRange').value});
+    say($('#msgB'),`${r.count}ファイルに分割しました`,'ok'); location.href='/api/file/'+r.id; }catch(e){ say($('#msgB'),e.message,'err'); } },
+};
+$$('[data-tool]').forEach(b=>b.onclick=()=>TOOLS[b.dataset.tool]());
+renderList();
+</script>
+</body>
+</html>
