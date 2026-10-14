@@ -9,7 +9,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+from concurrent.futures import Future, ThreadPoolExecutor
 import shutil
 import sys
 import tempfile
@@ -28,12 +30,20 @@ ID_RE = re.compile(r"[0-9a-f]{32}")
 
 
 class Store:
-    """アップロード/結果ファイルの一時置き場。終了時に全削除。"""
+    """アップロード/結果ファイルの一時置き場。終了時に全削除。
+
+    Office/画像/テキストはアップロード直後に裏でPDF化を始めるので、結合ボタンを押す頃には終わっている。
+    """
 
     def __init__(self):
         self.dir = Path(tempfile.mkdtemp(prefix="pdfstudio_"))
         self.names: dict[str, str] = {}
         self.lock = threading.Lock()
+        self.pool = ThreadPoolExecutor(max_workers=4)
+        self.conv: dict[str, Future] = {}
+        self.thumbs: dict[tuple, list[bytes]] = {}
+        self.thumb_lock = threading.Lock()
+        self.text_cache: dict[tuple, dict] = {}
 
     def path(self, fid: str) -> Path:
         if not ID_RE.fullmatch(fid or "") or fid not in self.names:
@@ -46,7 +56,31 @@ class Store:
             self.names[fid] = name
         if data is not None:
             (self.dir / fid).write_bytes(data)
+            if Path(name).suffix.lower() != ".pdf":
+                self.conv[fid] = self.pool.submit(self._convert, fid)
         return fid
+
+    def _convert(self, fid: str) -> Path:
+        out = self.dir / (fid + ".conv.pdf")
+        core.to_pdf(self.with_suffix(fid), out)
+        return out
+
+    def pdf_for(self, fid: str) -> Path:
+        """そのファイルのPDF版(変換済みを待って返す。PDFならそのまま)。"""
+        self.path(fid)
+        if fid in self.conv:
+            return self.conv[fid].result()
+        return self.dir / fid
+
+    def thumb(self, fid: str, page: int, dpi: int) -> bytes:
+        """サムネイルは50ページ単位で1回のプロセスでまとめて描画してキャッシュ(1枚ずつ起動するより桁違いに速い)。"""
+        chunk = (page - 1) // 50
+        key = (fid, dpi, chunk)
+        with self.thumb_lock:
+            if key not in self.thumbs:
+                a = chunk * 50 + 1
+                self.thumbs[key] = core.render_pages(self.path(fid), dpi=dpi, first=a, last=a + 49)
+        return self.thumbs[key][(page - 1) % 50]
 
     def with_suffix(self, fid: str) -> Path:
         """拡張子つきの作業コピー(変換器が拡張子で形式を判断するため)。"""
@@ -57,6 +91,7 @@ class Store:
         return q
 
     def close(self):
+        self.pool.shutdown(wait=False, cancel_futures=True)
         shutil.rmtree(self.dir, ignore_errors=True)
 
 
@@ -118,7 +153,7 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/status":
                 return self._json({"office": bool(core.find_soffice()),
                                    "exts": sorted(core.SUPPORTED_EXTS)})
-            m = re.fullmatch(r"/api/(file|info|thumb)/([0-9a-f]{32})(?:/(\d+))?", u.path)
+            m = re.fullmatch(r"/api/(file|info|thumb|text)/([0-9a-f]{32})(?:/(\d+))?", u.path)
             if m:
                 kind, fid, pg = m.groups()
                 p = STORE.path(fid)
@@ -133,7 +168,14 @@ class Handler(BaseHTTPRequestHandler):
                         "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
                 if kind == "info":
                     return self._json(core.info(p, (q.get("pw") or [None])[0]))
+                if kind == "text":
+                    key = (fid, int(pg))
+                    if key not in STORE.text_cache:
+                        STORE.text_cache[key] = core.text_segments(p, int(pg), (q.get("pw") or [None])[0])
+                    return self._json(STORE.text_cache[key])
                 dpi = min(max(int((q.get("dpi") or ["50"])[0]), 20), 200)
+                if dpi <= 60:
+                    return self._send(200, STORE.thumb(fid, int(pg), dpi), "image/png")
                 png = core.render_pages(p, dpi=dpi, first=int(pg), last=int(pg))
                 return self._send(200, png[0], "image/png")
             self._send(404, b"not found", "text/plain")
@@ -155,29 +197,29 @@ class Handler(BaseHTTPRequestHandler):
             req = json.loads(self._body() or b"{}")
             if u.path == "/api/convert":
                 fid = req["id"]
-                src = STORE.with_suffix(fid)
                 out = STORE.put(None, Path(STORE.names[fid]).stem + ".pdf")
-                core.to_pdf(src, STORE.dir / out)
+                shutil.copyfile(STORE.pdf_for(fid), STORE.dir / out)
                 return self._json({"id": out, "name": STORE.names[out]})
             if u.path == "/api/merge":
                 ids = req["ids"]
-                srcs = []
-                for fid in ids:
-                    q = STORE.with_suffix(fid)
-                    srcs.append(q)
                 name = _safe_name(req.get("name") or "結合.pdf")
                 if not name.lower().endswith(".pdf"):
                     name += ".pdf"
                 out = STORE.put(None, name)
-                # ブックマーク名に元のファイル名を使うため、名前を戻したコピーで結合
+                # 変換済みPDFを元の名前(拡張子だけ.pdf)で並べて結合 → しおり名が元のファイル名になる
                 with tempfile.TemporaryDirectory() as td:
                     named = []
                     for i, fid in enumerate(ids):
                         d = Path(td, str(i)); d.mkdir()
-                        t = d / STORE.names[fid]
-                        shutil.copyfile(STORE.path(fid), t)
+                        t = d / (Path(STORE.names[fid]).stem + ".pdf")
+                        pdf = STORE.pdf_for(fid)
+                        try:
+                            os.link(pdf, t)  # コピーせずリンク(同一ドライブなら瞬時)
+                        except OSError:
+                            shutil.copyfile(pdf, t)
                         named.append(t)
-                    pw = {STORE.names[f]: p for f, p in (req.get("passwords") or {}).items() if f in STORE.names}
+                    pw = {Path(STORE.names[f]).stem + ".pdf": p
+                          for f, p in (req.get("passwords") or {}).items() if f in STORE.names}
                     core.merge(named, STORE.dir / out, pw, bookmarks=req.get("bookmarks", True))
                 return self._json({"id": out, "name": name, "info": core.info(STORE.dir / out)})
             if u.path == "/api/edit":

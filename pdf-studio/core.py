@@ -4,9 +4,12 @@
 """
 from __future__ import annotations
 
+import atexit
 import io
 import math
 import os
+import queue
+import threading
 import re
 import shutil
 import subprocess
@@ -118,31 +121,53 @@ def find_soffice() -> str | None:
     return None
 
 
+_PROFILE_SLOTS = 2
+_profiles: "queue.Queue[Path]" = queue.Queue()
+_profile_root: Path | None = None
+_profile_lock = threading.Lock()
+
+
+def _acquire_profile() -> Path:
+    """LibreOffice のプロファイルを使い回す(毎回の初期化が遅いため)。同時利用は1スロット1件。"""
+    global _profile_root
+    with _profile_lock:
+        if _profile_root is None:
+            _profile_root = Path(tempfile.mkdtemp(prefix="pdfstudio_lo_"))
+            atexit.register(shutil.rmtree, _profile_root, True)
+            for i in range(_PROFILE_SLOTS):
+                _profiles.put(_profile_root / f"p{i}")
+    return _profiles.get()
+
+
 def _office_to_pdf(src: Path, dst: Path) -> None:
     soffice = find_soffice()
     if not soffice:
         raise PdfStudioError(
             "Word/Excel/PowerPoint のPDF化には LibreOffice(無料)が必要です。"
             "https://www.libreoffice.org/ からインストールしてください。")
-    with tempfile.TemporaryDirectory() as td:
-        profile = Path(td, "profile")
-        out = Path(td, "out")
-        out.mkdir()
-        # 同名の拡張子違いや日本語名で失敗しないよう、英数字名にコピーして変換
-        work = Path(td, "in" + src.suffix.lower())
-        shutil.copyfile(src, work)
-        cmd = [soffice, f"-env:UserInstallation={profile.resolve().as_uri()}",
-               "--headless", "--norestore", "--convert-to", "pdf", "--outdir", str(out), str(work)]
-        try:
-            subprocess.run(cmd, check=True, capture_output=True, timeout=300)
-        except subprocess.TimeoutExpired:
-            raise PdfStudioError(f"変換がタイムアウトしました: {src.name}")
-        except subprocess.CalledProcessError as e:
-            raise PdfStudioError(f"変換に失敗しました: {src.name} ({e.stderr.decode(errors='replace')[:200]})")
-        made = out / (work.stem + ".pdf")
-        if not made.exists():
-            raise PdfStudioError(f"変換結果が作成されませんでした(壊れたファイル?): {src.name}")
-        shutil.copyfile(made, dst)
+    profile = _acquire_profile()
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td, "out")
+            out.mkdir()
+            # 日本語名・同名で失敗しないよう、英数字名にコピーして変換
+            work = Path(td, "in" + src.suffix.lower())
+            shutil.copyfile(src, work)
+            cmd = [soffice, f"-env:UserInstallation={profile.resolve().as_uri()}",
+                   "--headless", "--norestore", "--nolockcheck", "--convert-to", "pdf",
+                   "--outdir", str(out), str(work)]
+            try:
+                subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+            except subprocess.TimeoutExpired:
+                raise PdfStudioError(f"変換がタイムアウトしました: {src.name}")
+            except subprocess.CalledProcessError as e:
+                raise PdfStudioError(f"変換に失敗しました: {src.name} ({e.stderr.decode(errors='replace')[:200]})")
+            made = out / (work.stem + ".pdf")
+            if not made.exists():
+                raise PdfStudioError(f"変換結果が作成されませんでした(壊れたファイル?): {src.name}")
+            shutil.move(str(made), dst)
+    finally:
+        _profiles.put(profile)
 
 
 def _text_to_pdf(src: Path, dst: Path) -> None:
@@ -232,20 +257,29 @@ def _open(path, password: str | None = None) -> PdfReader:
 
 
 def merge(sources, dst, passwords: dict | None = None, bookmarks: bool = True) -> Path:
-    """PDF/Word/Excel/PowerPoint/画像/テキストを、与えた順に1つのPDFへ結合する。"""
+    """PDF/Word/Excel/PowerPoint/画像/テキストを、与えた順に1つのPDFへ結合する。
+
+    変換は並列で行い、すでにPDFのものはコピーせずそのまま読む。
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
     sources = [Path(s) for s in sources]
     if not sources:
         raise PdfStudioError("結合するファイルがありません")
     passwords = passwords or {}
     w = PdfWriter()
     with tempfile.TemporaryDirectory() as td:
-        for i, s in enumerate(sources):
-            pdf = Path(td, f"{i}.pdf")
-            to_pdf(s, pdf)
+        def prep(i_s):
+            i, s = i_s
+            if s.suffix.lower() == ".pdf":
+                return s
+            return to_pdf(s, Path(td, f"{i}.pdf"))
+        with ThreadPoolExecutor(max_workers=min(4, len(sources))) as ex:
+            pdfs = list(ex.map(prep, enumerate(sources)))
+        for s, pdf in zip(sources, pdfs):
             r = _open(pdf, passwords.get(s.name))
             start = len(w.pages)
-            for p in r.pages:
-                w.add_page(p)
+            w.append(r, import_outline=False)
             if bookmarks and len(r.pages):
                 w.add_outline_item(s.stem, start)
         with open(dst, "wb") as f:
@@ -428,6 +462,8 @@ OPS = {
 def edit(src, dst, op: str, params: dict | None = None, password: str | None = None) -> Path:
     if op == "replace_text":
         return replace_text(src, dst, password=password, **(params or {}))
+    if op == "edit_text":
+        return edit_text(src, dst, (params or {}).get("items"), password=password)
     if op == "flatten":
         return flatten(src, dst, password=password, **(params or {}))
     if op == "encrypt":
@@ -491,6 +527,167 @@ def replace_text(src, dst, find, replace, pages="all", size=None, password=None)
 
     out = _rewrite(src, dst, fn, password)
     return out
+
+
+# --------------------------------------------------------------- 文字の直接編集
+def _hex(col) -> str:
+    """pdfplumber の色(グレー/RGB/CMYK)を #rrggbb にする。"""
+    try:
+        if col is None:
+            return "#000000"
+        if isinstance(col, (int, float)):
+            col = (col,)
+        col = tuple(float(c) for c in col)
+        if len(col) == 1:
+            r = g = b = col[0]
+        elif len(col) == 3:
+            r, g, b = col
+        elif len(col) == 4:
+            c, m, y, k = col
+            r, g, b = (1 - min(1, c + k), 1 - min(1, m + k), 1 - min(1, y + k))
+        else:
+            return "#000000"
+        return "#%02x%02x%02x" % tuple(int(max(0, min(1, v)) * 255) for v in (r, g, b))
+    except Exception:
+        return "#000000"
+
+
+def text_segments(pdf, page, password=None) -> dict:
+    """1ページ分の編集できる文字のかたまり(行を、表の列などの大きな空きで区切ったもの)を返す。
+
+    座標は表示されているページの左上原点(pt)。
+    """
+    import pdfplumber
+
+    tmp = None
+    try:
+        path = pdf
+        if PdfReader(str(pdf)).is_encrypted:
+            tmp = Path(tempfile.mkstemp(suffix=".pdf")[1])
+            w0 = PdfWriter(); w0.append(_open(pdf, password))
+            with open(tmp, "wb") as f:
+                w0.write(f)
+            path = tmp
+        with pdfplumber.open(str(path)) as pl:
+            if not 1 <= int(page) <= len(pl.pages):
+                raise PdfStudioError("ページがありません")
+            pg = pl.pages[int(page) - 1]
+            if (pg.rotation or 0) % 360:
+                raise PdfStudioError("回転しているページの文字編集は未対応です。先に回転を戻してください。")
+            words = pg.extract_words(extra_attrs=["size", "non_stroking_color"], keep_blank_chars=False,
+                                     x_tolerance=2, y_tolerance=2)
+    finally:
+        if tmp:
+            tmp.unlink(missing_ok=True)
+    # 行にまとめる(上端が近いものを同じ行とする)
+    words.sort(key=lambda w: (round(w["top"] / 3), w["x0"]))
+    lines: list[list[dict]] = []
+    for wd in words:
+        if lines and abs(lines[-1][-1]["top"] - wd["top"]) <= max(2.0, wd["size"] * 0.4):
+            lines[-1].append(wd)
+        else:
+            lines.append([wd])
+    segs = []
+    for ln in lines:
+        ln.sort(key=lambda w: w["x0"])
+        cur = [ln[0]]
+        for wd in ln[1:]:
+            gap = wd["x0"] - cur[-1]["x1"]
+            if gap > max(wd["size"], cur[-1]["size"]) * 1.2:
+                segs.append(cur)
+                cur = [wd]
+            else:
+                cur.append(wd)
+        segs.append(cur)
+    out = []
+    for sg in segs:
+        txt = ""
+        for k, wd in enumerate(sg):
+            if k:
+                gap = wd["x0"] - sg[k - 1]["x1"]
+                txt += " " if gap > wd["size"] * 0.15 and not _is_cjk(wd["text"][0]) else ""
+            txt += wd["text"]
+        out.append({"x0": min(w["x0"] for w in sg), "top": min(w["top"] for w in sg),
+                    "x1": max(w["x1"] for w in sg), "bottom": max(w["bottom"] for w in sg),
+                    "text": txt, "size": round(max(w["size"] for w in sg), 2),
+                    "color": _hex(sg[0].get("non_stroking_color"))})
+    return {"width": float(pg.width), "height": float(pg.height), "segments": out}
+
+
+def _is_cjk(ch: str) -> bool:
+    return ord(ch) >= 0x2E80
+
+
+def _bg_color(img, x0, top, x1, bottom, scale=1.0) -> str:
+    """文字のまわりの色(背景)を、枠のすぐ外側の画素の最頻値から推定する。"""
+    from collections import Counter
+    W, H = img.size
+    px = img.load()
+    pts = []
+    pad = 2
+    xs = range(max(0, int((x0 - pad) * scale)), min(W, int((x1 + pad) * scale) + 1))
+    for y in (int((top - pad) * scale), int((bottom + pad) * scale)):
+        if 0 <= y < H:
+            pts += [px[x, y] for x in xs]
+    for x in (int((x0 - pad) * scale), int((x1 + pad) * scale)):
+        if 0 <= x < W:
+            pts += [px[x, y] for y in range(max(0, int((top - pad) * scale)), min(H, int((bottom + pad) * scale) + 1))]
+    if not pts:
+        return "#ffffff"
+    r, g, b = Counter(p[:3] for p in pts).most_common(1)[0][0]
+    return "#%02x%02x%02x" % (r, g, b)
+
+
+def edit_text(src, dst, items, password=None) -> Path:
+    """items: [{page, x0, top, x1, bottom, text, size, color}] 元の位置の文字を新しい文字に差し替える。
+
+    元の文字の範囲を背景色で塗りつぶし(背景色は周囲から推定)、同じ位置・大きさ・色で書き直す。
+    """
+    from PIL import Image
+    if not items:
+        raise PdfStudioError("編集内容がありません")
+    by_page: dict[int, list] = {}
+    for it in items:
+        by_page.setdefault(int(it["page"]) - 1, []).append(it)
+    font = cjk_font()
+    # 背景色の推定用に、対象ページだけを72dpi(1px=1pt)で描画
+    src_path = Path(src)
+    tmp = None
+    if PdfReader(str(src)).is_encrypted:
+        tmp = Path(tempfile.mkstemp(suffix=".pdf")[1])
+        w0 = PdfWriter(); w0.append(_open(src, password))
+        with open(tmp, "wb") as f:
+            w0.write(f)
+        src_path = tmp
+    bgs: dict[int, "Image.Image"] = {}
+    try:
+        for i in by_page:
+            bgs[i] = Image.open(io.BytesIO(render_pages(src_path, dpi=72, first=i + 1, last=i + 1)[0])).convert("RGB")
+    finally:
+        if tmp:
+            tmp.unlink(missing_ok=True)
+
+    def fn(w):
+        for i, its in by_page.items():
+            if not 0 <= i < len(w.pages):
+                raise PdfStudioError(f"ページ {i + 1} はありません")
+            dw, dh, _ = _disp_size(w.pages[i])
+            img = bgs[i]
+            sc = img.size[0] / dw
+
+            def draw(c, dw, dh, its=its, img=img, sc=sc):
+                for it in its:
+                    x0, top, x1, bottom = (float(it[k]) for k in ("x0", "top", "x1", "bottom"))
+                    size = float(it.get("size") or (bottom - top))
+                    bg = _bg_color(img, x0, top, x1, bottom, sc)
+                    c.setFillColor(HexColor(bg))
+                    c.rect(x0 - 0.8, dh - bottom - 0.8, (x1 - x0) + 1.6, (bottom - top) + 1.6, fill=1, stroke=0)
+                    c.setFillColor(_color(it.get("color") or "#000000"))
+                    c.setFont(font, size)
+                    # ベースラインは枠の下端から文字の下がり分だけ上
+                    c.drawString(x0, dh - bottom + (bottom - top - size) / 2 + size * 0.2, str(it["text"]))
+            _overlay(w.pages[i], draw)
+    return _rewrite(src, dst, fn, password)
 
 
 # --------------------------------------------------------------- 画像化(黒塗りの確定)
