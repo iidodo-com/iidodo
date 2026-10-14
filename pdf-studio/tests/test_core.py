@@ -82,6 +82,18 @@ class T(unittest.TestCase):
         fl = core.edit(d / "base.pdf", d / "flat.pdf", "flatten", {"dpi": 72})
         self.assertEqual(text_of(fl).strip(), "")
 
+    def test_edit_text_segments(self):
+        d = self.td
+        segs = core.text_segments(d / "base.pdf", 1)["segments"]
+        self.assertTrue(any("DELTA" in g["text"] for g in segs))
+        g = next(g for g in segs if "DELTA" in g["text"])
+        g.update(page=1, text="請求書 OMEGA")
+        out = core.edit(d / "base.pdf", d / "et.pdf", "edit_text", {"items": [g]})
+        self.assertIn("OMEGA", text_of(out))
+        # 背景が白以外でも、周囲の色で塗られる(例外なく完了する)
+        with self.assertRaises(core.PdfStudioError):
+            core.edit(d / "base.pdf", d / "et2.pdf", "edit_text", {"items": []})
+
     def test_page_spec(self):
         self.assertEqual(core.parse_pages("1-2,4-", 5), [0, 1, 3, 4])
         self.assertEqual(core.parse_pages("odd", 4), [0, 2])
