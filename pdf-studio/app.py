@@ -32,7 +32,9 @@ ID_RE = re.compile(r"[0-9a-f]{32}")
 class Store:
     """アップロード/結果ファイルの一時置き場。終了時に全削除。
 
-    Office/画像/テキストはアップロード直後に裏でPDF化を始めるので、結合ボタンを押す頃には終わっている。
+    - Office/画像/テキストはアップロード直後に裏でPDF化を始める(結合ボタンの頃には終わっている)。
+    - 各バージョンの「ページごとの出どころ(tag)」を覚えて、編集していないページは
+      サムネイル/プレビュー/文字情報を作り直さずに再利用する。
     """
 
     def __init__(self):
@@ -41,58 +43,102 @@ class Store:
         self.lock = threading.Lock()
         self.pool = ThreadPoolExecutor(max_workers=4)
         self.conv: dict[str, Future] = {}
-        self.thumbs: dict[tuple, list[bytes]] = {}
-        self.thumb_lock = threading.Lock()
+        self.tags: dict[str, list] = {}       # fid -> [[元fid, 元ページ], ...]
+        self.pw: dict[str, str] = {}          # パスワード付きの結果の閲覧用
+        self.img_cache: dict[tuple, bytes] = {}
         self.text_cache: dict[tuple, dict] = {}
+        self.render_lock = threading.Lock()
 
     def path(self, fid: str) -> Path:
         if not ID_RE.fullmatch(fid or "") or fid not in self.names:
             raise core.PdfStudioError("ファイルが見つかりません(期限切れの可能性があります)")
-        return self.dir / fid
+        return self.dir / (fid + Path(self.names[fid]).suffix.lower())
 
     def put(self, data: bytes | None, name: str) -> str:
         fid = uuid.uuid4().hex
         with self.lock:
             self.names[fid] = name
         if data is not None:
-            (self.dir / fid).write_bytes(data)
+            self.path(fid).write_bytes(data)
             if Path(name).suffix.lower() != ".pdf":
                 self.conv[fid] = self.pool.submit(self._convert, fid)
         return fid
 
     def _convert(self, fid: str) -> Path:
         out = self.dir / (fid + ".conv.pdf")
-        core.to_pdf(self.with_suffix(fid), out)
+        core.to_pdf(self.path(fid), out)
         return out
 
     def pdf_for(self, fid: str) -> Path:
         """そのファイルのPDF版(変換済みを待って返す。PDFならそのまま)。"""
-        self.path(fid)
+        p = self.path(fid)
         if fid in self.conv:
             return self.conv[fid].result()
-        return self.dir / fid
+        return p
 
-    def thumb(self, fid: str, page: int, dpi: int) -> bytes:
-        """サムネイルは50ページ単位で1回のプロセスでまとめて描画してキャッシュ(1枚ずつ起動するより桁違いに速い)。"""
-        chunk = (page - 1) // 50
-        key = (fid, dpi, chunk)
-        with self.thumb_lock:
-            if key not in self.thumbs:
-                a = chunk * 50 + 1
-                self.thumbs[key] = core.render_pages(self.path(fid), dpi=dpi, first=a, last=a + 49)
-        return self.thumbs[key][(page - 1) % 50]
+    def tags_of(self, fid: str) -> list:
+        t = self.tags.get(fid)
+        if t is None:
+            n = core.info(self.path(fid), self.pw.get(fid))["pages"]
+            t = self.tags[fid] = [[fid, i + 1] for i in range(n)]
+        return t
 
-    def with_suffix(self, fid: str) -> Path:
-        """拡張子つきの作業コピー(変換器が拡張子で形式を判断するため)。"""
-        p = self.path(fid)
-        q = self.dir / (fid + Path(self.names[fid]).suffix.lower())
-        if not q.exists():
-            shutil.copyfile(p, q)
-        return q
+    def derive(self, parent: str, new: str, op: str, params: dict) -> None:
+        """編集で変わらなかったページは、元のページの tag を引き継ぐ。"""
+        try:
+            old = self.tags_of(parent)
+            m, changed = page_effect(op, params or {}, len(old))
+            n = core.info(self.path(new), self.pw.get(new))["pages"]
+            if len(m) != n:
+                raise ValueError
+            self.tags[new] = [old[j] if (j is not None and i not in changed) else [new, i + 1]
+                              for i, j in enumerate(m)]
+        except Exception:
+            self.tags.pop(new, None)   # 不明なら全ページ作り直し(tags_of が新規に作る)
+
+    def image(self, fid: str, page: int, dpi: int) -> bytes:
+        key = (fid, page, dpi)
+        b = self.img_cache.get(key)
+        if b is None:
+            with self.render_lock:
+                b = self.img_cache.get(key)
+                if b is None:
+                    b = core.render_pages(self.path(fid), dpi=dpi, first=page, last=page,
+                                          password=self.pw.get(fid))[0]
+                    if len(self.img_cache) > 3000:
+                        self.img_cache.clear()
+                    self.img_cache[key] = b
+        return b
 
     def close(self):
         self.pool.shutdown(wait=False, cancel_futures=True)
+        core.close_pdfium()
         shutil.rmtree(self.dir, ignore_errors=True)
+
+
+def page_effect(op: str, params: dict, n: int):
+    """編集後の各ページが、編集前のどのページと同じ内容か(None=新規)と、内容が変わったページ(新ページ番号, 0始まり)。"""
+    ident = list(range(n))
+    pg = lambda spec: set(core.parse_pages(spec, n))
+    if op in ("metadata", "compress", "encrypt", "decrypt"):
+        return ident, set()
+    if op == "rotate":
+        return ident, pg(params.get("pages", "all"))
+    if op in ("add_text", "rect"):
+        return ident, {int(params["page"]) - 1}
+    if op == "edit_text":
+        return ident, {int(i["page"]) - 1 for i in params["items"]}
+    if op in ("watermark", "page_numbers", "replace_text"):
+        return ident, pg(params.get("pages", "all"))
+    if op == "delete":
+        gone = pg(params["pages"])
+        return [i for i in ident if i not in gone], set()
+    if op == "arrange":
+        return core.parse_pages(params["pages"], n), set()
+    if op == "insert_blank":
+        after, cnt = int(params.get("after", 0)), int(params.get("count", 1))
+        return ident[:after] + [None] * cnt + ident[after:], set()
+    return [None] * n, set()
 
 
 STORE = Store()
@@ -104,6 +150,9 @@ def _safe_name(name: str) -> str:
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "PDFStudio"
+    protocol_version = "HTTP/1.1"      # 接続を使い回す(Windowsでは1回ごとの接続が遅い)
+    wbufsize = 1 << 16                 # ヘッダと本文を1回で送る
+    disable_nagle_algorithm = True
 
     def log_message(self, *a):  # 静かに
         pass
@@ -116,16 +165,22 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return host in ("127.0.0.1", "localhost")
 
-    def _send(self, code, body: bytes, ctype="application/json; charset=utf-8", extra=None):
+    def _send(self, code, body: bytes, ctype="application/json; charset=utf-8", extra=None, cache=False):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        # 画像・文字情報は中身が変わらないID/ページ単位なので、ブラウザに覚えさせて再取得を省く
+        self.send_header("Cache-Control", "private, max-age=86400, immutable" if cache else "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         for k, v in (extra or {}).items():
             self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
+
+    def _info(self, fid: str) -> dict:
+        i = core.info(STORE.path(fid), STORE.pw.get(fid))
+        i["tags"] = STORE.tags_of(fid) if i["pages"] else []
+        return i
 
     def _json(self, obj, code=200):
         self._send(code, json.dumps(obj, ensure_ascii=False).encode())
@@ -178,17 +233,15 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, p.read_bytes(), ctype, {
                         "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
                 if kind == "info":
-                    return self._json(core.info(p, (q.get("pw") or [None])[0]))
+                    return self._json(self._info(fid))
                 if kind == "text":
                     key = (fid, int(pg))
                     if key not in STORE.text_cache:
-                        STORE.text_cache[key] = core.text_segments(p, int(pg), (q.get("pw") or [None])[0])
-                    return self._json(STORE.text_cache[key])
-                dpi = min(max(int((q.get("dpi") or ["50"])[0]), 20), 200)
-                if dpi <= 60:
-                    return self._send(200, STORE.thumb(fid, int(pg), dpi), "image/png")
-                png = core.render_pages(p, dpi=dpi, first=int(pg), last=int(pg))
-                return self._send(200, png[0], "image/png")
+                        STORE.text_cache[key] = core.text_segments(p, int(pg), STORE.pw.get(fid))
+                    return self._send(200, json.dumps(STORE.text_cache[key], ensure_ascii=False).encode(),
+                                      cache=True)
+                dpi = min(max(int((q.get("dpi") or ["50"])[0]), 20), 220)
+                return self._send(200, STORE.image(fid, int(pg), dpi), "image/jpeg", cache=True)
             self._send(404, b"not found", "text/plain")
         except Exception as e:
             self._fail(e)
@@ -209,7 +262,7 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/convert":
                 fid = req["id"]
                 out = STORE.put(None, Path(STORE.names[fid]).stem + ".pdf")
-                shutil.copyfile(STORE.pdf_for(fid), STORE.dir / out)
+                shutil.copyfile(STORE.pdf_for(fid), STORE.path(out))
                 return self._json({"id": out, "name": STORE.names[out]})
             if u.path == "/api/merge":
                 ids = req["ids"]
@@ -231,20 +284,24 @@ class Handler(BaseHTTPRequestHandler):
                         named.append(t)
                     pw = {Path(STORE.names[f]).stem + ".pdf": p
                           for f, p in (req.get("passwords") or {}).items() if f in STORE.names}
-                    core.merge(named, STORE.dir / out, pw, bookmarks=req.get("bookmarks", True))
-                return self._json({"id": out, "name": name, "info": core.info(STORE.dir / out)})
+                    core.merge(named, STORE.path(out), pw, bookmarks=req.get("bookmarks", True))
+                return self._json({"id": out, "name": name, "info": self._info(out)})
             if u.path == "/api/edit":
                 fid = req["id"]
                 out = STORE.put(None, STORE.names[fid])
-                core.edit(STORE.path(fid), STORE.dir / out, req["op"], req.get("params"), req.get("password"))
-                return self._json({"id": out, "name": STORE.names[out],
-                                   "info": core.info(STORE.dir / out, (req.get("params") or {}).get("new_password"))})
+                params = req.get("params") or {}
+                core.edit(STORE.path(fid), STORE.path(out), req["op"], params,
+                          req.get("password") or STORE.pw.get(fid))
+                if req["op"] == "encrypt":
+                    STORE.pw[out] = params.get("new_password")
+                STORE.derive(fid, out, req["op"], params)
+                return self._json({"id": out, "name": STORE.names[out], "info": self._info(out)})
             if u.path == "/api/split":
                 fid = req["id"]
                 with tempfile.TemporaryDirectory() as td:
                     parts = core.split(STORE.path(fid), td, req.get("ranges"), req.get("password"))
                     zid = STORE.put(None, Path(STORE.names[fid]).stem + "_分割.zip")
-                    with zipfile.ZipFile(STORE.dir / zid, "w", zipfile.ZIP_DEFLATED) as z:
+                    with zipfile.ZipFile(STORE.path(zid), "w", zipfile.ZIP_DEFLATED) as z:
                         for p in parts:
                             z.write(p, p.name)
                 return self._json({"id": zid, "name": STORE.names[zid], "count": len(parts)})
@@ -256,7 +313,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def serve(port: int = 8765, open_browser: bool = True):
+    ThreadingHTTPServer.daemon_threads = True
+    ThreadingHTTPServer.request_queue_size = 64
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)  # 自分のPCからのみ
+    threading.Thread(target=core.warm_up, daemon=True).start()   # 初回操作を速くする下準備
     url = f"http://127.0.0.1:{port}/"
     print(f"PDF Studio: {url}  (終了は Ctrl+C)")
     if not core.find_soffice():
