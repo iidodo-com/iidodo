@@ -47,6 +47,22 @@ ul.files li .t{font-size:11px;color:var(--mut);border:1px solid var(--line);bord
 .seg input{position:absolute;z-index:5;border:2px solid var(--pri);background:#fff;color:#000;padding:0 2px;margin:0;border-radius:2px;font-family:inherit;outline:none}
 .hint{color:var(--mut);font-size:12px}
 .hidden{display:none}
+body{padding-bottom:44px}
+#sb{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--card);border-top:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:6px 16px;font-size:13px;min-height:36px}
+#sb .dot{width:10px;height:10px;border-radius:50%;background:var(--mut);flex:none}
+#sb.busy .dot{background:var(--pri);animation:pulse 1s infinite}
+#sb.ok .dot{background:var(--ok)}#sb.err .dot{background:var(--err)}
+#sb .msg2{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sb.err .msg2{color:var(--err)}
+#sb .bar{width:180px;height:8px;border-radius:4px;background:var(--line);overflow:hidden;flex:none}
+#sb .bar i{display:block;height:100%;width:0;background:var(--pri);transition:width .25s}
+#sb .bar.ind i{width:40%;animation:slide 1.1s infinite ease-in-out}
+#sb .info{color:var(--mut);white-space:nowrap;flex:none}
+@keyframes pulse{50%{opacity:.3}}
+@keyframes slide{0%{margin-left:-40%}100%{margin-left:100%}}
+.badge{font-size:11px;border-radius:4px;padding:0 6px;border:1px solid var(--line);color:var(--mut)}
+.badge.conv{color:var(--pri);border-color:var(--pri)}.badge.ready{color:var(--ok);border-color:var(--ok)}.badge.error{color:var(--err);border-color:var(--err)}
+@media(max-width:700px){#sb .bar,#sb .info{display:none}}
 </style>
 </head>
 <body>
@@ -169,6 +185,12 @@ ul.files li .t{font-size:11px;color:var(--mut);border:1px solid var(--line);bord
   </div>
 </section>
 </main>
+<footer id="sb" class="" role="status" aria-live="polite">
+  <span class="dot"></span><span class="msg2" id="sbMsg">待機中</span>
+  <span class="bar hidden" id="sbBar"><i id="sbFill"></i></span>
+  <span class="info" id="sbTime"></span>
+  <span class="info" id="sbInfo"></span>
+</footer>
 
 <script>
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -178,13 +200,38 @@ async function api(path,body){
   const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const j=await r.json(); if(!r.ok) throw new Error(j.error||'失敗しました'); return j;
 }
-async function upload(file){
-  const r=await fetch('/api/upload',{method:'POST',headers:{'X-Filename':encodeURIComponent(file.name)},body:file});
-  const j=await r.json(); if(!r.ok) throw new Error(j.error); return j;
+function upload(file,onprog){
+  return new Promise((res,rej)=>{ const x=new XMLHttpRequest(); x.open('POST','/api/upload');
+    x.setRequestHeader('X-Filename',encodeURIComponent(file.name));
+    x.upload.onprogress=e=>{ if(onprog&&e.lengthComputable) onprog(e.loaded/e.total); };
+    x.onload=()=>{ let j={}; try{j=JSON.parse(x.responseText)}catch{} x.status<300?res(j):rej(new Error(j.error||'アップロードに失敗しました')); };
+    x.onerror=()=>rej(new Error('通信に失敗しました')); x.send(file); });
 }
-function say(el,t,cls){el.textContent=t||'';el.className='msg '+(cls||'')}
+function say(el,t,cls){el.textContent=t||'';el.className='msg '+(cls||''); if(cls==='err'&&t) sbEnd('err',t);}
 const dlLink=(f,label)=>`<a class="b" href="/api/file/${f.id}">⬇ ${label||f.name}</a>`;
 
+/* ---- ステータスバー ---- */
+const SB={t0:0,timer:null,seq:0};
+function sbEl(cls,msg){ $('#sb').className=cls||''; $('#sbMsg').textContent=msg; }
+function sbBusy(msg,pct){            // pct 未指定=不定(動き続けるバー)
+  if(!SB.timer){ SB.seq++; SB.t0=Date.now(); SB.timer=setInterval(()=>{ $('#sbTime').textContent=((Date.now()-SB.t0)/1000).toFixed(1)+'秒'; },100); }
+  sbEl('busy',msg); const bar=$('#sbBar'); bar.classList.remove('hidden');
+  bar.classList.toggle('ind',pct==null); $('#sbFill').style.width=pct==null?'':Math.min(100,pct)+'%';
+}
+function sbEnd(kind,msg){
+  const took=SB.timer?((Date.now()-SB.t0)/1000).toFixed(1)+'秒':'';
+  clearInterval(SB.timer); SB.timer=null;
+  $('#sbBar').classList.add('hidden'); $('#sbTime').textContent=took?`所要 ${took}`:'';
+  sbEl(kind,msg);
+}
+const OPNAME={rotate:'回転',delete:'ページ削除',arrange:'ページ並べ替え',insert_blank:'空白ページ挿入',watermark:'透かし',page_numbers:'ページ番号',add_text:'文字追加',rect:'塗りつぶし',replace_text:'文字置換',edit_text:'文字編集',metadata:'プロパティ設定',compress:'容量削減',flatten:'画像化',encrypt:'パスワード設定',decrypt:'パスワード解除'};
+function sbInfo(){ const d=stack[idx]; $('#sbInfo').textContent=d?`${d.name} ・ ${d.info.pages}ページ ・ 履歴 ${idx+1}/${stack.length}`:(files.length?`${files.length}ファイル`:''); }
+let online=true;
+async function ping(){ try{ const r=await fetch('/api/status',{cache:'no-store'}); if(!r.ok) throw 0; if(!online){online=true; sbEnd('ok','サーバーに再接続しました');} }
+  catch{ if(online){online=false; sbEnd('err','サーバーとの接続が切れました(PDF Studio を再起動してください)');} } }
+setInterval(ping,5000);
+async function pollStates(){ try{ const j=await (await fetch('/api/state',{cache:'no-store'})).json(); let ch=false;
+  for(const f of files){ const s=(j.files[f.id]||{state:'ready'}); if(f.state!==s.state){f.state=s.state;f.err=s.error;ch=true} } if(ch) renderList(); return j.files; }catch{ return {}; } }
 /* ---- タブ ---- */
 function tab(w){ $('#viewA').classList.toggle('hidden',w!=='A'); $('#viewB').classList.toggle('hidden',w!=='B');
   $('#tabA').classList.toggle('on',w==='A'); $('#tabB').classList.toggle('on',w==='B'); }
@@ -197,7 +244,7 @@ function renderList(){
   const ul=$('#list'); ul.innerHTML='';
   files.forEach((f,i)=>{
     const li=document.createElement('li'); li.draggable=true;
-    li.innerHTML=`<span>${i+1}.</span><span class="t">${KIND[EXT(f.name)]||EXT(f.name)}</span><span class="n"></span>
+    li.innerHTML=`<span>${i+1}.</span><span class="t">${KIND[EXT(f.name)]||EXT(f.name)}</span><span class="n"></span><span class="badge ${f.state||'ready'}" title="${(f.err||'').replace(/"/g,'')}">${{converting:'変換中…',ready:'準備完了',error:'変換エラー'}[f.state||'ready']}</span>
       <button class="b" data-a="up">↑</button><button class="b" data-a="dn">↓</button><button class="b" data-a="rm">✕</button>`;
     li.querySelector('.n').textContent=f.name;
     li.querySelector('[data-a=up]').onclick=()=>{ if(i>0){[files[i-1],files[i]]=[files[i],files[i-1]];renderList()} };
@@ -209,34 +256,55 @@ function renderList(){
       const [m]=files.splice(+from,1); files.splice(i,0,m); renderList(); };
     ul.appendChild(li);
   });
-  const has=files.length>0;
+  const has=files.length>0; sbInfo();
   $('#btnMerge').disabled=!has; $('#btnEach').disabled=!has; $('#btnClear').disabled=!has;
 }
 async function addFiles(list){
-  say($('#msgA'),'読み込み中…');
-  try{ for(const f of list) files.push(await upload(f)); say($('#msgA'),''); }catch(e){ say($('#msgA'),e.message,'err'); }
+  say($('#msgA'),'');
+  try{
+    for(let i=0;i<list.length;i++){
+      const f=list[i];
+      sbBusy(`アップロード中 ${i+1}/${list.length}: ${f.name}`,(i/list.length)*100);
+      const r=await upload(f,p=>sbBusy(`アップロード中 ${i+1}/${list.length}: ${f.name}`,((i+p)/list.length)*100));
+      files.push({...r,state:EXT(r.name)==='pdf'?'ready':'converting'}); renderList();
+    }
+    sbEnd('ok',`${list.length}件を追加しました(Office文書は裏でPDF変換中)`);
+    watchConv();
+  }catch(e){ say($('#msgA'),e.message,'err'); }
   renderList();
 }
+let watching=false;
+async function watchConv(){ if(watching) return; watching=true; const seq=SB.seq;
+  try{ while(files.some(f=>f.state==='converting')){ await pollStates(); await new Promise(r=>setTimeout(r,700)); }
+    if(SB.seq!==seq||SB.timer) return;   // その間に結合など別の作業をした場合は表示を上書きしない
+    if(files.some(f=>f.state==='error')) sbEnd('err','変換できないファイルがあります(一覧の赤い表示を確認)');
+    else if(files.length) sbEnd('ok','すべてのファイルの準備ができました'); }
+  finally{ watching=false; } }
 const drop=$('#drop');
 drop.onclick=()=>$('#pick').click();
 $('#pick').onchange=e=>{addFiles([...e.target.files]);e.target.value=''};
 ['dragenter','dragover'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('over')}));
 ['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove('over')}));
 drop.addEventListener('drop',e=>{ if(e.dataTransfer.files.length) addFiles([...e.dataTransfer.files]) });
-$('#btnClear').onclick=()=>{files=[];renderList();$('#resA').innerHTML='';say($('#msgA'),'')};
+$('#btnClear').onclick=()=>{files=[];sbEnd('','待機中');renderList();$('#resA').innerHTML='';say($('#msgA'),'')};
 $('#btnMerge').onclick=async()=>{
-  say($('#msgA'),'結合中…(Office文書は少し時間がかかります)'); $('#resA').innerHTML='';
+  say($('#msgA'),''); $('#resA').innerHTML='';
+  let poll=true; const tick=async()=>{ while(poll){ const st=await pollStates(); const ids=files.map(f=>f.id), n=ids.length;
+      const done=ids.filter(i=>!st[i]||st[i].state==='ready').length;
+      sbBusy(done<n?`変換を待っています ${done}/${n} 完了`:'PDFを結合しています…',(done/n)*80); await new Promise(r=>setTimeout(r,500)); } };
+  sbBusy('結合を開始しました…',0); tick();
   try{
     const r=await api('/api/merge',{ids:files.map(f=>f.id),name:$('#outName').value,bookmarks:$('#bm').checked});
-    say($('#msgA'),`結合しました(${r.info.pages}ページ)`,'ok');
+    poll=false; sbBusy('仕上げ中…',100);
+    say($('#msgA'),`結合しました(${r.info.pages}ページ)`,'ok'); sbEnd('ok',`結合完了: ${r.name}(${r.info.pages}ページ)`);
     $('#resA').innerHTML=dlLink(r)+' <button class="b" id="toEdit">このPDFを編集する →</button>';
     $('#toEdit').onclick=()=>{ openDoc(r); tab('B'); };
-  }catch(e){ say($('#msgA'),e.message,'err'); }
+  }catch(e){ poll=false; say($('#msgA'),e.message,'err'); }
 };
 $('#btnEach').onclick=async()=>{
-  say($('#msgA'),'変換中…'); $('#resA').innerHTML='';
-  try{ const out=[]; for(const f of files){ out.push(await api('/api/convert',{id:f.id})); }
-    say($('#msgA'),`${out.length}件を変換しました`,'ok'); $('#resA').innerHTML=out.map(o=>dlLink(o)).join(' ');
+  say($('#msgA'),''); $('#resA').innerHTML='';
+  try{ const out=[]; for(let i=0;i<files.length;i++){ sbBusy(`変換中 ${i+1}/${files.length}: ${files[i].name}`,(i/files.length)*100); out.push(await api('/api/convert',{id:files[i].id})); }
+    say($('#msgA'),`${out.length}件を変換しました`,'ok'); sbEnd('ok',`${out.length}件の変換が完了しました`); $('#resA').innerHTML=out.map(o=>dlLink(o)).join(' ');
   }catch(e){ say($('#msgA'),e.message,'err'); }
 };
 
@@ -244,22 +312,22 @@ $('#btnEach').onclick=async()=>{
 let stack=[], idx=-1, sel=new Set(), cur=0, last=null; // sel: 0始まりページ
 const doc=()=>stack[idx];
 async function openDoc(f){
-  let d=f;
+  let d=f; sbBusy(`開いています: ${f.name}`);
   if(EXT(f.name)!=='pdf'){ d=await api('/api/convert',{id:f.id}); }
   const info=await (await fetch('/api/info/'+d.id)).json();
   if(info.encrypted){ const pw=prompt('パスワードを入力してください'); if(!pw) return;
     d=await api('/api/edit',{id:d.id,op:'decrypt',password:pw}); }
   stack=[{...d,info:d.info||await (await fetch('/api/info/'+d.id)).json()}]; idx=0; sel=new Set(); cur=0;
-  $('#editor').classList.remove('hidden'); show();
+  $('#editor').classList.remove('hidden'); show(); sbEnd('ok',`開きました: ${d.name}(${stack[0].info.pages}ページ)`);
 }
 $('#openPick').onchange=async e=>{
   const f=e.target.files[0]; e.target.value=''; if(!f)return;
   say($('#msgOpen'),'読み込み中…');
-  try{ await openDoc(await upload(f)); say($('#msgOpen'),''); }catch(err){ say($('#msgOpen'),err.message,'err'); }
+  try{ sbBusy(`アップロード中: ${f.name}`,0); const up=await upload(f,p=>sbBusy(`アップロード中: ${f.name}`,p*100)); await openDoc(up); say($('#msgOpen'),''); }catch(err){ say($('#msgOpen'),err.message,'err'); }
 };
 function show(){
   const d=doc(); $('#docName').textContent=d.name; $('#docInfo').textContent=` ${d.info.pages}ページ`;
-  $('#dl').href='/api/file/'+d.id; $('#undo').disabled=idx<=0; $('#redo').disabled=idx>=stack.length-1;
+  $('#dl').href='/api/file/'+d.id; sbInfo(); $('#undo').disabled=idx<=0; $('#redo').disabled=idx>=stack.length-1;
   cur=Math.min(cur,d.info.pages-1);
   const g=$('#grid'); g.innerHTML='';
   for(let i=0;i<d.info.pages;i++){
@@ -326,14 +394,14 @@ function editSeg(st,box,sg,k,page){
 }
 $('#mode').onchange=()=>{ drawStage(); $('#modeHint').textContent={edit:'文字をクリックすると書き換えられます(Enterで確定 / Escで取消)。元と同じ位置・大きさ・色で書き直します',text:'プレビューをクリックした位置に、右の「文字を書く」の内容を書き込みます',rect:'隠したい範囲をドラッグ',black:'隠したい範囲をドラッグ(完全に消すには「画像化して確定」)'}[$('#mode').value]||''; };
 async function run(op,params,extra){
-  say($('#msgB'),'処理中…');
+  say($('#msgB'),'処理中…'); sbBusy(`${OPNAME[op]||op} を実行中…`);
   try{
     const r=await api('/api/edit',{id:doc().id,op,params,...extra});
-    stack=stack.slice(0,idx+1); stack.push({...r}); idx++; say($('#msgB'),'完了','ok'); show(); return r;
+    stack=stack.slice(0,idx+1); stack.push({...r}); idx++; say($('#msgB'),'完了','ok'); show(); sbEnd('ok',`${OPNAME[op]||op} を完了しました`); return r;
   }catch(e){ say($('#msgB'),e.message,'err'); }
 }
-$('#undo').onclick=()=>{ if(idx>0){idx--;show()} };
-$('#redo').onclick=()=>{ if(idx<stack.length-1){idx++;show()} };
+$('#undo').onclick=()=>{ if(idx>0){idx--;show();sbEnd('ok','1つ前に戻しました')} };
+$('#redo').onclick=()=>{ if(idx<stack.length-1){idx++;show();sbEnd('ok','やり直しました')} };
 $('#selAll').onclick=()=>{ sel=new Set([...Array(doc().info.pages).keys()]); show(); };
 $('#selNone').onclick=()=>{ sel=new Set(); show(); };
 
@@ -364,8 +432,8 @@ const TOOLS={
   decrypt:()=>run('decrypt',{}),
   compress:()=>run('compress',{}),
   flatten:()=>run('flatten',{dpi:150}),
-  split:async()=>{ say($('#msgB'),'分割中…'); try{ const r=await api('/api/split',{id:doc().id,ranges:$('#spRange').value});
-    say($('#msgB'),`${r.count}ファイルに分割しました`,'ok'); location.href='/api/file/'+r.id; }catch(e){ say($('#msgB'),e.message,'err'); } },
+  split:async()=>{ say($('#msgB'),'分割中…'); sbBusy('分割しています…'); try{ const r=await api('/api/split',{id:doc().id,ranges:$('#spRange').value});
+    say($('#msgB'),`${r.count}ファイルに分割しました`,'ok'); sbEnd('ok',`${r.count}ファイルに分割しました`); location.href='/api/file/'+r.id; }catch(e){ say($('#msgB'),e.message,'err'); } },
 };
 $$('[data-tool]').forEach(b=>b.onclick=()=>TOOLS[b.dataset.tool]());
 renderList();

@@ -150,6 +150,17 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if u.path in ("/", "/index.html"):
                 return self._send(200, (HERE / "index.html").read_bytes(), "text/html; charset=utf-8")
+            if u.path == "/api/state":
+                st = {}
+                for fid, fut in list(STORE.conv.items()):
+                    if not fut.done():
+                        st[fid] = {"state": "converting"}
+                    elif fut.exception():
+                        e = fut.exception()
+                        st[fid] = {"state": "error", "error": str(e) if isinstance(e, core.PdfStudioError) else f"{type(e).__name__}: {e}"}
+                    else:
+                        st[fid] = {"state": "ready"}
+                return self._json({"files": st})
             if u.path == "/api/status":
                 return self._json({"office": bool(core.find_soffice()),
                                    "exts": sorted(core.SUPPORTED_EXTS)})
