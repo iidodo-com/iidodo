@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import core
 
-HERE = Path(__file__).parent
+HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))  # exe化時は展開先
 MAX_UPLOAD = 500 * 1024 * 1024
 ID_RE = re.compile(r"[0-9a-f]{32}")
 
