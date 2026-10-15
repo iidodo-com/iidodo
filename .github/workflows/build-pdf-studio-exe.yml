@@ -1,0 +1,30 @@
+name: build-pdf-studio-exe
+on:
+  workflow_dispatch:
+  push:
+    paths: ["pdf-studio/**"]
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: pdf-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt pyinstaller python-docx openpyxl python-pptx
+      - run: python tests/test_core.py
+        continue-on-error: true  # LibreOffice無しのため Office変換テストは対象外
+      - run: python -m PyInstaller --noconfirm --clean --onedir --name PDFStudio --add-data "index.html;." --collect-all pdfminer --collect-all pypdfium2_raw --collect-all pypdfium2 app.py
+      - name: exe smoke test
+        shell: bash
+        run: |
+          echo "hello" > t.txt
+          dist/PDFStudio/PDFStudio.exe convert t.txt
+          test -s t.pdf
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PDFStudio-windows
+          path: pdf-studio/dist/PDFStudio

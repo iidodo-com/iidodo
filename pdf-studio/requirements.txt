@@ -1,0 +1,6 @@
+pypdf>=5.0
+reportlab>=4.0
+Pillow>=10.0
+pdfplumber>=0.11
+pypdfium2>=4.30
+# テスト用: python-docx openpyxl python-pptx
