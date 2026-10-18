@@ -1,0 +1,496 @@
+<title>クラウド本棚</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Shippori+Mincho+B1:wght@700&display=swap">
+<style>
+/* Layout: 本棚(フォルダ帯+表紙グリッド) と 全画面ビューア(下部ツールバー+メモシート)。スマホ縦持ちを基準に、広い画面ではメモを右ペインへ。 */
+:root{
+  --paper:#f2f4f7; --card:#ffffff; --ink:#16233b; --sub:#5b6879; --line:#d8dee7;
+  --accent:#0e6f66; --accent-ink:#ffffff; --live:#c2410c; --mark:#ffe08a; --stage:#dfe4eb;
+  --font-body:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
+  --font-disp:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0f1724; --card:#17212f; --ink:#e7ecf4; --sub:#9aa7b8; --line:#2a3647;
+  --accent:#3cc2b2; --accent-ink:#06201c; --live:#fb923c; --mark:#7a5f10; --stage:#0a111b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0f1724; --card:#17212f; --ink:#e7ecf4; --sub:#9aa7b8; --line:#2a3647;
+  --accent:#3cc2b2; --accent-ink:#06201c; --live:#fb923c; --mark:#7a5f10; --stage:#0a111b; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.6 var(--font-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+mark{background:var(--mark);color:inherit;border-radius:2px}
+.muted{color:var(--sub)}
+
+/* ---- shelf ---- */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);padding:12px 0 8px;display:flex;flex-direction:column;gap:10px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+.brand{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.brand h1{margin:0;font:700 1.3rem/1.2 var(--font-disp);letter-spacing:.04em}
+.who{font-size:.8rem;color:var(--sub);display:flex;gap:8px;align-items:center}
+.pill{border:1px solid var(--line);border-radius:999px;padding:2px 10px;background:var(--card);font-size:.75rem}
+.pill.admin{border-color:var(--accent);color:var(--accent);font-weight:700}
+form.search{display:flex;gap:8px}
+form.search input{flex:1;min-width:0;padding:11px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.btn{min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.btn.danger{color:#c0392b;border-color:#c0392b}
+.btn.sm{min-height:34px;padding:0 12px;font-size:.85rem}
+.folders{display:flex;gap:8px;overflow-x:auto;padding:2px 0 6px;scrollbar-width:none}
+.folders::-webkit-scrollbar{display:none}
+.chip{flex:none;min-height:38px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);display:flex;align-items:center;gap:6px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.chip.add{border-style:dashed;color:var(--sub)}
+.live-banner{margin:6px 0;padding:10px 14px;border-radius:10px;border:1px solid var(--live);background:color-mix(in srgb,var(--live) 10%,var(--card));display:flex;gap:10px;align-items:center;justify-content:space-between}
+.live-banner b{color:var(--live)}
+.tools{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0}
+.tools h2{margin:0;font:700 1.05rem var(--font-disp)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding-bottom:max(32px,env(safe-area-inset-bottom,0px))}
+@media(min-width:620px){.grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}}
+.book{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;text-align:left;padding:0}
+.book .cover{aspect-ratio:3/4;background:var(--stage);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.book .cover img{width:100%;height:100%;object-fit:cover;object-position:top}
+.book .info{padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.book .t{font-weight:700;overflow-wrap:anywhere;line-height:1.4}
+.book .s{font-size:.78rem;color:var(--sub)}
+.book .row{display:flex;gap:6px;padding:0 12px 10px}
+.empty{padding:36px 8px;text-align:center;color:var(--sub)}
+.results{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:4px 14px;margin:8px 0 14px}
+.hit{display:block;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:12px 0;min-height:44px}
+.hit:first-of-type{border-top:0}
+.hit .n{font-weight:700}.hit .x{font-size:.85rem;color:var(--sub);overflow-wrap:anywhere}
+
+/* ---- viewer ---- */
+.viewer{position:fixed;inset:0;background:var(--stage);z-index:20;display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px)}
+.vtop{display:flex;align-items:center;gap:8px;padding:6px max(10px,env(safe-area-inset-left,0px)) 6px max(10px,env(safe-area-inset-left,0px));background:var(--paper);border-bottom:1px solid var(--line)}
+.vtop .ttl{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vmain{flex:1;min-height:0;display:flex}
+.stage{flex:1;min-width:0;overflow:auto;padding:12px;display:flex;justify-content:safe center;align-items:flex-start;-webkit-overflow-scrolling:touch}
+.sheet{position:relative;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.25);flex:none}
+.sheet canvas{display:block}
+#ink{position:absolute;inset:0;pointer-events:none}
+#ink.on{pointer-events:auto;touch-action:none;cursor:crosshair}
+.panel{background:var(--paper);border-top:1px solid var(--line);padding:12px max(14px,env(safe-area-inset-left,0px)) 12px;overflow:auto;
+  position:absolute;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom,0px));height:46%;z-index:3;box-shadow:0 -6px 18px rgba(0,0,0,.18)}
+.panel h3{margin:0 0 6px;font:700 .9rem var(--font-disp)}
+.panel textarea{width:100%;min-height:96px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);resize:vertical}
+.panel .tabs{display:flex;gap:8px;margin-bottom:10px}
+.vbar{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px max(10px,env(safe-area-inset-left,0px)) calc(6px + env(safe-area-inset-bottom,0px));background:var(--paper);border-top:1px solid var(--line);min-height:58px}
+.vbar .grp{display:flex;align-items:center;gap:6px}
+.vbar .btn{min-width:44px;padding:0 10px}
+.vbar .btn[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+#pageNo{width:52px;min-height:44px;text-align:center;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.vlive{background:var(--live);color:#fff;padding:8px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between}
+.vlive button{background:#fff;color:var(--live);border:0;border-radius:8px;min-height:34px;padding:0 12px;font-weight:700}
+.spin{padding:40px;text-align:center;color:var(--sub);width:100%}
+@media(min-width:900px){
+  .vmain{position:relative}
+  .panel{position:static;height:auto;width:320px;flex:none;border-top:0;border-left:1px solid var(--line);box-shadow:none}
+}
+
+/* ---- modal / toast ---- */
+.modal{position:fixed;inset:0;background:rgba(10,16,28,.55);z-index:40;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal .box{background:var(--card);border-radius:14px;padding:20px;width:min(100%,380px);display:flex;flex-direction:column;gap:14px}
+.modal input{padding:11px 14px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.modal .acts{display:flex;gap:10px;justify-content:flex-end}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:10px;z-index:50;max-width:90%;text-align:center}
+@media(prefers-reduced-motion:no-preference){.toast{animation:in .18s ease-out}@keyframes in{from{opacity:0;transform:translate(-50%,8px)}}}
+</style>
+
+<header class="top" id="top">
+  <div class="brand">
+    <h1>クラウド本棚</h1>
+    <div class="who"><span id="whoName"></span><span class="pill" id="roleTag">閲覧</span><button class="btn sm" id="previewBtn" hidden>メンバー表示</button></div>
+  </div>
+  <form class="search" id="gsearch"><input id="gq" type="search" placeholder="本棚全体を検索" enterkeyhint="search"><button class="btn primary">検索</button></form>
+  <nav class="folders" id="folders" aria-label="フォルダ"></nav>
+</header>
+
+<main id="shelf">
+  <div class="live-banner" id="liveBanner" hidden>
+    <div><b>発言者が表示中</b>　<span id="liveText"></span></div>
+    <button class="btn sm primary" id="liveGo">開く</button>
+  </div>
+  <div class="results" id="results" hidden></div>
+  <div class="tools">
+    <h2 id="folderTitle">すべて</h2>
+    <label class="btn primary" id="uploadBtn" hidden style="display:none;align-items:center">
+      ＋ PDFを追加<input id="file" type="file" accept="application/pdf" multiple hidden>
+    </label>
+  </div>
+  <div class="grid" id="grid"></div>
+  <p class="empty" id="empty" hidden></p>
+</main>
+
+<section class="viewer" id="viewer" hidden>
+  <div class="vlive" id="vlive" hidden><span id="vliveText"></span><button id="vliveGo">移動</button></div>
+  <div class="vtop"><button class="btn sm" id="back">← 本棚</button><span class="ttl" id="vtitle"></span></div>
+  <div class="vmain">
+    <div class="stage" id="stage"><div class="spin" id="spin">読み込み中…</div>
+      <div class="sheet" id="sheet" hidden><canvas id="cv"></canvas><canvas id="ink"></canvas></div>
+    </div>
+    <aside class="panel" id="panel" hidden>
+      <div class="tabs"><button class="btn sm" id="tabMemo" aria-pressed="true">メモ</button><button class="btn sm" id="tabFind">資料内検索</button></div>
+      <div id="memoPane">
+        <h3>このページのメモ（自分だけに表示）</h3>
+        <textarea id="memoText" placeholder="気づいたことを書き留めます。自動保存されます。"></textarea>
+        <div class="muted" id="memoNote" style="font-size:.8rem"></div>
+      </div>
+      <div id="findPane" hidden>
+        <form class="search" id="dsearch"><input id="dq" type="search" placeholder="この資料内を検索"><button class="btn sm primary">検索</button></form>
+        <div id="dhits"></div>
+      </div>
+    </aside>
+  </div>
+  <div class="vbar">
+    <div class="grp"><button class="btn" id="prev" aria-label="前のページ">◀</button>
+      <input id="pageNo" type="number" inputmode="numeric" min="1" aria-label="ページ番号"><span class="muted">/ <span id="pageTotal">0</span></span>
+      <button class="btn" id="next" aria-label="次のページ">▶</button></div>
+    <div class="grp"><button class="btn" id="zout" aria-label="縮小">－</button><button class="btn" id="zin" aria-label="拡大">＋</button>
+      <button class="btn" id="pen" aria-pressed="false" aria-label="手書き">✏</button>
+      <button class="btn" id="memoBtn" aria-pressed="false" aria-label="メモ">📝</button>
+      <button class="btn primary" id="notify" hidden>通知</button></div>
+  </div>
+</section>
+
+<div class="modal" id="modal" hidden><div class="box"><div id="mMsg"></div><input id="mInput" hidden><div class="acts"><button class="btn" id="mNo">キャンセル</button><button class="btn primary" id="mYes">OK</button></div></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const PDF_OPTS = { disableFontFace: true, useSystemFonts: false };
+
+  // ---------- helpers ----------
+  let toastT;
+  const toast = (m) => { const t = $("toast"); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 3200); };
+  function modal(msg, { input, ok = "OK", danger } = {}) {
+    return new Promise((res) => {
+      $("mMsg").textContent = msg;
+      const inp = $("mInput"); inp.hidden = !input; inp.value = "";
+      $("mYes").textContent = ok; $("mYes").className = "btn " + (danger ? "danger" : "primary");
+      $("modal").hidden = false; if (input) inp.focus();
+      const done = (v) => { $("modal").hidden = true; $("mYes").onclick = $("mNo").onclick = null; res(v); };
+      $("mYes").onclick = () => done(input ? inp.value.trim() || null : true);
+      $("mNo").onclick = () => done(input ? null : false);
+    });
+  }
+  const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+  // ---------- capabilities ----------
+  const [db, assets, user] = await Promise.all([claude.use("db"), claude.use("assets"), claude.use("user")]);
+  let realAdmin = user ? await user.canEdit() : false;
+  let previewMember = false;
+  const isAdmin = () => realAdmin && !previewMember;
+  const me = user ? await user.me() : null;
+  const uid = me && me.id;
+  $("whoName").textContent = me && me.name ? me.name : "ゲスト";
+
+  const S = { folders: [], docs: [], folderId: "all", live: null, liveSeq: 0, texts: null };
+  const V = { doc: null, pdf: null, page: 1, zoom: 1, memo: null, pen: false, drawing: null, rendering: 0 };
+
+  function applyRole() {
+    $("roleTag").textContent = isAdmin() ? "管理者" : "閲覧";
+    $("roleTag").className = "pill" + (isAdmin() ? " admin" : "");
+    $("previewBtn").hidden = !realAdmin;
+    $("previewBtn").textContent = previewMember ? "管理者に戻す" : "メンバー表示";
+    const up = $("uploadBtn"); up.hidden = !(isAdmin() && assets); up.style.display = up.hidden ? "none" : "flex";
+    $("notify").hidden = !isAdmin();
+    renderFolders(); renderGrid();
+  }
+  $("previewBtn").onclick = () => { previewMember = !previewMember; applyRole(); };
+
+  if (!db) {
+    $("empty").hidden = false;
+    $("empty").textContent = "共有本棚を表示するには claude.ai にログインしてください。";
+    return;
+  }
+
+  // ---------- shared data ----------
+  db.collection("folders").onSnapshot((s) => { S.folders = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => a.created - b.created); renderFolders(); renderGrid(); });
+  db.collection("docs").onSnapshot((s) => { S.docs = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => b.created - a.created); renderGrid(); }, () => {});
+  let firstLive = true;
+  db.doc("state/live").onSnapshot((s) => {
+    const d = s.exists ? s.data() : null;
+    const changed = d && d.seq !== S.liveSeq;
+    S.live = d; if (d) S.liveSeq = d.seq;
+    renderLive();
+    if (changed && !firstLive && !isAdmin()) onLiveChange(d);
+    firstLive = false;
+  });
+
+  // ---------- folders / grid ----------
+  function renderFolders() {
+    const box = $("folders"); box.innerHTML = "";
+    const add = (id, name, extra) => {
+      const b = document.createElement("button"); b.className = "chip"; b.textContent = name;
+      b.setAttribute("aria-pressed", String(S.folderId === id));
+      b.onclick = () => { S.folderId = id; $("results").hidden = true; renderFolders(); renderGrid(); };
+      if (extra) b.appendChild(extra); box.appendChild(b);
+    };
+    add("all", "すべて");
+    for (const f of S.folders) {
+      let x = null;
+      if (isAdmin() && S.folderId === f.id) {
+        x = document.createElement("span"); x.textContent = "✕"; x.setAttribute("aria-label", "フォルダを削除");
+        x.onclick = async (e) => {
+          e.stopPropagation();
+          if (!(await modal(`フォルダ「${f.name}」を削除します。中の資料は「すべて」に残ります。`, { ok: "削除", danger: true }))) return;
+          for (const d of S.docs.filter((d) => d.folderId === f.id)) await db.doc("docs/" + d.id).update({ folderId: null });
+          await db.doc("folders/" + f.id).delete(); S.folderId = "all";
+        };
+      }
+      add(f.id, f.name, x);
+    }
+    if (isAdmin()) {
+      const a = document.createElement("button"); a.className = "chip add"; a.textContent = "＋ フォルダ";
+      a.onclick = async () => { const n = await modal("新しいフォルダの名前", { input: true }); if (n) await db.collection("folders").add({ name: n, created: Date.now() }); };
+      box.appendChild(a);
+    }
+    const cur = S.folders.find((f) => f.id === S.folderId);
+    $("folderTitle").textContent = cur ? cur.name : "すべて";
+  }
+
+  function renderGrid() {
+    const g = $("grid"); g.innerHTML = "";
+    const list = S.docs.filter((d) => S.folderId === "all" || d.folderId === S.folderId);
+    const em = $("empty"); em.hidden = list.length > 0;
+    em.textContent = isAdmin() ? "資料がありません。右上の「＋ PDFを追加」から登録してください。" : "資料がまだありません。";
+    for (const d of list) {
+      const w = document.createElement("div"); w.className = "book";
+      const b = document.createElement("button"); b.style.cssText = "all:unset;cursor:pointer;display:flex;flex-direction:column;flex:1;min-width:0";
+      b.innerHTML = `<div class="cover">${d.thumb ? `<img alt="" src="${d.thumb}">` : "📄"}</div>
+        <div class="info"><span class="t">${esc(d.name)}</span><span class="s">${d.pages}ページ・${new Date(d.created).toLocaleDateString("ja-JP")}</span></div>`;
+      b.onclick = () => openDoc(d.id, 1);
+      w.appendChild(b);
+      if (isAdmin()) {
+        const r = document.createElement("div"); r.className = "row";
+        const mv = document.createElement("button"); mv.className = "btn sm"; mv.textContent = "移動";
+        mv.onclick = async () => {
+          const names = ["（なし）", ...S.folders.map((f) => f.name)];
+          const n = await modal(`移動先のフォルダ名を入力\n候補: ${names.join(" / ")}`, { input: true });
+          if (n === null) return;
+          const f = S.folders.find((f) => f.name === n);
+          await db.doc("docs/" + d.id).update({ folderId: f ? f.id : null });
+          toast(f ? `「${f.name}」へ移動しました` : "フォルダから外しました");
+        };
+        const del = document.createElement("button"); del.className = "btn sm danger"; del.textContent = "削除";
+        del.onclick = async () => {
+          if (!(await modal(`「${d.name}」を削除しますか？`, { ok: "削除", danger: true }))) return;
+          try { if (assets && d.assetId) await assets.delete(d.assetId); } catch {}
+          await db.doc("docs/" + d.id).delete(); await db.doc("doctexts/" + d.id).delete(); toast("削除しました");
+        };
+        r.append(mv, del); w.appendChild(r);
+      }
+      g.appendChild(w);
+    }
+  }
+
+  // ---------- upload ----------
+  $("file").onchange = async (e) => {
+    const files = [...e.target.files]; e.target.value = "";
+    for (const f of files) {
+      try {
+        toast(`「${f.name}」を取り込み中…`);
+        const buf = await f.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: buf.slice(0), ...PDF_OPTS }).promise;
+        const per = Math.max(300, Math.min(3000, Math.floor(150000 / pdf.numPages)));
+        const pages = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const tc = await (await pdf.getPage(i)).getTextContent();
+          pages.push(tc.items.map((t) => t.str).join(" ").replace(/\s+/g, " ").slice(0, per));
+        }
+        const p1 = await pdf.getPage(1), v0 = p1.getViewport({ scale: 1 }), vp = p1.getViewport({ scale: 360 / v0.width });
+        const c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height;
+        await p1.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+        const up = await assets.upload(new Blob([buf], { type: "application/pdf" }));
+        const ref = db.collection("docs").doc();
+        await ref.set({ name: f.name.replace(/\.pdf$/i, ""), folderId: S.folderId === "all" ? null : S.folderId, created: Date.now(),
+          pages: pdf.numPages, thumb: c.toDataURL("image/jpeg", 0.6), assetId: up.id, url: up.url });
+        await db.doc("doctexts/" + ref.id).set({ pages });
+        toast(`「${f.name}」を追加しました`);
+      } catch (err) {
+        console.error(err);
+        toast(`「${f.name}」を追加できませんでした（${err && err.code === "too_large" ? "20MBを超えています" : "PDFを確認してください"}）`);
+      }
+    }
+  };
+
+  // ---------- search ----------
+  const snip = (t, q) => {
+    const i = t.toLowerCase().indexOf(q.toLowerCase()); if (i < 0) return "";
+    const s = esc(t.slice(Math.max(0, i - 24), i + q.length + 44));
+    return s.replace(new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), (m) => `<mark>${m}</mark>`);
+  };
+  async function loadTexts() {
+    const s = await db.collection("doctexts").get();
+    S.texts = Object.fromEntries(s.docs.map((d) => [d.id, d.data().pages || []]));
+  }
+  $("gsearch").onsubmit = async (e) => {
+    e.preventDefault(); const q = $("gq").value.trim(), box = $("results");
+    if (!q) { box.hidden = true; return; }
+    await loadTexts();
+    const hits = [];
+    for (const d of S.docs) (S.texts[d.id] || []).forEach((t, i) => t.toLowerCase().includes(q.toLowerCase()) && hits.push({ d, p: i + 1, t }));
+    box.hidden = false;
+    box.innerHTML = `<div class="muted" style="padding:10px 0">「${esc(q)}」の検索結果 ${hits.length}件</div>`;
+    for (const h of hits.slice(0, 80)) {
+      const b = document.createElement("button"); b.className = "hit";
+      b.innerHTML = `<div class="n">${esc(h.d.name)} <span class="muted">p.${h.p}</span></div><div class="x">…${snip(h.t, q)}…</div>`;
+      b.onclick = () => openDoc(h.d.id, h.p); box.appendChild(b);
+    }
+  };
+
+  // ---------- viewer ----------
+  let pdfCache = { id: null, pdf: null };
+  async function openDoc(id, page) {
+    const d = S.docs.find((x) => x.id === id); if (!d) return toast("資料が見つかりません");
+    V.doc = d; V.zoom = 1;
+    $("viewer").hidden = false; $("spin").hidden = false; $("sheet").hidden = true; $("spin").textContent = "読み込み中…";
+    $("vtitle").textContent = d.name; $("pageTotal").textContent = d.pages; $("pageNo").max = d.pages;
+    document.body.style.overflow = "hidden";
+    try {
+      if (pdfCache.id !== id) {
+        const r = await fetch(d.url); if (!r.ok) throw new Error(r.status);
+        pdfCache = { id, pdf: await pdfjsLib.getDocument({ data: await r.arrayBuffer(), ...PDF_OPTS }).promise };
+      }
+      V.pdf = pdfCache.pdf;
+    } catch (err) { console.error(err); $("spin").textContent = "資料を読み込めませんでした。通信状況を確認してください。"; return; }
+    await goto(page || 1);
+  }
+  function closeViewer() { flushMemo(); $("viewer").hidden = true; document.body.style.overflow = ""; V.doc = V.pdf = null; $("panel").hidden = true; $("memoBtn").setAttribute("aria-pressed", "false"); }
+  $("back").onclick = closeViewer;
+
+  async function goto(n) {
+    if (!V.pdf) return;
+    await flushMemo();
+    V.page = Math.min(Math.max(1, n), V.doc.pages); $("pageNo").value = V.page;
+    V.memo = await loadMemo(V.doc.id, V.page); $("memoText").value = V.memo.text;
+    await render(); $("stage").scrollTo(0, 0); updateVLive();
+  }
+  async function render() {
+    const my = ++V.rendering;
+    const page = await V.pdf.getPage(V.page);
+    const stage = $("stage"), avail = stage.clientWidth - 24;
+    const v1 = page.getViewport({ scale: 1 });
+    const scale = (avail / v1.width) * V.zoom, vp = page.getViewport({ scale });
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const cv = $("cv"), ink = $("ink");
+    cv.width = ink.width = Math.floor(vp.width * dpr); cv.height = ink.height = Math.floor(vp.height * dpr);
+    const w = vp.width + "px", h = vp.height + "px";
+    cv.style.width = ink.style.width = w; cv.style.height = ink.style.height = h;
+    $("sheet").style.width = w; $("sheet").style.height = h;
+    $("spin").hidden = true; $("sheet").hidden = false;
+    await page.render({ canvasContext: cv.getContext("2d"), viewport: page.getViewport({ scale: scale * dpr }) }).promise;
+    if (my === V.rendering) drawInk();
+  }
+  $("prev").onclick = () => goto(V.page - 1);
+  $("next").onclick = () => goto(V.page + 1);
+  $("pageNo").onchange = (e) => goto(parseInt(e.target.value, 10) || 1);
+  $("zin").onclick = () => { V.zoom = Math.min(4, V.zoom + 0.4); render(); };
+  $("zout").onclick = () => { V.zoom = Math.max(0.6, V.zoom - 0.4); render(); };
+  window.addEventListener("resize", () => V.pdf && render());
+  document.addEventListener("keydown", (e) => {
+    if ($("viewer").hidden || /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+    if (e.key === "ArrowRight") goto(V.page + 1); if (e.key === "ArrowLeft") goto(V.page - 1);
+  });
+  // swipe to turn pages
+  let tx = 0, ty = 0;
+  $("stage").addEventListener("touchstart", (e) => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+  $("stage").addEventListener("touchend", (e) => {
+    if (V.pen) return; const st = $("stage"); if (st.scrollWidth > st.clientWidth + 2) return;
+    const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dx) > 70 && Math.abs(dy) < 45) goto(V.page + (dx < 0 ? 1 : -1));
+  }, { passive: true });
+
+  // ---------- memo (private per viewer; falls back to this device) ----------
+  const memoKey = (id, p) => `${id}_${p}`;
+  async function loadMemo(id, p) {
+    const key = memoKey(id, p); let rec = null;
+    try { if (uid) { const s = await db.doc(`data/users/${uid}/memos/${key}`).get(); if (s.exists) rec = s.data(); } } catch {}
+    if (!rec) rec = lsGet("memo:" + key);
+    let strokes = []; try { strokes = JSON.parse((rec && rec.ink) || "[]"); } catch {}
+    return { key, text: (rec && rec.text) || "", strokes, dirty: false };
+  }
+  let memoT;
+  async function flushMemo() {
+    clearTimeout(memoT); const m = V.memo; if (!m || !m.dirty) return; m.dirty = false;
+    const rec = { text: m.text, ink: JSON.stringify(m.strokes), updated: Date.now() };
+    let saved = false;
+    try { if (uid) { const ref = db.doc(`data/users/${uid}/memos/${m.key}`); if (m.text || m.strokes.length) await ref.set(rec); else await ref.delete(); saved = true; } } catch {}
+    if (!saved) lsSet("memo:" + m.key, rec);
+    $("memoNote").textContent = saved ? "保存しました" : "この端末にだけ保存しました（ログインすると端末間で同期されます）";
+  }
+  const touchMemo = () => { V.memo.dirty = true; clearTimeout(memoT); memoT = setTimeout(flushMemo, 700); };
+  $("memoText").oninput = () => { V.memo.text = $("memoText").value; touchMemo(); };
+  const showPane = (which) => {
+    $("memoPane").hidden = which !== "memo"; $("findPane").hidden = which !== "find";
+    $("tabMemo").setAttribute("aria-pressed", String(which === "memo")); $("tabFind").setAttribute("aria-pressed", String(which === "find"));
+  };
+  $("tabMemo").onclick = () => showPane("memo"); $("tabFind").onclick = () => showPane("find");
+  $("memoBtn").onclick = () => { const open = $("panel").hidden; $("panel").hidden = !open; $("memoBtn").setAttribute("aria-pressed", String(open)); setTimeout(render, 0); };
+
+  $("dsearch").onsubmit = async (e) => {
+    e.preventDefault(); const q = $("dq").value.trim(), box = $("dhits"); box.innerHTML = ""; if (!q || !V.doc) return;
+    if (!S.texts || !S.texts[V.doc.id]) await loadTexts();
+    const hits = (S.texts[V.doc.id] || []).map((t, i) => ({ t, p: i + 1 })).filter((h) => h.t.toLowerCase().includes(q.toLowerCase()));
+    if (!hits.length) box.innerHTML = '<p class="muted">見つかりませんでした。</p>';
+    for (const h of hits) {
+      const b = document.createElement("button"); b.className = "hit";
+      b.innerHTML = `<div class="n">p.${h.p}</div><div class="x">…${snip(h.t, q)}…</div>`; b.onclick = () => goto(h.p); box.appendChild(b);
+    }
+    if (hits.length) goto(hits[0].p);
+  };
+
+  // ---------- handwriting ----------
+  const ink = $("ink");
+  $("pen").onclick = () => { V.pen = !V.pen; $("pen").setAttribute("aria-pressed", String(V.pen)); ink.classList.toggle("on", V.pen); if (V.pen) toast("手書きモード：指やペンで書き込めます。もう一度押すと解除"); };
+  function drawInk() {
+    const c = ink.getContext("2d"); c.clearRect(0, 0, ink.width, ink.height);
+    c.strokeStyle = "#e0262b"; c.lineWidth = 2.6 * (ink.width / parseFloat(ink.style.width || ink.width)); c.lineCap = c.lineJoin = "round";
+    const all = V.drawing ? [...V.memo.strokes, V.drawing] : V.memo.strokes;
+    for (const s of all) { c.beginPath(); s.forEach(([x, y], i) => (i ? c.lineTo(x * ink.width, y * ink.height) : c.moveTo(x * ink.width, y * ink.height))); c.stroke(); }
+  }
+  const pt = (e) => { const r = ink.getBoundingClientRect(); return [+((e.clientX - r.left) / r.width).toFixed(4), +((e.clientY - r.top) / r.height).toFixed(4)]; };
+  ink.addEventListener("pointerdown", (e) => { if (!V.pen) return; ink.setPointerCapture(e.pointerId); V.drawing = [pt(e)]; });
+  ink.addEventListener("pointermove", (e) => { if (V.drawing) { V.drawing.push(pt(e)); drawInk(); } });
+  const endStroke = () => { if (!V.drawing) return; if (V.drawing.length > 1) { V.memo.strokes.push(V.drawing); touchMemo(); } V.drawing = null; drawInk(); };
+  ink.addEventListener("pointerup", endStroke); ink.addEventListener("pointercancel", endStroke);
+  ink.addEventListener("dblclick", async () => { if (V.pen && V.memo.strokes.length && (await modal("このページの手書きをすべて消しますか？", { ok: "消す", danger: true }))) { V.memo.strokes = []; drawInk(); touchMemo(); } });
+
+  // ---------- page notification ----------
+  $("notify").onclick = async () => {
+    if (!V.doc) return;
+    try { await db.doc("state/live").set({ docId: V.doc.id, name: V.doc.name, page: V.page, seq: Date.now(), by: (me && me.name) || "発言者" }); toast(`p.${V.page} を全員に通知しました`); }
+    catch { toast("通知できませんでした。権限を確認してください"); }
+  };
+  function renderLive() {
+    const l = S.live, b = $("liveBanner");
+    b.hidden = !(l && !isAdmin());
+    if (l) $("liveText").textContent = `${l.name} p.${l.page}`;
+    updateVLive();
+  }
+  function updateVLive() {
+    const l = S.live, on = l && !isAdmin() && !$("viewer").hidden && !(V.doc && V.doc.id === l.docId && V.page === l.page);
+    $("vlive").hidden = !on; if (on) $("vliveText").textContent = `発言者：${l.name} p.${l.page}`;
+  }
+  const followLive = () => S.live && openDoc(S.live.docId, S.live.page);
+  $("liveGo").onclick = followLive; $("vliveGo").onclick = followLive;
+  function onLiveChange(l) {
+    // メンバーが資料を開いているときは自動で追従し、本棚を見ているときはバナーで知らせる
+    if (!$("viewer").hidden) { followLive(); toast(`発言者に追従：p.${l.page}`); } else toast(`発言者が ${l.name} p.${l.page} を表示しました`);
+  }
+
+  applyRole();
+})();
+</script>
