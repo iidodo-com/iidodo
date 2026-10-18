@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>クラウド本棚</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">📚 クラウド本棚</div>
+  <form id="global-search" class="search">
+    <input id="global-q" type="search" placeholder="本棚全体を横断検索（全文）">
+    <button class="btn">検索</button>
+  </form>
+  <div class="role">
+    <label>権限
+      <select id="role">
+        <option value="admin">管理者（発言者）</option>
+        <option value="member">メンバー</option>
+      </select>
+    </label>
+  </div>
+</header>
+
+<!-- 本棚ビュー -->
+<main id="shelf-view">
+  <aside class="side">
+    <h2>フォルダ</h2>
+    <ul id="folder-list"></ul>
+    <button id="add-folder" class="btn ghost admin-only">＋ フォルダ追加</button>
+  </aside>
+  <section class="content">
+    <div class="toolbar">
+      <h2 id="folder-title">すべて</h2>
+      <label class="btn primary admin-only">
+        PDFをアップロード
+        <input id="file-input" type="file" accept="application/pdf" multiple hidden>
+      </label>
+    </div>
+    <div id="results" class="results hidden"></div>
+    <div id="book-grid" class="grid"></div>
+    <p id="empty" class="muted hidden">資料がありません。管理者がPDFをアップロードしてください。</p>
+  </section>
+</main>
+
+<!-- ビューアー -->
+<section id="viewer" class="viewer hidden">
+  <div class="vbar">
+    <button id="back" class="btn">← 本棚</button>
+    <strong id="doc-title"></strong>
+    <span class="spacer"></span>
+    <form id="doc-search" class="search">
+      <input id="doc-q" type="search" placeholder="この資料内を検索">
+      <button class="btn">検索</button>
+    </form>
+  </div>
+  <div class="vbar sub">
+    <button id="prev" class="btn">◀</button>
+    <span><input id="page-no" type="number" min="1" value="1"> / <span id="page-total">0</span></span>
+    <button id="next" class="btn">▶</button>
+    <button id="zoom-out" class="btn">－</button>
+    <button id="zoom-in" class="btn">＋</button>
+    <span class="spacer"></span>
+    <button id="pen" class="btn">✏️ 手書き</button>
+    <button id="erase" class="btn">消去</button>
+    <label class="follow"><input id="follow" type="checkbox" checked> 発言者に追従</label>
+    <button id="notify" class="btn primary admin-only">📢 このページを全員に通知</button>
+  </div>
+  <div class="vbody">
+    <div class="stage" id="stage">
+      <div class="canvas-wrap">
+        <canvas id="pdf-canvas"></canvas>
+        <canvas id="ink-canvas"></canvas>
+      </div>
+    </div>
+    <aside class="memo">
+      <h3>メモ（このページ）</h3>
+      <textarea id="memo-text" placeholder="テキストメモ。自動保存されます"></textarea>
+      <h3>検索結果</h3>
+      <ul id="doc-hits" class="hits"></ul>
+    </aside>
+  </div>
+</section>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
