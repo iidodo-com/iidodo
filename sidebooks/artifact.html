@@ -87,6 +87,9 @@ form.search input{flex:1;min-width:0;padding:11px 14px;border:1px solid var(--li
 #pageNo{width:52px;min-height:44px;text-align:center;border:1px solid var(--line);border-radius:10px;background:var(--card)}
 .vlive{background:var(--live);color:#fff;padding:8px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between}
 .vlive button{background:#fff;color:var(--live);border:0;border-radius:8px;min-height:34px;padding:0 12px;font-weight:700}
+.other{width:100%;max-width:900px;margin:0 auto}.other img,.other video{width:100%;height:auto;display:block;background:#000;border-radius:6px}
+.other pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--card);padding:14px;border-radius:10px;margin:0;font:inherit}
+.flat .vbar .grp:first-child,.flat #zin,.flat #zout,.flat #pen{display:none}.flat .vbar{justify-content:flex-end}
 .spin{padding:40px;text-align:center;color:var(--sub);width:100%}
 @media(min-width:900px){
   .vmain{position:relative}
@@ -120,7 +123,7 @@ form.search input{flex:1;min-width:0;padding:11px 14px;border:1px solid var(--li
   <div class="tools">
     <h2 id="folderTitle">すべて</h2>
     <label class="btn primary" id="uploadBtn" hidden style="display:none;align-items:center">
-      ＋ PDFを追加<input id="file" type="file" accept="application/pdf" multiple hidden>
+      ＋ ファイルを追加<input id="file" type="file" accept="application/pdf,image/*,video/*,text/*,.pdf,.txt,.md,.csv,.json" multiple hidden>
     </label>
   </div>
   <div class="grid" id="grid"></div>
@@ -132,6 +135,7 @@ form.search input{flex:1;min-width:0;padding:11px 14px;border:1px solid var(--li
   <div class="vtop"><button class="btn sm" id="back">← 本棚</button><span class="ttl" id="vtitle"></span></div>
   <div class="vmain">
     <div class="stage" id="stage"><div class="spin" id="spin">読み込み中…</div>
+      <div class="other" id="other" hidden></div>
       <div class="sheet" id="sheet" hidden><canvas id="cv"></canvas><canvas id="ink"></canvas></div>
     </div>
     <aside class="panel" id="panel" hidden>
@@ -172,7 +176,7 @@ form.search input{flex:1;min-width:0;padding:11px 14px;border:1px solid var(--li
 
   // ---------- helpers ----------
   let toastT;
-  const toast = (m) => { const t = $("toast"); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 3200); };
+  const toast = (m, ms = 3200) => { const t = $("toast"); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), ms); };
   function modal(msg, { input, ok = "OK", danger } = {}) {
     return new Promise((res) => {
       $("mMsg").textContent = msg;
@@ -265,12 +269,12 @@ form.search input{flex:1;min-width:0;padding:11px 14px;border:1px solid var(--li
     const g = $("grid"); g.innerHTML = "";
     const list = S.docs.filter((d) => S.folderId === "all" || d.folderId === S.folderId);
     const em = $("empty"); em.hidden = list.length > 0;
-    em.textContent = isAdmin() ? "資料がありません。右上の「＋ PDFを追加」から登録してください。" : "資料がまだありません。";
+    em.textContent = isAdmin() ? "資料がありません。右上の「＋ ファイルを追加」から登録してください。（PDF・画像・動画・テキスト）" : "資料がまだありません。";
     for (const d of list) {
       const w = document.createElement("div"); w.className = "book";
       const b = document.createElement("button"); b.style.cssText = "all:unset;cursor:pointer;display:flex;flex-direction:column;flex:1;min-width:0";
-      b.innerHTML = `<div class="cover">${d.thumb ? `<img alt="" src="${d.thumb}">` : "📄"}</div>
-        <div class="info"><span class="t">${esc(d.name)}</span><span class="s">${d.pages}ページ・${new Date(d.created).toLocaleDateString("ja-JP")}</span></div>`;
+      b.innerHTML = `<div class="cover">${d.thumb ? `<img alt="" src="${d.thumb}">` : ({ video: "🎞", text: "📝", image: "🖼" }[d.kind] || "📄")}</div>
+        <div class="info"><span class="t">${esc(d.name)}</span><span class="s">${(d.kind || "pdf") === "pdf" && d.pages ? d.pages + "ページ" : ({ video: "動画", text: "テキスト", image: "画像" }[d.kind] || "PDF")}・${new Date(d.created).toLocaleDateString("ja-JP")}</span></div>`;
       b.onclick = () => openDoc(d.id, 1);
       w.appendChild(b);
       if (isAdmin()) {
@@ -296,32 +300,72 @@ form.search input{flex:1;min-width:0;padding:11px 14px;border:1px solid var(--li
     }
   }
 
-  // ---------- upload ----------
+  // ---------- upload (PDF / 画像 / 動画 / テキスト) ----------
+  const kindOf = (f) => {
+    const n = f.name.toLowerCase(), t = f.type || "";
+    if (t === "application/pdf" || n.endsWith(".pdf")) return "pdf";
+    if (t.startsWith("image/")) return "image";
+    if (t.startsWith("video/")) return "video";
+    if (t.startsWith("text/") || /\.(txt|md|csv|json)$/.test(n)) return "text";
+    return null;
+  };
+  const MIME = { pdf: "application/pdf", md: "text/markdown", csv: "text/csv", json: "application/json", txt: "text/plain" };
+  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+  async function imageThumb(file) {
+    const bmp = await createImageBitmap(file), w = 360, h = Math.round((bmp.height / bmp.width) * w);
+    const c = document.createElement("canvas"); c.width = w; c.height = h; c.getContext("2d").drawImage(bmp, 0, 0, w, h);
+    return c.toDataURL("image/jpeg", 0.6);
+  }
+  async function importFile(f) {
+    const kind = kindOf(f);
+    if (!kind) throw new Error("この形式には未対応です。PDF・画像・動画・テキスト(txt/md/csv/json)を選んでください。WordやExcelはPDFに変換してください");
+    const ext = (f.name.split(".").pop() || "").toLowerCase();
+    const mime = f.type || MIME[ext] || "application/octet-stream";
+    // アップロードを最優先。解析に失敗しても資料は登録される
+    const up = await assets.upload(new Blob([await f.arrayBuffer()], { type: mime }));
+    let pages = 1, texts = [], thumb = "";
+    try {
+      if (kind === "pdf") {
+        const pdf = await withTimeout(pdfjsLib.getDocument({ data: await f.arrayBuffer(), ...PDF_OPTS }).promise, 20000);
+        pages = pdf.numPages;
+        const per = Math.max(300, Math.min(3000, Math.floor(150000 / pages)));
+        try {
+          for (let i = 1; i <= pages; i++) {
+            const tc = await withTimeout((await pdf.getPage(i)).getTextContent(), 8000);
+            texts.push(tc.items.map((t) => t.str).join(" ").replace(/\s+/g, " ").slice(0, per));
+          }
+        } catch (err) { console.warn("text extract", err); }
+        try {
+          const p1 = await pdf.getPage(1), v0 = p1.getViewport({ scale: 1 }), vp = p1.getViewport({ scale: 360 / v0.width });
+          const c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height;
+          await withTimeout(p1.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise, 10000);
+          thumb = c.toDataURL("image/jpeg", 0.6);
+        } catch (err) { console.warn("thumb", err); }
+      } else if (kind === "image") {
+        thumb = await imageThumb(f);
+      } else if (kind === "text") {
+        texts = [(await f.text()).replace(/\s+/g, " ").slice(0, 100000)];
+      }
+    } catch (err) { console.warn("analyze", err); }
+    try {
+      const ref = db.collection("docs").doc();
+      await ref.set({ name: f.name.replace(/\.[^.]+$/, ""), kind, mime, folderId: S.folderId === "all" ? null : S.folderId,
+        created: Date.now(), pages, thumb, assetId: up.id, url: up.url });
+      if (texts.some(Boolean)) await db.doc("doctexts/" + ref.id).set({ pages: texts });
+    } catch (err) { try { await assets.delete(up.id); } catch {} throw err; }
+  }
   $("file").onchange = async (e) => {
     const files = [...e.target.files]; e.target.value = "";
+    if (!assets) return toast("ファイルの保存機能が使えません。編集権限でログインしているか確認してください", 8000);
     for (const f of files) {
       try {
-        toast(`「${f.name}」を取り込み中…`);
-        const buf = await f.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: buf.slice(0), ...PDF_OPTS }).promise;
-        const per = Math.max(300, Math.min(3000, Math.floor(150000 / pdf.numPages)));
-        const pages = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const tc = await (await pdf.getPage(i)).getTextContent();
-          pages.push(tc.items.map((t) => t.str).join(" ").replace(/\s+/g, " ").slice(0, per));
-        }
-        const p1 = await pdf.getPage(1), v0 = p1.getViewport({ scale: 1 }), vp = p1.getViewport({ scale: 360 / v0.width });
-        const c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height;
-        await p1.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
-        const up = await assets.upload(new Blob([buf], { type: "application/pdf" }));
-        const ref = db.collection("docs").doc();
-        await ref.set({ name: f.name.replace(/\.pdf$/i, ""), folderId: S.folderId === "all" ? null : S.folderId, created: Date.now(),
-          pages: pdf.numPages, thumb: c.toDataURL("image/jpeg", 0.6), assetId: up.id, url: up.url });
-        await db.doc("doctexts/" + ref.id).set({ pages });
+        toast(`「${f.name}」を追加中…`, 60000);
+        await importFile(f);
         toast(`「${f.name}」を追加しました`);
       } catch (err) {
         console.error(err);
-        toast(`「${f.name}」を追加できませんでした（${err && err.code === "too_large" ? "20MBを超えています" : "PDFを確認してください"}）`);
+        const code = err && err.code ? err.code + "：" : "";
+        toast(`「${f.name}」を追加できませんでした。${code}${(err && err.message) || err}`, 9000);
       }
     }
   };
@@ -353,22 +397,40 @@ form.search input{flex:1;min-width:0;padding:11px 14px;border:1px solid var(--li
 
   // ---------- viewer ----------
   let pdfCache = { id: null, pdf: null };
+  async function fetchAsset(d) {
+    let last;
+    for (const u of [d.assetId ? "/_blob/" + d.assetId : null, d.url].filter(Boolean)) {
+      try { const r = await fetch(u); if (r.ok) return r; last = new Error("HTTP " + r.status); } catch (e) { last = e; }
+    }
+    throw last || new Error("URLがありません");
+  }
   async function openDoc(id, page) {
     const d = S.docs.find((x) => x.id === id); if (!d) return toast("資料が見つかりません");
-    V.doc = d; V.zoom = 1;
-    $("viewer").hidden = false; $("spin").hidden = false; $("sheet").hidden = true; $("spin").textContent = "読み込み中…";
-    $("vtitle").textContent = d.name; $("pageTotal").textContent = d.pages; $("pageNo").max = d.pages;
+    const kind = d.kind || "pdf";
+    V.doc = d; V.zoom = 1; V.pdf = null;
+    $("viewer").classList.toggle("flat", kind !== "pdf");
+    $("viewer").hidden = false; $("spin").hidden = false; $("sheet").hidden = true; $("other").hidden = true; $("spin").textContent = "読み込み中…";
+    $("vtitle").textContent = d.name; $("pageTotal").textContent = d.pages || 1; $("pageNo").max = d.pages || 1;
     document.body.style.overflow = "hidden";
     try {
-      if (pdfCache.id !== id) {
-        const r = await fetch(d.url); if (!r.ok) throw new Error(r.status);
-        pdfCache = { id, pdf: await pdfjsLib.getDocument({ data: await r.arrayBuffer(), ...PDF_OPTS }).promise };
+      if (kind === "pdf") {
+        if (pdfCache.id !== id) {
+          const r = await fetchAsset(d);
+          pdfCache = { id, pdf: await pdfjsLib.getDocument({ data: await r.arrayBuffer(), ...PDF_OPTS }).promise };
+        }
+        V.pdf = pdfCache.pdf; d.pages = V.pdf.numPages; $("pageTotal").textContent = d.pages; $("pageNo").max = d.pages;
+        await goto(page || 1);
+      } else {
+        const o = $("other"); o.innerHTML = "";
+        if (kind === "image") { const im = document.createElement("img"); im.alt = d.name; im.src = d.url; o.appendChild(im); }
+        else if (kind === "video") { const v = document.createElement("video"); v.controls = true; v.playsInline = true; v.src = d.url; o.appendChild(v); }
+        else { const pre = document.createElement("pre"); pre.textContent = await (await fetchAsset(d)).text(); o.appendChild(pre); }
+        $("spin").hidden = true; o.hidden = false;
+        V.page = 1; V.memo = await loadMemo(id, 1); $("memoText").value = V.memo.text; updateVLive();
       }
-      V.pdf = pdfCache.pdf;
-    } catch (err) { console.error(err); $("spin").textContent = "資料を読み込めませんでした。通信状況を確認してください。"; return; }
-    await goto(page || 1);
+    } catch (err) { console.error(err); $("spin").hidden = false; $("spin").textContent = "資料を読み込めませんでした：" + ((err && err.message) || err); }
   }
-  function closeViewer() { flushMemo(); $("viewer").hidden = true; document.body.style.overflow = ""; V.doc = V.pdf = null; $("panel").hidden = true; $("memoBtn").setAttribute("aria-pressed", "false"); }
+  function closeViewer() { flushMemo(); $("viewer").hidden = true; document.body.style.overflow = ""; V.doc = V.pdf = V.memo = null; $("panel").hidden = true; $("memoBtn").setAttribute("aria-pressed", "false"); }
   $("back").onclick = closeViewer;
 
   async function goto(n) {
