@@ -145,6 +145,8 @@ Private Function CircleLen(ByVal tokName As String) As Long
             CircleLen = 9
         Case "{{事由出産}}", "{{事由医療}}", "{{事由入学}}", "{{事由結婚}}", "{{事由葬祭}}", "{{事由修学}}"
             CircleLen = 2
+        Case "{{生年S}}", "{{生年H}}", "{{加入S}}", "{{加入H}}", "{{加入R}}"
+            CircleLen = 1
         Case "{{現在なし}}", "{{同時なし}}"
             CircleLen = 3
         Case "{{現在住宅}}", "{{現在特別}}", "{{現在普通}}", "{{現在災害}}", _
