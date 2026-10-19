@@ -15,6 +15,10 @@ Public Sub Make_Soesho()
     MakeWordDoc "添書", "添書テンプレート.docx"
 End Sub
 
+Public Sub Make_Moushikomi()
+    MakeWordDoc "貸付申込書", "貸付申込書テンプレート.docx"
+End Sub
+
 Private Sub MakeWordDoc(ByVal kind As String, ByVal tmplName As String)
     Dim wsData As Worksheet
     Dim tmplPath As String, outPath As String
@@ -22,6 +26,7 @@ Private Sub MakeWordDoc(ByVal kind As String, ByVal tmplName As String)
     Dim r As Long, lastRow As Long
     Dim miss As String, ngCount As Long
     Dim ans As Long
+    Dim grp As String
 
     On Error GoTo EH
 
@@ -40,6 +45,17 @@ Private Sub MakeWordDoc(ByVal kind As String, ByVal tmplName As String)
         If Val(CStr(ThisWorkbook.Names("dat_amt").RefersToRange.Value)) <= 0 Then
             MsgBox "借用証書に記入する金額が0円です。" & vbCrLf & vbCrLf & _
                    "「申込シミュレーション」で申込希望金額を入力するか、申込可能額が出る状態にしてください。", _
+                   vbExclamation, "Word出力"
+            Exit Sub
+        End If
+    End If
+
+    If kind = "貸付申込書" Then
+        grp = CStr(ThisWorkbook.Names("dat_group").RefersToRange.Value)
+        If grp <> "普通貸付" And grp <> "特別貸付" Then
+            MsgBox "この貸付申込書は、普通貸付・特別貸付用の様式です。" & vbCrLf & vbCrLf & _
+                   "現在の貸付区分は「" & grp & "」のため出力できません。" & vbCrLf & _
+                   "住宅貸付・災害貸付は、共済組合の所定の申込書をお使いください。", _
                    vbExclamation, "Word出力"
             Exit Sub
         End If
