@@ -29,7 +29,7 @@ Private Sub MakeWordDoc(ByVal kind As String, ByVal tmplName As String)
     Dim grp As String
     Dim marks As Collection
     Dim m As Variant
-    Dim tok As String, val As String, n As Long
+    Dim tokName As String, tokVal As String, n As Long
 
     On Error GoTo EH
 
@@ -103,13 +103,13 @@ Private Sub MakeWordDoc(ByVal kind As String, ByVal tmplName As String)
     Set marks = New Collection
     For r = 5 To lastRow
         If CStr(wsData.Cells(r, 1).Value) = kind Then
-            tok = CStr(wsData.Cells(r, 2).Value)
-            val = CStr(wsData.Cells(r, 3).Value)
-            n = CircleLen(tok)
+            tokName = CStr(wsData.Cells(r, 2).Value)
+            tokVal = CStr(wsData.Cells(r, 3).Value)
+            n = CircleLen(tokName)
             If n > 0 Then
-                PrepareCircle wdDoc, tok, (val = ChrW(&H25CB)), n, marks    ' ○ で囲む項目
+                PrepareCircle wdDoc, tokName, (tokVal = ChrW(&H25CB)), n, marks    ' ○ で囲む項目
             Else
-                ReplaceToken wdDoc, tok, val
+                ReplaceToken wdDoc, tokName, tokVal
             End If
         End If
     Next r
@@ -140,8 +140,8 @@ EH:
 End Sub
 
 ' ○で囲む項目の、項目名から囲む文字数を返す(0=囲む項目ではない)
-Private Function CircleLen(ByVal tok As String) As Long
-    Select Case tok
+Private Function CircleLen(ByVal tokName As String) As Long
+    Select Case tokName
         Case "{{事由自動車}}"
             CircleLen = 9
         Case "{{事由出産}}", "{{事由医療}}", "{{事由入学}}", "{{事由結婚}}", "{{事由葬祭}}", "{{事由修学}}"
@@ -157,13 +157,13 @@ Private Function CircleLen(ByVal tok As String) As Long
 End Function
 
 ' 項目名の文字を消して、その位置を覚えておく(あとで○を描く)
-Private Sub PrepareCircle(ByVal doc As Object, ByVal tok As String, ByVal doIt As Boolean, _
+Private Sub PrepareCircle(ByVal doc As Object, ByVal tokName As String, ByVal doIt As Boolean, _
                           ByVal n As Long, ByVal marks As Collection)
     Dim rng As Object
     Set rng = doc.Content
     With rng.Find
         .ClearFormatting
-        .Text = tok
+        .Text = tokName
         .Forward = True
         .Wrap = 0
         .Format = False
@@ -212,17 +212,17 @@ Fallback:
 End Sub
 
 ' テンプレート内の項目(例 {{金額千}})を値に置き換える(複数行の値にも対応)
-Private Sub ReplaceToken(ByVal doc As Object, ByVal tok As String, ByVal val As String)
+Private Sub ReplaceToken(ByVal doc As Object, ByVal tokName As String, ByVal tokVal As String)
     Dim rng As Object
     Dim guard As Long
-    If Len(tok) = 0 Then Exit Sub
-    val = Replace(val, vbCrLf, vbCr)
-    val = Replace(val, vbLf, vbCr)
+    If Len(tokName) = 0 Then Exit Sub
+    tokVal = Replace(tokVal, vbCrLf, vbCr)
+    tokVal = Replace(tokVal, vbLf, vbCr)
     Do
         Set rng = doc.Content
         With rng.Find
             .ClearFormatting
-            .Text = tok
+            .Text = tokName
             .Forward = True
             .Wrap = 0
             .Format = False
@@ -230,7 +230,7 @@ Private Sub ReplaceToken(ByVal doc As Object, ByVal tok As String, ByVal val As 
             .MatchWildcards = False
         End With
         If Not rng.Find.Execute Then Exit Do
-        rng.Text = val
+        rng.Text = tokVal
         guard = guard + 1
         If guard > 100 Then Exit Do
     Loop
