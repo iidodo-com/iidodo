@@ -177,6 +177,8 @@ Private Sub PrepareCircle(ByVal doc As Object, ByVal tokName As String, ByVal do
 End Sub
 
 ' 項目名の直後にある n 文字を、楕円(○)で囲む。失敗したときは文字の「○」を前に付ける
+'   楕円は表(セル)の外=文書の先頭の段落に固定し、ページ基準で配置する。
+'   (セル内に固定すると、表の枠で切り取られて見えなくなることがあるため)
 Private Sub DrawCircle(ByVal doc As Object, ByVal rng As Object, ByVal n As Long)
     Dim st As Long
     Dim r1 As Object, r2 As Object, shp As Object
@@ -193,8 +195,12 @@ Private Sub DrawCircle(ByVal doc As Object, ByVal rng As Object, ByVal n As Long
     If fs <= 0 Or fs > 50 Then fs = 9
     If x2 <= x1 Then x2 = x1 + fs * n
 
-    Set shp = doc.Shapes.AddShape(9, x1 - 3, y1 - 2, x2 - x1 + 6, fs + 5, r1)    ' 9 = 楕円
+    Set shp = doc.Shapes.AddShape(9, x1 - 3, y1 - 2, x2 - x1 + 6, fs + 5, doc.Paragraphs(1).Range)    ' 9 = 楕円
+    On Error Resume Next
+    shp.LayoutInCell = False
+    On Error GoTo Fallback
     shp.Fill.Visible = 0
+    shp.Line.Visible = -1
     shp.Line.ForeColor.RGB = 0
     shp.Line.Weight = 0.75
     shp.WrapFormat.Type = 3             ' 文字の前面
@@ -205,10 +211,9 @@ Private Sub DrawCircle(ByVal doc As Object, ByVal rng As Object, ByVal n As Long
     Exit Sub
 
 Fallback:
-    If shp Is Nothing Then
-        On Error Resume Next
-        rng.InsertAfter ChrW(&H25CB)
-    End If
+    On Error Resume Next
+    If Not shp Is Nothing Then shp.Delete
+    rng.InsertAfter ChrW(&H25CB)
 End Sub
 
 ' テンプレート内の項目(例 {{金額千}})を値に置き換える(複数行の値にも対応)
