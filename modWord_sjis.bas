@@ -244,15 +244,34 @@ Private Sub ReplaceToken(ByVal doc As Object, ByVal tokName As String, ByVal tok
 End Sub
 
 ' テンプレートを探す(見つからなければ選択してもらう)
+'   ブックと同じフォルダーから、「テンプレート名*.docx」に当てはまるファイルを探す。
+'   (ファイル名の末尾に空白や「 (1)」が付いていても見つかる。複数あるときは更新日時が新しいもの)
 Private Function FindTemplate(ByVal tmplName As String) As String
-    Dim p As String
-    p = ThisWorkbook.Path & Application.PathSeparator & tmplName
-    On Error Resume Next
-    If Len(Dir(p)) > 0 Then
-        FindTemplate = p
-        Exit Function
+    Dim folder As String, baseName As String, f As String
+    Dim best As String, bestTime As Date, t As Date
+
+    folder = ThisWorkbook.Path
+    If Len(folder) > 0 Then
+        If Right(folder, 1) <> "\" And Right(folder, 1) <> "/" Then folder = folder & Application.PathSeparator
+        baseName = Left(tmplName, InStrRev(tmplName, ".") - 1)
+        On Error Resume Next
+        f = Dir(folder & baseName & "*.docx")
+        Do While Len(f) > 0
+            If Left(f, 2) <> "~$" Then
+                t = FileDateTime(folder & f)
+                If Len(best) = 0 Or t > bestTime Then
+                    best = folder & f
+                    bestTime = t
+                End If
+            End If
+            f = Dir()
+        Loop
+        On Error GoTo 0
+        If Len(best) > 0 Then
+            FindTemplate = best
+            Exit Function
+        End If
     End If
-    On Error GoTo 0
 
     MsgBox "「" & tmplName & "」が見つかりません。" & vbCrLf & vbCrLf & _
            "このブックと同じフォルダーにテンプレートを置くと、次回から自動で読み込みます。" & vbCrLf & _
