@@ -13,6 +13,10 @@ Private Const SHEET_LIST As String = "入力セル一覧"
 Private Const SHEET_PREV As String = "前年度貼付"
 Private Const SHEET_CHECK As String = "チェック"
 Private Const SHEET_LOAN_INPUT As String = "貸付_入力"
+Private Const COVER_SHEET As String = "表紙等"
+
+' 出力用の一時コピー（表紙等の区画ごと）につけるシート名の先頭
+Private Const TEMP_PREFIX As String = "_tmp表紙"
 
 ' 入力セル一覧の明細行（6行目～842行目）
 Private Const LIST_FIRST_ROW As Long = 6
@@ -335,38 +339,20 @@ Public Sub ExportFormsToPDF()
     Dim mode As String
     Dim sheetNames() As String
     Dim cnt As Long
-    Dim ws As Worksheet
     Dim pdfPath As String
     Dim fy As String
     Dim defaultFileName As String
 
     fy = CStr(ThisWorkbook.Worksheets(SHEET_GUIDE).Range("C6").Value)
-    mode = Trim$(InputBox("出力する範囲の番号（1～3）を入力してください。" & vbCrLf & vbCrLf & _
+    mode = Trim$(InputBox("出力する範囲の番号（1～3）を入力してください。" & vbCrLf & _
+                          "出力順は目次のとおりです（中扉を各セクションの前に入れます）。" & vbCrLf & vbCrLf & _
                           " 1  全帳票（表紙・目次・事業状況報告書・決算報告書・各経理の財務諸表）" & vbCrLf & _
                           " 2  表紙・目次・事業状況報告書・決算報告書のみ" & vbCrLf & _
-                          " 3  各経理の財務諸表・附属明細表・決算精算表のみ", _
+                          " 3  財務諸表の中扉と、各経理の財務諸表・附属明細表・決算精算表のみ", _
                           "PDF出力", "1"))
     If mode = "" Then Exit Sub
     If mode <> "1" And mode <> "2" And mode <> "3" Then
         MsgBox "1～3 の番号を入力してください。", vbExclamation
-        Exit Sub
-    End If
-
-    ' 色付け表示は出力前に解除する
-    Call ApplyInputHighlight(False)
-
-    For Each ws In ThisWorkbook.Worksheets
-        If ws.Visible = xlSheetVisible Then
-            If IsPrintableFormSheet(ws.Name, mode, False) Then
-                cnt = cnt + 1
-                ReDim Preserve sheetNames(1 To cnt)
-                sheetNames(cnt) = ws.Name
-            End If
-        End If
-    Next ws
-
-    If cnt = 0 Then
-        MsgBox "出力対象の帳票シートがありません。", vbExclamation
         Exit Sub
     End If
 
@@ -384,9 +370,20 @@ Public Sub ExportFormsToPDF()
                   vbYesNo + vbQuestion, "PDF出力") <> vbYes Then Exit Sub
     End If
 
+    ' 色付け表示は出力前に解除する
+    Call ApplyInputHighlight(False)
+
     On Error GoTo ErrHandler
     Application.ScreenUpdating = False
     ThisWorkbook.Activate
+    cnt = PrepareSheetList(mode, False, sheetNames)
+    If cnt = 0 Then
+        Call DeleteTempSheets
+        Application.ScreenUpdating = True
+        MsgBox "出力対象の帳票シートがありません。", vbExclamation
+        Exit Sub
+    End If
+
     ThisWorkbook.Worksheets(sheetNames).Select
     ActiveSheet.ExportAsFixedFormat Type:=xlTypePDF, _
                                     Filename:=pdfPath, _
@@ -394,16 +391,22 @@ Public Sub ExportFormsToPDF()
                                     IncludeDocProperties:=True, _
                                     IgnorePrintAreas:=False, _
                                     OpenAfterPublish:=True
+    Call DeleteTempSheets
     ThisWorkbook.Worksheets(SHEET_GUIDE).Select
     Application.ScreenUpdating = True
 
-    MsgBox cnt & " シートをPDFに出力しました。" & vbCrLf & pdfPath, vbInformation, "PDF出力"
+    MsgBox "PDFに出力しました。" & vbCrLf & pdfPath, vbInformation, "PDF出力"
     Exit Sub
 
 ErrHandler:
-    Application.ScreenUpdating = True
+    Dim errMsg As String
+    errMsg = Err.Description
+    On Error Resume Next
+    Call DeleteTempSheets
     ThisWorkbook.Worksheets(SHEET_GUIDE).Select
-    MsgBox "PDF出力中にエラーが発生しました。" & vbCrLf & Err.Description, vbCritical, "PDF出力"
+    Application.ScreenUpdating = True
+    On Error GoTo 0
+    MsgBox "PDF出力中にエラーが発生しました。" & vbCrLf & errMsg, vbCritical, "PDF出力"
 End Sub
 
 ' ------------------------------------------------------------------------------------------
@@ -413,9 +416,9 @@ Public Sub PrintFormsWizard()
     Dim includeBlank As VbMsgBoxResult
     Dim sheetNames() As String
     Dim cnt As Long
-    Dim ws As Worksheet
 
     includeBlank = MsgBox("全帳票の印刷プレビューを表示します。" & vbCrLf & _
+                          "表示順は目次のとおりです（中扉を各セクションの前に入れます）。" & vbCrLf & _
                           "印刷範囲・余白・改ページは各シートの設定のままです。" & vbCrLf & vbCrLf & _
                           "両面印刷の調整用白紙シート（「白紙」を含むシート）を含めますか？" & vbCrLf & _
                           "　はい　　：含める" & vbCrLf & _
@@ -426,32 +429,179 @@ Public Sub PrintFormsWizard()
     ' 色付け表示は印刷前に解除する
     Call ApplyInputHighlight(False)
 
-    For Each ws In ThisWorkbook.Worksheets
-        If ws.Visible = xlSheetVisible Then
-            If IsPrintableFormSheet(ws.Name, "1", (includeBlank = vbYes)) Then
-                cnt = cnt + 1
-                ReDim Preserve sheetNames(1 To cnt)
-                sheetNames(cnt) = ws.Name
-            End If
-        End If
-    Next ws
-
+    On Error GoTo ErrHandler
+    Application.ScreenUpdating = False
+    ThisWorkbook.Activate
+    cnt = PrepareSheetList("1", (includeBlank = vbYes), sheetNames)
     If cnt = 0 Then
+        Call DeleteTempSheets
+        Application.ScreenUpdating = True
         MsgBox "印刷対象の帳票シートがありません。", vbExclamation
         Exit Sub
     End If
 
-    ThisWorkbook.Activate
+    Application.ScreenUpdating = True
     ThisWorkbook.Worksheets(sheetNames).PrintPreview
+    Call DeleteTempSheets
     ThisWorkbook.Worksheets(SHEET_GUIDE).Select
+    Exit Sub
+
+ErrHandler:
+    Dim errMsg As String
+    errMsg = Err.Description
+    On Error Resume Next
+    Call DeleteTempSheets
+    ThisWorkbook.Worksheets(SHEET_GUIDE).Select
+    Application.ScreenUpdating = True
+    On Error GoTo 0
+    MsgBox "印刷プレビューの表示中にエラーが発生しました。" & vbCrLf & errMsg, vbCritical, "印刷プレビュー"
 End Sub
+
+' ------------------------------------------------------------------------------------------
+' 出力順（目次の順）
+' 「表紙等」シートには、表紙と各中扉の計12ページが1枚に入っている。そのまま出力すると中扉が
+' 先頭にまとまるため、区画ごとに一時コピーを作り、各セクションの直前に差し込んで出力する。
+' 一時コピーは出力後に削除する。元のシートの並び順・書式・印刷設定は変更しない。
+'   区画 1 表紙 / 2 事業状況報告書 / 3 決算報告書 / 4 財務諸表 / 5～12 短期～貸付の各経理
+' ------------------------------------------------------------------------------------------
+' 出力するシート名を目次の順に並べて返す（戻り値は件数）。一時コピーを作成する。
+Private Function PrepareSheetList(ByVal mode As String, ByVal includeBlank As Boolean, _
+                                  ByRef names() As String) As Long
+    Dim wsCover As Worksheet
+    Dim anchor As Worksheet
+    Dim cp As Worksheet
+    Dim ws As Worksheet
+    Dim seg As Long
+    Dim segFirst As Long
+    Dim segLast As Long
+    Dim coverEnd As Long
+    Dim cnt As Long
+
+    Set wsCover = GetSheet(COVER_SHEET)
+    If wsCover Is Nothing Then Err.Raise vbObjectError + 1, , "「" & COVER_SHEET & "」シートが見つかりません。"
+
+    Select Case mode
+        Case "2": segFirst = 1: segLast = 3
+        Case "3": segFirst = 4: segLast = 12
+        Case Else: segFirst = 1: segLast = 12
+    End Select
+
+    coverEnd = GetCoverEndRow(wsCover)
+    For seg = segFirst To segLast
+        Set anchor = GetSegmentAnchor(seg)
+        If Not anchor Is Nothing Then
+            wsCover.Copy Before:=anchor
+            Set cp = ActiveSheet
+            cp.Name = TEMP_PREFIX & Format$(seg, "00")
+            cp.PageSetup.PrintArea = GetSegmentArea(seg, coverEnd)
+        End If
+    Next seg
+
+    ' 並び順は、元のシート順に一時コピーを差し込んだ順（＝目次の順）
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible Then
+            If Left$(ws.Name, Len(TEMP_PREFIX)) = TEMP_PREFIX Or IsPrintableFormSheet(ws.Name, mode, includeBlank) Then
+                cnt = cnt + 1
+                ReDim Preserve names(1 To cnt)
+                names(cnt) = ws.Name
+            End If
+        End If
+    Next ws
+    PrepareSheetList = cnt
+End Function
+
+Private Sub DeleteTempSheets()
+    Dim i As Long
+    Dim prevAlerts As Boolean
+
+    prevAlerts = Application.DisplayAlerts
+    Application.DisplayAlerts = False
+    For i = ThisWorkbook.Worksheets.Count To 1 Step -1
+        If Left$(ThisWorkbook.Worksheets(i).Name, Len(TEMP_PREFIX)) = TEMP_PREFIX Then
+            ThisWorkbook.Worksheets(i).Delete
+        End If
+    Next i
+    Application.DisplayAlerts = prevAlerts
+End Sub
+
+' 区画の一時コピーを差し込む位置（このシートの直前）
+Private Function GetSegmentAnchor(ByVal seg As Long) As Worksheet
+    Select Case seg
+        Case 1: Set GetSegmentAnchor = GetSheet("目次")
+        Case 2: Set GetSegmentAnchor = GetSheet("報告_概況P1-2")
+        Case 3: Set GetSegmentAnchor = GetSheet("報告_総括P3-5")
+        Case 4, 5: Set GetSegmentAnchor = FirstSheetWithPrefix("短期_")
+        Case 6: Set GetSegmentAnchor = FirstSheetWithPrefix("厚生_")
+        Case 7: Set GetSegmentAnchor = FirstSheetWithPrefix("退職等_")
+        Case 8: Set GetSegmentAnchor = FirstSheetWithPrefix("経過的_")
+        Case 9: Set GetSegmentAnchor = FirstSheetWithPrefix("預託金_")
+        Case 10: Set GetSegmentAnchor = FirstSheetWithPrefix("業務_")
+        Case 11: Set GetSegmentAnchor = FirstSheetWithPrefix("保健_")
+        Case 12: Set GetSegmentAnchor = FirstSheetWithPrefix("貸付_")
+    End Select
+End Function
+
+Private Function FirstSheetWithPrefix(ByVal prefix As String) As Worksheet
+    Dim ws As Worksheet
+    For Each ws In ThisWorkbook.Worksheets
+        If Left$(ws.Name, Len(prefix)) = prefix Then
+            Set FirstSheetWithPrefix = ws
+            Exit Function
+        End If
+    Next ws
+End Function
+
+' 「表紙等」の印刷範囲（A1:R188）を区画ごとに分けたセル範囲
+Private Function GetSegmentArea(ByVal seg As Long, ByVal coverEnd As Long) As String
+    Select Case seg
+        Case 1: GetSegmentArea = "$A$1:$R$" & coverEnd
+        Case 2: GetSegmentArea = "$A$" & (coverEnd + 1) & ":$R$51"
+        Case 3: GetSegmentArea = "$A$52:$R$65"
+        Case 4: GetSegmentArea = "$A$66:$R$79"
+        Case 5: GetSegmentArea = "$A$80:$R$93"
+        Case 6: GetSegmentArea = "$A$94:$R$107"
+        Case 7: GetSegmentArea = "$A$108:$R$121"
+        Case 8: GetSegmentArea = "$A$122:$R$135"
+        Case 9: GetSegmentArea = "$A$136:$R$149"
+        Case 10: GetSegmentArea = "$A$150:$R$162"
+        Case 11: GetSegmentArea = "$A$163:$R$175"
+        Case 12: GetSegmentArea = "$A$176:$R$188"
+    End Select
+End Function
+
+' 表紙ページの最終行。1ページ目は表紙のあと自動改ページで事業状況報告書の中扉に続くため、
+' Excel が決めた最初の改ページ位置を使う。取得できない場合は用紙・余白・拡大率から計算する。
+Private Function GetCoverEndRow(ByVal ws As Worksheet) As Long
+    Dim r As Long
+    Dim i As Long
+    Dim h As Double
+    Dim limit As Double
+    Dim zoomPct As Double
+
+    On Error Resume Next
+    r = ws.HPageBreaks(1).Location.Row - 1
+    On Error GoTo 0
+    If r >= 20 And r < 51 Then
+        GetCoverEndRow = r
+        Exit Function
+    End If
+
+    zoomPct = 100
+    If VarType(ws.PageSetup.Zoom) <> vbBoolean Then zoomPct = CDbl(ws.PageSetup.Zoom)
+    limit = (841.9 - ws.PageSetup.TopMargin - ws.PageSetup.BottomMargin) / (zoomPct / 100)
+    For i = 1 To 51
+        h = h + ws.Rows(i).RowHeight
+        If h > limit Then Exit For
+    Next i
+    GetCoverEndRow = i - 1
+End Function
 
 Private Function IsPrintableFormSheet(ByVal sName As String, ByVal mode As String, _
                                       ByVal includeBlankSheets As Boolean) As Boolean
     ' 管理用・内部計算用のシートは対象外
     Select Case sName
         Case SHEET_GUIDE, SHEET_LIST, SHEET_PREV, SHEET_CHECK, SHEET_LOAN_INPUT, _
-             "報告_P8グラフデータ", "報告_預託金のカメラ"
+             "報告_P8グラフデータ", "報告_預託金のカメラ", COVER_SHEET
             IsPrintableFormSheet = False
             Exit Function
     End Select
@@ -463,9 +613,9 @@ Private Function IsPrintableFormSheet(ByVal sName As String, ByVal mode As Strin
 
     Select Case mode
         Case "2"
-            IsPrintableFormSheet = (sName = "表紙等" Or sName = "目次" Or Left$(sName, 3) = "報告_")
+            IsPrintableFormSheet = (sName = "目次" Or Left$(sName, 3) = "報告_")
         Case "3"
-            IsPrintableFormSheet = Not (sName = "表紙等" Or sName = "目次" Or Left$(sName, 3) = "報告_")
+            IsPrintableFormSheet = Not (sName = "目次" Or Left$(sName, 3) = "報告_")
         Case Else
             IsPrintableFormSheet = True
     End Select
