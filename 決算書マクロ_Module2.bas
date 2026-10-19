@@ -3,10 +3,14 @@ Option Explicit
 
 ' 広島市職員共済組合 決算書 補助マクロ
 ' 帳票シートの印刷範囲・列幅・行高・罫線・図形は変更しない。
-' 変更するのは手入力セルの背景色（色付け表示のON/OFF）とシート保護のみ。
+' 変更するのは手入力セルの黄色表示の切替（入力ガイドのG10）とシート保護のみ。
 
-' 手入力セルの色付け表示に使う色 RGB(255, 255, 204)。「貸付_入力」シートの入力欄と同じ色。
-Private Const INPUT_HIGHLIGHT_COLOR As Long = 13434879
+' 手入力セルの黄色は条件付き書式で表示している。入力ガイドのこのセルが 1 のときだけ表示される。
+Private Const INPUT_COLOR_CELL As String = "G10"
+
+' 印刷・PDF出力のために黄色表示を一時的に止めているか／止める前の値
+Public gInputColorSuspended As Boolean
+Public gInputColorBackup As Variant
 
 Private Const SHEET_GUIDE As String = "入力ガイド"
 Private Const SHEET_LIST As String = "入力セル一覧"
@@ -198,77 +202,66 @@ Public Sub RunFullCheckAndDiagnose()
 End Sub
 
 ' ------------------------------------------------------------------------------------------
-' 手入力セルの色付け表示 ON/OFF
-' 帳票にもともと塗りがあるセル（黄色など）は変更しない。
+' 手入力セルの黄色表示 ON/OFF
+' 黄色は条件付き書式で出しており、セル本来の塗りは変更しない。画面表示用で、印刷には出さない。
 ' ------------------------------------------------------------------------------------------
 Public Sub ToggleInputHighlight()
-    Dim ans As VbMsgBoxResult
+    Dim ws As Worksheet
 
-    If CountHighlightedCells() > 0 Then
-        Call ApplyInputHighlight(False)
-        MsgBox "手入力セルの色付けを解除しました。", vbInformation, "入力セル色付け"
+    Set ws = GetSheet(SHEET_GUIDE)
+    If ws Is Nothing Then Exit Sub
+
+    On Error GoTo ErrHandler
+    gInputColorSuspended = False
+    If ws.Range(INPUT_COLOR_CELL).Value = 1 Then
+        ws.Range(INPUT_COLOR_CELL).Value = 0
+        MsgBox "手入力セルの黄色表示を止めました。", vbInformation, "入力セルの黄色表示"
     Else
-        ans = MsgBox("帳票シートの手入力セルを薄黄色で表示します。" & vbCrLf & _
-                     "もう一度実行するか、PDF出力・印刷プレビューを実行すると解除されます。" & vbCrLf & _
-                     "もともと塗りつぶしのあるセルは変更しません。", _
-                     vbOKCancel + vbQuestion, "入力セル色付け")
-        If ans = vbOK Then
-            Call ApplyInputHighlight(True)
-            MsgBox "手入力セルを色付けしました。", vbInformation, "入力セル色付け"
-        End If
+        ws.Range(INPUT_COLOR_CELL).Value = 1
+        MsgBox "手入力セルを黄色で表示します。" & vbCrLf & _
+               "黄色は画面表示用で、印刷・PDF出力・印刷プレビューには出ません。", _
+               vbInformation, "入力セルの黄色表示"
     End If
+    Exit Sub
+
+ErrHandler:
+    MsgBox "黄色表示を切り替えられませんでした。" & vbCrLf & _
+           "「" & SHEET_GUIDE & "」シートが保護されている場合は保護を解除してください。", vbExclamation
 End Sub
 
-Public Sub ApplyInputHighlight(ByVal turnOn As Boolean)
-    Dim wsList As Worksheet
-    Dim r As Long
-    Dim target As Range
+' 印刷・PDF出力の前に黄色表示を止める（止める前の値を覚えておく）
+Public Sub SuspendInputColor()
+    Dim ws As Worksheet
 
-    Set wsList = GetSheet(SHEET_LIST)
-    If wsList Is Nothing Then Exit Sub
+    If gInputColorSuspended Then Exit Sub
+    Set ws = GetSheet(SHEET_GUIDE)
+    If ws Is Nothing Then Exit Sub
 
-    Application.ScreenUpdating = False
-    For r = LIST_FIRST_ROW To LIST_LAST_ROW
-        Set target = GetTargetCellFromListRow(wsList, r)
-        ' 「貸付_入力」シートは入力欄が常に色付きのため対象外
-        If Not target Is Nothing Then
-            If target.Worksheet.Name <> SHEET_LOAN_INPUT Then
-                If turnOn Then
-                    If target.Interior.ColorIndex = xlNone Then target.Interior.Color = INPUT_HIGHLIGHT_COLOR
-                Else
-                    If target.Interior.Pattern = xlSolid And target.Interior.Color = INPUT_HIGHLIGHT_COLOR Then
-                        target.Interior.ColorIndex = xlNone
-                    End If
-                End If
-            End If
-        End If
-    Next r
-    Application.ScreenUpdating = True
+    On Error Resume Next
+    gInputColorBackup = ws.Range(INPUT_COLOR_CELL).Value
+    ws.Range(INPUT_COLOR_CELL).Value = 0
+    If Err.Number = 0 Then gInputColorSuspended = True
+    Err.Clear
+    On Error GoTo 0
 End Sub
 
-' 色付け中のセル数（色付け状態の判定用）
-Private Function CountHighlightedCells() As Long
-    Dim wsList As Worksheet
-    Dim r As Long
-    Dim target As Range
-    Dim n As Long
+' 黄色表示を元に戻す
+Public Sub ResumeInputColor()
+    Dim ws As Worksheet
+    Dim prevEvents As Boolean
 
-    Set wsList = GetSheet(SHEET_LIST)
-    If wsList Is Nothing Then Exit Function
+    If Not gInputColorSuspended Then Exit Sub
+    gInputColorSuspended = False
+    Set ws = GetSheet(SHEET_GUIDE)
+    If ws Is Nothing Then Exit Sub
 
-    For r = LIST_FIRST_ROW To LIST_LAST_ROW
-        Set target = GetTargetCellFromListRow(wsList, r)
-        If Not target Is Nothing Then
-            If target.Worksheet.Name <> SHEET_LOAN_INPUT Then
-                If target.Interior.Pattern = xlSolid And target.Interior.Color = INPUT_HIGHLIGHT_COLOR Then
-                    n = n + 1
-                    Exit For
-                End If
-            End If
-        End If
-    Next r
-    CountHighlightedCells = n
-End Function
+    prevEvents = Application.EnableEvents
+    Application.EnableEvents = False
+    On Error Resume Next
+    ws.Range(INPUT_COLOR_CELL).Value = gInputColorBackup
+    On Error GoTo 0
+    Application.EnableEvents = prevEvents
+End Sub
 
 ' 入力セル一覧のC列（HYPERLINK式）から対象セルを取得する
 Private Function GetTargetCellFromListRow(ByVal wsList As Worksheet, ByVal rowNum As Long) As Range
@@ -370,16 +363,19 @@ Public Sub ExportFormsToPDF()
                   vbYesNo + vbQuestion, "PDF出力") <> vbYes Then Exit Sub
     End If
 
-    ' 色付け表示は出力前に解除する
-    Call ApplyInputHighlight(False)
+    ' 黄色表示は出力前に止め、出力後に戻す
+    Call SuspendInputColor
 
     On Error GoTo ErrHandler
     Application.ScreenUpdating = False
+    Application.EnableEvents = False
     ThisWorkbook.Activate
     cnt = PrepareSheetList(mode, False, sheetNames)
     If cnt = 0 Then
         Call DeleteTempSheets
+        Application.EnableEvents = True
         Application.ScreenUpdating = True
+        Call ResumeInputColor
         MsgBox "出力対象の帳票シートがありません。", vbExclamation
         Exit Sub
     End If
@@ -393,7 +389,9 @@ Public Sub ExportFormsToPDF()
                                     OpenAfterPublish:=True
     Call DeleteTempSheets
     ThisWorkbook.Worksheets(SHEET_GUIDE).Select
+    Application.EnableEvents = True
     Application.ScreenUpdating = True
+    Call ResumeInputColor
 
     MsgBox "PDFに出力しました。" & vbCrLf & pdfPath, vbInformation, "PDF出力"
     Exit Sub
@@ -404,7 +402,9 @@ ErrHandler:
     On Error Resume Next
     Call DeleteTempSheets
     ThisWorkbook.Worksheets(SHEET_GUIDE).Select
+    Application.EnableEvents = True
     Application.ScreenUpdating = True
+    Call ResumeInputColor
     On Error GoTo 0
     MsgBox "PDF出力中にエラーが発生しました。" & vbCrLf & errMsg, vbCritical, "PDF出力"
 End Sub
@@ -426,16 +426,19 @@ Public Sub PrintFormsWizard()
                           vbYesNoCancel + vbQuestion, "印刷プレビュー")
     If includeBlank = vbCancel Then Exit Sub
 
-    ' 色付け表示は印刷前に解除する
-    Call ApplyInputHighlight(False)
+    ' 黄色表示は印刷前に止め、プレビューを閉じたあとに戻す
+    Call SuspendInputColor
 
     On Error GoTo ErrHandler
     Application.ScreenUpdating = False
+    Application.EnableEvents = False
     ThisWorkbook.Activate
     cnt = PrepareSheetList("1", (includeBlank = vbYes), sheetNames)
     If cnt = 0 Then
         Call DeleteTempSheets
+        Application.EnableEvents = True
         Application.ScreenUpdating = True
+        Call ResumeInputColor
         MsgBox "印刷対象の帳票シートがありません。", vbExclamation
         Exit Sub
     End If
@@ -444,6 +447,8 @@ Public Sub PrintFormsWizard()
     ThisWorkbook.Worksheets(sheetNames).PrintPreview
     Call DeleteTempSheets
     ThisWorkbook.Worksheets(SHEET_GUIDE).Select
+    Application.EnableEvents = True
+    Call ResumeInputColor
     Exit Sub
 
 ErrHandler:
@@ -452,7 +457,9 @@ ErrHandler:
     On Error Resume Next
     Call DeleteTempSheets
     ThisWorkbook.Worksheets(SHEET_GUIDE).Select
+    Application.EnableEvents = True
     Application.ScreenUpdating = True
+    Call ResumeInputColor
     On Error GoTo 0
     MsgBox "印刷プレビューの表示中にエラーが発生しました。" & vbCrLf & errMsg, vbCritical, "印刷プレビュー"
 End Sub
@@ -655,7 +662,7 @@ Public Sub ToggleSheetProtection()
     Application.ScreenUpdating = True
     ans = MsgBox("全シートを保護します。" & vbCrLf & vbCrLf & _
                  "編集できるのは次のセルだけになります。" & vbCrLf & _
-                 "　・入力ガイド C6:C9" & vbCrLf & _
+                 "　・入力ガイド C6:C9、G10（黄色表示の切替）" & vbCrLf & _
                  "　・前年度貼付 E8:E332" & vbCrLf & _
                  "　・入力セル一覧に載っている手入力セル（貸付_入力を含む）" & vbCrLf & _
                  "パスワードは設定しません。同じ操作でいつでも解除できます。", _
@@ -672,6 +679,7 @@ Public Sub ToggleSheetProtection()
     Next ws
 
     wsGuide.Range("C6:C9").Locked = False
+    wsGuide.Range(INPUT_COLOR_CELL).Locked = False
     ThisWorkbook.Worksheets(SHEET_PREV).Range("E8:E332").Locked = False
     For r = LIST_FIRST_ROW To LIST_LAST_ROW
         Set target = GetTargetCellFromListRow(wsList, r)
