@@ -26,6 +26,9 @@ Private Sub MakeWordDoc(ByVal kind As String, ByVal tmplName As String)
     Dim miss As String, ngCount As Long
     Dim ans As Long
     Dim grp As String
+    Dim marks As Collection
+    Dim m As Variant
+    Dim tok As String, val As String, n As Long
 
     On Error GoTo EH
 
@@ -89,20 +92,35 @@ Private Sub MakeWordDoc(ByVal kind As String, ByVal tmplName As String)
 
     ' --- テンプレートから新しい文書を作成(テンプレート自体は変更しません) ---
     Set wdDoc = wdApp.Documents.Add(Template:=tmplPath, NewTemplate:=False, DocumentType:=0)
+    wdApp.Visible = True
+    On Error Resume Next
+    wdApp.ActiveWindow.View.Type = 3    ' 印刷レイアウト(○で囲む位置の計算に必要)
+    On Error GoTo EH
 
     ' --- 差し込み ---
     lastRow = wsData.Cells(wsData.Rows.Count, 1).End(-4162).Row   ' xlUp
+    Set marks = New Collection
     For r = 5 To lastRow
         If CStr(wsData.Cells(r, 1).Value) = kind Then
-            ReplaceToken wdDoc, CStr(wsData.Cells(r, 2).Value), CStr(wsData.Cells(r, 3).Value)
+            tok = CStr(wsData.Cells(r, 2).Value)
+            val = CStr(wsData.Cells(r, 3).Value)
+            n = CircleLen(tok)
+            If n > 0 Then
+                PrepareCircle wdDoc, tok, (val = ChrW(&H25CB)), n, marks    ' ○ で囲む項目
+            Else
+                ReplaceToken wdDoc, tok, val
+            End If
         End If
     Next r
+    ' 文字をすべて差し込んだ後に、該当する項目を○で囲む
+    For Each m In marks
+        If m(2) Then DrawCircle wdDoc, m(0), CLng(m(1))
+    Next m
 
     ' --- 保存して表示 ---
     outPath = OutputFolder() & kind & "_" & SafeName(CStr(ThisWorkbook.Names("dat_name").RefersToRange.Value)) & _
               "_" & Format(Now, "yyyymmdd_hhnnss") & ".docx"
     wdDoc.SaveAs2 FileName:=outPath, FileFormat:=12
-    wdApp.Visible = True
     wdApp.Activate
     Application.StatusBar = False
 
@@ -118,6 +136,78 @@ EH:
            "・保存先フォルダーに書き込めるか" & vbCrLf & "を確認してください。", vbCritical, "Word出力"
     On Error Resume Next
     If Not wdDoc Is Nothing Then wdDoc.Close False
+End Sub
+
+' ○で囲む項目の、項目名から囲む文字数を返す(0=囲む項目ではない)
+Private Function CircleLen(ByVal tok As String) As Long
+    Select Case tok
+        Case "{{事由自動車}}"
+            CircleLen = 9
+        Case "{{事由出産}}", "{{事由医療}}", "{{事由入学}}", "{{事由結婚}}", "{{事由葬祭}}", "{{事由修学}}"
+            CircleLen = 2
+        Case "{{現在なし}}", "{{同時なし}}"
+            CircleLen = 3
+        Case "{{現在住宅}}", "{{現在特別}}", "{{現在普通}}", "{{現在災害}}", _
+             "{{同時住宅}}", "{{同時特別}}", "{{同時普通}}", "{{同時災害}}"
+            CircleLen = 4
+        Case Else
+            CircleLen = 0
+    End Select
+End Function
+
+' 項目名の文字を消して、その位置を覚えておく(あとで○を描く)
+Private Sub PrepareCircle(ByVal doc As Object, ByVal tok As String, ByVal doIt As Boolean, _
+                          ByVal n As Long, ByVal marks As Collection)
+    Dim rng As Object
+    Set rng = doc.Content
+    With rng.Find
+        .ClearFormatting
+        .Text = tok
+        .Forward = True
+        .Wrap = 0
+        .Format = False
+        .MatchCase = True
+        .MatchWildcards = False
+    End With
+    If rng.Find.Execute Then
+        rng.Text = ""
+        marks.Add Array(rng, n, doIt)
+    End If
+End Sub
+
+' 項目名の直後にある n 文字を、楕円(○)で囲む。失敗したときは文字の「○」を前に付ける
+Private Sub DrawCircle(ByVal doc As Object, ByVal rng As Object, ByVal n As Long)
+    Dim st As Long
+    Dim r1 As Object, r2 As Object, shp As Object
+    Dim x1 As Single, x2 As Single, y1 As Single, fs As Single
+
+    On Error GoTo Fallback
+    st = rng.Start
+    Set r1 = doc.Range(st, st + n)
+    Set r2 = doc.Range(st + n, st + n)
+    x1 = r1.Information(5)      ' wdHorizontalPositionRelativeToPage
+    y1 = r1.Information(6)      ' wdVerticalPositionRelativeToPage
+    x2 = r2.Information(5)
+    fs = r1.Font.Size
+    If fs <= 0 Or fs > 50 Then fs = 9
+    If x2 <= x1 Then x2 = x1 + fs * n
+
+    Set shp = doc.Shapes.AddShape(9, x1 - 3, y1 - 2, x2 - x1 + 6, fs + 5, r1)    ' 9 = 楕円
+    shp.Fill.Visible = 0
+    shp.Line.ForeColor.RGB = 0
+    shp.Line.Weight = 0.75
+    shp.WrapFormat.Type = 3             ' 文字の前面
+    shp.RelativeHorizontalPosition = 1  ' ページ基準
+    shp.RelativeVerticalPosition = 1
+    shp.Left = x1 - 3
+    shp.Top = y1 - 2
+    Exit Sub
+
+Fallback:
+    If shp Is Nothing Then
+        On Error Resume Next
+        rng.InsertAfter ChrW(&H25CB)
+    End If
 End Sub
 
 ' テンプレート内の項目(例 {{金額千}})を値に置き換える(複数行の値にも対応)
