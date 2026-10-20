@@ -12,6 +12,19 @@ Private Const INPUT_COLOR_CELL As String = "G10"
 Public gInputColorSuspended As Boolean
 Public gInputColorBackup As Variant
 
+' Enterキーで次の手入力セルへ移動する機能のオン／オフ（入力ガイドのこのセルが 1 のとき有効）
+Private Const ENTER_JUMP_CELL As String = "G19"
+
+' 手入力セルの並び（入力セル一覧の順）。Enter の移動先を決めるのに使う
+Private mInSheet() As String
+Private mInAddr() As String
+Private mInCount As Long
+Private mInIndex As Collection
+
+' 入力直後の移動のために覚えておくセル
+Private mPendSheet As String
+Private mPendAddr As String
+
 Private Const SHEET_GUIDE As String = "入力ガイド"
 Private Const SHEET_LIST As String = "入力セル一覧"
 Private Const SHEET_PREV As String = "前年度貼付"
@@ -37,7 +50,7 @@ Public Sub ShowCommandMenu()
     Dim msg As String
     Dim ans As String
 
-    msg = "実行する処理の番号（1～8）を入力してください。" & vbCrLf & vbCrLf & _
+    msg = "実行する処理の番号（1～9）を入力してください。" & vbCrLf & vbCrLf & _
           " 1  整合性チェックの結果確認" & vbCrLf & _
           " 2  手入力セルの色付け表示 ON/OFF" & vbCrLf & _
           " 3  未入力セルへ移動" & vbCrLf & _
@@ -45,7 +58,8 @@ Public Sub ShowCommandMenu()
           " 5  帳票の印刷プレビュー" & vbCrLf & _
           " 6  シート保護 ON/OFF" & vbCrLf & _
           " 7  来年度への繰越" & vbCrLf & _
-          " 8  入力ガイドにボタンを配置"
+          " 8  入力ガイドにボタンを配置" & vbCrLf & _
+          " 9  Enterキーで次の手入力セルへ移動 ON/OFF"
 
     ans = InputBox(msg, "決算書 マクロメニュー", "1")
     Select Case Trim$(ans)
@@ -57,6 +71,7 @@ Public Sub ShowCommandMenu()
         Case "6": Call ToggleSheetProtection
         Case "7": Call RollOverToNextYear
         Case "8": Call SetupGuideButtons
+        Case "9": Call ToggleEnterJump
     End Select
 End Sub
 
@@ -662,7 +677,7 @@ Public Sub ToggleSheetProtection()
     Application.ScreenUpdating = True
     ans = MsgBox("全シートを保護します。" & vbCrLf & vbCrLf & _
                  "編集できるのは次のセルだけになります。" & vbCrLf & _
-                 "　・入力ガイド C6:C9、G10（黄色表示の切替）" & vbCrLf & _
+                 "　・入力ガイド C6:C9、G10・G19（表示・Enterキーの切替）" & vbCrLf & _
                  "　・前年度貼付 E8:E332" & vbCrLf & _
                  "　・入力セル一覧に載っている手入力セル（貸付_入力を含む）" & vbCrLf & _
                  "パスワードは設定しません。同じ操作でいつでも解除できます。", _
@@ -680,6 +695,7 @@ Public Sub ToggleSheetProtection()
 
     wsGuide.Range("C6:C9").Locked = False
     wsGuide.Range(INPUT_COLOR_CELL).Locked = False
+    wsGuide.Range(ENTER_JUMP_CELL).Locked = False
     ThisWorkbook.Worksheets(SHEET_PREV).Range("E8:E332").Locked = False
     For r = LIST_FIRST_ROW To LIST_LAST_ROW
         Set target = GetTargetCellFromListRow(wsList, r)
@@ -779,6 +795,256 @@ Public Sub RollOverToNextYear()
            IIf(backupPath <> "", vbCrLf & "バックアップ：" & backupPath, "") & vbCrLf & vbCrLf & _
            "シート保護は解除されています。必要に応じて再度設定してください。", _
            vbInformation, "来年度への繰越"
+End Sub
+
+' ------------------------------------------------------------------------------------------
+' Enterキーで次の手入力セルへ移動
+'   ・Enter       次の手入力セル（入力セル一覧の順）へ。別のシートにあるときはそのシートへ移る
+'   ・Shift+Enter 前の手入力セルへ
+'   ・手入力セル以外では、Enter は通常どおり（設定した方向へ1セル）動く
+'   ・入力ガイドの G19 が 1 のときだけ有効。このブックがアクティブな間だけキー割り当てを変える
+' ------------------------------------------------------------------------------------------
+Public Sub ToggleEnterJump()
+    Dim ws As Worksheet
+
+    Set ws = GetSheet(SHEET_GUIDE)
+    If ws Is Nothing Then Exit Sub
+
+    On Error GoTo ErrHandler
+    If ws.Range(ENTER_JUMP_CELL).Value = 1 Then
+        ws.Range(ENTER_JUMP_CELL).Value = 0
+        Call DisableEnterKey
+        MsgBox "Enterキーを通常の動作に戻しました。", vbInformation, "Enterキーの移動"
+    Else
+        ws.Range(ENTER_JUMP_CELL).Value = 1
+        Call EnableEnterKey
+        MsgBox "Enterキーで次の手入力セルへ移動します。" & vbCrLf & _
+               "Shift+Enterで前の手入力セルへ戻ります。", vbInformation, "Enterキーの移動"
+    End If
+    Exit Sub
+
+ErrHandler:
+    MsgBox "切り替えられませんでした。「" & SHEET_GUIDE & "」シートが保護されている場合は保護を解除してください。", vbExclamation
+End Sub
+
+Public Function EnterJumpEnabled() As Boolean
+    Dim ws As Worksheet
+
+    Set ws = GetSheet(SHEET_GUIDE)
+    If ws Is Nothing Then Exit Function
+    On Error Resume Next
+    EnterJumpEnabled = (ws.Range(ENTER_JUMP_CELL).Value = 1)
+    On Error GoTo 0
+End Function
+
+' ブックを開いたとき・アクティブになったときに、Enterキーの割り当てを設定する
+Public Sub EnableEnterKey()
+    Dim book As String
+
+    If mInCount = 0 Then Call BuildInputOrder
+    If Not EnterJumpEnabled() Or mInCount = 0 Then
+        Call DisableEnterKey
+        Exit Sub
+    End If
+
+    book = "'" & ThisWorkbook.Name & "'!"
+    Application.OnKey "~", book & "EnterKeyForward"
+    Application.OnKey "{ENTER}", book & "EnterKeyForward"
+    Application.OnKey "+~", book & "EnterKeyBackward"
+    Application.OnKey "+{ENTER}", book & "EnterKeyBackward"
+End Sub
+
+' 他のブックに切り替えたとき・閉じるときに、Enterキーを元に戻す
+Public Sub DisableEnterKey()
+    Application.OnKey "~"
+    Application.OnKey "{ENTER}"
+    Application.OnKey "+~"
+    Application.OnKey "+{ENTER}"
+End Sub
+
+' 入力セル一覧の並びで、手入力セルの一覧を作る
+Public Sub BuildInputOrder()
+    Dim wsList As Worksheet
+    Dim r As Long
+    Dim target As Range
+    Dim addr As String
+
+    Set wsList = GetSheet(SHEET_LIST)
+    If wsList Is Nothing Then Exit Sub
+
+    mInCount = 0
+    Set mInIndex = New Collection
+    ReDim mInSheet(1 To LIST_LAST_ROW - LIST_FIRST_ROW + 1)
+    ReDim mInAddr(1 To LIST_LAST_ROW - LIST_FIRST_ROW + 1)
+
+    For r = LIST_FIRST_ROW To LIST_LAST_ROW
+        Set target = GetTargetCellFromListRow(wsList, r)
+        If Not target Is Nothing Then
+            addr = target.Address(False, False)
+            mInCount = mInCount + 1
+            mInSheet(mInCount) = target.Worksheet.Name
+            mInAddr(mInCount) = addr
+            On Error Resume Next
+            mInIndex.Add mInCount, target.Worksheet.Name & "!" & addr
+            On Error GoTo 0
+        End If
+    Next r
+End Sub
+
+' セルが手入力セルなら、その番号（1～）を返す。違えば 0
+Private Function InputIndexOf(ByVal cell As Range) As Long
+    Dim key As String
+
+    If mInIndex Is Nothing Then Exit Function
+    On Error Resume Next
+    key = cell.Worksheet.Name & "!" & cell.MergeArea.Cells(1, 1).Address(False, False)
+    InputIndexOf = CLng(mInIndex(key))
+    If Err.Number <> 0 Then InputIndexOf = 0
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+Private Sub GoToInput(ByVal idx As Long)
+    Dim ws As Worksheet
+
+    If idx < 1 Or idx > mInCount Then Exit Sub
+    Set ws = GetSheet(mInSheet(idx))
+    If ws Is Nothing Then Exit Sub
+    If ws.Visible <> xlSheetVisible Then Exit Sub
+
+    On Error Resume Next
+    If Not ActiveSheet Is ws Then ws.Activate
+    ws.Range(mInAddr(idx)).Select
+    On Error GoTo 0
+End Sub
+
+' Excel の Enter が動かす先のセル（backward=True のときは Shift+Enter の先）
+Private Function EnterMoveTarget(ByVal cell As Range, ByVal backward As Boolean) As Range
+    Dim area As Range
+    Dim dirn As Long
+    Dim ws As Worksheet
+
+    If Not Application.MoveAfterReturn Then Exit Function
+    Set area = cell.MergeArea
+    Set ws = cell.Worksheet
+    dirn = Application.MoveAfterReturnDirection
+
+    If backward Then
+        Select Case dirn
+            Case xlDown: dirn = xlUp
+            Case xlUp: dirn = xlDown
+            Case xlToRight: dirn = xlToLeft
+            Case xlToLeft: dirn = xlToRight
+        End Select
+    End If
+
+    On Error Resume Next
+    Select Case dirn
+        Case xlDown: Set EnterMoveTarget = ws.Cells(area.Row + area.Rows.Count, area.Column)
+        Case xlUp: Set EnterMoveTarget = ws.Cells(area.Row - 1, area.Column)
+        Case xlToRight: Set EnterMoveTarget = ws.Cells(area.Row, area.Column + area.Columns.Count)
+        Case xlToLeft: Set EnterMoveTarget = ws.Cells(area.Row, area.Column - 1)
+    End Select
+    On Error GoTo 0
+End Function
+
+Public Sub EnterKeyForward()
+    Call EnterKeyMove(False)
+End Sub
+
+Public Sub EnterKeyBackward()
+    Call EnterKeyMove(True)
+End Sub
+
+' 入力待ちの状態で Enter が押されたとき
+Private Sub EnterKeyMove(ByVal backward As Boolean)
+    Dim cell As Range
+    Dim idx As Long
+    Dim tgt As Range
+
+    On Error Resume Next
+    If TypeName(Selection) <> "Range" Then Exit Sub
+
+    ' コピー中の Enter は貼り付け（Excel の通常の動作）
+    If Application.CutCopyMode <> 0 Then
+        ActiveSheet.Paste
+        Application.CutCopyMode = False
+        Exit Sub
+    End If
+
+    Set cell = ActiveCell
+    If cell Is Nothing Then Exit Sub
+    idx = InputIndexOf(cell)
+    On Error GoTo 0
+
+    If idx > 0 Then
+        Call GoToInput(IIf(backward, idx - 1, idx + 1))
+    Else
+        ' 手入力セル以外は通常の Enter と同じ動き
+        Set tgt = EnterMoveTarget(cell, backward)
+        If Not tgt Is Nothing Then
+            On Error Resume Next
+            tgt.Select
+            On Error GoTo 0
+        End If
+    End If
+End Sub
+
+' 手入力セルに値が入力されたとき（Workbook_SheetChange から呼ばれる）。
+' Enter で確定した場合は、Excel が動かしたあとで次の手入力セルへ移動する。
+Public Sub OnInputCellChanged(ByVal Target As Range)
+    Dim cell As Range
+
+    If Not EnterJumpEnabled() Then Exit Sub
+    Set cell = Target.Cells(1, 1)
+    If Target.Cells.Count <> cell.MergeArea.Cells.Count Then Exit Sub
+    If InputIndexOf(cell) = 0 Then Exit Sub
+
+    mPendSheet = cell.Worksheet.Name
+    mPendAddr = cell.Address(False, False)
+    Application.OnTime Now, "'" & ThisWorkbook.Name & "'!AfterInputCommit"
+End Sub
+
+Public Sub AfterInputCommit()
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim act As Range
+    Dim fwd As Range
+    Dim back As Range
+    Dim idx As Long
+
+    Set ws = GetSheet(mPendSheet)
+    If ws Is Nothing Then Exit Sub
+    On Error Resume Next
+    If ActiveSheet.Name <> mPendSheet Then Exit Sub
+    Set act = ActiveCell
+    On Error GoTo 0
+    If act Is Nothing Then Exit Sub
+
+    Set cell = ws.Range(mPendAddr)
+    idx = InputIndexOf(cell)
+    If idx = 0 Then Exit Sub
+
+    Set fwd = EnterMoveTarget(cell, False)
+    Set back = EnterMoveTarget(cell, True)
+
+    If Not fwd Is Nothing Then
+        If act.Address = fwd.MergeArea.Cells(1, 1).Address Then
+            Call GoToInput(idx + 1)
+            Exit Sub
+        End If
+    End If
+    If Not back Is Nothing Then
+        If act.Address = back.MergeArea.Cells(1, 1).Address Then
+            Call GoToInput(idx - 1)
+            Exit Sub
+        End If
+    End If
+    ' Enter で動かない設定（MoveAfterReturn=False）のときは、入力したセルに残っている
+    If Not Application.MoveAfterReturn Then
+        If act.Address = cell.MergeArea.Cells(1, 1).Address Then Call GoToInput(idx + 1)
+    End If
+    ' Tab・矢印キー・マウスで動いたときは、そのまま
 End Sub
 
 ' ------------------------------------------------------------------------------------------

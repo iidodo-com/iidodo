@@ -31,4 +31,22 @@ End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
     Call ResumeInputColor
+    Call DisableEnterKey
+End Sub
+
+' Enterキーで次の手入力セルへ移動する機能。このブックがアクティブな間だけキー割り当てを変える
+Private Sub Workbook_Open()
+    Call EnableEnterKey
+End Sub
+
+Private Sub Workbook_Activate()
+    Call EnableEnterKey
+End Sub
+
+Private Sub Workbook_Deactivate()
+    Call DisableEnterKey
+End Sub
+
+Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
+    Call OnInputCellChanged(Target)
 End Sub
