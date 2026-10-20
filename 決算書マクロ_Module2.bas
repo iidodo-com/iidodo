@@ -566,7 +566,7 @@ End Function
 Private Function FirstSheetWithPrefix(ByVal prefix As String) As Worksheet
     Dim ws As Worksheet
     For Each ws In ThisWorkbook.Worksheets
-        If Left$(ws.Name, Len(prefix)) = prefix Then
+        If Left$(ws.Name, Len(prefix)) = prefix And ws.Name <> SHEET_LOAN_INPUT Then
             Set FirstSheetWithPrefix = ws
             Exit Function
         End If
