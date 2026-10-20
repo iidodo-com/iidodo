@@ -889,23 +889,85 @@ Public Sub BuildInputOrder()
 
     mInCount = 0
     Set mInIndex = New Collection
-    ReDim mInSheet(1 To LIST_LAST_ROW - LIST_FIRST_ROW + 1 + 20)
-    ReDim mInAddr(1 To LIST_LAST_ROW - LIST_FIRST_ROW + 1 + 20)
+    ReDim mInSheet(1 To 5000)
+    ReDim mInAddr(1 To 5000)
 
     ' 1. 入力ガイドの入力欄（年度・作成年月日・署名欄の氏名・審査日）
     For Each g In Array("C6", "C7", "C8", "C9", "E6", "F6", "E7", "F7", "E8", "F8", "G8")
         Call AddInput(SHEET_GUIDE, CStr(g))
     Next g
 
-    ' 2. 入力セル一覧の手入力セル（貸付_入力を含む）
+    ' 2. 帳票シート（タブの順）：黄色で表示している手入力セルを、上から下・左から右の順に
+    For Each ws In ThisWorkbook.Worksheets
+        If IsInputFormSheet(ws) Then Call AddSheetInputs(ws)
+    Next ws
+
+    ' 3. 貸付_入力の入力欄（入力セル一覧に載っている行）
     For r = LIST_FIRST_ROW To LIST_LAST_ROW
         Set target = GetTargetCellFromListRow(wsList, r)
-        If Not target Is Nothing Then Call AddInput(target.Worksheet.Name, target.Address(False, False))
+        If Not target Is Nothing Then
+            If target.Worksheet.Name = SHEET_LOAN_INPUT Then Call AddInput(SHEET_LOAN_INPUT, target.Address(False, False))
+        End If
     Next r
+End Sub
 
-    ' 3. 貸付経理の貸借対照表 F20（欠損金補てん積立金：元の決算書の額）
-    Set ws = FirstSheetWithPrefix("貸付_財務諸表")
-    If Not ws Is Nothing Then Call AddInput(ws.Name, "F20")
+' 手入力セルを持つ帳票シートか（管理用シートは除く）
+Private Function IsInputFormSheet(ByVal ws As Worksheet) As Boolean
+    Select Case ws.Name
+        Case SHEET_GUIDE, SHEET_LIST, SHEET_PREV, SHEET_CHECK, SHEET_LOAN_INPUT
+            IsInputFormSheet = False
+        Case Else
+            IsInputFormSheet = (ws.Visible = xlSheetVisible)
+    End Select
+End Function
+
+' シートの「黄色表示」の条件付き書式（数式でないセルだけに適用）の対象セルを、並べて登録する
+Private Sub AddSheetInputs(ByVal ws As Worksheet)
+    Dim fc As Object
+    Dim c As Range
+    Dim keys() As Long
+    Dim n As Long
+    Dim i As Long
+    Dim j As Long
+    Dim tmp As Long
+    Dim dup As Boolean
+
+    ReDim keys(1 To 2000)
+    On Error Resume Next
+    For Each fc In ws.Cells.FormatConditions
+        If fc.Type = xlExpression Then
+            If InStr(fc.Formula1, "ISFORMULA") > 0 Then
+                For Each c In fc.AppliesTo.Cells
+                    If n < 2000 Then
+                        n = n + 1
+                        keys(n) = c.Row * 1000& + c.Column
+                    End If
+                Next c
+            End If
+        End If
+    Next fc
+    On Error GoTo 0
+    If n = 0 Then Exit Sub
+
+    ' 行→列の順に並べ替え（件数は数百なので単純な挿入ソート）
+    For i = 2 To n
+        tmp = keys(i)
+        j = i - 1
+        Do While j >= 1
+            If keys(j) <= tmp Then Exit Do
+            keys(j + 1) = keys(j)
+            j = j - 1
+        Loop
+        keys(j + 1) = tmp
+    Next i
+
+    For i = 1 To n
+        dup = False
+        If i > 1 Then dup = (keys(i) = keys(i - 1))
+        If Not dup Then
+            Call AddInput(ws.Name, ws.Cells(keys(i) \ 1000&, keys(i) Mod 1000&).Address(False, False))
+        End If
+    Next i
 End Sub
 
 Private Sub AddInput(ByVal sName As String, ByVal addr As String)
