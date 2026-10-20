@@ -677,7 +677,7 @@ Public Sub ToggleSheetProtection()
     Application.ScreenUpdating = True
     ans = MsgBox("全シートを保護します。" & vbCrLf & vbCrLf & _
                  "編集できるのは次のセルだけになります。" & vbCrLf & _
-                 "　・入力ガイド C6:C9、G10・G19（表示・Enterキーの切替）" & vbCrLf & _
+                 "　・入力ガイド C6:C9、G10・G19（表示・Enterキーの切替）、B146:C147・B148:D148（署名欄）" & vbCrLf & _
                  "　・前年度貼付 E8:E332" & vbCrLf & _
                  "　・入力セル一覧に載っている手入力セル（貸付_入力を含む）" & vbCrLf & _
                  "パスワードは設定しません。同じ操作でいつでも解除できます。", _
@@ -696,6 +696,8 @@ Public Sub ToggleSheetProtection()
     wsGuide.Range("C6:C9").Locked = False
     wsGuide.Range(INPUT_COLOR_CELL).Locked = False
     wsGuide.Range(ENTER_JUMP_CELL).Locked = False
+    wsGuide.Range("B146:C147").Locked = False
+    wsGuide.Range("B148:D148").Locked = False
     ThisWorkbook.Worksheets(SHEET_PREV).Range("E8:E332").Locked = False
     For r = LIST_FIRST_ROW To LIST_LAST_ROW
         Set target = GetTargetCellFromListRow(wsList, r)
