@@ -6,14 +6,14 @@ Option Explicit
 ' 変更するのは手入力セルの黄色表示の切替（入力ガイドのG10）とシート保護のみ。
 
 ' 手入力セルの黄色は条件付き書式で表示している。入力ガイドのこのセルが 1 のときだけ表示される。
-Private Const INPUT_COLOR_CELL As String = "G10"
+Private Const INPUT_COLOR_CELL As String = "E9"
 
 ' 印刷・PDF出力のために黄色表示を一時的に止めているか／止める前の値
 Public gInputColorSuspended As Boolean
 Public gInputColorBackup As Variant
 
 ' Enterキーで次の手入力セルへ移動する機能のオン／オフ（入力ガイドのこのセルが 1 のとき有効）
-Private Const ENTER_JUMP_CELL As String = "G19"
+Private Const ENTER_JUMP_CELL As String = "G9"
 
 ' 手入力セルの並び（入力セル一覧の順）。Enter の移動先を決めるのに使う
 Private mInSheet() As String
@@ -677,7 +677,7 @@ Public Sub ToggleSheetProtection()
     Application.ScreenUpdating = True
     ans = MsgBox("全シートを保護します。" & vbCrLf & vbCrLf & _
                  "編集できるのは次のセルだけになります。" & vbCrLf & _
-                 "　・入力ガイド C6:C9、G10・G19（表示・Enterキーの切替）、B146:C147・B148:D148（署名欄）" & vbCrLf & _
+                 "　・入力ガイド C6:C9、E9・G9（表示・Enterキーの切替）、E6:G8（署名欄）" & vbCrLf & _
                  "　・前年度貼付 E8:E332" & vbCrLf & _
                  "　・入力セル一覧に載っている手入力セル（貸付_入力を含む）" & vbCrLf & _
                  "パスワードは設定しません。同じ操作でいつでも解除できます。", _
@@ -696,8 +696,7 @@ Public Sub ToggleSheetProtection()
     wsGuide.Range("C6:C9").Locked = False
     wsGuide.Range(INPUT_COLOR_CELL).Locked = False
     wsGuide.Range(ENTER_JUMP_CELL).Locked = False
-    wsGuide.Range("B146:C147").Locked = False
-    wsGuide.Range("B148:D148").Locked = False
+    wsGuide.Range("E6:G8").Locked = False
     ThisWorkbook.Worksheets(SHEET_PREV).Range("E8:E332").Locked = False
     For r = LIST_FIRST_ROW To LIST_LAST_ROW
         Set target = GetTargetCellFromListRow(wsList, r)
@@ -880,30 +879,42 @@ End Sub
 ' 入力セル一覧の並びで、手入力セルの一覧を作る
 Public Sub BuildInputOrder()
     Dim wsList As Worksheet
+    Dim ws As Worksheet
     Dim r As Long
     Dim target As Range
-    Dim addr As String
+    Dim g As Variant
 
     Set wsList = GetSheet(SHEET_LIST)
     If wsList Is Nothing Then Exit Sub
 
     mInCount = 0
     Set mInIndex = New Collection
-    ReDim mInSheet(1 To LIST_LAST_ROW - LIST_FIRST_ROW + 1)
-    ReDim mInAddr(1 To LIST_LAST_ROW - LIST_FIRST_ROW + 1)
+    ReDim mInSheet(1 To LIST_LAST_ROW - LIST_FIRST_ROW + 1 + 20)
+    ReDim mInAddr(1 To LIST_LAST_ROW - LIST_FIRST_ROW + 1 + 20)
 
+    ' 1. 入力ガイドの入力欄（年度・作成年月日・署名欄の氏名・審査日）
+    For Each g In Array("C6", "C7", "C8", "C9", "E6", "F6", "E7", "F7", "E8", "F8", "G8")
+        Call AddInput(SHEET_GUIDE, CStr(g))
+    Next g
+
+    ' 2. 入力セル一覧の手入力セル（貸付_入力を含む）
     For r = LIST_FIRST_ROW To LIST_LAST_ROW
         Set target = GetTargetCellFromListRow(wsList, r)
-        If Not target Is Nothing Then
-            addr = target.Address(False, False)
-            mInCount = mInCount + 1
-            mInSheet(mInCount) = target.Worksheet.Name
-            mInAddr(mInCount) = addr
-            On Error Resume Next
-            mInIndex.Add mInCount, target.Worksheet.Name & "!" & addr
-            On Error GoTo 0
-        End If
+        If Not target Is Nothing Then Call AddInput(target.Worksheet.Name, target.Address(False, False))
     Next r
+
+    ' 3. 貸付経理の貸借対照表 F20（欠損金補てん積立金：元の決算書の額）
+    Set ws = FirstSheetWithPrefix("貸付_財務諸表")
+    If Not ws Is Nothing Then Call AddInput(ws.Name, "F20")
+End Sub
+
+Private Sub AddInput(ByVal sName As String, ByVal addr As String)
+    mInCount = mInCount + 1
+    mInSheet(mInCount) = sName
+    mInAddr(mInCount) = addr
+    On Error Resume Next
+    mInIndex.Add mInCount, sName & "!" & addr
+    On Error GoTo 0
 End Sub
 
 ' セルが手入力セルなら、その番号（1～）を返す。違えば 0
@@ -922,7 +933,10 @@ End Function
 Private Sub GoToInput(ByVal idx As Long)
     Dim ws As Worksheet
 
-    If idx < 1 Or idx > mInCount Then Exit Sub
+    If mInCount = 0 Then Exit Sub
+    ' 最後の次は最初へ、最初の前は最後へ戻る
+    If idx > mInCount Then idx = 1
+    If idx < 1 Then idx = mInCount
     Set ws = GetSheet(mInSheet(idx))
     If ws Is Nothing Then Exit Sub
     If ws.Visible <> xlSheetVisible Then Exit Sub
