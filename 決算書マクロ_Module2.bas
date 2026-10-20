@@ -848,18 +848,31 @@ Public Sub EnableEnterKey()
     End If
 
     book = "'" & ThisWorkbook.Name & "'!"
-    Application.OnKey "~", book & "EnterKeyForward"
-    Application.OnKey "{ENTER}", book & "EnterKeyForward"
-    Application.OnKey "+~", book & "EnterKeyBackward"
-    Application.OnKey "+{ENTER}", book & "EnterKeyBackward"
+    Call SetOnKey("~", book & "EnterKeyForward")
+    Call SetOnKey("{ENTER}", book & "EnterKeyForward")
+    Call SetOnKey("+~", book & "EnterKeyBackward")
+    Call SetOnKey("+{ENTER}", book & "EnterKeyBackward")
 End Sub
 
 ' 他のブックに切り替えたとき・閉じるときに、Enterキーを元に戻す
 Public Sub DisableEnterKey()
-    Application.OnKey "~"
-    Application.OnKey "{ENTER}"
-    Application.OnKey "+~"
-    Application.OnKey "+{ENTER}"
+    Call SetOnKey("~", "")
+    Call SetOnKey("{ENTER}", "")
+    Call SetOnKey("+~", "")
+    Call SetOnKey("+{ENTER}", "")
+End Sub
+
+' キー割り当ての設定。別のファイルを開く途中（保護ビューなどで有効なブックがない間）は
+' OnKey が失敗することがあるが、エラーは出さずに無視する。
+Private Sub SetOnKey(ByVal key As String, ByVal proc As String)
+    On Error Resume Next
+    If proc = "" Then
+        Application.OnKey key
+    Else
+        Application.OnKey key, proc
+    End If
+    Err.Clear
+    On Error GoTo 0
 End Sub
 
 ' 入力セル一覧の並びで、手入力セルの一覧を作る
@@ -963,6 +976,13 @@ Private Sub EnterKeyMove(ByVal backward As Boolean)
     Dim tgt As Range
 
     On Error Resume Next
+    ' 他のブックが前面のときは割り当てを戻し、通常の Enter と同じ動きにする
+    If Not ActiveWorkbook Is ThisWorkbook Then
+        Call DisableEnterKey
+        Set tgt = EnterMoveTarget(ActiveCell, backward)
+        If Not tgt Is Nothing Then tgt.Select
+        Exit Sub
+    End If
     If TypeName(Selection) <> "Range" Then Exit Sub
 
     ' コピー中の Enter は貼り付け（Excel の通常の動作）
