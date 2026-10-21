@@ -30,7 +30,7 @@ inp["B1"] = "育児時短勤務手当金請求書　入力シート"
 inp["B1"].font = Font(name=FN, size=16, bold=True)
 inp.row_dimensions[1].height = 32
 inp.merge_cells("B2:L2")
-inp["B3"] = "黄色いセルに入力してください。右の「チェック」欄が ✓（緑）になれば正しく入力できています。✕（赤）は必ず直してください。☆の項目（標準報酬月額・決定額・個人番号）は共済組合が記入するので入力不要です。"
+inp["B3"] = "黄色いセルに入力してください。右の「チェック」欄が ✓（緑）になれば正しく入力できています。✕（赤）は必ず直してください。標準報酬月額は「⑧」に入力してください（☆の決定額・個人番号は共済組合が記入するので入力不要です）。"
 inp.merge_cells("B3:L3")
 inp["B3"].alignment = Alignment(wrap_text=True, vertical="top")
 inp["B3"].font = Font(name=FN, size=10)
@@ -312,7 +312,36 @@ for r, t, kind, need in att:
                     f'IF(AND(C18<>"{kind}",C{r}="✓"),"△ 選んだ勤務区分と異なる書類にチェックがあります",IF(AND(C18="{kind}",{need}),"✓","")))) ')
     inp[f"K{r}"] = inp[f"K{r}"].value.strip()
 
-LAST = 52
+# ---------- ⑧ 標準報酬月額 ----------
+sec(53, "⑧ 標準報酬月額（育児時短勤務開始時）")
+label(54, "標準報酬月額の等級（第　級）"); cell_in("C54", "D54"); static("E54", "級")
+dv("C54", type="whole", operator="between", formula1="1", formula2="99", msg="等級は数字（整数）で入力してください。")
+hint(54, "育児時短勤務を始めた時点の等級（令和7年4月以前から継続の場合は令和7年4月時点）")
+chk(54, 'C54=""', "未入力です", [("NOT(ISNUMBER(C54))", "数字で入力してください")])
+label(55, "標準報酬月額（円）"); cell_in("C55", "H55", "#,##0"); static("I55", "円")
+dv("C55", type="whole", operator="between", formula1="1", formula2="99999999", msg="円の数字（整数）で入力してください。")
+hint(55, "例：300,000。給与明細・共済組合の通知等で確認")
+chk(55, 'C55=""', "未入力です", [("NOT(ISNUMBER(C55))", "数字で入力してください")],
+    [("MOD(N(C55),1000)<>0", "標準報酬月額は通常1,000円単位です。確認してください"),
+     ('AND(ISNUMBER(C28),ISNUMBER(C55),C28>=C55)', "報酬額が標準報酬月額以上のため、手当金は支給されません（参考判定：×）")])
+label(56, "【参考】判定（自動）")
+inp.merge_cells("C56:H56")
+inp["C56"] = '=IF(OR(NOT(ISNUMBER(C28)),NOT(ISNUMBER(C55))),"",IF(C28>=C55,"× 支給なし",IF(C28>=C55*0.9,"△ 逓減","○ 報酬額×10%")))'
+label(57, "【参考】決定額の目安（円）（自動）")
+inp.merge_cells("C57:H57")
+inp["N57"] = ('=IF(OR(NOT(ISNUMBER(C28)),NOT(ISNUMBER(C55))),"",IF(C28>=C55,0,IF(C28>=C55*0.9,'
+              'IF(ROUNDDOWN(C28*ROUND((9*C55-9*C28)/(10*C28),4),0)<=2411,0,ROUNDDOWN(C28*ROUND((9*C55-9*C28)/(10*C28),4),0)),'
+              'IF(ROUNDDOWN(C28*0.1,0)<=2411,0,ROUNDDOWN(C28*0.1,0)))))')
+inp["C57"] = '=IF(N57="","",N57)'
+inp["C57"].number_format = '#,##0"円"'
+for a in ("C56", "C57"):
+    inp[a].fill = GRY
+    inp[a].alignment = Alignment(horizontal="right")
+    inp[a].font = Font(name=FN, size=11)
+hint(56, "参考表示です（請求書には印字されません）。標準報酬月額の90%未満→○、90〜100%→△、100%以上→×")
+hint(57, "参考表示です。最低限度額2,411円以下は0円。支給額は共済組合が確定します")
+
+LAST = 57
 # ---------- 見た目・書式 ----------
 for a, m in inputs:
     rng = [a]
@@ -339,8 +368,8 @@ for rows, kind in ((range(43, 48), "部分休業"), (range(48, 53), "育児短�
     inp.conditional_formatting.add(f"B{rows[0]}:I{rows[-1]}", FormulaRule(formula=[f'$C$18="{kind}"'], fill=PatternFill("solid", bgColor="D9D9D9", fgColor="D9D9D9"), font=Font(color="A6A6A6")))
 
 # バナー
-inp["B2"] = ('=IF(COUNTIF(K6:K52,"✕*")>0,"✕ 入力エラーが "&COUNTIF(K6:K52,"✕*")&" 件あります。赤い項目を直してください。",'
-             'IF(COUNTIF(K6:K52,"△*")>0,"△ エラーはありません。注意が "&COUNTIF(K6:K52,"△*")&" 件あります。内容を確認してください。（印刷できます）",'
+inp["B2"] = ('=IF(COUNTIF(K6:K57,"✕*")>0,"✕ 入力エラーが "&COUNTIF(K6:K57,"✕*")&" 件あります。赤い項目を直してください。",'
+             'IF(COUNTIF(K6:K57,"△*")>0,"△ エラーはありません。注意が "&COUNTIF(K6:K57,"△*")&" 件あります。内容を確認してください。（印刷できます）",'
              '"✓ すべて正しく入力されています。「請求書(表)」「請求書(裏)」を印刷し、添付書類をそろえて提出してください。"))')
 inp["B2"].font = Font(name=FN, size=12, bold=True)
 inp["B2"].alignment = Alignment(vertical="center", wrap_text=True)
@@ -394,7 +423,8 @@ put("W27", v("C38")); put("Z31", v("C39"))
 chkmap = {"K43": 43, "K44": 44, "K45": 45, "K46": 46, "K48": 47, "Y43": 48, "Y45": 49, "Y46": 50, "Y47": 51, "Y49": 52}
 for a, r in chkmap.items():
     put(a, f'=IF(入力!C{r}="✓","☑","□")')
-fo["A51"] = '=IF(COUNTIF(入力!K6:K52,"✕*")>0,"※入力エラーがあります。入力シートを直してから印刷してください（このまま提出しないでください）","")'
+fo["K18"] = '=IF(OR(入力!C54="",入力!C55=""),"　第　　　　 級　　　　　　　　円","　第　"&入力!C54&"　級　　　"&TEXT(入力!C55,"#,##0")&"　円")'
+fo["A51"] = '=IF(COUNTIF(入力!K6:K57,"✕*")>0,"※入力エラーがあります。入力シートを直してから印刷してください（このまま提出しないでください）","")'
 fo.merge_cells("A51:AM51")
 fo["A51"].font = Font(name=FN, size=12, bold=True, color="FF0000")
 fo["A51"].alignment = Alignment(horizontal="center")
@@ -420,8 +450,13 @@ for i, (h, a) in enumerate(cols, 1):
         ex.cell(2, i).number_format = "yyyy/m/d"
 ex.cell(1, 20, "入力エラー件数").font = Font(name=FN, bold=True, color="FFFFFF")
 ex.cell(1, 20).fill = SEC
-ex.cell(2, 20, '=COUNTIF(入力!K6:K52,"✕*")')
-ex["A4"] = "【共済組合の方へ】2行目（A2:T2）をコピーし、管理台帳の「請求記録」へ『値のみ貼り付け』してください（職員の方は触らないでください）。"
+ex.cell(2, 20, '=COUNTIF(入力!K6:K57,"✕*")')
+for j, (h, a) in enumerate((("標準報酬等級", "C54"), ("標準報酬月額", "C55")), 21):
+    ex.cell(1, j, h).font = Font(name=FN, bold=True, color="FFFFFF")
+    ex.cell(1, j).fill = SEC
+    ex.cell(2, j, f'=IF(入力!{a}="","",入力!{a})')
+    ex.column_dimensions[openpyxl.utils.get_column_letter(j)].width = 14
+ex["A4"] = "【共済組合の方へ】2行目（A2:V2）をコピーし、管理台帳の「請求記録」へ『値のみ貼り付け』してください（職員の方は触らないでください）。"
 ex["A4"].font = Font(name=FN, size=10, color="C00000")
 
 # ---------- 使い方 ----------
@@ -445,7 +480,7 @@ lines = [("育児時短勤務手当金請求書（電子申請書）　使い方
          ("［請求日を今日に］請求日に今日の日付を入れます。", 11, False),
          ("［共済組合へメール送信］上記(B)のとおり。エラーが残っている間は送信できません。送信は自動ではなく、必ず内容を確認してから［送信］を押す仕組みです。", 11, False),
          ("※［ファイル→印刷］で請求書シートを印刷した場合も、エラーが残っていれば印刷を止めます。", 11, False),
-         ("※☆の項目（個人番号・標準報酬月額・決定額）と所属機関の長の氏名等は入力不要です。", 11, False),
+         ("※標準報酬月額（等級・月額）は「入力」シートの⑧に入力します。☆の個人番号・決定額と、所属機関の長の氏名等は入力不要です。", 11, False),
          ("", 10, False),
          ("■ 共済組合の方", 12, True),
          ("・メールで届いた申請書(Excel)を1つのフォルダに保存し、管理台帳の［フォルダ内の申請書を一括取込］を押すと請求記録に取り込めます。", 11, False),

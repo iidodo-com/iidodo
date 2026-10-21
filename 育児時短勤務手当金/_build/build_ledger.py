@@ -132,12 +132,12 @@ title(rec, "請求記録（1請求＝1行）",
       "電子申請書の「共済組合提出データ」2行目をB列に値のみ貼り付け、または黄色い列を直接入力。灰色の列は自動計算です。")
 cols = ["受付日",
         "職員番号", "対象年(令和)", "対象月", "報酬額", "通勤手当有無", "通勤手当月額", "氏名(申請書)", "組合員記号", "組合員番号", "勤務区分",
-        "時短開始日", "時短終了日", "請求期間開始", "請求期間終了", "子の氏名", "子の生年月日", "所属名称", "請求日", "初回請求", "申請書の入力エラー件数",
+        "時短開始日", "時短終了日", "請求期間開始", "請求期間終了", "子の氏名", "子の生年月日", "所属名称", "請求日", "初回請求", "申請書の入力エラー件数", "標準報酬等級(申請書)", "標準報酬月額(申請書)",
         "氏名", "所属", "対象月", "標準報酬月額", "判定", "計算額", "決定額（手修正）", "決定額", "ステータス",
         "保留理由", "保留開始日", "保留解消日", "次回確認予定日", "保留経過日数", "支給月", "チェック（空欄＝問題なし）", "備考",
         "保留連番", "マスタ行", "対象月初日"]
 col = {}
-keys = ["recv", "no", "y", "m", "rew", "tk", "tkg", "nm0", "sym", "snum", "kind", "s", "e", "ps", "pe", "ch", "chb", "dept0", "req", "first", "errn",
+keys = ["recv", "no", "y", "m", "rew", "tk", "tkg", "nm0", "sym", "snum", "kind", "s", "e", "ps", "pe", "ch", "chb", "dept0", "req", "first", "errn", "stdg", "stdm",
         "nm", "dept", "key", "std", "jd", "calc", "man", "fin", "st", "hr", "hs", "he", "hn", "hd", "pm", "chk", "memo", "hseq", "mrow", "bom"]
 for k, i in zip(keys, range(1, len(keys) + 1)):
     col[k] = L(i)
@@ -145,9 +145,9 @@ assert len(keys) == len(cols)
 # ヘッダー（A=受付日 / B:U 貼付 / V.. 自動・管理）
 head(rec, 5, cols)
 for i in range(1, len(cols) + 1):
-    rec.cell(5, i).fill = HDR if i <= 21 else (HDR3 if keys[i - 1] in ("man", "hr", "hs", "he", "hn", "pm", "memo") else HDR2)
-rec["A4"] = "▼ 申請書の内容（貼付／入力）"; rec["V4"] = "▼ 自動判定と管理（黄色＝入力）"
-for c in ("A4", "V4"):
+    rec.cell(5, i).fill = HDR if i <= 23 else (HDR3 if keys[i - 1] in ("man", "hr", "hs", "he", "hn", "pm", "memo") else HDR2)
+rec["A4"] = "▼ 申請書の内容（貼付／入力）"; rec["X4"] = "▼ 自動判定と管理（黄色＝入力）"
+for c in ("A4", "X4"):
     rec[c].font = Font(name=FN, size=10, bold=True, color="1F4E78")
 c = col
 
@@ -171,7 +171,8 @@ for r in range(R0, RE + 1):
     rec[f"{c['nm']}{r}"] = f'=IF({mrow}="",IF({B}="","",${c["nm0"]}{r}),IF({idx("B", r)}="",${c["nm0"]}{r},{idx("B", r)}))'
     rec[f"{c['dept']}{r}"] = f'=IF({mrow}="",IF({B}="","",${c["dept0"]}{r}),IF({idx("C", r)}="",${c["dept0"]}{r},{idx("C", r)}))'
     rec[f"{c['key']}{r}"] = f'=IF({bom}="","","R"&{Cy}&"."&{D})'
-    rec[f"{c['std']}{r}"] = f'=IF({mrow}="","",IF({idx("K", r)}="","",{idx("K", r)}))'
+    rec[f"{c['std']}{r}"] = (f'=IF(IF({mrow}="",FALSE,{idx("K", r)}<>""),{idx("K", r)},'
+                             f'IF(N(${c["stdm"]}{r})>0,${c["stdm"]}{r},""))')
     E, S = f"${c['rew']}{r}", f"${c['std']}{r}"
     rec[f"{c['jd']}{r}"] = f'=IF(OR({E}="",{S}=""),"",IF({E}>={S},"×",IF({E}>={S}*設定!$C$5,"△","○")))'
     J = f"${c['jd']}{r}"
@@ -189,6 +190,7 @@ for r in range(R0, RE + 1):
            f'&IF({B}="","",IF({mrow}="","職員マスタに未登録の職員番号／",'
            f'IF({S}="","標準報酬月額が未登録／","")'
            f'&IF(AND({bom}<>"",OR(AND({idx("G", r)}<>"",{idx("G", r)}>EOMONTH({bom},0)),AND({idx("H", r)}<>"",{idx("H", r)}<{bom}))),"対象月が時短期間外／","")'
+           f'&IF(AND({idx("K", r)}<>"",N(${c["stdm"]}{r})>0,{idx("K", r)}<>${c["stdm"]}{r}),"標準報酬月額が申請書と相違（台帳"&TEXT({idx("K", r)},"#,##0")&"円／申請書"&TEXT(${c["stdm"]}{r},"#,##0")&"円）／","")'
            f'&IF(AND({idx("F", r)}<>"",{bom}<>"",{idx("F", r)}<{bom}),"対象月に子が2歳到達済／","")'
            f'&IF(AND(${c["nm0"]}{r}<>"",{idx("B", r)}<>"",SUBSTITUTE(SUBSTITUTE(${c["nm0"]}{r}," ","")," ","")<>SUBSTITUTE(SUBSTITUTE({idx("B", r)}," ","")," ","")),"氏名がマスタと相違／","")'
            f'&IF(AND(${c["chb"]}{r}<>"",{idx("E", r)}<>"",${c["chb"]}{r}<>{idx("E", r)}),"子の生年月日がマスタと相違／","")'
@@ -199,17 +201,17 @@ for r in range(R0, RE + 1):
            f'&IF(AND({B}<>"",{bom}<>""),IF(COUNTIFS(${c["no"]}${R0}:${c["no"]}${RE},{B},${c["y"]}${R0}:${c["y"]}${RE},{Cy},${c["m"]}${R0}:${c["m"]}${RE},{D})>1,"同じ月の請求が重複しています／",""),"")'
            f'&IF(AND(N({E})>0,{J}<>"",{J}<>"×",{F}=0,${c["man"]}{r}=""),"計算額が下限以下のため不支給／","")')
     rec[f"{c['chk']}{r}"] = f'=IF({B}="","",{msg})'
-    for k in ("recv", "no", "y", "m", "rew", "tk", "tkg", "nm0", "sym", "snum", "kind", "s", "e", "ps", "pe", "ch", "chb", "dept0", "req", "first", "errn",
+    for k in ("recv", "no", "y", "m", "rew", "tk", "tkg", "nm0", "sym", "snum", "kind", "s", "e", "ps", "pe", "ch", "chb", "dept0", "req", "first", "errn", "stdg", "stdm",
               "man", "hr", "hs", "he", "hn", "pm", "memo"):
         rec[f"{c[k]}{r}"].fill = INP
     for k in ("nm", "dept", "key", "std", "jd", "calc", "fin", "st", "hd", "chk", "hseq", "mrow", "bom"):
         rec[f"{c[k]}{r}"].fill = CAL
     for k in ("recv", "s", "e", "ps", "pe", "chb", "req", "hs", "he", "hn"):
         rec[f"{c[k]}{r}"].number_format = "yyyy/m/d"
-    for k in ("rew", "tkg", "std", "calc", "man", "fin"):
+    for k in ("rew", "tkg", "stdm", "std", "calc", "man", "fin"):
         rec[f"{c[k]}{r}"].number_format = "#,##0"
     rec[f"{c['bom']}{r}"].number_format = "yyyy/m/d"
-widths = dict(zip(keys, [11, 11, 8, 6, 11, 8, 10, 14, 9, 10, 14, 11, 11, 11, 11, 14, 11, 22, 11, 9, 9,
+widths = dict(zip(keys, [11, 11, 8, 6, 11, 8, 10, 14, 9, 10, 14, 11, 11, 11, 11, 14, 11, 22, 11, 9, 9, 9, 12,
                          14, 22, 8, 12, 6, 10, 11, 11, 10, 20, 11, 11, 11, 8, 9, 46, 36, 6, 6, 10]))
 for k, w in widths.items():
     rec.column_dimensions[c[k]].width = w
@@ -347,6 +349,7 @@ G = [("育児時短勤務手当金　管理台帳　使い方", 16, True), ("", 
      ("2. 氏名・所属・標準報酬月額・判定（○△×）・決定額・ステータスが自動で出ます。「チェック」列に文字が出た行は、申請書と人給/マスタの食い違い等があるので確認します。", 11, False),
      ("3. 基幹システムへ入力したら、［未処理に支給月を一括入力］で支給月（例：R8.10）をまとめて入れます（ステータスが「支給済」になります）。個別に入れるときは「支給月」列で選びます。", 11, False),
      ("4. 支給を保留するときは「保留理由」（と保留開始日・次回確認予定日）を入れるだけ。「保留一覧」に自動で載り、経過日数が出ます。解決したら「保留解消日」または「支給月」を入れると一覧から消えます（履歴は残ります）。", 11, False),
+     ("　　標準報酬月額：申請書の標準報酬月額は、台帳（職員マスタ）に登録が無い場合の判定に使います。取込ボタンは、初めての職員や標準報酬月額が空の職員を職員マスタへ自動登録します。台帳の額と申請書の額が違うときは「チェック」列に表示します（判定は台帳の額を優先）。", 11, False),
      ("5. 請求前に保留する場合（育休期間の変更待ち等）は「職員マスタ」の【職員単位の保留】に入れます。", 11, False),
      ("", 10, False),
      ("■ シートの役割", 12, True),

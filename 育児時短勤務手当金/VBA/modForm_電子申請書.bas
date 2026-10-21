@@ -4,13 +4,13 @@ Option Explicit
 Private Const MAIL_TO As String = "fukuri@city.hiroshima.lg.jp"
 
 Public Function ErrorCount() As Long
-    ErrorCount = Application.WorksheetFunction.CountIf(Worksheets("“ü—Í").Range("K6:K52"), ChrW(10005) & "*")
+    ErrorCount = Application.WorksheetFunction.CountIf(Worksheets("“ü—Í").Range("K6:K57"), ChrW(10005) & "*")
 End Function
 
 Public Function ErrorList() As String
     Dim r As Long, s As String, n As Long
     With Worksheets("“ü—Í")
-        For r = 6 To 52
+        For r = 6 To 57
             If Left(.Cells(r, "K").Value, 1) = ChrW(10005) Then
                 n = n + 1
                 If n <= 12 Then s = s & "E" & .Cells(r, "B").Value & "F" & Mid(.Cells(r, "K").Value, 3) & vbLf
