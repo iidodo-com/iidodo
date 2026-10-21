@@ -403,8 +403,6 @@ fo.sheet_properties.pageSetUpPr = openpyxl.worksheet.properties.PageSetupPropert
 fo.page_setup.fitToWidth = 1; fo.page_setup.fitToHeight = 1; fo.page_setup.scale = None
 fo.page_setup.paperSize = 9; fo.page_setup.orientation = "portrait"
 fo.print_options.horizontalCentered = True
-fo.protection.sheet = True
-ura.protection.sheet = True
 ura.sheet_properties.pageSetUpPr = openpyxl.worksheet.properties.PageSetupProperties(fitToPage=True)
 ura.page_setup.fitToWidth = 1; ura.page_setup.fitToHeight = 1; ura.page_setup.scale = None; ura.page_setup.paperSize = 9
 
@@ -425,7 +423,6 @@ ex.cell(1, 20).fill = SEC
 ex.cell(2, 20, '=COUNTIF(入力!K6:K52,"✕*")')
 ex["A4"] = "【共済組合の方へ】2行目（A2:T2）をコピーし、管理台帳の「請求記録」へ『値のみ貼り付け』してください（職員の方は触らないでください）。"
 ex["A4"].font = Font(name=FN, size=10, color="C00000")
-ex.protection.sheet = True
 
 # ---------- 使い方 ----------
 guide.column_dimensions["A"].width = 3; guide.column_dimensions["B"].width = 110
@@ -455,7 +452,7 @@ lines = [("育児時短勤務手当金請求書（電子申請書）　使い方
          ("・請求期間の始期は『勤務開始日が月の途中ならその日から』で自動計算しています（運用が異なる場合は計算式の変更が必要です）。", 11, False),
          ("", 10, False),
          ("■ 動作環境", 12, True),
-         ("Excel 2013以降（Windows）。シートは保護（パスワードなし）されており、黄色いセル以外は書き換えできません。メール送信はOutlookが必要です。", 11, False)]
+         ("Excel 2013以降（Windows）。「入力」シートは保護（パスワードなし）されており、黄色いセル以外は書き換えできません。請求書シートは保護していません（自動転記されるので直接は書き換えないでください）。メール送信はOutlookが必要です。", 11, False)]
 for i, (t, s, b) in enumerate(lines, 2):
     guide.cell(i, 2, t).font = Font(name=FN, size=s, bold=b)
     guide.cell(i, 2).alignment = Alignment(wrap_text=True)
