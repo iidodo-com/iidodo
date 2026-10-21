@@ -1,30 +1,30 @@
 Attribute VB_Name = "modLedger"
 Option Explicit
 
-' é›»å­ç”³è«‹æ›¸ãƒ•ã‚¡ã‚¤ãƒ«(è¤‡æ•°é¸æŠå¯)ã®ã€Œå…±æ¸ˆçµ„åˆæå‡ºãƒ‡ãƒ¼ã‚¿ã€2è¡Œç›®ã‚’ã€è«‹æ±‚è¨˜éŒ²ã®æ¬¡ã®ç©ºè¡Œã¸å–ã‚Šè¾¼ã‚€
-Public Sub ç”³è«‹æ›¸ãƒ•ã‚¡ã‚¤ãƒ«ã‚’å–ã‚Šè¾¼ã‚€()
+' “dq\¿‘ƒtƒ@ƒCƒ‹(•¡”‘I‘ğ‰Â)‚Ìu‹¤Ï‘g‡’ñoƒf[ƒ^v2s–Ú‚ğA¿‹‹L˜^‚ÌŸ‚Ì‹ós‚Öæ‚è‚Ş
+Public Sub \¿‘ƒtƒ@ƒCƒ‹‚ğæ‚è‚Ş()
     Dim fd As Variant, f As Variant, wbSrc As Workbook, ws As Worksheet
     Dim nxt As Long, dupe As Long, ok As Long, skip As Long, msg As String
-    Set ws = ThisWorkbook.Worksheets("è«‹æ±‚è¨˜éŒ²")
-    fd = Application.GetOpenFilename("Excelãƒ•ã‚¡ã‚¤ãƒ« (*.xlsx;*.xlsm),*.xlsx;*.xlsm", , "é›»å­ç”³è«‹æ›¸ã‚’é¸æŠï¼ˆè¤‡æ•°å¯ï¼‰", , True)
+    Set ws = ThisWorkbook.Worksheets("¿‹‹L˜^")
+    fd = Application.GetOpenFilename("Excelƒtƒ@ƒCƒ‹ (*.xlsx;*.xlsm),*.xlsx;*.xlsm", , "“dq\¿‘‚ğ‘I‘ği•¡”‰Âj", , True)
     If Not IsArray(fd) Then Exit Sub
     Application.ScreenUpdating = False
     For Each f In fd
         Set wbSrc = Workbooks.Open(f, ReadOnly:=True, UpdateLinks:=0)
         On Error Resume Next
         Dim sh As Worksheet: Set sh = Nothing
-        Set sh = wbSrc.Worksheets("å…±æ¸ˆçµ„åˆæå‡ºãƒ‡ãƒ¼ã‚¿")
+        Set sh = wbSrc.Worksheets("‹¤Ï‘g‡’ñoƒf[ƒ^")
         On Error GoTo 0
         If sh Is Nothing Then
-            msg = msg & "Ã—" & wbSrc.Name & "ï¼šæ§˜å¼ãŒé•ã„ã¾ã™" & vbLf: skip = skip + 1
+            msg = msg & "~" & wbSrc.Name & "F—l®‚ªˆá‚¢‚Ü‚·" & vbLf: skip = skip + 1
         ElseIf sh.Range("A2").Value = "" Then
-            msg = msg & "Ã—" & wbSrc.Name & "ï¼šãƒ‡ãƒ¼ã‚¿ãŒã‚ã‚Šã¾ã›ã‚“" & vbLf: skip = skip + 1
+            msg = msg & "~" & wbSrc.Name & "Fƒf[ƒ^‚ª‚ ‚è‚Ü‚¹‚ñ" & vbLf: skip = skip + 1
         ElseIf Val(sh.Range("T2").Value) > 0 Then
-            msg = msg & "Ã—" & wbSrc.Name & "ï¼šç”³è«‹æ›¸ã«å…¥åŠ›ã‚¨ãƒ©ãƒ¼ãŒæ®‹ã£ã¦ã„ã¾ã™" & vbLf: skip = skip + 1
+            msg = msg & "~" & wbSrc.Name & "F\¿‘‚É“ü—ÍƒGƒ‰[‚ªc‚Á‚Ä‚¢‚Ü‚·" & vbLf: skip = skip + 1
         Else
             dupe = Application.WorksheetFunction.CountIfs(ws.Range("B6:B3005"), sh.Range("A2").Value, ws.Range("C6:C3005"), sh.Range("B2").Value, ws.Range("D6:D3005"), sh.Range("C2").Value)
             If dupe > 0 Then
-                msg = msg & "Ã—" & wbSrc.Name & "ï¼šåŒã˜è·å“¡ãƒ»åŒã˜æœˆãŒç™»éŒ²æ¸ˆã¿ã§ã™" & vbLf: skip = skip + 1
+                msg = msg & "~" & wbSrc.Name & "F“¯‚¶EˆõE“¯‚¶Œ‚ª“o˜^Ï‚İ‚Å‚·" & vbLf: skip = skip + 1
             Else
                 nxt = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row + 1
                 If nxt < 6 Then nxt = 6
@@ -36,5 +36,5 @@ Public Sub ç”³è«‹æ›¸ãƒ•ã‚¡ã‚¤ãƒ«ã‚’å–ã‚Šè¾¼ã‚€()
         wbSrc.Close SaveChanges:=False
     Next f
     Application.ScreenUpdating = True
-    MsgBox ok & " ä»¶å–ã‚Šè¾¼ã¿ã¾ã—ãŸã€‚" & IIf(skip > 0, vbLf & vbLf & "å–ã‚Šè¾¼ã‚ãªã‹ã£ãŸãƒ•ã‚¡ã‚¤ãƒ«ï¼š" & vbLf & msg, ""), vbInformation
+    MsgBox ok & " Œæ‚è‚İ‚Ü‚µ‚½B" & IIf(skip > 0, vbLf & vbLf & "æ‚è‚ß‚È‚©‚Á‚½ƒtƒ@ƒCƒ‹F" & vbLf & msg, ""), vbInformation
 End Sub

@@ -1,10 +1,10 @@
 Attribute VB_Name = "ThisWorkbook_BeforePrint"
-' ã€ä½¿ã„æ–¹ã€‘VBEã§ã€ŒThisWorkbookã€ã‚’é–‹ãã€ä¸‹ã®ã‚³ãƒ¼ãƒ‰ã‚’è²¼ã‚Šä»˜ã‘ã‚‹ï¼ˆmodForm.basã¯æ¨™æº–ãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ«ã«ã‚¤ãƒ³ãƒãƒ¼ãƒˆï¼‰
-' è«‹æ±‚æ›¸ã‚·ãƒ¼ãƒˆã®å°åˆ·æ™‚ã«å…¥åŠ›ã‚¨ãƒ©ãƒ¼ãŒã‚ã‚Œã°ã€å°åˆ·ã‚’æ­¢ã‚ã¦å†…å®¹ã‚’è¡¨ç¤ºã—ã¾ã™ã€‚
+' yŽg‚¢•ûzVBE‚ÅuThisWorkbookv‚ðŠJ‚«A‰º‚ÌƒR[ƒh‚ð“\‚è•t‚¯‚éimodForm.bas‚Í•W€ƒ‚ƒWƒ…[ƒ‹‚ÉƒCƒ“ƒ|[ƒgj
+' ¿‹‘ƒV[ƒg‚ÌˆóüŽž‚É“ü—ÍƒGƒ‰[‚ª‚ ‚ê‚ÎAˆóü‚ðŽ~‚ß‚Ä“à—e‚ð•\Ž¦‚µ‚Ü‚·B
 Private Sub Workbook_BeforePrint(Cancel As Boolean)
-    If ActiveSheet.Name Like "è«‹æ±‚æ›¸*" Then
+    If ActiveSheet.Name Like "¿‹‘*" Then
         If ErrorCount() > 0 Then
-            MsgBox ErrorList(), vbExclamation, "å…¥åŠ›ã‚¨ãƒ©ãƒ¼ãŒã‚ã‚‹ãŸã‚å°åˆ·ã§ãã¾ã›ã‚“"
+            MsgBox ErrorList(), vbExclamation, "“ü—ÍƒGƒ‰[‚ª‚ ‚é‚½‚ßˆóü‚Å‚«‚Ü‚¹‚ñ"
             Cancel = True
         End If
     End If

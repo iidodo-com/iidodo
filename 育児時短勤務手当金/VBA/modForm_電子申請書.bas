@@ -2,38 +2,38 @@ Attribute VB_Name = "modForm"
 Option Explicit
 
 Public Function ErrorCount() As Long
-    ErrorCount = Application.WorksheetFunction.CountIf(Worksheets("å…¥åŠ›").Range("K6:K52"), "âœ•*")
+    ErrorCount = Application.WorksheetFunction.CountIf(Worksheets("“ü—Í").Range("K6:K52"), ChrW(10005) & "*")
 End Function
 
 Public Function ErrorList() As String
     Dim r As Long, s As String, n As Long
-    With Worksheets("å…¥åŠ›")
+    With Worksheets("“ü—Í")
         For r = 6 To 52
-            If Left(.Cells(r, "K").Value, 1) = "âœ•" Then
+            If Left(.Cells(r, "K").Value, 1) = ChrW(10005) Then
                 n = n + 1
-                If n <= 12 Then s = s & "ãƒ»" & .Cells(r, "B").Value & "ï¼š" & Mid(.Cells(r, "K").Value, 3) & vbLf
+                If n <= 12 Then s = s & "E" & .Cells(r, "B").Value & "F" & Mid(.Cells(r, "K").Value, 3) & vbLf
             End If
         Next r
     End With
-    If n > 12 Then s = s & "â€¦ã»ã‹ " & (n - 12) & " ä»¶" & vbLf
-    ErrorList = "ã€Œå…¥åŠ›ã€ã‚·ãƒ¼ãƒˆã®èµ¤ã„é …ç›®ã‚’ç›´ã—ã¦ãã ã•ã„ï¼ˆ" & n & "ä»¶ï¼‰" & vbLf & vbLf & s
+    If n > 12 Then s = s & "c‚Ù‚© " & (n - 12) & " Œ" & vbLf
+    ErrorList = "u“ü—ÍvƒV[ƒg‚ÌÔ‚¢€–Ú‚ğ’¼‚µ‚Ä‚­‚¾‚³‚¢i" & n & "Œj" & vbLf & vbLf & s
 End Function
 
-' å…¥åŠ›ãƒã‚§ãƒƒã‚¯å¾Œã€è¡¨ãƒ»è£ã‚’ã¾ã¨ã‚ã¦å°åˆ·
-Public Sub è«‹æ±‚æ›¸ã‚’å°åˆ·()
+' “ü—Íƒ`ƒFƒbƒNŒãA•\E— ‚ğ‚Ü‚Æ‚ß‚Äˆóü
+Public Sub ¿‹‘‚ğˆóü()
     If ErrorCount() > 0 Then
-        MsgBox ErrorList(), vbExclamation, "å…¥åŠ›ã‚¨ãƒ©ãƒ¼"
+        MsgBox ErrorList(), vbExclamation, "“ü—ÍƒGƒ‰["
         Exit Sub
     End If
-    Worksheets("è«‹æ±‚æ›¸(è¡¨)").PrintOut
-    Worksheets("è«‹æ±‚æ›¸(è£)").PrintOut
+    Worksheets("¿‹‘(•\)").PrintOut
+    Worksheets("¿‹‘(— )").PrintOut
 End Sub
 
-' ç¿Œæœˆåˆ†ã‚’ä½œã‚‹ãŸã‚ã«æœˆã”ã¨ã«å¤‰ã‚ã‚‹é …ç›®ã ã‘ã‚’æ¶ˆã™
-Public Sub ç¿Œæœˆåˆ†ç”¨ã«ã‚¯ãƒªã‚¢()
-    If MsgBox("å¯¾è±¡æœˆãƒ»å ±é…¬é¡ãƒ»é€šå‹¤æ‰‹å½“ï¼ˆæœˆé¡ï¼‰ãƒ»è«‹æ±‚æ—¥ãƒ»æ·»ä»˜æ›¸é¡ãƒã‚§ãƒƒã‚¯ã‚’æ¶ˆã—ã¾ã™ã€‚ã‚ˆã‚ã—ã„ã§ã™ã‹ï¼Ÿ", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
+' —‚Œ•ª‚ğì‚é‚½‚ß‚ÉŒ‚²‚Æ‚É•Ï‚í‚é€–Ú‚¾‚¯‚ğÁ‚·
+Public Sub —‚Œ•ª—p‚ÉƒNƒŠƒA()
+    If MsgBox("‘ÎÛŒE•ñVŠzE’Ê‹Îè“–iŒŠzjE¿‹“úE“Y•t‘—Şƒ`ƒFƒbƒN‚ğÁ‚µ‚Ü‚·B‚æ‚ë‚µ‚¢‚Å‚·‚©H", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
     Dim a As Variant
-    With Worksheets("å…¥åŠ›")
+    With Worksheets("“ü—Í")
         .Unprotect
         For Each a In Array("D7", "F7", "C28:H28", "C30:H30", "C32:H32", "C33:D33", "C34:D34", "D37", "F37", "H37", "C43:D43", "C44:D44", "C45:D45", "C46:D46", "C47:D47", "C48:D48", "C49:D49", "C50:D50", "C51:D51", "C52:D52")
             .Range(a).ClearContents
