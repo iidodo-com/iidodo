@@ -9,3 +9,16 @@ Private Sub Workbook_BeforePrint(Cancel As Boolean)
         End If
     End If
 End Sub
+
+' 複数シートを選択（グループ化）したまま入力すると、他のシートにも同じ値が書き込まれてしまうため、常に1シートに戻す
+Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Range)
+    If ActiveWindow.SelectedSheets.Count > 1 Then
+        Application.EnableEvents = False
+        Sh.Select
+        Application.EnableEvents = True
+    End If
+End Sub
+
+Private Sub Workbook_Open()
+    Worksheets("入力").Select
+End Sub

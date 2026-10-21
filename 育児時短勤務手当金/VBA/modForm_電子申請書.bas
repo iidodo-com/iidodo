@@ -73,10 +73,12 @@ Public Sub 共済組合へメール送信()
     If Dir(fx) <> "" Then Kill fx
     If Dir(fp) <> "" Then Kill fp
 
+    On Error GoTo Fail
     Application.ScreenUpdating = False
+    Application.EnableEvents = False
     Worksheets(Array("請求書(表)", "請求書(裏)")).Select
     ActiveSheet.ExportAsFixedFormat Type:=xlTypePDF, Filename:=fp, Quality:=xlQualityStandard
-    ws.Select
+    ws.Select Replace:=True
 
     ThisWorkbook.Worksheets.Copy
     Set nb = ActiveWorkbook
@@ -93,6 +95,8 @@ Public Sub 共済組合へメール送信()
     Application.DisplayAlerts = True
     Application.ScreenUpdating = True
     ThisWorkbook.Activate
+    ws.Select Replace:=True
+    Application.EnableEvents = True
 
     body = "広島市職員共済組合　御中" & vbCrLf & vbCrLf & _
            "育児時短勤務手当金の請求書を送付します。" & vbCrLf & vbCrLf & _
@@ -121,8 +125,19 @@ Public Sub 共済組合へメール送信()
     Exit Sub
 
 NoOutlook:
+    Application.EnableEvents = True
     Application.ScreenUpdating = True
     Application.DisplayAlerts = True
     Shell "explorer.exe """ & Left(tmp, Len(tmp) - 1) & """", vbNormalFocus
     MsgBox "Outlookを起動できませんでした。" & vbLf & "開いたフォルダの2ファイル（Excel・PDF）を、" & MAIL_TO & " 宛のメールに添付して送信してください。", vbExclamation
+    Exit Sub
+
+Fail:
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    On Error Resume Next
+    ThisWorkbook.Activate
+    ws.Select Replace:=True
+    MsgBox "メール用ファイルの作成に失敗しました。" & vbLf & Err.Description, vbExclamation
 End Sub
