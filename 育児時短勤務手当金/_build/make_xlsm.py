@@ -206,6 +206,29 @@ def build_project(mods, this_code):
     return cfb(streams)
 
 
+def drawing_xml(btns):
+    ns = ('xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" '
+          'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"')
+    out = f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr {ns}>'
+    for i, b in enumerate(btns, 2):
+        c0, o0, r0, ro0, c1, o1, r1, ro1 = b["pos"]
+        out += (f'<xdr:twoCellAnchor editAs="absolute"><xdr:from><xdr:col>{c0}</xdr:col><xdr:colOff>{o0}</xdr:colOff><xdr:row>{r0}</xdr:row><xdr:rowOff>{ro0}</xdr:rowOff></xdr:from>'
+                f'<xdr:to><xdr:col>{c1}</xdr:col><xdr:colOff>{o1}</xdr:colOff><xdr:row>{r1}</xdr:row><xdr:rowOff>{ro1}</xdr:rowOff></xdr:to>'
+                f'<xdr:sp macro="[0]!{b["macro"]}" textlink=""><xdr:nvSpPr><xdr:cNvPr id="{i}" name="Button{i}"/><xdr:cNvSpPr/></xdr:nvSpPr>'
+                f'<xdr:spPr><a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="{b["color"]}"/></a:solidFill>'
+                f'<a:ln w="12700"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:ln></xdr:spPr>'
+                f'<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/><a:lstStyle/><a:p><a:pPr algn="ctr"/>'
+                f'<a:r><a:rPr lang="ja-JP" sz="1100" b="1"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:rPr><a:t>{b["label"]}</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>')
+    return out + "</xdr:wsDr>"
+
+
+BUTTONS = {  # シート名 -> ボタン定義
+    "入力": [dict(label="請求書を印刷", macro="請求書を印刷", color="1F4E78", pos=(10, 60000, 0, 40000, 10, 1900000, 0, 360000)),
+             dict(label="翌月分用にクリア", macro="翌月分用にクリア", color="7F7F7F", pos=(10, 2100000, 0, 40000, 10, 4000000, 0, 360000))],
+    "請求記録": [dict(label="申請書ファイルを取り込む", macro="申請書ファイルを取り込む", color="2E7D32", pos=(12, 0, 0, 60000, 15, 0, 2, 150000))],
+}
+
+
 def read_bas(path):
     t = open(path, encoding="cp932").read().replace("\r\n", "\n")
     lines = [l for l in t.split("\n") if not l.startswith("Attribute VB_Name")]
@@ -226,6 +249,16 @@ def main():
             mods.append((n, read_bas(a[i]))); i += 1
     binary = build_project(mods, this_code)
     zin = zipfile.ZipFile(src)
+    wbx = zin.read("xl/workbook.xml").decode("utf8")
+    rels = zin.read("xl/_rels/workbook.xml.rels").decode("utf8")
+    rid2t = {m.group(2): m.group(1) for m in re.finditer(r'Target="([^"]+)"[^>]*Id="([^"]+)"', rels)}
+    rid2t.update({m.group(1): m.group(2) for m in re.finditer(r'Id="([^"]+)"[^>]*Target="([^"]+)"', rels)})
+    sheetfile = {}
+    for m in re.finditer(r'<sheet [^>]*name="([^"]+)"[^>]*r:id="([^"]+)"', wbx):
+        sheetfile[m.group(1)] = rid2t[m.group(2)].lstrip("/").replace("xl/", "", 1)
+    btn_sheets = {sheetfile[n]: v for n, v in BUTTONS.items() if n in sheetfile and not any(
+        n2 == "xl/worksheets/_rels/" + sheetfile[n].split("/")[-1] + ".rels" and b"drawing" in zin.read(n2) for n2 in zin.namelist())}
+    extra = {}
     zout = zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED)
     for it in zin.infolist():
         data = zin.read(it.filename)
@@ -246,7 +279,28 @@ def main():
             s = data.decode("utf8")
             s = s.replace("</Relationships>", '<Relationship Id="rIdVba1" Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" Target="vbaProject.bin"/></Relationships>')
             data = s.encode("utf8")
+        fn = it.filename
+        short = fn[len("xl/"):] if fn.startswith("xl/") else fn
+        if short in btn_sheets:
+            sx = data.decode("utf8")
+            sx = sx.replace("</worksheet>", '<drawing xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rIdBtn1"/></worksheet>')
+            data = sx.encode("utf8")
+        if fn.startswith("xl/worksheets/_rels/") and fn.endswith(".rels"):
+            sh = "worksheets/" + fn.split("/")[-1][:-5]
+            if sh in btn_sheets:
+                data = data.decode("utf8").replace("</Relationships>", '<Relationship Id="rIdBtn1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="/xl/drawings/drawingBtn_%s.xml"/></Relationships>' % sh.split("/")[-1].replace(".xml", "")).encode("utf8")
+                extra[sh] = True
+        if fn == "[Content_Types].xml":
+            ct = data.decode("utf8")
+            for sh in btn_sheets:
+                ct = ct.replace("</Types>", '<Override PartName="/xl/drawings/drawingBtn_%s.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>' % sh.split("/")[-1].replace(".xml", ""))
+            data = ct.encode("utf8")
         zout.writestr(it, data)
+    for sh, btns in btn_sheets.items():
+        nm = sh.split("/")[-1].replace(".xml", "")
+        if sh not in extra:
+            zout.writestr("xl/worksheets/_rels/%s.xml.rels" % nm, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdBtn1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="/xl/drawings/drawingBtn_%s.xml"/></Relationships>' % nm)
+        zout.writestr("xl/drawings/drawingBtn_%s.xml" % nm, drawing_xml(btns))
     zout.writestr("xl/vbaProject.bin", binary)
     zout.close()
     print("saved", dst, len(binary), "bytes")
