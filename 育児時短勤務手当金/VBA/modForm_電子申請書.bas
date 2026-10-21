@@ -1,6 +1,8 @@
 Attribute VB_Name = "modForm"
 Option Explicit
 
+Private Const MAIL_TO As String = "fukuri@city.hiroshima.lg.jp"
+
 Public Function ErrorCount() As Long
     ErrorCount = Application.WorksheetFunction.CountIf(Worksheets("入力").Range("K6:K52"), ChrW(10005) & "*")
 End Function
@@ -29,6 +31,15 @@ Public Sub 請求書を印刷()
     Worksheets("請求書(裏)").PrintOut
 End Sub
 
+' 請求日に今日の日付を入れる
+Public Sub 請求日を今日にする()
+    With Worksheets("入力")
+        .Range("D37").Value = Year(Date) - 2018
+        .Range("F37").Value = Month(Date)
+        .Range("H37").Value = Day(Date)
+    End With
+End Sub
+
 ' 翌月分を作るために月ごとに変わる項目だけを消す
 Public Sub 翌月分用にクリア()
     If MsgBox("対象月・報酬額・通勤手当（月額）・請求日・添付書類チェックを消します。よろしいですか？", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
@@ -42,4 +53,76 @@ Public Sub 翌月分用にクリア()
         .Activate
         .Range("D7").Select
     End With
+End Sub
+
+' 共済組合(fukuri@city.hiroshima.lg.jp)宛のメール下書きを作る
+'  添付：請求書データ(マクロなしxlsx) と 請求書PDF(表・裏)。内容を確認して［送信］を押す
+Public Sub 共済組合へメール送信()
+    Dim ws As Worksheet, tmp As String, base As String, fx As String, fp As String
+    Dim nb As Workbook, i As Long, ol As Object, mi As Object, body As String
+    Set ws = Worksheets("入力")
+    If ErrorCount() > 0 Then
+        MsgBox ErrorList(), vbExclamation, "入力エラーがあるため送信できません"
+        Exit Sub
+    End If
+    tmp = Environ("TEMP") & "\育短請求\"
+    If Dir(tmp, vbDirectory) = "" Then MkDir tmp
+    base = "育短請求_" & ws.Range("C6").Value & "_R" & ws.Range("D7").Value & "." & ws.Range("F7").Value
+    fx = tmp & base & ".xlsx"
+    fp = tmp & base & ".pdf"
+    If Dir(fx) <> "" Then Kill fx
+    If Dir(fp) <> "" Then Kill fp
+
+    Application.ScreenUpdating = False
+    Worksheets(Array("請求書(表)", "請求書(裏)")).Select
+    ActiveSheet.ExportAsFixedFormat Type:=xlTypePDF, Filename:=fp, Quality:=xlQualityStandard
+    ws.Select
+
+    ThisWorkbook.Worksheets.Copy
+    Set nb = ActiveWorkbook
+    With nb.Worksheets("入力")
+        .Unprotect
+        For i = .Shapes.Count To 1 Step -1
+            .Shapes(i).Delete
+        Next i
+        .Protect
+    End With
+    Application.DisplayAlerts = False
+    nb.SaveAs Filename:=fx, FileFormat:=xlOpenXMLWorkbook
+    nb.Close SaveChanges:=False
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+    ThisWorkbook.Activate
+
+    body = "広島市職員共済組合　御中" & vbCrLf & vbCrLf & _
+           "育児時短勤務手当金の請求書を送付します。" & vbCrLf & vbCrLf & _
+           "・対象月：令和" & ws.Range("D7").Value & "年" & ws.Range("F7").Value & "月分" & vbCrLf & _
+           "・職員番号：" & ws.Range("C6").Value & vbCrLf & _
+           "・氏名：" & ws.Range("C11").Value & vbCrLf & _
+           "・所属：" & ws.Range("C15").Value & vbCrLf & _
+           "・勤務区分：" & ws.Range("C18").Value & vbCrLf & _
+           "・請求者連絡先：" & ws.Range("C39").Value & vbCrLf & _
+           "・庶務担当：" & ws.Range("C40").Value & "（" & ws.Range("C41").Value & "）" & vbCrLf & vbCrLf & _
+           "添付：請求書データ（Excel）、請求書（PDF）" & vbCrLf & _
+           "※承認書・出勤簿・支給明細書等の写しは、このメールに添付するか、庶務担当を通じて提出します。" & vbCrLf
+
+    On Error GoTo NoOutlook
+    Set ol = CreateObject("Outlook.Application")
+    Set mi = ol.CreateItem(0)
+    With mi
+        .To = MAIL_TO
+        .Subject = "【育児時短勤務手当金請求】令和" & ws.Range("D7").Value & "年" & ws.Range("F7").Value & "月分　" & ws.Range("C11").Value & "（" & ws.Range("C6").Value & "）"
+        .Body = body
+        .Attachments.Add fx
+        .Attachments.Add fp
+        .Display
+    End With
+    MsgBox "メールの下書きを作成しました（宛先：" & MAIL_TO & "）。" & vbLf & "承認書・出勤簿・支給明細書などの写しを追加し、内容を確認してから［送信］を押してください。", vbInformation
+    Exit Sub
+
+NoOutlook:
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Shell "explorer.exe """ & Left(tmp, Len(tmp) - 1) & """", vbNormalFocus
+    MsgBox "Outlookを起動できませんでした。" & vbLf & "開いたフォルダの2ファイル（Excel・PDF）を、" & MAIL_TO & " 宛のメールに添付して送信してください。", vbExclamation
 End Sub
