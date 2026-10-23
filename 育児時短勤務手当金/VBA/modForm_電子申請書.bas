@@ -42,17 +42,18 @@ End Sub
 
 ' 翌月分を作るために月ごとに変わる項目だけを消す
 Public Sub 翌月分用にクリア()
-    If MsgBox("対象月・報酬額・通勤手当（月額）・請求日・添付書類チェックを消します。よろしいですか？", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
+    If MsgBox("対象月・給与明細の金額・通勤手当（月額）・請求日・添付書類チェックを消します。よろしいですか？", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
     Dim a As Variant
     With Worksheets("入力")
         .Unprotect
-        For Each a In Array("D7", "F7", "C28:H28", "C30:H30", "C32:H32", "C33:D33", "C34:D34", "D37", "F37", "H37", "C43:D43", "C44:D44", "C45:D45", "C46:D46", "C47:D47", "C48:D48", "C49:D49", "C50:D50", "C51:D51", "C52:D52")
+        For Each a In Array("D7", "F7", "C30:H30", "C32:H32", "C33:D33", "C34:D34", "D37", "F37", "H37", "C43:D43", "C44:D44", "C45:D45", "C46:D46", "C47:D47", "C48:D48", "C49:D49", "C50:D50", "C51:D51", "C52:D52")
             .Range(a).ClearContents
         Next a
         .Protect
         .Activate
         .Range("D7").Select
     End With
+    Worksheets("給与明細").Range("B15:I15,B17:I17,B19:I19,B23:I23,B25:I25,B29:I29,C9:D9,C41").ClearContents
 End Sub
 
 ' 共済組合(fukuri@city.hiroshima.lg.jp)宛のメール下書きを作る
@@ -87,9 +88,12 @@ Public Sub 共済組合へメール送信()
         For i = .Shapes.Count To 1 Step -1
             .Shapes(i).Delete
         Next i
+        .Range("C28").Value = .Range("C28").Value
+        .Range("K28").Value = .Range("K28").Value
         .Protect
     End With
     Application.DisplayAlerts = False
+    nb.Worksheets("給与明細").Delete
     nb.SaveAs Filename:=fx, FileFormat:=xlOpenXMLWorkbook
     nb.Close SaveChanges:=False
     Application.DisplayAlerts = True

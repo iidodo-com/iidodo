@@ -237,11 +237,17 @@ chk(26, reqdate(26), "未入力です",
 
 # ---------- ⑤ 報酬 ----------
 sec(27, "⑤ 報酬・通勤手当")
-label(28, "支給対象月に支払われた報酬の額（円）"); cell_in("C28", "H28", "#,##0"); static("I28", "円")
-dv("C28", type="whole", operator="between", formula1="0", formula2="99999999", msg="円の数字（整数）で入力してください。")
-hint(28, "支給明細書の額（期末勤勉手当・給与改定差額を除く）。1月当たりの通勤手当を含む")
-chk(28, 'C28=""', "未入力です", [("NOT(ISNUMBER(C28))", "数字で入力してください")],
-    [("C28=0", "0円です。支給明細書を確認してください"), ("C28>1000000", "金額が大きすぎます。桁を確認してください")])
+label(28, "支給対象月に支払われた報酬の額（円）【自動：給与明細シート】"); static("I28", "円")
+inp.merge_cells("C28:H28")
+inp["C28"] = "=給与明細!C42"
+inp["C28"].number_format = "#,##0"; inp["C28"].fill = GRY
+inp["C28"].alignment = Alignment(horizontal="right", vertical="center"); inp["C28"].font = Font(name=FN, size=11)
+hint(28, "「給与明細」シートに支給明細書の金額を転記すると自動計算されます（期末・勤勉手当・給与改定差額は除外、通勤手当は月割に置換）")
+chk(28, 'C28=""', "未入力です。「給与明細」シートに入力してください", [("NOT(ISNUMBER(C28))", "数字で入力してください")],
+    [("C28=0", "0円です。給与明細シートを確認してください"), ("C28>1000000", "金額が大きすぎます。桁を確認してください"),
+     ('AND(N(給与明細!F15)>0,C29="無")', "給与明細に通勤手当がありますが、通勤手当が「無」になっています"),
+     ('AND(C31="数か月分一括支給",N(C34)=1,ISNUMBER(C32),N(給与明細!F15)<>C32)', "1か月目の明細の通勤手当額が、一括総額（下欄）と異なります"),
+     ('AND(C31="数か月分一括支給",N(C34)>1,N(給与明細!F15)>0)', "2か月目以降なのに、明細に通勤手当が載っています")])
 label(29, "通勤手当の有無"); cell_in("C29", "D29")
 dv("C29", type="list", formula1='"有,無"', msg="「有」か「無」を選んでください。")
 chk(29, 'C29=""', "未入力です（選択してください）")
@@ -385,6 +391,163 @@ inp.protection.formatColumns = False
 inp.sheet_properties.pageSetUpPr = openpyxl.worksheet.properties.PageSetupProperties(fitToPage=True)
 inp.page_setup.orientation = "landscape"; inp.page_setup.fitToHeight = 0
 
+
+# ---------- 給与明細シート ----------
+ky = wb.create_sheet("給与明細", 2)
+ky.sheet_view.showGridLines = False
+ky.column_dimensions["A"].width = 12
+for cl in "BCDEFGHI":
+    ky.column_dimensions[cl].width = 15
+MIN = "ＭＳ 明朝"
+b1 = Side(style="thin", color="000000")
+B1 = Border(left=b1, right=b1, top=b1, bottom=b1)
+kin = []
+
+
+def kb(addr, v=None, **kw):
+    c = ky[addr]
+    if v is not None:
+        c.value = v
+    c.font = Font(name=kw.get("font", MIN), size=kw.get("size", 10), bold=kw.get("bold", False), color=kw.get("color", "000000"))
+    c.alignment = Alignment(horizontal=kw.get("h", "left"), vertical=kw.get("va", "center"), wrap_text=kw.get("wrap", False), shrink_to_fit=kw.get("shrink", False))
+    if kw.get("border", True):
+        c.border = B1
+    if kw.get("fill"):
+        c.fill = kw["fill"]
+    if kw.get("fmt"):
+        c.number_format = kw["fmt"]
+    return c
+
+
+def pair(col, lab_row, label, amount=None, input_=True, label_input=False):
+    """明細の1マス：上段=項目名(小さく)、下段=金額"""
+    kb(f"{col}{lab_row}", label, size=8, va="top", fill=(YEL if label_input else PatternFill("solid", fgColor="F2F2F2")))
+    if label_input:
+        kin.append(f"{col}{lab_row}")
+    a = kb(f"{col}{lab_row + 1}", amount, size=11, h="right", va="bottom", fmt="#,##0;-#,##0", fill=(YEL if input_ else None))
+    if input_:
+        kin.append(f"{col}{lab_row + 1}")
+    ky.row_dimensions[lab_row].height = 15
+    ky.row_dimensions[lab_row + 1].height = 24
+
+
+ky["A1"] = "給与明細（支給対象月に支払われた報酬の額の計算）"
+ky["A1"].font = Font(name=FN, size=15, bold=True)
+ky.merge_cells("A2:I2")
+ky["A2"] = ("支給明細書の金額を黄色いセルへ転記してください。下の「報酬額の計算」で、期末手当・勤勉手当・給与改定差額を除き、"
+            "通勤手当は明細の額を控除して1か月当たりの額（複数月分の場合は月割）を加えた額が、「入力」シートの報酬額に自動で入ります。")
+ky["A2"].font = Font(name=FN, size=9, color="595959"); ky["A2"].alignment = Alignment(wrap_text=True, vertical="top")
+ky.row_dimensions[2].height = 28
+# ヘッダー
+for r, (lab, f) in enumerate((("支給年月", '=IF(入力!D7="","","令和 "&入力!D7&" 年 "&入力!F7&" 月")'),
+                              ("所属", '=IF(入力!C15="","",入力!C15)'),
+                              ("氏名", '=IF(入力!C11="","",TEXT(入力!C6,"0")&"　　"&入力!C11)')), 4):
+    kb(f"A{r}", lab, size=9, h="center", fill=PatternFill("solid", fgColor="F2F2F2"))
+    ky.merge_cells(f"B{r}:D{r}")
+    for cl in "BCD":
+        ky[f"{cl}{r}"].border = B1
+    kb(f"B{r}", f, size=10)
+ky.merge_cells("F5:G5"); kb("F5", "支給明細書", size=16, h="center", border=False)
+# 差引支給額の内訳
+ky.merge_cells("A8:A9"); kb("A8", "差引支給額の内訳", size=8, h="center", wrap=True, fill=PatternFill("solid", fgColor="F2F2F2")); ky["A9"].border = B1
+for cl, lab in zip("BCDEF", ("第一口座振込額", "第二口座振込額", "現金支給額", "第三口座振込額", "差引現金支給額")):
+    inpt = cl in "CD"
+    pair(cl, 8, lab, input_=inpt)
+ky["B9"] = '=IF(B12=0,"",D12-N(C9)-N(D9)-N(E9))'
+ky["E9"] = '=IF(SUM(B29:I29)=0,"",SUM(B29:I29))'
+# 集計
+for cl, lab, f in (("B", "総支給額", "=SUM(B15:I15,B17:I17,B19:I19)"),
+                   ("C", "法定控除金合計", "=SUM(B23:I23,B25:I25)"),
+                   ("D", "差引支給額", "=B12-C12"),
+                   ("E", "給与計（非課税）", "=N(F15)"),
+                   ("F", "給与計（課税）", "=B12-E12"),
+                   ("G", "社会保険料計", "=SUM(D23:H23)"),
+                   ("H", "課税対象額", "=F12-G12")):
+    pair(cl, 11, lab, f, input_=False)
+# 総支給額の内訳
+ky.merge_cells("A14:A19"); kb("A14", "総支給額の内訳", size=9, h="center", wrap=True, fill=PatternFill("solid", fgColor="F2F2F2"))
+for r in range(14, 20):
+    ky[f"A{r}"].border = B1
+inc = [("給料", "地域手当", "扶養手当", "住居手当", "通勤手当（非）", "単身赴任手当", "管理職手当", "初任給調整手当"),
+       ("特殊勤務手当", "時間外勤務手当", "休日勤務手当", "夜間勤務手当", "宿日直手当", "管理職員特別勤務手当", "へき地手当", "産業教育手当"),
+       ("定時制通信教育手当", "義務教育等教員特別手当", "期末手当", "勤勉手当", "給与改定差額", None, None, None)]
+for gi, names in enumerate(inc):
+    for cl, nm in zip("BCDEFGHI", names):
+        if nm is None:
+            pair(cl, 14 + gi * 2, "その他（手当名を入力）", input_=True, label_input=True)
+        else:
+            pair(cl, 14 + gi * 2, nm)
+kb("A20", "↑その他の扱い", size=8, h="center", border=False)
+for cl in "GHI":
+    kb(f"{cl}20", None, size=9, h="center", fill=YEL)
+    kin.append(f"{cl}20")
+d = DataValidation(type="list", formula1='"含める,含めない"', allow_blank=True, showErrorMessage=True, errorTitle="入力エラー", error="「含める」か「含めない」を選んでください。")
+d.add("G20:I20"); ky.add_data_validation(d)
+kb("B20", "※期末手当・勤勉手当・給与改定差額は自動で報酬額から除きます。その他の手当は「含める」「含めない」を選びます（空欄＝含める）。", size=8, border=False, color="7F7F7F")
+# 法定控除
+ky.merge_cells("A22:A25"); kb("A22", "法定控除金の内訳", size=9, h="center", wrap=True, fill=PatternFill("solid", fgColor="F2F2F2"))
+for r in range(22, 26):
+    ky[f"A{r}"].border = B1
+for cl, nm in zip("BCDEFGHI", ("所得税", "住民税", "共済短期掛金", "共済子ども支援", "共済厚生年金掛金", "共済退職等年金", "共済介護", "互助会掛金")):
+    pair(cl, 22, nm)
+for cl in "BCDEFGHI":
+    pair(cl, 24, "（控除名）", input_=True, label_input=True)
+# 備考・第三口座
+ky.merge_cells("A27:A29"); kb("A27", "第三口座の内訳", size=9, h="center", wrap=True, fill=PatternFill("solid", fgColor="F2F2F2"))
+for r in range(27, 30):
+    ky[f"A{r}"].border = B1
+ky.row_dimensions[27].height = 4
+for cl, nm in zip("BCDEFGHI", ("親睦会", "所属控除金手数料", None, None, None, None, None, None)):
+    if nm:
+        pair(cl, 28, nm)
+    else:
+        pair(cl, 28, "（項目名）", input_=True, label_input=True)
+ky.row_dimensions[27].height = 6
+# 報酬額の計算
+ky.merge_cells("A32:I32")
+kb("A32", "報酬額の計算（請求書の「支給対象月に支払われた報酬の額」）", size=11, bold=True, font=FN, color="FFFFFF", fill=SEC)
+calc = [(33, "① 総支給額（明細）", "=B12", ""),
+        (34, "② − 期末手当", "=-N(D19)", "請求の報酬から除外"),
+        (35, "③ − 勤勉手当", "=-N(E19)", "請求の報酬から除外"),
+        (36, "④ − 給与改定差額", "=-N(F19)", "請求の報酬から除外"),
+        (37, "⑤ − 通勤手当（この明細に載っている額）", "=-N(F15)", "複数月分を一括で支給された月は、その全額をいったん控除"),
+        (38, "⑥ − 「含めない」にしたその他の手当", '=-(IF(G20="含めない",N(G19),0)+IF(H20="含めない",N(H19),0)+IF(I20="含めない",N(I19),0))', ""),
+        (39, "⑦ ＋ 1か月当たりの通勤手当", '=IF(入力!C29<>"有",0,IF(AND(入力!C31="数か月分一括支給",ISNUMBER(入力!N35)),入力!N35,N(入力!C30)))',
+         "入力シートの通勤手当（一括支給なら総額÷月数、端数は最終月に加算）"),
+        (40, "⑧ ＝ 報酬額（計算結果）", "=SUM(C33:C39)", "")]
+for r, lab, f, note in calc:
+    ky.merge_cells(f"A{r}:B{r}")
+    kb(f"A{r}", lab, size=10, bold=(r in (33, 40)))
+    ky[f"B{r}"].border = B1
+    kb(f"C{r}", f, size=11, h="right", fmt="#,##0;-#,##0", bold=(r == 40))
+    ky.merge_cells(f"D{r}:I{r}")
+    kb(f"D{r}", note, size=8, border=False, color="7F7F7F")
+ky.merge_cells("A41:B41"); kb("A41", "直接入力（明細を使わない場合のみ）", size=10)
+ky["B41"].border = B1
+kb("C41", None, size=11, h="right", fmt="#,##0", fill=YEL); kin.append("C41")
+dvd = DataValidation(type="whole", operator="between", formula1="0", formula2="99999999", allow_blank=True, showErrorMessage=True, errorTitle="入力エラー", error="円の数字（整数）で入力してください。")
+dvd.add("C41"); ky.add_data_validation(dvd)
+ky.merge_cells("D41:I41"); kb("D41", "入力すると、上の計算よりこちらが優先されます（月額が明細と別にわかっている場合など）", size=8, border=False, color="7F7F7F")
+ky.merge_cells("A42:B42"); kb("A42", "★ 入力シートへ渡す報酬額", size=11, bold=True, fill=PatternFill("solid", fgColor="DDEBF7"))
+ky["B42"].border = B1
+kb("C42", '=IF(C41<>"",C41,IF(B12=0,"",C40))', size=12, h="right", bold=True, fmt='#,##0', fill=PatternFill("solid", fgColor="DDEBF7"))
+ky.merge_cells("D42:I42"); kb("D42", '=IF(C42="","← 未入力です",IF(C42<0,"✕ 報酬額がマイナスです。入力を確認してください",""))', size=9, border=False, color="C00000")
+ky.merge_cells("A44:I46")
+kb("A44", ("【通勤手当が複数月分まとめて支給される場合の例】3か月に1回支給なら、支給月は明細の通勤手当（3か月分）をいったん控除し、その1/3（端数は最終月に加算）を加えます。"
+           "支給のない月も、明細に通勤手当は載りませんが1/3を加えます。月数・何か月目は「入力」シートの「通勤手当」欄に入力してください。"),
+   size=9, wrap=True, va="top", border=False, color="404040")
+for a in kin:
+    ky[a].fill = YEL
+    ky[a].border = B1
+ky.print_area = "A1:I46"
+ky.page_setup.orientation = "portrait"; ky.page_setup.paperSize = 9
+ky.sheet_properties.pageSetUpPr = openpyxl.worksheet.properties.PageSetupProperties(fitToPage=True)
+ky.page_setup.fitToWidth = 1; ky.page_setup.fitToHeight = 1
+amount_dv = DataValidation(type="whole", operator="between", formula1="-9999999", formula2="9999999", allow_blank=True, showErrorMessage=True, errorTitle="入力エラー", error="円の数字（整数）で入力してください。")
+for rng in ("B15:I15", "B17:I17", "B19:I19", "B23:I23", "B25:I25", "B29:I29", "C9:D9"):
+    amount_dv.add(rng)
+ky.add_data_validation(amount_dv)
+
 # ---------- 請求書(表) ----------
 def I(a):
     return f"入力!{a}"
@@ -467,6 +630,7 @@ lines = [("育児時短勤務手当金請求書（電子申請書）　使い方
          ("0. ファイルを開いたとき「マクロを有効にする」を押してください（押さないとボタンが動きません）。", 11, False),
          ("1. 「入力」シートの黄色いセルに入力します（Excelだけで動作・インストール不要）。", 11, False),
          ("2. 入力すると、右側の「チェック」欄が自動で ✓（OK）／✕（エラー）／△（要確認）になります。✕ は必ず直してください。", 11, False),
+         ("　 報酬額は「給与明細」シートに支給明細書の金額を転記すると自動計算されます（期末勤勉手当・給与改定差額を除外／通勤手当は明細の額を控除して月割を加算）。", 11, False),
          ("3. 日付は「令和」の年・月・日を数字で入力します（例：令和8年4月 → 年に8、月に4）。請求期間は自動で計算されます。請求日は［請求日を今日に］ボタンで入ります。", 11, False),
          ("4. 最上段が緑色（✓）になったら提出します。提出方法は次の2通りです。", 11, False),
          ("　(A) 紙で提出：［請求書を印刷］→ 所属機関の長の確認欄に記入・押印 → 添付書類の写しを添えて庶務担当経由で提出", 11, False),
