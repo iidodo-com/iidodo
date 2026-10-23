@@ -9,11 +9,14 @@ Option Explicit
 ' ============================================================
 
 Private Const SHEET_DASH As String = "ダッシュボード"
+Private Const ANIM_SEC As Double = 0.02   ' 切り替え間隔（秒）。0にすると最速
 Private paletteNo As Long
 
 ' ---- 指定秒数だけ待つ（Doevents付き。0.3秒などの短い待ちに対応）----
 Private Sub Pause(ByVal sec As Double)
     Dim t As Double
+    DoEvents
+    If sec <= 0 Then Exit Sub
     t = Timer
     Do While Timer - t < sec
         DoEvents
@@ -25,6 +28,7 @@ Public Sub ResetAll()
     With ThisWorkbook.Worksheets(SHEET_DASH)
         .Range("D4").Value = "全区"
         .Range("J4").Value = "全期間"
+        .Range("D5").Value = "来庁者数"
         .Range("P4").Value = TimeSerial(9, 0, 0)
         .Range("V4").Value = TimeSerial(16, 30, 0)
         .Activate
@@ -44,7 +48,7 @@ Public Sub PlayWards()
         ws.Range("D4").Value = names(i)
         Application.StatusBar = "表示中： " & names(i) & "（Escキーで中断できます）"
         Application.Calculate
-        Pause 0.7
+        Pause ANIM_SEC
     Next i
 Done:
     ws.Range("D4").Value = keep
@@ -63,10 +67,29 @@ Public Sub PlayMonths()
         ws.Range("J4").Value = names(i)
         Application.StatusBar = "表示中： " & names(i) & "（Escキーで中断できます）"
         Application.Calculate
-        Pause 0.4
+        Pause ANIM_SEC
     Next i
 Done:
     ws.Range("J4").Value = keep
+    Application.StatusBar = False
+End Sub
+
+' ---- 指標（来庁者数・待ち・対応・滞在）を順に切り替える ----
+Public Sub PlayMetrics()
+    Dim ws As Worksheet, names As Variant, i As Long, keep As Variant
+    Set ws = ThisWorkbook.Worksheets(SHEET_DASH)
+    names = Array("来庁者数", "平均待ち時間", "平均対応時間", "平均滞在時間")
+    keep = ws.Range("D5").Value
+    ws.Activate
+    On Error GoTo Done
+    For i = LBound(names) To UBound(names)
+        ws.Range("D5").Value = names(i)
+        Application.StatusBar = "表示中： " & names(i)
+        Application.Calculate
+        Pause ANIM_SEC * 20
+    Next i
+Done:
+    ws.Range("D5").Value = keep
     Application.StatusBar = False
 End Sub
 
@@ -81,7 +104,7 @@ Public Sub PlayEndTime()
         ws.Range("V4").Value = m / 1440
         Application.StatusBar = "開庁時間の終了： " & Format(m \ 60, "0") & ":" & Format(m Mod 60, "00")
         Application.Calculate
-        Pause 0.4
+        Pause ANIM_SEC
     Next m
 Done:
     ws.Range("V4").Value = keep
