@@ -1,0 +1,69 @@
+table 発券
+	lineageTag: f61a009f-af57-4f4f-97ce-7e708ca29b6d
+
+	measure 発券数 = SUM('発券'[件数])
+		formatString: #,0
+		lineageTag: a2f2f669-db6e-4032-b455-2821b8e39fbe
+
+	measure 全体に占める割合 = DIVIDE([発券数], CALCULATE([発券数], REMOVEFILTERS('発券'[時間帯開始分], '発券'[時間帯], '発券'[PDF表記])), 0)
+		formatString: 0.0%
+		lineageTag: bf3cc6a9-a87d-47d6-9d25-f0f53ca6bc60
+
+	column 日付
+		dataType: dateTime
+		formatString: yyyy/mm/dd
+		lineageTag: b10d146f-7b52-445b-9fee-8493e2c014d6
+		summarizeBy: none
+		sourceColumn: 日付
+
+	column 区
+		dataType: string
+		lineageTag: 5359a0a1-5ff6-4ff7-988f-6d47a6f52f07
+		summarizeBy: none
+		sourceColumn: 区
+
+	column 時間帯開始分
+		dataType: int64
+		formatString: 0
+		lineageTag: 56daa735-cc96-4224-847f-9399a5768a25
+		summarizeBy: none
+		sourceColumn: 時間帯開始分
+
+	column 時間帯
+		dataType: string
+		lineageTag: 2fa2e532-24b6-4c56-8c2d-b0220ff1cdcc
+		summarizeBy: none
+		sortByColumn: 時間帯開始分
+		sourceColumn: 時間帯
+
+	column PDF表記
+		dataType: string
+		lineageTag: 3777cae7-046d-4f49-94de-24988158e2af
+		summarizeBy: none
+		sortByColumn: 時間帯開始分
+		sourceColumn: PDF表記
+
+	column データ元
+		dataType: string
+		lineageTag: 4c49f513-b544-4404-baaa-186ff3257b7a
+		summarizeBy: none
+		sourceColumn: データ元
+
+	column 件数
+		dataType: int64
+		formatString: #,0
+		lineageTag: 12fdbbda-a7b5-4d9c-8f58-c1517fc19e8e
+		summarizeBy: sum
+		sourceColumn: 件数
+
+	partition 発券 = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\hakken_15min.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {{"日付", type date}, {"区", type text}, {"時間帯開始分", Int64.Type}, {"時間帯", type text}, {"PDF表記", type text}, {"データ元", type text}, {"件数", Int64.Type}}, "en-US")
+				in
+				    Typed
+
+	annotation PBI_ResultType = Table

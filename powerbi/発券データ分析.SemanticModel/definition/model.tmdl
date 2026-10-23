@@ -1,0 +1,8 @@
+model Model
+	culture: ja-JP
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	discourageImplicitMeasures
+
+ref table 発券
+ref table 開庁時間案
+ref expression DataFolder

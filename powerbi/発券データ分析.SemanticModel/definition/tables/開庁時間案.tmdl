@@ -1,0 +1,35 @@
+table 開庁時間案
+	lineageTag: 8ff59c5f-63d3-4e9d-8924-ccd9208cacd2
+
+	measure 開庁時間内の発券数 = VAR s = MAX('開庁時間案'[開始分]) VAR e = MAX('開庁時間案'[終了分]) RETURN CALCULATE(SUM('発券'[件数]), KEEPFILTERS(FILTER(ALL('発券'[時間帯開始分]), '発券'[時間帯開始分] >= s && '発券'[時間帯開始分] < e)))
+		formatString: #,0
+		lineageTag: 59a52572-2e8e-490c-affd-dd962c0a43a3
+
+	measure 開庁時間外の発券数 = CALCULATE(SUM('発券'[件数]), REMOVEFILTERS('発券'[時間帯開始分], '発券'[時間帯], '発券'[PDF表記])) - [開庁時間内の発券数]
+		formatString: #,0
+		lineageTag: e95088b4-1b5e-48ef-a8e0-3a336c715e40
+
+	measure 開庁時間外の発券数割合 = DIVIDE([開庁時間外の発券数], CALCULATE(SUM('発券'[件数]), REMOVEFILTERS('発券'[時間帯開始分], '発券'[時間帯], '発券'[PDF表記])), 0)
+		formatString: 0.0%
+		lineageTag: e3a0e2bb-255c-48fd-a6a8-08826d167827
+
+	column 開庁時間案
+		lineageTag: b5f38554-f345-4ae8-9572-8fa852d4b91e
+		summarizeBy: none
+		sourceColumn: [開庁時間案]
+
+	column 開始分
+		dataType: int64
+		lineageTag: eea379fc-12f1-4cf0-b2c6-d58bc71727c2
+		summarizeBy: none
+		sourceColumn: [開始分]
+
+	column 終了分
+		dataType: int64
+		lineageTag: f1deb3b7-78c4-4bb3-8048-835bc5e360f8
+		summarizeBy: none
+		sourceColumn: [終了分]
+
+	partition 開庁時間案 = calculated
+		mode: import
+		source = DATATABLE("開庁時間案", STRING, "開始分", INTEGER, "終了分", INTEGER, { {"9:00-16:30", 540, 990}, {"8:45-16:30", 525, 990}, {"8:30-17:15", 510, 1035} })
