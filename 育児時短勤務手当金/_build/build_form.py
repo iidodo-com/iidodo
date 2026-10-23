@@ -239,45 +239,51 @@ chk(26, reqdate(26), "未入力です",
 sec(27, "⑤ 報酬・通勤手当")
 label(28, "支給対象月に支払われた報酬の額（円）【自動：給与明細シート】"); static("I28", "円")
 inp.merge_cells("C28:H28")
-inp["C28"] = "=給与明細!C42"
+inp["C28"] = "=給与明細!C50"
 inp["C28"].number_format = "#,##0"; inp["C28"].fill = GRY
 inp["C28"].alignment = Alignment(horizontal="right", vertical="center"); inp["C28"].font = Font(name=FN, size=11)
 hint(28, "「給与明細」シートに支給明細書の金額を転記すると自動計算されます（期末・勤勉手当・給与改定差額は除外、通勤手当は月割に置換）")
 chk(28, 'C28=""', "未入力です。「給与明細」シートに入力してください", [("NOT(ISNUMBER(C28))", "数字で入力してください")],
     [("C28=0", "0円です。給与明細シートを確認してください"), ("C28>1000000", "金額が大きすぎます。桁を確認してください"),
-     ('AND(N(給与明細!F15)>0,C29="無")', "給与明細に通勤手当がありますが、通勤手当が「無」になっています"),
-     ('AND(C31="数か月分一括支給",N(C34)=1,ISNUMBER(C32),N(給与明細!F15)<>C32)', "1か月目の明細の通勤手当額が、一括総額（下欄）と異なります"),
-     ('AND(C31="数か月分一括支給",N(C34)>1,N(給与明細!F15)>0)', "2か月目以降なのに、明細に通勤手当が載っています")])
+     ])
 label(29, "通勤手当の有無"); cell_in("C29", "D29")
 dv("C29", type="list", formula1='"有,無"', msg="「有」か「無」を選んでください。")
+hint(29, "通勤手当の詳細（複数月分の支給など）は「給与明細」シートに入力します")
 chk(29, 'C29=""', "未入力です（選択してください）")
-label(30, "1月当たりの通勤手当の額（円）"); cell_in("C30", "H30", "#,##0"); static("I30", "円")
-dv("C30", type="whole", operator="between", formula1="0", formula2="9999999", msg="円の数字（整数）で入力してください。")
-hint(30, "「無」の場合は空欄。報酬の額に含めた通勤手当の額")
-chk(30, "", "", [('AND(C29="有",OR(C30="",N(C30)=0))', "通勤手当が「有」の場合は金額を入力してください"),
-                 ('AND(C29="無",N(C30)>0)', "通勤手当が「無」なのに金額が入力されています"),
-                 ('AND(ISNUMBER(C30),ISNUMBER(C28),C30>C28)', "通勤手当が報酬の額より大きくなっています")],
-    [('N(C30)>150000', "通勤手当が月15万円を超えています。確認してください"),
-     ('AND(C31="数か月分一括支給",N35<>"",C30<>N35)', "一括支給の計算補助（下欄）の額と異なります")])
-inp["K30"] = inp["K30"].value.replace("=IF(", '=IF(AND(C29="",C30=""),"",IF(', 1) + ")"
-label(31, "通勤手当の支給方法（「有」の場合）"); cell_in("C31", "I31")
-dv("C31", type="list", formula1='"毎月支給,数か月分一括支給"', msg="一覧から選んでください。")
-hint(31, "数か月分をまとめて支給された場合は下の計算補助を使います")
-chk(31, 'AND(C29="有",C31="")', "未入力です（選択してください）")
-label(32, "【計算補助】一括支給された通勤手当の総額（円）"); cell_in("C32", "H32", "#,##0"); static("I32", "円")
-label(33, "【計算補助】支給月数（か月分）"); cell_in("C33", "D33"); static("E33", "か月")
-label(34, "【計算補助】請求月は何か月目か"); cell_in("C34", "D34"); static("E34", "か月目")
-for a in ("C32", "C33", "C34"):
-    dv(a, type="whole", operator="between", formula1="1", formula2="99999999" if a == "C32" else "12", msg="数字（整数）で入力してください。")
-hint(32, "一括支給のときだけ入力。1月当たり＝総額÷月数（端数は最終月に加算）")
-chk(32, 'AND(C31="数か月分一括支給",OR(C32="",C33="",C34=""))', "総額・月数・何か月目を入力してください",
-    [('AND(C31="数か月分一括支給",C34>C33)', "請求月が月数より大きくなっています")])
-inp["K32"] = '=IF(C31<>"数か月分一括支給","",' + inp["K32"].value[1:] + ")"
-label(35, "【計算補助】1月当たりの通勤手当の額（自動）")
-inp["N35"] = '=IF(AND(C31="数か月分一括支給",ISNUMBER(C32),ISNUMBER(C33),ISNUMBER(C34),N(C33)>0,N(C34)<=N(C33)),IF(C34=C33,C32-INT(C32/C33)*(C33-1),INT(C32/C33)),"")'
+label(30, "1月当たりの通勤手当の額（円）【自動：給与明細シート】"); static("I30", "円")
+inp.merge_cells("C30:H30")
+inp["C30"] = '=IF(C29<>"有","",IF(給与明細!H37="","",給与明細!H37))'
+hint(30, "給与明細シートの通勤手当から自動計算（複数月分の一括支給は月割、端数は最終月に加算）")
+inp["K30"] = ('=IF(C29="","",IF(C29="無",IF(N(給与明細!F15)>0,"△ 明細に通勤手当がありますが「無」になっています","✓"),'
+              'IF(給与明細!A38<>"",給与明細!A38,IF(N(C30)=0,"✕ 通勤手当が「有」ですが額が0円です。給与明細シートを確認してください",'
+              'IF(AND(ISNUMBER(C28),N(C30)>C28),"✕ 通勤手当が報酬の額より大きくなっています",'
+              'IF(N(C30)>150000,"△ 通勤手当が月15万円を超えています。確認してください","✓"))))))')
+label(31, "通勤手当の支給方法【自動：給与明細シート】")
+inp.merge_cells("C31:I31")
+inp["C31"] = '=IF(C29<>"有","",IF(給与明細!C32="数か月分一括支給","数か月分一括支給","毎月支給"))'
+label(32, "【一括】支給された通勤手当の総額（円）【自動】"); static("I32", "円")
+inp.merge_cells("C32:H32")
+inp["C32"] = '=IF(AND(C31="数か月分一括支給",ISNUMBER(給与明細!C34)),給与明細!C34,"")'
+label(33, "【一括】支給月数（か月分）【自動】"); static("E33", "か月")
+inp.merge_cells("C33:D33")
+inp["C33"] = '=IF(AND(C31="数か月分一括支給",ISNUMBER(給与明細!K37)),給与明細!K37,"")'
+label(34, "【一括】請求月は何か月目か【自動】"); static("E34", "か月目")
+inp.merge_cells("C34:D34")
+inp["C34"] = '=IF(AND(C31="数か月分一括支給",ISNUMBER(給与明細!K38)),給与明細!K38,"")'
+label(35, "【一括】1月当たりの通勤手当の額（自動）")
+inp["N35"] = '=IF(AND(C31="数か月分一括支給",ISNUMBER(給与明細!K39)),給与明細!K39,"")'
 inp["C35"] = '=IF(N35="","",N35)'
-inp.merge_cells("C35:H35"); inp["C35"].number_format = '#,##0"円"'; inp["C35"].fill = GRY
-inp["C35"].alignment = Alignment(horizontal="right")
+inp.merge_cells("C35:H35"); inp["C35"].number_format = '#,##0"円"'
+hint(32, "給与明細シートの「通勤手当（複数月分）」欄に入力します（一括支給のときだけ表示）")
+for r_ in (30, 32, 33, 34, 35):
+    for cl_ in "CDEFGH":
+        if inp[f"{cl_}{r_}"].coordinate in ("C30", "C32", "C33", "C34", "C35") or True:
+            pass
+    inp[f"C{r_}"].fill = GRY
+    inp[f"C{r_}"].alignment = Alignment(horizontal="right" if r_ in (30, 32, 35) else "center", vertical="center")
+    inp[f"C{r_}"].font = Font(name=FN, size=11)
+inp["C31"].fill = GRY; inp["C31"].font = Font(name=FN, size=11); inp["C31"].alignment = Alignment(horizontal="left", vertical="center")
+inp["C30"].number_format = "#,##0"; inp["C32"].number_format = "#,##0"
 
 # ---------- ⑥ 請求者 ----------
 sec(36, "⑥ 請求日・請求者")
@@ -503,43 +509,113 @@ for cl, nm in zip("BCDEFGHI", ("親睦会", "所属控除金手数料", None, No
     else:
         pair(cl, 28, "（項目名）", input_=True, label_input=True)
 ky.row_dimensions[27].height = 6
-# 報酬額の計算
-ky.merge_cells("A32:I32")
-kb("A32", "報酬額の計算（請求書の「支給対象月に支払われた報酬の額」）", size=11, bold=True, font=FN, color="FFFFFF", fill=SEC)
-calc = [(33, "① 総支給額（明細）", "=B12", ""),
-        (34, "② − 期末手当", "=-N(D19)", "請求の報酬から除外"),
-        (35, "③ − 勤勉手当", "=-N(E19)", "請求の報酬から除外"),
-        (36, "④ − 給与改定差額", "=-N(F19)", "請求の報酬から除外"),
-        (37, "⑤ − 通勤手当（この明細に載っている額）", "=-N(F15)", "複数月分を一括で支給された月は、その全額をいったん控除"),
-        (38, "⑥ − 「含めない」にしたその他の手当", '=-(IF(G20="含めない",N(G19),0)+IF(H20="含めない",N(H19),0)+IF(I20="含めない",N(I19),0))', ""),
-        (39, "⑦ ＋ 1か月当たりの通勤手当", '=IF(入力!C29<>"有",0,IF(AND(入力!C31="数か月分一括支給",ISNUMBER(入力!N35)),入力!N35,N(入力!C30)))',
-         "入力シートの通勤手当（一括支給なら総額÷月数、端数は最終月に加算）"),
-        (40, "⑧ ＝ 報酬額（計算結果）", "=SUM(C33:C39)", "")]
-for r, lab, f, note in calc:
+# 通勤手当（複数月分）
+ky.merge_cells("A31:I31")
+kb("A31", "通勤手当（複数月分をまとめて支給されている場合のみ入力）", size=11, bold=True, font=FN, color="FFFFFF", fill=SEC)
+LBL = PatternFill("solid", fgColor="F2F2F2")
+
+
+def lab(r, t):
     ky.merge_cells(f"A{r}:B{r}")
-    kb(f"A{r}", lab, size=10, bold=(r in (33, 40)))
+    kb(f"A{r}", t, size=9, fill=LBL)
     ky[f"B{r}"].border = B1
-    kb(f"C{r}", f, size=11, h="right", fmt="#,##0;-#,##0", bold=(r == 40))
+    ky.row_dimensions[r].height = 21
+
+
+lab(32, "通勤手当の支給方法")
+ky.merge_cells("C32:E32"); kb("C32", None, size=10, fill=YEL); kin.append("C32")
+for cl in "DE":
+    ky[f"{cl}32"].border = B1
+ky.merge_cells("F32:I32"); kb("F32", "「毎月支給」（空欄も同じ）なら、以下は入力不要です。明細の通勤手当を1か月分とみなします。", size=8, border=False, color="7F7F7F")
+dvm = DataValidation(type="list", formula1='"毎月支給,数か月分一括支給"', allow_blank=True, showErrorMessage=True, errorTitle="入力エラー", error="一覧から選んでください。")
+dvm.add("C32"); ky.add_data_validation(dvm)
+lab(33, "いつ支払われたか（明細の月）")
+kb("C33", "令和", size=9, h="center"); kb("D33", None, size=11, h="center", fill=YEL); kb("E33", "年", size=9, h="center")
+kb("F33", None, size=11, h="center", fill=YEL); ky.merge_cells("G33:I33"); kb("G33", "月に支給された", size=9, border=False)
+lab(34, "支給された額（円）")
+ky.merge_cells("C34:E34"); kb("C34", None, size=11, h="right", fmt="#,##0", fill=YEL)
+for cl in "DE":
+    ky[f"{cl}34"].border = B1
+kb("F34", "円", size=9, border=False); ky.merge_cells("G34:I34"); kb("G34", "支払われた月の明細に載っている通勤手当（非）の額", size=8, border=False, color="7F7F7F")
+lab(35, "何月分から（対象期間の始め）")
+kb("C35", "令和", size=9, h="center"); kb("D35", None, size=11, h="center", fill=YEL); kb("E35", "年", size=9, h="center")
+kb("F35", None, size=11, h="center", fill=YEL); ky.merge_cells("G35:I35"); kb("G35", "月分から", size=9, border=False)
+lab(36, "何月分まで（対象期間の終わり）")
+kb("C36", "令和", size=9, h="center"); kb("D36", None, size=11, h="center", fill=YEL); kb("E36", "年", size=9, h="center")
+kb("F36", None, size=11, h="center", fill=YEL); ky.merge_cells("G36:I36"); kb("G36", "月分まで", size=9, border=False)
+for a_ in ("D33", "F33", "C34", "D35", "F35", "D36", "F36"):
+    kin.append(a_)
+dvy = DataValidation(type="whole", operator="between", formula1="7", formula2="30", allow_blank=True, showErrorMessage=True, errorTitle="入力エラー", error="令和の年を数字（7〜30）で入力してください。")
+dvy.add("D33"); dvy.add("D35"); dvy.add("D36"); ky.add_data_validation(dvy)
+dvn = DataValidation(type="whole", operator="between", formula1="1", formula2="12", allow_blank=True, showErrorMessage=True, errorTitle="入力エラー", error="月は1〜12の数字で入力してください。")
+dvn.add("F33"); dvn.add("F35"); dvn.add("F36"); ky.add_data_validation(dvn)
+dva = DataValidation(type="whole", operator="between", formula1="0", formula2="9999999", allow_blank=True, showErrorMessage=True, errorTitle="入力エラー", error="円の数字（整数）で入力してください。")
+dva.add("C34"); ky.add_data_validation(dva)
+lab(37, "自動計算")
+kb("C37", "月数", size=9, h="center", fill=LBL); kb("D37", '=IF(C32="数か月分一括支給",K37,"")', size=11, h="center", fmt='0"か月"')
+kb("E37", "何か月目", size=9, h="center", fill=LBL); kb("F37", '=IF(C32="数か月分一括支給",K38,"")', size=11, h="center", fmt='0"か月目"')
+kb("G37", "1か月当たり", size=9, h="center", fill=LBL)
+kb("H37", '=IF(入力!C29<>"有",0,IF(C32="数か月分一括支給",IF(K39="","",K39),N(F15)))', size=11, h="right", fmt='#,##0')
+kb("I37", "円", size=9, border=False)
+# 説明・チェック
+ky.merge_cells("A38:I38")
+kb("A38", ('=IF(入力!C29<>"有","",IF(C32<>"数か月分一括支給",IF(N(F15)=0,"✕ 通勤手当が「有」ですが、明細に通勤手当の額がありません。複数月分の場合は支給方法を選んでください",""),'
+           'IF(COUNT(D33,F33,D35,F35,D36,F36)<6,"✕ いつ支払われたか・対象期間（何月分から何月分まで）をすべて入力してください",'
+           'IF(NOT(ISNUMBER(C34)),"✕ 支給された額を入力してください",'
+           'IF(K36<K35,"✕ 対象期間の終わりが、始めより前になっています",'
+           'IF(OR(K38<1,K38>K37),"✕ 請求対象月が、通勤手当の対象期間の外です。対象期間を確認してください",'
+           'IF(K37<2,"△ 対象期間が1か月分です。「毎月支給」を選んでください",'
+           'IF(K37>6,"△ 対象期間が6か月を超えています（支給単位期間は最長6か月）",'
+           'IF(K33<>K35,"△ 支払われた月が、対象期間の最初の月と異なります",'
+           'IF(AND(K38=1,N(F15)<>C34),"△ 1か月目の明細の通勤手当（"&TEXT(N(F15),"#,##0")&"円）が、支給された額と異なります",'
+           'IF(AND(K38>1,N(F15)>0),"△ 2か月目以降なのに、明細に通勤手当が載っています","")))))))))))'),
+   size=9, border=False, color="C00000")
+# 内部計算（K列・非表示）
+ky["K33"] = '=IF(COUNT(D33,F33)=2,DATE(D33+2018,F33,1),"")'
+ky["K35"] = '=IF(COUNT(D35,F35)=2,DATE(D35+2018,F35,1),"")'
+ky["K36"] = '=IF(COUNT(D36,F36)=2,DATE(D36+2018,F36,1),"")'
+ky["K37"] = '=IF(OR(K35="",K36=""),"",IF(K36<K35,"",(YEAR(K36)-YEAR(K35))*12+MONTH(K36)-MONTH(K35)+1))'
+ky["K38"] = '=IF(OR(K35="",入力!N7=""),"",(YEAR(入力!N7)-YEAR(K35))*12+MONTH(入力!N7)-MONTH(K35)+1)'
+ky["K39"] = '=IF(OR(K37="",K38="",NOT(ISNUMBER(C34))),"",IF(OR(K38<1,K38>K37),"",IF(K38=K37,C34-INT(C34/K37)*(K37-1),INT(C34/K37))))'
+ky.column_dimensions["K"].hidden = True
+
+# 報酬額の計算
+ky.merge_cells("A40:I40")
+kb("A40", "報酬額の計算（請求書の「支給対象月に支払われた報酬の額」）", size=11, bold=True, font=FN, color="FFFFFF", fill=SEC)
+calc = [(41, "① 総支給額（明細）", "=B12", ""),
+        (42, "② − 期末手当", "=-N(D19)", "請求の報酬から除外"),
+        (43, "③ − 勤勉手当", "=-N(E19)", "請求の報酬から除外"),
+        (44, "④ − 給与改定差額", "=-N(F19)", "請求の報酬から除外"),
+        (45, "⑤ − 通勤手当（この明細に載っている額）", "=-N(F15)", "複数月分を一括で支給された月は、その全額をいったん控除"),
+        (46, "⑥ − 「含めない」にしたその他の手当", '=-(IF(G20="含めない",N(G19),0)+IF(H20="含めない",N(H19),0)+IF(I20="含めない",N(I19),0))', ""),
+        (47, "⑦ ＋ 1か月当たりの通勤手当", "=N(H37)", "上の通勤手当欄から自動（一括支給は月割、端数は最終月に加算）"),
+        (48, "⑧ ＝ 報酬額（計算結果）", "=SUM(C41:C47)", "")]
+for r, lab_, f, note in calc:
+    ky.merge_cells(f"A{r}:B{r}")
+    kb(f"A{r}", lab_, size=10, bold=(r in (41, 48)))
+    ky[f"B{r}"].border = B1
+    kb(f"C{r}", f, size=11, h="right", fmt="#,##0;-#,##0", bold=(r == 48))
     ky.merge_cells(f"D{r}:I{r}")
     kb(f"D{r}", note, size=8, border=False, color="7F7F7F")
-ky.merge_cells("A41:B41"); kb("A41", "直接入力（明細を使わない場合のみ）", size=10)
-ky["B41"].border = B1
-kb("C41", None, size=11, h="right", fmt="#,##0", fill=YEL); kin.append("C41")
+ky.merge_cells("A49:B49"); kb("A49", "直接入力（明細を使わない場合のみ）", size=10)
+ky["B49"].border = B1
+kb("C49", None, size=11, h="right", fmt="#,##0", fill=YEL); kin.append("C49")
 dvd = DataValidation(type="whole", operator="between", formula1="0", formula2="99999999", allow_blank=True, showErrorMessage=True, errorTitle="入力エラー", error="円の数字（整数）で入力してください。")
-dvd.add("C41"); ky.add_data_validation(dvd)
-ky.merge_cells("D41:I41"); kb("D41", "入力すると、上の計算よりこちらが優先されます（月額が明細と別にわかっている場合など）", size=8, border=False, color="7F7F7F")
-ky.merge_cells("A42:B42"); kb("A42", "★ 入力シートへ渡す報酬額", size=11, bold=True, fill=PatternFill("solid", fgColor="DDEBF7"))
-ky["B42"].border = B1
-kb("C42", '=IF(C41<>"",C41,IF(B12=0,"",C40))', size=12, h="right", bold=True, fmt='#,##0', fill=PatternFill("solid", fgColor="DDEBF7"))
-ky.merge_cells("D42:I42"); kb("D42", '=IF(C42="","← 未入力です",IF(C42<0,"✕ 報酬額がマイナスです。入力を確認してください",""))', size=9, border=False, color="C00000")
-ky.merge_cells("A44:I46")
-kb("A44", ("【通勤手当が複数月分まとめて支給される場合の例】3か月に1回支給なら、支給月は明細の通勤手当（3か月分）をいったん控除し、その1/3（端数は最終月に加算）を加えます。"
-           "支給のない月も、明細に通勤手当は載りませんが1/3を加えます。月数・何か月目は「入力」シートの「通勤手当」欄に入力してください。"),
+dvd.add("C49"); ky.add_data_validation(dvd)
+ky.merge_cells("D49:I49"); kb("D49", "入力すると、上の計算よりこちらが優先されます（月額が明細と別にわかっている場合など）", size=8, border=False, color="7F7F7F")
+ky.merge_cells("A50:B50"); kb("A50", "★ 入力シートへ渡す報酬額", size=11, bold=True, fill=PatternFill("solid", fgColor="DDEBF7"))
+ky["B50"].border = B1
+kb("C50", '=IF(C49<>"",C49,IF(B12=0,"",C48))', size=12, h="right", bold=True, fmt='#,##0', fill=PatternFill("solid", fgColor="DDEBF7"))
+ky.merge_cells("D50:I50"); kb("D50", '=IF(C50="","← 未入力です",IF(C50<0,"✕ 報酬額がマイナスです。入力を確認してください",""))', size=9, border=False, color="C00000")
+ky.merge_cells("A52:I54")
+kb("A52", ("【例】3か月に1回(4・5・6月分)支給される通勤手当 6,300円。4月に支給されたら「いつ支払われたか＝令和8年4月」「支給された額＝6,300円」「何月分から＝4月分／何月分まで＝6月分」と入力します。"
+           "すると4月は明細の6,300円を控除して2,100円を加算、5月・6月は明細に通勤手当が載っていなくても2,100円を加算します（端数は最終月）。"
+           "翌月分を作るときは、この欄はそのままで、請求対象月だけ変えれば自動で「何か月目」が変わります。"),
    size=9, wrap=True, va="top", border=False, color="404040")
 for a in kin:
     ky[a].fill = YEL
     ky[a].border = B1
-ky.print_area = "A1:I46"
+ky.print_area = "A1:I54"
 ky.page_setup.orientation = "portrait"; ky.page_setup.paperSize = 9
 ky.sheet_properties.pageSetUpPr = openpyxl.worksheet.properties.PageSetupProperties(fitToPage=True)
 ky.page_setup.fitToWidth = 1; ky.page_setup.fitToHeight = 1

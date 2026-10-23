@@ -42,25 +42,25 @@ End Sub
 
 ' 翌月分を作るために月ごとに変わる項目だけを消す
 Public Sub 翌月分用にクリア()
-    If MsgBox("対象月・給与明細の金額・通勤手当（月額）・請求日・添付書類チェックを消します。よろしいですか？", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
+    If MsgBox("対象月・給与明細の金額・請求日・添付書類チェックを消します（通勤手当の複数月分の入力は残します）。よろしいですか？", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
     Dim a As Variant
     With Worksheets("入力")
         .Unprotect
-        For Each a In Array("D7", "F7", "C30:H30", "C32:H32", "C33:D33", "C34:D34", "D37", "F37", "H37", "C43:D43", "C44:D44", "C45:D45", "C46:D46", "C47:D47", "C48:D48", "C49:D49", "C50:D50", "C51:D51", "C52:D52")
+        For Each a In Array("D7", "F7", "D37", "F37", "H37", "C43:D43", "C44:D44", "C45:D45", "C46:D46", "C47:D47", "C48:D48", "C49:D49", "C50:D50", "C51:D51", "C52:D52")
             .Range(a).ClearContents
         Next a
         .Protect
         .Activate
         .Range("D7").Select
     End With
-    Worksheets("給与明細").Range("B15:I15,B17:I17,B19:I19,B23:I23,B25:I25,B29:I29,C9:D9,C41").ClearContents
+    Worksheets("給与明細").Range("B15:I15,B17:I17,B19:I19,B23:I23,B25:I25,B29:I29,C9:D9,C49").ClearContents
 End Sub
 
 ' 共済組合(fukuri@city.hiroshima.lg.jp)宛のメール下書きを作る
 '  添付：請求書データ(マクロなしxlsx) と 請求書PDF(表・裏)。内容を確認して［送信］を押す
 Public Sub 共済組合へメール送信()
     Dim ws As Worksheet, tmp As String, base As String, fx As String, fp As String
-    Dim nb As Workbook, i As Long, ol As Object, mi As Object, body As String
+    Dim nb As Workbook, i As Long, c As Range, ol As Object, mi As Object, body As String
     Set ws = Worksheets("入力")
     If ErrorCount() > 0 Then
         MsgBox ErrorList(), vbExclamation, "入力エラーがあるため送信できません"
@@ -88,8 +88,9 @@ Public Sub 共済組合へメール送信()
         For i = .Shapes.Count To 1 Step -1
             .Shapes(i).Delete
         Next i
-        .Range("C28").Value = .Range("C28").Value
-        .Range("K28").Value = .Range("K28").Value
+        For Each c In .Range("C28,C30:C35,N35,K6:K57")
+            c.Value = c.Value
+        Next c
         .Protect
     End With
     Application.DisplayAlerts = False
