@@ -11,6 +11,15 @@ Option Explicit
 Private Const SHEET_DASH As String = "ダッシュボード"
 Private paletteNo As Long
 
+' ---- 指定秒数だけ待つ（Doevents付き。0.3秒などの短い待ちに対応）----
+Private Sub Pause(ByVal sec As Double)
+    Dim t As Double
+    t = Timer
+    Do While Timer - t < sec
+        DoEvents
+    Loop
+End Sub
+
 ' ---- 初期状態に戻す ------------------------------------------
 Public Sub ResetAll()
     With ThisWorkbook.Worksheets(SHEET_DASH)
@@ -35,8 +44,7 @@ Public Sub PlayWards()
         ws.Range("D4").Value = names(i)
         Application.StatusBar = "表示中： " & names(i) & "（Escキーで中断できます）"
         Application.Calculate
-        DoEvents
-        Application.Wait Now + TimeSerial(0, 0, 2)
+        Pause 0.7
     Next i
 Done:
     ws.Range("D4").Value = keep
@@ -55,8 +63,7 @@ Public Sub PlayMonths()
         ws.Range("J4").Value = names(i)
         Application.StatusBar = "表示中： " & names(i) & "（Escキーで中断できます）"
         Application.Calculate
-        DoEvents
-        Application.Wait Now + TimeSerial(0, 0, 1)
+        Pause 0.4
     Next i
 Done:
     ws.Range("J4").Value = keep
@@ -74,8 +81,7 @@ Public Sub PlayEndTime()
         ws.Range("V4").Value = m / 1440
         Application.StatusBar = "開庁時間の終了： " & Format(m \ 60, "0") & ":" & Format(m Mod 60, "00")
         Application.Calculate
-        DoEvents
-        Application.Wait Now + TimeSerial(0, 0, 1)
+        Pause 0.4
     Next m
 Done:
     ws.Range("V4").Value = keep
@@ -99,10 +105,10 @@ Public Sub CycleColors()
     Dim ws As Worksheet, fc As Object, lo As Long, mid As Long, hi As Long
     paletteNo = (paletteNo + 1) Mod 4
     Select Case paletteNo
-        Case 0: lo = RGB(247, 251, 255): mid = RGB(255, 213, 128): hi = RGB(214, 69, 69)
-        Case 1: lo = RGB(247, 252, 245): mid = RGB(116, 196, 118): hi = RGB(0, 90, 50)
-        Case 2: lo = RGB(255, 255, 255): mid = RGB(158, 202, 225): hi = RGB(8, 48, 107)
-        Case Else: lo = RGB(250, 245, 255): mid = RGB(203, 160, 230): hi = RGB(84, 39, 143)
+        Case 0: lo = RGB(244, 247, 250): mid = RGB(157, 185, 213): hi = RGB(31, 78, 121)
+        Case 1: lo = RGB(246, 248, 246): mid = RGB(168, 196, 178): hi = RGB(44, 85, 62)
+        Case 2: lo = RGB(250, 250, 250): mid = RGB(190, 190, 190): hi = RGB(60, 60, 60)
+        Case Else: lo = RGB(252, 249, 243): mid = RGB(224, 190, 130): hi = RGB(150, 90, 30)
     End Select
     For Each ws In ThisWorkbook.Worksheets
         If ws.Name = "ヒートマップ" Or ws.Name = "カレンダー" Then
