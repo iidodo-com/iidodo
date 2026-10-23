@@ -1,60 +1,74 @@
 table 発券
-	lineageTag: f61a009f-af57-4f4f-97ce-7e708ca29b6d
+	lineageTag: dc8cc2bf-2ba4-401a-be21-b50ebc6fe426
 
 	measure 発券数 = SUM('発券'[件数])
 		formatString: #,0
-		lineageTag: a2f2f669-db6e-4032-b455-2821b8e39fbe
+		lineageTag: c02505d8-94d9-4550-b6fd-51d9da6eca42
 
-	measure 全体に占める割合 = DIVIDE([発券数], CALCULATE([発券数], REMOVEFILTERS('発券'[時間帯開始分], '発券'[時間帯], '発券'[PDF表記])), 0)
+	measure 全体に占める割合 = DIVIDE([発券数], CALCULATE([発券数], REMOVEFILTERS('発券'[時間帯キー], '発券'[PDF表記])), 0)
 		formatString: 0.0%
-		lineageTag: bf3cc6a9-a87d-47d6-9d25-f0f53ca6bc60
+		lineageTag: c583d619-0261-4cd8-99ab-52057082c1d8
 
 	column 日付
 		dataType: dateTime
 		formatString: yyyy/mm/dd
-		lineageTag: b10d146f-7b52-445b-9fee-8493e2c014d6
+		lineageTag: 05c55da6-51c4-4533-83f9-d6e0a2b811d9
 		summarizeBy: none
 		sourceColumn: 日付
 
 	column 区
 		dataType: string
-		lineageTag: 5359a0a1-5ff6-4ff7-988f-6d47a6f52f07
+		lineageTag: fd48b28d-5dc1-4d59-a1f6-c5f4152a3d74
 		summarizeBy: none
 		sourceColumn: 区
 
-	column 時間帯開始分
+	column 区分名
+		dataType: string
+		lineageTag: 374e9544-7b61-49b2-bbc4-bf2ae98b30c8
+		summarizeBy: none
+		sourceColumn: 区分名
+
+	column 発券時
 		dataType: int64
 		formatString: 0
-		lineageTag: 56daa735-cc96-4224-847f-9399a5768a25
+		lineageTag: f3a5cc3e-5788-48dc-b047-5e3efade8723
 		summarizeBy: none
-		sourceColumn: 時間帯開始分
+		sourceColumn: 発券時
 
-	column 時間帯
-		dataType: string
-		lineageTag: 2fa2e532-24b6-4c56-8c2d-b0220ff1cdcc
+	column 分台
+		dataType: int64
+		formatString: 0
+		lineageTag: 5df5917a-17cd-4c47-8a48-0b12a029b6d0
 		summarizeBy: none
-		sortByColumn: 時間帯開始分
-		sourceColumn: 時間帯
+		sourceColumn: 分台
+
+	column 時間帯キー
+		dataType: int64
+		formatString: 0
+		lineageTag: e75a9bba-096c-4956-b78d-ae4003934031
+		summarizeBy: none
+		sourceColumn: 時間帯キー
 
 	column PDF表記
 		dataType: string
-		lineageTag: 3777cae7-046d-4f49-94de-24988158e2af
+		lineageTag: fa4d56c1-19c4-46ff-8aca-379ad463fde8
 		summarizeBy: none
-		sortByColumn: 時間帯開始分
+		sortByColumn: 時間帯キー
 		sourceColumn: PDF表記
-
-	column データ元
-		dataType: string
-		lineageTag: 4c49f513-b544-4404-baaa-186ff3257b7a
-		summarizeBy: none
-		sourceColumn: データ元
 
 	column 件数
 		dataType: int64
 		formatString: #,0
-		lineageTag: 12fdbbda-a7b5-4d9c-8f58-c1517fc19e8e
+		lineageTag: 022e3ebd-0793-41b7-bd85-f09e12821917
 		summarizeBy: sum
 		sourceColumn: 件数
+
+	column 待ち秒合計
+		dataType: int64
+		formatString: #,0
+		lineageTag: 6e29681b-a01b-41ac-a4ee-84768f8af872
+		summarizeBy: sum
+		sourceColumn: 待ち秒合計
 
 	partition 発券 = m
 		mode: import
@@ -62,7 +76,7 @@ table 発券
 				let
 				    Source = Csv.Document(File.Contents(DataFolder & "\hakken_15min.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
 				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
-				    Typed = Table.TransformColumnTypes(Promoted, {{"日付", type date}, {"区", type text}, {"時間帯開始分", Int64.Type}, {"時間帯", type text}, {"PDF表記", type text}, {"データ元", type text}, {"件数", Int64.Type}}, "en-US")
+				    Typed = Table.TransformColumnTypes(Promoted, {{"日付", type date}, {"区", type text}, {"区分名", type text}, {"発券時", Int64.Type}, {"分台", Int64.Type}, {"時間帯キー", Int64.Type}, {"PDF表記", type text}, {"件数", Int64.Type}, {"待ち秒合計", Int64.Type}}, "en-US")
 				in
 				    Typed
 
