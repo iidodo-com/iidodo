@@ -19,6 +19,12 @@ Private Const T_FROM As String = "F5"
 Private Const T_TO As String = "H5"
 Private Const T_RATE As String = "F6"
 Private Const T_DATE As String = "F7"
+Private Const T_P_START As String = "N3"      ' benefit period block (right side of the header)
+Private Const T_P_LEGAL As String = "N4"
+Private Const T_P_ADDST As String = "N5"
+Private Const T_P_ADDEN As String = "N6"
+Private Const T_P_FINAL As String = "N7"
+Private Const T_P_EXT As String = "N8"
 
 ' columns of the calc sheet table (= columns of the template detail rows)
 Private Const COL_PAYCLASS As Long = 4      ' D  salary class (10/8/none)
@@ -98,6 +104,12 @@ Public Sub AddClaimSheet()
     ws.Range(T_TO).Value2 = CDbl(dTo)
     ws.Range(T_RATE).Value2 = Cel("DAILY_RATE").Value2
     ws.Range(T_DATE).Value2 = CDbl(Date)
+    ws.Range(T_P_START).Value2 = Cel("P_START").Value2
+    ws.Range(T_P_LEGAL).Value2 = Cel("P_LEGAL_END").Value2
+    ws.Range(T_P_ADDST).Value2 = Cel("P_ADD_START").Value2
+    ws.Range(T_P_ADDEN).Value2 = Cel("P_ADD_END").Value2
+    ws.Range(T_P_FINAL).Value2 = Cel("P_FINAL").Value2
+    ws.Range(T_P_EXT).Value2 = Cel("EXT_DAYS").Value2
 
     ' 4) detail rows: values only (the other columns are formulas in the template)
     firstRow = CLng(Cel("TPL_FIRST_ROW").Value2)
