@@ -24,7 +24,8 @@ Private Const T_P_LEGAL As String = "N4"
 Private Const T_P_ADDST As String = "N5"
 Private Const T_P_ADDEN As String = "N6"
 Private Const T_P_FINAL As String = "N7"
-Private Const T_P_EXT As String = "N8"
+Private Const T_P_EXT_M As String = "N8"       ' extension by attendance: months
+Private Const T_P_EXT_D As String = "O8"       ' extension by attendance: weekdays
 
 ' columns of the calc sheet table (= columns of the template detail rows)
 Private Const COL_PAYCLASS As Long = 4      ' D  salary class (10/8/none)
@@ -109,7 +110,8 @@ Public Sub AddClaimSheet()
     ws.Range(T_P_ADDST).Value2 = Cel("P_ADD_START").Value2
     ws.Range(T_P_ADDEN).Value2 = Cel("P_ADD_END").Value2
     ws.Range(T_P_FINAL).Value2 = Cel("P_FINAL").Value2
-    ws.Range(T_P_EXT).Value2 = Cel("EXT_DAYS").Value2
+    ws.Range(T_P_EXT_M).Value2 = Cel("EXT_MONTHS").Value2
+    ws.Range(T_P_EXT_D).Value2 = Cel("EXT_DAYS").Value2
 
     ' 4) detail rows: values only (the other columns are formulas in the template)
     firstRow = CLng(Cel("TPL_FIRST_ROW").Value2)
