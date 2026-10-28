@@ -33,7 +33,8 @@ GREY, GREY_L = '7F7F7F', 'F2F2F2'
 RED_T, GREEN_T = 'C00000', '548235'
 BLUE_IN = '0000FF'
 CONFIRM_FILL = 'DDEBF7'       # 確認済（旧: 青塗り）
-YELLOW = 'FFF2CC'
+YELLOW = 'FFFF99'          # 手入力セル（VBAのINPUT_COLORと同じ）
+PENDING = 'FCE4D6'         # 状態＝未確認
 NUM = '#,##0;[Red]-#,##0;"-"'
 NUM0 = '#,##0;[Red]-#,##0;0'
 
@@ -412,12 +413,14 @@ def status_cf(ws, rng, first_row, status_col, max_col):
     red = FormulaRule(formula=[f'${c}{first_row}="昨年実績"'], font=Font(name=FN, size=10, color=RED_T))
     ok = FormulaRule(formula=[f'${c}{first_row}="確認済"'], fill=PatternFill('solid', bgColor=CONFIRM_FILL,
                                                                            fgColor=CONFIRM_FILL))
-    pend = FormulaRule(formula=[f'${c}{first_row}="未確認"'], fill=PatternFill('solid', bgColor=YELLOW,
-                                                                            fgColor=YELLOW))
+    pend = FormulaRule(formula=[f'${c}{first_row}="未確認"'], fill=PatternFill('solid', bgColor=PENDING,
+                                                                            fgColor=PENDING))
     none = FormulaRule(formula=[f'${c}{first_row}="支払なし"'],
                        font=Font(name=FN, size=10, color='A6A6A6', strike=True))
-    for rule in (none, red, ok, pend):
+    for rule in (none, red):
         ws.conditional_formatting.add(rng, rule)
+    for rule in (ok, pend):                      # 塗りは No 列だけ（B列以降は手入力の黄色を保つ）
+        ws.conditional_formatting.add(f'A{first_row}:A{rng.split(":")[1][1:]}', rule)
 
 
 def build_ledger_gyomu(wb, rows):
@@ -473,6 +476,8 @@ def build_ledger_gyomu(wb, rows):
             cell = ws.cell(r, c)
             cell.font = font(10, color=BLUE_IN) if c in (2, 3, 4, 5, 6, 7, 8, 9) else font(10, color='404040')
             cell.border = B_ROW
+            if 2 <= c <= 9:
+                cell.fill = fill(YELLOW)
             if c in (10, 11, 12, 13, 14):
                 cell.fill = fill(GREY_L)
                 cell.number_format = NUM
@@ -553,6 +558,8 @@ def build_ledger_kashi(wb, rows):
             cell = ws.cell(r, c)
             cell.font = font(10, color=BLUE_IN) if c in (2, 3, 4, 5, 6, 7) else font(10, color='404040')
             cell.border = B_ROW
+            if 2 <= c <= 7:
+                cell.fill = fill(YELLOW)
             if c == 3:
                 cell.number_format = 'yyyy/mm/dd'
                 cell.alignment = Alignment(horizontal='center')
@@ -1004,13 +1011,13 @@ def build_help(wb, notes_text):
     row('⑤ 月次更新', 'OK を確認して基幹システムで月次更新処理。「検算」シートが全部 OK ならこのブックの数字は一致しています。',
         '同じ')
     r += 1
-    section('色のルール（状態から自動で付きます）')
+    section('色のルール')
     row('赤字', '状態＝昨年実績。今年の支払が確定するまで残しておく行（集計には入りません）。')
-    row('黄色の背景', '状態＝未確認。今年の支払として入力済みだが、伝票確認前。')
-    row('青い背景', '状態＝確認済。締め月までの分が費用収益表に計上されます。')
+    row('オレンジ（No列）', '状態＝未確認。今年の支払として入力済みだが、伝票確認前。')
+    row('青（No列）', '状態＝確認済。締め月までの分が費用収益表に計上されます。')
     row('取り消し線（灰色）', '状態＝支払なし。今年度は支払がない行（集計から除外。行は残せます）。')
     row('費用収益表の緑字', '締め月より後の月＝前年実績・見込（旧表の値）。締め月までは黒字の確定値になります。')
-    row('青字のセル', '手入力するセル（金額・予算・収益など）。黒字は数式なので触りません。')
+    row('黄色のセル', '手入力するセル（台帳の入力列・費用収益表の金額/予算/収益・照合欄など）。それ以外は数式なので触りません。マクロ版（.xlsm）ではEnterで次の黄色セルへ移動します。')
     r += 1
     section('シート一覧')
     row('月次締め', '操作盤。今回締める月の選択／締める前のチェック／出納計算表との照合。')
@@ -1052,6 +1059,37 @@ def migrate_residuals(krows, old_vals):
                                   st='確認済', kind='通常', key=key))
     krows.extend(added)
     return added
+
+
+
+def mark_hiyou_inputs(hiyou):
+    """費用収益表: 数式でない入力セル（金額・予算・収益など）を黄色にする"""
+    for name, (ws, hdr, kind) in hiyou.items():
+        hidden = set()
+        for mr in ws.merged_cells.ranges:
+            for rr in range(mr.min_row, mr.max_row + 1):
+                for cc in range(mr.min_col, mr.max_col + 1):
+                    if (rr, cc) != (mr.min_row, mr.min_col):
+                        hidden.add((rr, cc))
+        for r in range(4, ws.max_row + 1):
+            if row_role(ws, r) != 'data' or not (ws.cell(r, 1).value or ws.cell(r, 2).value
+                                                   or any(ws.cell(r, c).value is not None for c in range(3, 21))):
+                continue
+            for c in range(3, 21):
+                cell = ws.cell(r, c)
+                v = cell.value
+                if (r, c) in hidden or (isinstance(v, str) and (v.startswith('=') or len(v.strip()) > 1)):
+                    continue
+                cell.fill = fill(YELLOW)
+
+
+def mark_master_inputs(ws):
+    for r in range(5, 81):
+        for c in (1, 2):
+            ws.cell(r, c).fill = fill(YELLOW)
+    for r in range(5, 41):
+        for c in (6, 7, 11, 12):
+            ws.cell(r, c).fill = fill(YELLOW)
 
 
 # ----------------------------------------------------------------------------
@@ -1118,13 +1156,14 @@ def main(gyomu_xlsx, kashi_xls, hiyou_xls, out):
                  SH_CHO: '業務経理（長期給付事務分）', SH_KASHI: '貸付経理'}[new]
         put(ws, 'A1', f'="令和"&年度&"年度　{label}　費用収益表"', f=font(14, True, 'FFFFFF'), fl=NAVY,
             al=Alignment(vertical='center', indent=1))
-        put(ws, 'P1', '緑字＝未締め月（前年実績・見込）／黒字＝締め済み／青字＝手入力セル', f=font(8, color='FFFFFF'),
+        put(ws, 'P1', '緑字＝未締め月（前年実績・見込）／黒字＝締め済み／黄色＝手入力セル', f=font(8, color='FFFFFF'),
             fl=NAVY, al=Alignment(horizontal='right', vertical='center', wrap_text=True))
         for c in range(1, 24):
             ws.cell(1, c).fill = fill(NAVY)
         ws.row_dimensions[1].height = 26
         ws.sheet_properties.tabColor = '1F3864'
 
+    mark_hiyou_inputs(hiyou)
     ctl, block_pos = build_control(wb)
     g = build_ledger_gyomu(wb, grows)
     k_ws = build_ledger_kashi(wb, krows)
@@ -1136,6 +1175,7 @@ def main(gyomu_xlsx, kashi_xls, hiyou_xls, out):
 
     order = [SH_HELP, SH_CTL, SH_IN_G, SH_IN_K, SH_GOUKEI, SH_TAN, SH_CHO, SH_KASHI, SH_RPT, SH_MST, SH_CHK, SH_OLD]
     wb._sheets = [wb[n] for n in order]
+    mark_master_inputs(mst)
     page(g, True, '4:4'); page(k_ws, True, '4:4'); page(hlp, False); page(ctl, False)
     page(rpt, True); page(mst, True); page(chk, True)
     if '_xlfn_SINGLE' in wb.defined_names:
