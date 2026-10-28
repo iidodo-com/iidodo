@@ -44,6 +44,7 @@ Public Sub CreateClaimSheet(ByVal dFrom As Date, ByVal dTo As Date)
         nm = nm & "-" & WarekiMonth(dTo)
     End If
     ws.Name = UniqueName(nm)
+    DeleteButtons ws
     ws.Range(T_FROM).Value2 = CDbl(dFrom)
     ws.Range(T_TO).Value2 = CDbl(dTo)
     Application.EnableEvents = ev
@@ -61,6 +62,16 @@ End Sub
 Private Function WarekiMonth(ByVal d As Date) As String
     WarekiMonth = Application.WorksheetFunction.Text(d, "[$-411]ge.m")
 End Function
+
+' 複写したシートのボタン（フォームコントロール・ActiveX）を削除する。雛形にだけボタンを残す
+Private Sub DeleteButtons(ByVal ws As Worksheet)
+    Dim i As Long
+    On Error Resume Next
+    For i = ws.Shapes.Count To 1 Step -1
+        If ws.Shapes(i).Type = 8 Or ws.Shapes(i).Type = 12 Then ws.Shapes(i).Delete
+    Next i
+    On Error GoTo 0
+End Sub
 
 Private Function SheetExists(ByVal nm As String) As Boolean
     Dim w As Worksheet
