@@ -49,9 +49,9 @@ End Sub
 
 Public Sub AddClaimSheet()
     Dim sFrom As String, sTo As String
-    sFrom = InputBox("請求期間の開始日を入力してください。" & vbCrLf & "（例 2025/4/1）", "請求シートの追加")
+    sFrom = InputBox("請求期間の開始日を入力してください。" & vbCrLf & "（例 R7.4.1）", "請求シートの追加")
     If Len(sFrom) = 0 Then Exit Sub
-    sTo = InputBox("請求期間の終了日を入力してください。" & vbCrLf & "（例 2025/4/30）", "請求シートの追加")
+    sTo = InputBox("請求期間の終了日を入力してください。" & vbCrLf & "（例 R7.4.30）", "請求シートの追加")
     If Len(sTo) = 0 Then Exit Sub
     If Not IsDate(sFrom) Or Not IsDate(sTo) Then
         MsgBox "日付で入力してください。", vbExclamation
@@ -70,9 +70,9 @@ Public Sub CreateClaimSheet(ByVal dFrom As Date, ByVal dTo As Date)
     Application.EnableEvents = False
     ThisWorkbook.Worksheets(TPL_SHEET).Copy After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count)
     Set ws = ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count)
-    nm = NAME_PREFIX & Format(dFrom, "yyyymm")
-    If Format(dFrom, "yyyymm") <> Format(dTo, "yyyymm") Then
-        nm = nm & "-" & Format(dTo, "yyyymm")
+    nm = NAME_PREFIX & WarekiMonth(dFrom)
+    If WarekiMonth(dFrom) <> WarekiMonth(dTo) Then
+        nm = nm & "-" & WarekiMonth(dTo)
     End If
     ws.Name = UniqueName(nm)
     ws.Range(T_FROM).Value2 = CDbl(dFrom)
@@ -87,6 +87,11 @@ Public Sub FreezeActiveSheet()
         .Value2 = .Value2
     End With
 End Sub
+
+' 和暦の年月（例 R7.4）。シート名に使う
+Private Function WarekiMonth(ByVal d As Date) As String
+    WarekiMonth = Application.WorksheetFunction.Text(d, "[$-411]ge.m")
+End Function
 
 Private Function SheetExists(ByVal nm As String) As Boolean
     Dim w As Worksheet
