@@ -3,10 +3,8 @@ Option Explicit
 
 ' =====================================================================
 '  請求シートの自動追加
-'  「請求シート雛形」の黄色（請求期間の始・終）を入れると、
-'  請求期間の名前を付けた新しいシートが自動で追加されます（雛形は空に戻る）。
-'  - Auto_Open       : ファイルを開いたとき、入力の監視を始める
-'  - StartClaimWatch : 監視を始める（エラーで止まったときは、これを実行）
+'  「請求シート雛形」の黄色（請求期間の始・終）を入れて、
+'  ボタン（マクロ CheckTemplateInput）を押すと、新しい請求シートが追加されます。
 '  - AddClaimSheet   : 画面で日付を聞いて追加する（手動用）
 '  - FreezeActiveSheet: 今のシートの式を値に変えて、記録として固定する
 ' =====================================================================
@@ -14,17 +12,6 @@ Public Const TPL_SHEET As String = "請求シート雛形"    ' 複写元のシート名
 Public Const T_FROM As String = "F5"                    ' 雛形の請求期間（始）
 Public Const T_TO As String = "H5"                      ' 雛形の請求期間（終）
 Private Const NAME_PREFIX As String = "請求_"           ' 追加するシート名の先頭
-
-Private oWatch As ClaimWatch
-
-Public Sub Auto_Open()
-    StartClaimWatch
-End Sub
-
-Public Sub StartClaimWatch()
-    Set oWatch = New ClaimWatch
-    oWatch.Start
-End Sub
 
 ' 雛形の請求期間が両方入っていたら、新しいシートを追加して雛形を空に戻す
 Public Sub CheckTemplateInput()
