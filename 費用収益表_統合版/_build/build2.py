@@ -672,7 +672,9 @@ def build_control2(wb, blocks_meta):
     ws.merge_cells('D5:I5')
     put(ws, 'D5', '← ここを変えると、その月まで費用収益表に確定計上されます（9月締め済みなら「9月」）', f=font(9, color=GREY))
     put(ws, 'B6', '月番号（自動）', f=font(9, color=GREY))
-    put(ws, 'C6', f'=MATCH($C$5,{SH_MST}!$N$5:$N$18,0)-1', f=font(9, color=GREY), al=Alignment(horizontal='center'), nf='0')
+    ws['C5'].number_format = '@'          # 「12月」が日付に変換されないよう文字列にする
+    put(ws, 'C6', f'=IFERROR(MATCH($C$5,{SH_MST}!$N$5:$N$18,0)-1,IF(ISNUMBER($C$5),MOD(MONTH($C$5)-4,12)+1,0))',
+        f=font(9, color=GREY), al=Alignment(horizontal='center'), nf='0')
     put(ws, 'B7', '対象月の開始日／翌月初（自動）', f=font(9, color=GREY))
     put(ws, 'C7', '=IF(締月=0,0,IF(締月=13,DATE(年度+2019,4,1),DATE(年度+2018+IF(締月>9,1,0),MOD(締月+2,12)+1,1)))',
         f=font(9, color=GREY), nf='yyyy/m/d', al=Alignment(horizontal='center'))
