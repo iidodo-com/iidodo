@@ -121,3 +121,145 @@ Public Sub 未処理に支給月を一括入力()
     Application.ScreenUpdating = True
     MsgBox n & " 件に支給月 " & s & " を入力しました。", vbInformation
 End Sub
+
+' ===== 不支給通知書 =====
+' 請求記録：AF=ステータス AO=不支給理由 AQ=通知日 AR=通知書出力日 AS=適用する不支給理由
+
+' 請求記録（または不支給通知）で選んだ行の通知書を表示する
+Public Sub 選択行の通知書を表示()
+    Dim r As Long, wn As Worksheet
+    Set wn = ThisWorkbook.Worksheets("不支給通知書")
+    Select Case ActiveSheet.Name
+        Case "請求記録"
+            r = ActiveCell.Row
+        Case "不支給通知"
+            If IsNumeric(ActiveSheet.Cells(ActiveCell.Row, "B").Value) And ActiveSheet.Cells(ActiveCell.Row, "B").Value <> "" Then r = ActiveSheet.Cells(ActiveCell.Row, "B").Value
+        Case Else
+            MsgBox "「請求記録」または「不支給通知」シートで、通知書を出したい行のセルを選んでから押してください。", vbExclamation
+            Exit Sub
+    End Select
+    If r < 6 Then MsgBox "通知書を出したい行（請求）を選んでください。", vbExclamation: Exit Sub
+    wn.Range("L2").Value = r
+    Application.Calculate
+    wn.Activate
+    wn.Range("A1").Select
+    If ThisWorkbook.Worksheets("請求記録").Cells(r, "AF").Value <> "不支給" Then
+        MsgBox "この請求のステータスは「不支給」ではありません（" & ThisWorkbook.Worksheets("請求記録").Cells(r, "AF").Value & "）。", vbExclamation
+    End If
+End Sub
+
+' 出力できる行（不支給・理由あり・通知日あり・未出力）を集める。不備の件数も数える
+Private Function 出力対象(ByRef noReason As Long, ByRef noDate As Long) As Collection
+    Dim w As Worksheet, r As Long, c As New Collection
+    Set w = ThisWorkbook.Worksheets("請求記録")
+    For r = 6 To 3005
+        If w.Cells(r, "AF").Value = "不支給" And w.Cells(r, "AR").Value = "" Then
+            If w.Cells(r, "AS").Value = "" Then
+                noReason = noReason + 1
+            ElseIf w.Cells(r, "AQ").Value = "" Then
+                noDate = noDate + 1
+            Else
+                c.Add r
+            End If
+        End If
+    Next r
+    Set 出力対象 = c
+End Function
+
+Private Function 不備メッセージ(ByVal noReason As Long, ByVal noDate As Long) As String
+    If noReason > 0 Then 不備メッセージ = vbLf & "・不支給の理由が未選択：" & noReason & " 件（請求記録の「不支給理由（区分）」）"
+    If noDate > 0 Then 不備メッセージ = 不備メッセージ & vbLf & "・通知日が未入力：" & noDate & " 件（請求記録の「通知日（決裁完了日）」）"
+End Function
+
+' 未出力の通知書を1人1ファイルのPDFで保存する（このファイルと同じ場所の「不支給通知書_日付」フォルダ）
+Public Sub 未出力の通知書を一括PDF出力()
+    Dim noR As Long, noD As Long, items As Collection, v As Variant, wn As Worksheet, w As Worksheet
+    Dim folder As String, fn As String, n As Long
+    If ThisWorkbook.Path = "" Then MsgBox "先にこのファイルを保存してください。", vbExclamation: Exit Sub
+    Set items = 出力対象(noR, noD)
+    If items.Count = 0 Then MsgBox "出力する通知書がありません。" & 不備メッセージ(noR, noD), vbInformation: Exit Sub
+    If MsgBox(items.Count & " 件の通知書をPDFで保存します。" & 不備メッセージ(noR, noD) & vbLf & vbLf & "よろしいですか？", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
+    folder = ThisWorkbook.Path & "\不支給通知書_" & Format(Date, "yyyymmdd")
+    If Dir(folder, vbDirectory) = "" Then MkDir folder
+    Set wn = ThisWorkbook.Worksheets("不支給通知書")
+    Set w = ThisWorkbook.Worksheets("請求記録")
+    On Error GoTo Fail
+    Application.ScreenUpdating = False
+    For Each v In items
+        wn.Range("L2").Value = v
+        Application.Calculate
+        fn = folder & "\不支給通知書_" & w.Cells(v, "B").Value & "_R" & w.Cells(v, "C").Value & "." & w.Cells(v, "D").Value & ".pdf"
+        wn.ExportAsFixedFormat Type:=xlTypePDF, Filename:=fn, Quality:=xlQualityStandard, OpenAfterPublish:=False
+        w.Cells(v, "AR").Value = Date
+        n = n + 1
+    Next v
+    Application.ScreenUpdating = True
+    Shell "explorer.exe """ & folder & """", vbNormalFocus
+    MsgBox n & " 件のPDFを保存しました。" & vbLf & folder, vbInformation
+    Exit Sub
+Fail:
+    Application.ScreenUpdating = True
+    MsgBox "PDFの保存に失敗しました（" & n & " 件まで保存済み）。" & vbLf & Err.Description, vbExclamation
+End Sub
+
+' 未出力の通知書をまとめて印刷する
+Public Sub 未出力の通知書を一括印刷()
+    Dim noR As Long, noD As Long, items As Collection, v As Variant, wn As Worksheet, w As Worksheet, n As Long
+    Set items = 出力対象(noR, noD)
+    If items.Count = 0 Then MsgBox "出力する通知書がありません。" & 不備メッセージ(noR, noD), vbInformation: Exit Sub
+    If MsgBox(items.Count & " 件の通知書を印刷します。" & 不備メッセージ(noR, noD) & vbLf & vbLf & "よろしいですか？", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
+    Set wn = ThisWorkbook.Worksheets("不支給通知書")
+    Set w = ThisWorkbook.Worksheets("請求記録")
+    For Each v In items
+        wn.Range("L2").Value = v
+        Application.Calculate
+        wn.PrintOut Copies:=1
+        w.Cells(v, "AR").Value = Date
+        n = n + 1
+    Next v
+    MsgBox n & " 件の通知書を印刷しました。", vbInformation
+End Sub
+
+' ===== 旧い管理台帳の入力内容を引き継ぐ =====
+Public Sub 旧台帳から引き継ぐ()
+    Dim f As Variant, wo As Workbook, so As Worksheet, sn As Worksheet, j As Long, k As Variant, r As Long, c As Variant, h As Variant
+    f = Application.GetOpenFilename("Excelファイル (*.xlsx;*.xlsm),*.xlsx;*.xlsm", , "引き継ぐ元（旧い管理台帳）を選択")
+    If VarType(f) = vbBoolean Then Exit Sub
+    If MsgBox("選んだ台帳の入力内容（請求記録・職員マスタ・人給データ・設定）で、このファイルの入力内容を置き換えます。" & vbLf & "よろしいですか？", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    On Error GoTo Fail
+    Set wo = Workbooks.Open(f, ReadOnly:=True, UpdateLinks:=0)
+    ' 請求記録：見出し名で対応づけ（先頭23列は申請書データ）
+    Set so = wo.Worksheets("請求記録"): Set sn = ThisWorkbook.Worksheets("請求記録")
+    h = Array("決定額（手修正）", "保留理由", "保留開始日", "保留解消日", "次回確認予定日", "支給月", "備考", "不支給理由（区分）", "理由の個別記載", "通知日（決裁完了日）", "通知書出力日")
+    For j = 1 To 23
+        k = Application.Match(sn.Cells(5, j).Value, so.Rows(5), 0)
+        If Not IsError(k) Then sn.Range(sn.Cells(6, j), sn.Cells(3005, j)).Value = so.Range(so.Cells(6, k), so.Cells(3005, k)).Value
+    Next j
+    For Each c In h
+        j = Application.Match(c, sn.Rows(5), 0)
+        k = Application.Match(c, so.Rows(5), 0)
+        If Not IsError(k) Then sn.Range(sn.Cells(6, j), sn.Cells(3005, j)).Value = so.Range(so.Cells(6, k), so.Cells(3005, k)).Value
+    Next c
+    ' 職員マスタ：数式でないセルだけ引き継ぐ
+    Set so = wo.Worksheets("職員マスタ"): Set sn = ThisWorkbook.Worksheets("職員マスタ")
+    For r = 6 To 405
+        For c = 1 To 15
+            If Not so.Cells(r, c).HasFormula Then sn.Cells(r, c).Value = so.Cells(r, c).Value
+        Next c
+    Next r
+    ' 人給データ・設定
+    ThisWorkbook.Worksheets("人給データ").Range("A2:AB700").Value = wo.Worksheets("人給データ").Range("A2:AB700").Value
+    ThisWorkbook.Worksheets("設定").Range("C3:C7").Value = wo.Worksheets("設定").Range("C3:C7").Value
+    ThisWorkbook.Worksheets("設定").Range("F3:F14").Value = wo.Worksheets("設定").Range("F3:F14").Value
+    wo.Close SaveChanges:=False
+    Application.Calculation = xlCalculationAutomatic
+    Application.ScreenUpdating = True
+    MsgBox "引き継ぎが完了しました。内容を確認して、保存してください。", vbInformation
+    Exit Sub
+Fail:
+    Application.Calculation = xlCalculationAutomatic
+    Application.ScreenUpdating = True
+    MsgBox "引き継ぎに失敗しました。" & vbLf & Err.Description, vbExclamation
+End Sub

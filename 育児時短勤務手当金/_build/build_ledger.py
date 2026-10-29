@@ -74,6 +74,23 @@ for i, t in enumerate(reasons, 3):
     cfg.cell(i, 6, t).fill = INP
 for i in range(len(reasons) + 3, 15):
     cfg.cell(i, 6).fill = INP
+cfg["J2"] = "不支給理由（通知書用・変更可）"; cfg["K2"] = "通知書に載せる理由文（{最低限度額}は設定の額に置換）"; cfg["L2"] = "明細区分"
+nr_rows = [("報酬額が標準報酬月額以上", "対象月の報酬額が、育児時短勤務を開始した月の標準報酬月額以上であり、支給額が生じないため。", 1),
+           ("計算額が最低限度額以下", "対象月の報酬額から算出した支給額が、最低限度額（{最低限度額}円）以下であり、支給額が生じないため。", 3),
+           ("部分休業の取得実績なし", "請求月において部分休業の取得実績がなく、支給要件を満たしていないため。", 2),
+           ("対象月に子が2歳に達している", "対象月において、育児時短勤務に係る子が2歳に達しており、支給対象期間に該当しないため。", 2),
+           ("勤務期間外", "対象月が育児時短勤務（部分休業）の期間に該当せず、支給要件を満たしていないため。", 2),
+           ("その他（個別に記載）", "", 2)]
+for i in range(10):
+    r_ = 3 + i
+    for cc in ("J", "K", "L"):
+        cfg[f"{cc}{r_}"].fill = INP
+    if i < len(nr_rows):
+        cfg[f"J{r_}"], cfg[f"K{r_}"], cfg[f"L{r_}"] = nr_rows[i]
+cfg["J13"] = "明細区分：1＝標準報酬月額と報酬額を載せる／2＝載せない／3＝標準報酬月額・報酬額・算出した支給額を載せる"
+cfg["J13"].font = Font(name=FN, size=9, color="7F7F7F")
+cfg["J2"].font = cfg["K2"].font = cfg["L2"].font = Font(name=FN, bold=True)
+cfg.column_dimensions["I"].width = 2; cfg.column_dimensions["J"].width = 30; cfg.column_dimensions["K"].width = 90; cfg.column_dimensions["L"].width = 10
 cfg["H2"] = "支給月・対象月の一覧"
 months = []
 for k in range(72):
@@ -135,17 +152,18 @@ cols = ["受付日",
         "時短開始日", "時短終了日", "請求期間開始", "請求期間終了", "子の氏名", "子の生年月日", "所属名称", "請求日", "初回請求", "申請書の入力エラー件数", "標準報酬等級(申請書)", "標準報酬月額(申請書)",
         "氏名", "所属", "対象月", "標準報酬月額", "判定", "計算額", "決定額（手修正）", "決定額", "ステータス",
         "保留理由", "保留開始日", "保留解消日", "次回確認予定日", "保留経過日数", "支給月", "チェック（空欄＝問題なし）", "備考",
-        "保留連番", "マスタ行", "対象月初日"]
+        "不支給理由（区分）", "理由の個別記載", "通知日（決裁完了日）", "通知書出力日", "適用する不支給理由",
+        "保留連番", "マスタ行", "対象月初日", "不支給連番"]
 col = {}
 keys = ["recv", "no", "y", "m", "rew", "tk", "tkg", "nm0", "sym", "snum", "kind", "s", "e", "ps", "pe", "ch", "chb", "dept0", "req", "first", "errn", "stdg", "stdm",
-        "nm", "dept", "key", "std", "jd", "calc", "man", "fin", "st", "hr", "hs", "he", "hn", "hd", "pm", "chk", "memo", "hseq", "mrow", "bom"]
+        "nm", "dept", "key", "std", "jd", "calc", "man", "fin", "st", "hr", "hs", "he", "hn", "hd", "pm", "chk", "memo", "nr", "ntxt", "nd", "ndo", "nar", "hseq", "mrow", "bom", "nseq"]
 for k, i in zip(keys, range(1, len(keys) + 1)):
     col[k] = L(i)
 assert len(keys) == len(cols)
 # ヘッダー（A=受付日 / B:U 貼付 / V.. 自動・管理）
 head(rec, 5, cols)
 for i in range(1, len(cols) + 1):
-    rec.cell(5, i).fill = HDR if i <= 23 else (HDR3 if keys[i - 1] in ("man", "hr", "hs", "he", "hn", "pm", "memo") else HDR2)
+    rec.cell(5, i).fill = HDR if i <= 23 else (HDR3 if keys[i - 1] in ("man", "hr", "hs", "he", "hn", "pm", "memo", "nr", "ntxt", "nd") else HDR2)
 rec["A4"] = "▼ 申請書の内容（貼付／入力）"; rec["X4"] = "▼ 自動判定と管理（黄色＝入力）"
 for c in ("A4", "X4"):
     rec[c].font = Font(name=FN, size=10, bold=True, color="1F4E78")
@@ -202,26 +220,30 @@ for r in range(R0, RE + 1):
            f'&IF(AND(N({E})>0,{J}<>"",{J}<>"×",{F}=0,${c["man"]}{r}=""),"計算額が下限以下のため不支給／","")')
     rec[f"{c['chk']}{r}"] = f'=IF({B}="","",{msg})'
     for k in ("recv", "no", "y", "m", "rew", "tk", "tkg", "nm0", "sym", "snum", "kind", "s", "e", "ps", "pe", "ch", "chb", "dept0", "req", "first", "errn", "stdg", "stdm",
-              "man", "hr", "hs", "he", "hn", "pm", "memo"):
+              "man", "hr", "hs", "he", "hn", "pm", "memo", "nr", "ntxt", "nd"):
         rec[f"{c[k]}{r}"].fill = INP
-    for k in ("nm", "dept", "key", "std", "jd", "calc", "fin", "st", "hd", "chk", "hseq", "mrow", "bom"):
+    rec[f"{c['nar']}{r}"] = (f'=IF({ST}<>"不支給","",IF(${c["nr"]}{r}<>"",${c["nr"]}{r},IF({J}="×",設定!$J$3,'
+                             f'IF(AND({J}<>"",N(${c["calc"]}{r})<=設定!$C$3),設定!$J$4,""))))')
+    rec[f"{c['nseq']}{r}"] = f'=IF({ST}="不支給",COUNTIF(${c["st"]}${R0}:{ST},"不支給"),"")'
+    for k in ("nm", "dept", "key", "std", "jd", "calc", "fin", "st", "hd", "chk", "hseq", "mrow", "bom", "ndo", "nar", "nseq"):
         rec[f"{c[k]}{r}"].fill = CAL
-    for k in ("recv", "s", "e", "ps", "pe", "chb", "req", "hs", "he", "hn"):
+    for k in ("recv", "s", "e", "ps", "pe", "chb", "req", "hs", "he", "hn", "nd", "ndo"):
         rec[f"{c[k]}{r}"].number_format = "yyyy/m/d"
     for k in ("rew", "tkg", "stdm", "std", "calc", "man", "fin"):
         rec[f"{c[k]}{r}"].number_format = "#,##0"
     rec[f"{c['bom']}{r}"].number_format = "yyyy/m/d"
 widths = dict(zip(keys, [11, 11, 8, 6, 11, 8, 10, 14, 9, 10, 14, 11, 11, 11, 11, 14, 11, 22, 11, 9, 9, 9, 12,
-                         14, 22, 8, 12, 6, 10, 11, 11, 10, 20, 11, 11, 11, 8, 9, 46, 36, 6, 6, 10]))
+                         14, 22, 8, 12, 6, 10, 11, 11, 10, 20, 11, 11, 11, 8, 9, 46, 36, 24, 30, 13, 12, 24, 6, 6, 10, 6]))
 for k, w in widths.items():
     rec.column_dimensions[c[k]].width = w
-for k in ("hseq", "mrow", "bom"):
+for k in ("hseq", "mrow", "bom", "nseq"):
     rec.column_dimensions[c[k]].hidden = True
 rec.freeze_panes = f"C{R0}"
-rec.auto_filter.ref = f"A5:{c['bom']}{RE}"
+d = DataValidation(type="list", formula1="=設定!$J$3:$J$12", allow_blank=True, showErrorMessage=False); d.add(f"{c['nr']}{R0}:{c['nr']}{RE}"); rec.add_data_validation(d)
+rec.auto_filter.ref = f"A5:{c['nseq']}{RE}"
 d = DataValidation(type="list", formula1="=設定!$F$3:$F$14", allow_blank=True, showErrorMessage=False); d.add(f"{c['hr']}{R0}:{c['hr']}{RE}"); rec.add_data_validation(d)
 d = DataValidation(type="list", formula1="=設定!$H$3:$H$74", allow_blank=True, showErrorMessage=True, errorTitle="支給月", error="一覧（例 R8.9）から選んでください。"); d.add(f"{c['pm']}{R0}:{c['pm']}{RE}"); rec.add_data_validation(d)
-rng = f"A{R0}:{c['memo']}{RE}"
+rng = f"A{R0}:{c['nar']}{RE}"
 ST0 = f"${c['st']}{R0}"
 rec.conditional_formatting.add(rng, FormulaRule(formula=[f'{ST0}="保留中"'], fill=PatternFill("solid", bgColor="FCE4D6", fgColor="FCE4D6")))
 rec.conditional_formatting.add(rng, FormulaRule(formula=[f'{ST0}="要確認"'], fill=PatternFill("solid", bgColor="FFC7CE", fgColor="FFC7CE")))
@@ -338,6 +360,116 @@ for j in range(24):
 mat.column_dimensions["AB"].width = 22
 mat.freeze_panes = f"D{R0}"
 
+# ================= 不支給通知（一覧） =================
+nl = wb.create_sheet("不支給通知", 2)
+title(nl, "不支給通知の管理", "ステータスが「不支給」の請求を自動で一覧にします。理由の選択・通知日（決裁完了日）の入力は「請求記録」の緑の列で行います。")
+nl["A3"] = "不支給の請求"; nl["C3"] = '=COUNTIF($J$7:$J$306,"?*")'
+for i_, (lab_, key_) in enumerate((("理由未選択", "理由未選択"), ("通知日未入力", "通知日未入力"), ("出力待ち", "出力待ち"), ("出力済", "出力済"))):
+    nl.cell(3, 4 + i_ * 2, lab_)
+    nl.cell(3, 5 + i_ * 2, f'=COUNTIF($J$7:$J$306,"{key_}")')
+for a_ in ("A3", "C3", "D3", "E3", "F3", "G3", "H3", "I3", "J3", "K3"):
+    nl[a_].font = Font(name=FN, size=11, bold=True)
+head(nl, 6, ["No", "請求記録の行", "職員番号", "氏名", "所属", "対象月", "不支給の理由", "通知日", "出力日", "状況", "行(補助)"])
+for n_ in range(300):
+    r_ = 7 + n_
+    nl[f"K{r_}"] = f'=IFERROR(MATCH({n_ + 1},{rg("nseq")},0),"")'
+    nl[f"A{r_}"] = f'=IF($K{r_}="","",{n_ + 1})'
+    nl[f"B{r_}"] = f'=IF($K{r_}="","",$K{r_})'
+    for cl_, k_ in (("C", "no"), ("D", "nm"), ("E", "dept"), ("F", "key"), ("G", "nar"), ("H", "nd"), ("I", "ndo")):
+        nl[f"{cl_}{r_}"] = f'=IF($K{r_}="","",IF(INDEX({rg(k_)},$K{r_})="","",INDEX({rg(k_)},$K{r_})))'
+    nl[f"J{r_}"] = f'=IF($K{r_}="","",IF($G{r_}="","理由未選択",IF($H{r_}="","通知日未入力",IF($I{r_}="","出力待ち","出力済"))))'
+    nl[f"H{r_}"].number_format = nl[f"I{r_}"].number_format = "yyyy/m/d"
+for cl_, w_ in zip("ABCDEFGHIJK", [5, 10, 11, 14, 28, 8, 30, 11, 11, 13, 6]):
+    nl.column_dimensions[cl_].width = w_
+nl.column_dimensions["K"].hidden = True
+nl.freeze_panes = "A7"
+for txt_, colr_ in (("理由未選択", "FFC7CE"), ("通知日未入力", "FFE699"), ("出力待ち", "DDEBF7"), ("出力済", "E2EFDA")):
+    nl.conditional_formatting.add("J7:J306", FormulaRule(formula=[f'$J7="{txt_}"'], fill=PatternFill("solid", bgColor=colr_, fgColor=colr_)))
+
+# ================= 不支給通知書（印刷用） =================
+nt = wb.create_sheet("不支給通知書", 3)
+nt.sheet_view.showGridLines = False
+PF = "ＭＳ Ｐゴシック"
+for cl_, w_ in zip("ABCDEFGHI", [4, 12, 12, 12, 12, 12, 12, 12, 4]):
+    nt.column_dimensions[cl_].width = w_
+nt.column_dimensions["K"].width = 22; nt.column_dimensions["L"].width = 28
+
+
+def g(k_):
+    return f'INDEX(請求記録!${c[k_]}$1:${c[k_]}$3005,$L$2)'
+
+
+def jd_(x_):
+    return f'IF({x_}="","令和　　年　　月　　日","令和 "&(YEAR({x_})-2018)&" 年 "&MONTH({x_})&" 月 "&DAY({x_})&" 日")'
+
+
+nt["K1"] = "▼ 出力する請求記録の行（自動）"; nt["K1"].font = Font(name=FN, size=9, bold=True, color="C00000")
+nt["L2"] = None
+nt["K2"] = "請求記録の行番号"
+helper = [(3, "氏名", f'=IF($L$2="","",IF({g("nm")}="","",{g("nm")}))'),
+          (4, "所属", f'=IF($L$2="","",IF({g("dept")}="","",{g("dept")}))'),
+          (5, "職員番号", f'=IF($L$2="","",{g("no")})'),
+          (6, "受付日", f'=IF($L$2="","",IF({g("recv")}="","",{g("recv")}))'),
+          (7, "通知日", f'=IF($L$2="","",IF({g("nd")}="","",{g("nd")}))'),
+          (8, "対象年", f'=IF($L$2="","",{g("y")})'),
+          (9, "対象月", f'=IF($L$2="","",{g("m")})'),
+          (10, "適用する理由区分", f'=IF($L$2="","",IF({g("nar")}="","",{g("nar")}))'),
+          (11, "個別記載", f'=IF($L$2="","",IF({g("ntxt")}="","",{g("ntxt")}))'),
+          (12, "明細区分", '=IFERROR(INDEX(設定!$L$3:$L$12,MATCH($L$10,設定!$J$3:$J$12,0)),2)'),
+          (13, "理由文", '=IF($L$11<>"",$L$11,IFERROR(SUBSTITUTE(INDEX(設定!$K$3:$K$12,MATCH($L$10,設定!$J$3:$J$12,0)),"{最低限度額}",TEXT(設定!$C$3,"#,##0")),""))'),
+          (14, "標準報酬月額", f'=IF($L$2="","",IF({g("std")}="","",{g("std")}))'),
+          (15, "報酬額", f'=IF($L$2="","",IF({g("rew")}="","",{g("rew")}))'),
+          (16, "算出した支給額", f'=IF($L$2="","",IF({g("calc")}="","",{g("calc")}))')]
+for r_, lab_, f_ in helper:
+    nt[f"K{r_}"] = lab_; nt[f"L{r_}"] = f_
+    nt[f"K{r_}"].font = nt[f"L{r_}"].font = Font(name=FN, size=9, color="7F7F7F")
+nt["L2"].fill = INP
+nt["L6"].number_format = nt["L7"].number_format = "yyyy/m/d"
+heights = {1: 10, 2: 22, 3: 10, 4: 20, 5: 8, 6: 22, 7: 18, 8: 14, 9: 14, 10: 20, 11: 14, 12: 24, 13: 14, 14: 22, 15: 22, 16: 12,
+           17: 24, 18: 22, 19: 22, 20: 20, 21: 10, 22: 10, 23: 22, 24: 22, 25: 22, 26: 14, 27: 14, 28: 20, 29: 20, 30: 20, 31: 20, 32: 20, 33: 14, 34: 20, 35: 20, 36: 20}
+for r_, h_ in heights.items():
+    nt.row_dimensions[r_].height = h_
+
+
+def tx(addr_, v_, size_=11, h_="left", bold_=False, wrap_=False, ul_=False, va_="center"):
+    cell_ = nt[addr_]
+    cell_.value = v_
+    cell_.font = Font(name=PF, size=size_, bold=bold_, underline=("single" if ul_ else None))
+    cell_.alignment = Alignment(horizontal=h_, vertical=va_, wrap_text=wrap_)
+
+
+nt.merge_cells("A2:I2"); tx("A2", "=" + jd_("$L$7"), h_="right")
+nt.merge_cells("B4:H4"); tx("B4", '=$L$4', 11)
+nt.merge_cells("B6:H6"); tx("B6", '=IF($L$3="","",$L$3&"　様")', 12)
+nt.merge_cells("B7:H7"); tx("B7", '=IF($L$5="","","　　（"&$L$5&"）")', 10)
+nt.merge_cells("D10:H10"); tx("D10", "広島市職員共済組合理事長", 11, "right")
+nt.merge_cells("B12:H12"); tx("B12", "広島市職員共済組合短期給付不支給決定通知書", 14, "center")
+nt.merge_cells("B14:H15"); tx("B14", '="　"&' + jd_("$L$6") + '&"に広島市職員共済組合にて受理いたしました育児時短勤務手当金請求書について、地方公務員等共済組合法第七十条の五に基づき、次のとおり決定しましたので通知します。"', 11, wrap_=True, va_="top")
+nt.merge_cells("B17:B20"); tx("B17", "審査の結果", 11, "center")
+nt.merge_cells("C17:H17"); tx("C17", '=IF($L$2="","","不支給（対象月："&JIS("令和"&$L$8&"年"&$L$9&"月")&"）")', 12, bold_=True)
+nt.merge_cells("C18:H19"); tx("C18", '=$L$13', 11, wrap_=True, ul_=True, va_="top")
+nt.merge_cells("C20:H20"); tx("C20", '=IF(OR($L$12=1,$L$12=3),"※詳細については下記のとおり","")', 10)
+thin_ = Side(style="thin", color="000000")
+for r_ in range(17, 21):
+    for cc_ in "BCDEFGH":
+        cell_ = nt[f"{cc_}{r_}"]
+        cell_.border = Border(left=thin_ if cc_ in "BC" else None, right=thin_ if cc_ in "BH" else None,
+                              top=thin_ if r_ == 17 else None, bottom=thin_ if r_ == 20 else None)
+nt.merge_cells("B23:F23"); tx("B23", '=IF(OR($L$12=1,$L$12=3),"　育児時短勤務を開始した月の標準報酬月額","")', 11)
+nt.merge_cells("G23:H23"); tx("G23", '=IF(AND(OR($L$12=1,$L$12=3),$L$14<>""),TEXT($L$14,"#,##0")&" 円","")', 11, "right")
+nt.merge_cells("B24:F24"); tx("B24", '=IF(OR($L$12=1,$L$12=3),"　対象月の報酬額","")', 11)
+nt.merge_cells("G24:H24"); tx("G24", '=IF(AND(OR($L$12=1,$L$12=3),$L$15<>""),TEXT($L$15,"#,##0")&" 円","")', 11, "right")
+nt.merge_cells("B25:F25"); tx("B25", '=IF($L$12=3,"　算出した支給額（最低限度額以下）","")', 11)
+nt.merge_cells("G25:H25"); tx("G25", '=IF(AND($L$12=3,$L$16<>""),TEXT($L$16,"#,##0")&" 円","")', 11, "right")
+nt.merge_cells("B29:H32"); tx("B29", "　この処分に不服があるときは、この処分があったことを知った日の翌日から起算して３箇月以内に、全国市町村職員共済組合連合会審査会に審査請求をすることができます。また、この処分があったことを知った日から６箇月以内に、広島市職員共済組合を被告として訴訟を提起することもできます。", 10.5, wrap_=True, va_="top")
+nt.merge_cells("E35:H35"); tx("E35", "担当：庶務係", 11, "right")
+nt.merge_cells("E36:H36"); tx("E36", "電話：082-504-2061", 11, "right")
+nt.print_area = "A1:I37"
+nt.page_setup.orientation = "portrait"; nt.page_setup.paperSize = 9
+nt.sheet_properties.pageSetUpPr = openpyxl.worksheet.properties.PageSetupProperties(fitToPage=True)
+nt.page_setup.fitToWidth = 1; nt.page_setup.fitToHeight = 1
+nt.page_margins.left = nt.page_margins.right = 0.8
+
 # ================= 使い方 =================
 guide.column_dimensions["A"].width = 3; guide.column_dimensions["B"].width = 120
 G = [("育児時短勤務手当金　管理台帳　使い方", 16, True), ("", 10, False),
@@ -350,6 +482,8 @@ G = [("育児時短勤務手当金　管理台帳　使い方", 16, True), ("", 
      ("3. 基幹システムへ入力したら、［未処理に支給月を一括入力］で支給月（例：R8.10）をまとめて入れます（ステータスが「支給済」になります）。個別に入れるときは「支給月」列で選びます。", 11, False),
      ("4. 支給を保留するときは「保留理由」（と保留開始日・次回確認予定日）を入れるだけ。「保留一覧」に自動で載り、経過日数が出ます。解決したら「保留解消日」または「支給月」を入れると一覧から消えます（履歴は残ります）。", 11, False),
      ("　　標準報酬月額：申請書の標準報酬月額は、台帳（職員マスタ）に登録が無い場合の判定に使います。取込ボタンは、初めての職員や標準報酬月額が空の職員を職員マスタへ自動登録します。台帳の額と申請書の額が違うときは「チェック」列に表示します（判定は台帳の額を優先）。", 11, False),
+     ("6. 不支給通知書：不支給の請求は「不支給通知」シートに自動で一覧されます。①「請求記録」の緑の列で「不支給理由（区分）」（判定×・下限以下は自動候補。部分休業の取得実績なし等は選択）と、決裁完了後に「通知日」を入力 → ②「不支給通知」シートの［選択行の通知書を表示］で確認・印刷、または［未出力を一括PDF出力］［未出力を一括印刷］。", 11, False),
+     ("　　出力した行には「通知書出力日」が入り、二重出力を防ぎます（再出力は出力日を消します）。理由文は「設定」シートで編集できます。", 11, False),
      ("5. 請求前に保留する場合（育休期間の変更待ち等）は「職員マスタ」の【職員単位の保留】に入れます。", 11, False),
      ("", 10, False),
      ("■ シートの役割", 12, True),
