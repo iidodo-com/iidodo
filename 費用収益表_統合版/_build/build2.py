@@ -47,6 +47,18 @@ K_FIRST, K_LAST = 5, 1835      # 決算整理
 # 月例・決算整理に足す作業列
 C_ST, C_KEY, C_LONG, C_SKEY, C_LKEY, C_IDX = 'P', 'Q', 'R', 'S', 'T', 'U'
 
+# 状態の色（セルの塗りつぶし）
+ST_FILL = {'確認済': 'BDD7EE', '未確認': 'F8CBAD', '昨年実績': 'FFD9D9', '支払なし': 'E7E6E6'}
+FUT_FILL, ACR_FILL = 'E2EFDA', 'FCE4E4'      # 費用収益表：未締め月／4月（未払）
+
+
+def add_status_fills(ws, rng, first_row, status_col):
+    """状態に応じてセルを塗りつぶす（条件付き書式）。rng＝塗る範囲、status_col＝状態の列記号"""
+    for st, col in ST_FILL.items():
+        ws.conditional_formatting.add(rng, FormulaRule(
+            formula=[f'${status_col}{first_row}="{st}"'], fill=PatternFill('solid', bgColor=col, fgColor=col)))
+
+
 # ---- 業務の費目（差引簿のブロック）----
 # key, 見出し, 費用収益表の行（予算現額）, 費用収益表に計上するか
 GY_BLOCKS = [
@@ -176,8 +188,8 @@ def prep_input_sheet(ws, rows, first, last, kind):
     rng = f'A{first}:L{last}'
     ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${C_ST}{first}="昨年実績"'],
                                                    font=Font(color=RED_T)))
-    ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${C_ST}{first}="確認済"'],
-                                                   font=Font(color='1F4E79', bold=True)))
+    add_status_fills(ws, f'F{first}:F{last}', first, C_ST)       # 金額セル（旧：青塗り）
+    add_status_fills(ws, f'{C_ST}{first}:{C_ST}{last}', first, C_ST)   # 状態セル
     ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${C_ST}{first}="支払なし"'],
                                                    font=Font(color='A6A6A6', strike=True)))
     dv = DataValidation(type='list', formula1=f'={SH_MST}!$I$5:$I$8', allow_blank=True)
@@ -315,10 +327,8 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
                 black(ws.cell(rr, cc))
         rng = f'{D}{first}:{ST}{last}'
         ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${ST}{first}="昨年実績"'], font=Font(color=RED_T)))
-        ws.conditional_formatting.add(f'{A}{first}:{A}{last}', FormulaRule(
-            formula=[f'${ST}{first}="確認済"'], fill=PatternFill('solid', bgColor='DDEBF7', fgColor='DDEBF7')))
-        ws.conditional_formatting.add(f'{A}{first}:{A}{last}', FormulaRule(
-            formula=[f'${ST}{first}="未確認"'], fill=PatternFill('solid', bgColor=PENDING, fgColor=PENDING)))
+        add_status_fills(ws, f'{A}{first}:{A}{last}', first, ST)
+        add_status_fills(ws, f'{ST}{first}:{ST}{last}', first, ST)
         out[k] = dict(sheet=ws.title, first=first, last=last, d=D, t=T, a=A, bal=BAL, st=ST, cap=cap)
     ws.sheet_view.zoomScale = 70
     ws.freeze_panes = None
@@ -552,9 +562,11 @@ def ref_block(ws, hr, last):
     for c in range(27, 40):
         ws.column_dimensions[L(c)].width = 11
     ws.conditional_formatting.add(f'C4:N{last}', FormulaRule(
-        formula=['AND(ISNUMBER(C4),C$2<>"",C$2>締月)'], font=Font(color=GREEN_T)))
+        formula=['AND(ISNUMBER(C4),C$2<>"",C$2>締月)'], font=Font(color=GREEN_T),
+        fill=PatternFill('solid', bgColor=FUT_FILL, fgColor=FUT_FILL)))
     ws.conditional_formatting.add(f'O4:O{last}', FormulaRule(
-        formula=['AND(ISNUMBER(O4),締月<13)'], font=Font(color=RED_T)))
+        formula=['AND(ISNUMBER(O4),締月<13)'], font=Font(color=RED_T),
+        fill=PatternFill('solid', bgColor=ACR_FILL, fgColor=ACR_FILL)))
 
 
 # ----------------------------------------------------------------------------
@@ -601,8 +613,8 @@ def prep_kashi_sheet(ws, sheet_idx, blocks_meta, krows):
         S = L(st)
         rng = f'{L(d)}{first}:{L(bal)}{b["last"]}'
         ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${S}{first}="昨年実績"'], font=Font(color=RED_T)))
-        ws.conditional_formatting.add(f'{L(a)}{first}:{L(a)}{b["last"]}', FormulaRule(
-            formula=[f'${S}{first}="確認済"'], fill=PatternFill('solid', bgColor='DDEBF7', fgColor='DDEBF7')))
+        add_status_fills(ws, f'{L(a)}{first}:{L(a)}{b["last"]}', first, S)
+        add_status_fills(ws, f'{S}{first}:{S}{b["last"]}', first, S)
         dv = DataValidation(type='list', formula1=f'={SH_MST}!$I$5:$I$8', allow_blank=True)
         ws.add_data_validation(dv)
         dv.add(f'{S}{first}:{S}{b["last"]}')
@@ -910,18 +922,173 @@ def build_help2(wb):
     row('経理担当者', '支払伝票が回ってきたら状態を「未確認」→「確認済」へ（プルダウン）。', '旧：金額を青く塗りつぶし')
     row('経理〆', '「月次締め」で今回締める月を選び、仮締め出納計算表の月合計を黄色セルに入力。差額0で OK。「検算」シートが全部 OK ならこのブックの数字は一致しています。', '')
     r += 1
-    section('色のルール')
-    row('黄色のセル', '手入力するセル。それ以外は数式なので触りません。マクロ版（.xlsm）ではEnterで次の黄色セルへ移動します。')
-    row('赤字', '状態＝昨年実績（今年の支払が確定するまで残す行）。')
-    row('青字（月例）／水色の背景（差引簿の支出）', '状態＝確認済。')
-    row('オレンジの背景（差引簿の支出）', '状態＝未確認。')
-    row('取り消し線（月例）', '状態＝支払なし（今年度は支払がない行。差引簿・集計から除外）。')
+    section('色のルール（すべてセルの塗りつぶしです。状態を変えると自動で変わります）')
+    legend = [('黄色のセル', YELLOW, '手入力するセル。それ以外は数式なので触りません。'),
+              ('確認済', ST_FILL['確認済'], '支払伝票を確認済み（旧：青塗り）。金額と状態のセルが青くなります。'),
+              ('未確認', ST_FILL['未確認'], '今年の支払として入力済み・伝票は未確認（旧：黒字・塗りなし）。オレンジ。'),
+              ('昨年実績', ST_FILL['昨年実績'], '昨年実績のまま（旧：赤字）。ピンクの塗りと赤字。集計には入りません。'),
+              ('支払なし', ST_FILL['支払なし'], '今年度は支払がない行。灰色＋取り消し線。差引簿・集計から除外。'),
+              ('費用収益表：未締め月', FUT_FILL, '締め月より後の月＝前年実績・見込（旧：緑字）。薄い緑の塗りと緑字。'),
+              ('費用収益表：4月（未払）', ACR_FILL, '年度末の未払見込（旧：赤字）。薄いピンクの塗りと赤字。')]
+    for name, col, memo in legend:
+        put(ws, (r, 2), name, f=font(10, True), fl=col, bd=B_ALL, al=Alignment(vertical='center'))
+        put(ws, (r, 3), memo, bd=B_ROW, al=Alignment(vertical='center', wrap_text=True))
+        r += 1
     r += 1
     section('追加した列・シート（元の様式への追加）')
     row('月例・決算整理 P〜U列', 'P＝状態（入力）。Q〜U＝自動計算の作業列（費目・長期額・差引簿への通番・計上列）。消さないでください。')
     row('予算差引簿の「状態」列', '各ブロックの右端。月例の状態が自動で表示されます。')
     row('貸付予算差引簿の「状態」列', '各ブロックの右端（入力）。')
     row('差引簿のブロックの大きさ', '行数は余裕を持たせてあります。足りなくなると見出しの右に赤字で「行不足」と出ます。')
+    ws.sheet_properties.tabColor = '1F3864'
+    return ws
+
+
+SH_CHG = '変更点説明'
+KIND_FILL = {'変更なし': 'E7E6E6', '追加': 'C6E0B4', '作り直し': 'F8CBAD', '修正': 'D9D2E9', '削除': 'BFBFBF', '置換': 'BDD7EE'}
+
+
+def build_changes(wb):
+    ws = wb.create_sheet(SH_CHG)
+    ws.sheet_view.showGridLines = False
+    for col, w in {'A': 2, 'B': 30, 'C': 11, 'D': 74, 'E': 52, 'F': 26}.items():
+        ws.column_dimensions[col].width = w
+    title_band(ws, '元のファイルからの変更点（シートごとの説明）', 6,
+               sub='元の3ファイル：①業務経理区分別執行管理簿（xlsx）②貸付予算差引簿（xls）③費用収益表（xls）。これらを1つのブックにまとめ、'
+                   '転記と照合を自動にしました。シートの様式は、できるだけ元のまま使っています。')
+    put(ws, (4, 2), '変更の種類', f=font(10, True))
+    # 凡例（色つきセル）
+    legend = [('変更なし', '元のまま。入力方法・数式・書式を変えていません。'), ('追加', '新しく足した列・シート。'),
+              ('作り直し', '同じシート名・同じ見た目で、中身を自動転記に作り直したもの。'),
+              ('修正', '元の誤りや参照先を直したもの。数字が変わる場合は説明欄に書きました。'),
+              ('削除', '不要になった（または壊れていた）もの。'), ('置換', '手入力を数式に置き換えたもの。')]
+    r = 5
+    for k, memo in legend:
+        put(ws, (r, 2), k, f=font(10, True), fl=KIND_FILL[k], bd=B_ALL, al=Alignment(horizontal='center'))
+        put(ws, (r, 3), memo, f=font(9, color=GREY))
+        r += 1
+    r += 1
+    heads = ['場所（シート・列）', '種類', '変更の内容', '理由・影響・ご注意', '元のファイル']
+    for i, h in enumerate(heads):
+        ws.cell(r, 2 + i, h)
+    header_row(ws, r, 2, 6, 22)
+    hdr_row = r
+    r += 1
+
+    def group(text):
+        nonlocal r
+        for c in range(2, 7):
+            ws.cell(r, c).fill = fill(NAVY)
+        put(ws, (r, 2), text, f=font(11, True, 'FFFFFF'), fl=NAVY)
+        ws.row_dimensions[r].height = 22
+        r += 1
+
+    def item(place, kind, content, why='', src=''):
+        nonlocal r
+        put(ws, (r, 2), place, f=font(10, True), bd=B_ROW, al=Alignment(vertical='top', wrap_text=True))
+        put(ws, (r, 3), kind, f=font(10, True), fl=KIND_FILL[kind], bd=B_ALL,
+            al=Alignment(horizontal='center', vertical='top'))
+        put(ws, (r, 4), content, bd=B_ROW, al=Alignment(vertical='top', wrap_text=True))
+        put(ws, (r, 5), why, f=font(9), bd=B_ROW, al=Alignment(vertical='top', wrap_text=True))
+        put(ws, (r, 6), src, f=font(9, color=GREY), bd=B_ROW, al=Alignment(vertical='top', wrap_text=True))
+        n = max(-(-len(content) // 34), -(-len(why) // 26), -(-len(place) // 14), 1)
+        ws.row_dimensions[r].height = 15 * n + 4
+        r += 1
+
+    SRC1, SRC2, SRC3 = '①業務経理区分別執行管理簿', '②貸付予算差引簿', '③費用収益表'
+    group('① 業務経理区分別執行管理簿（元のxlsx）のシート')
+    item('月例　A〜L列', '変更なし',
+         '支出日・中項目・小項目・摘要・執行額・経費区分の入力方法と、短期／厚年／経過的／退職等への按分（H〜L列）の数式は元のままです。',
+         '数字の入れ方は今までと同じです。', SRC1 + '／月例')
+    item('月例　M列（作業列：支給月）', '修正',
+         '全行を =IF(F="",0,MONTH(A)) の同じ数式に統一しました。元は M36 が手入力の「4」、M126 が空欄、M435・M436 が1行下（A436・A437）を参照していました。',
+         '「給付区分別執行額（月別）」の月別集計が正しくなります。元の集計と数字が変わる月があります（M36の248,436円は4月→5月、M126の13,860円は6月に加算、M435の35,200円は11月→10月）。',
+         SRC1 + '／月例')
+    item('月例　P列「状態」', '追加',
+         '昨年実績／未確認／確認済／支払なし のプルダウン。支払担当者が「未確認」、経理担当者が伝票確認後に「確認済」にします。移行時は、赤字→昨年実績、黒字・青塗り→確認済、黒字・塗りなし→未確認としました。ただし旧・費用収益表が既に計上していた4〜9月の黒字は、青塗りがなくても確認済にしています（5件）。',
+         '旧：文字色（赤・黒）と青塗りで管理していたものを、列に持たせました。この列が差引簿・費用収益表への転記の条件になります。', SRC1 + '／月例')
+    item('月例　Q〜U列（灰色の作業列）', '追加',
+         'Q＝費目（科目表で「中項目|小項目」から自動判定）、R＝長期額（厚年＋経過的＋退職等）、S・T＝差引簿（短）（長）へ転記するための通番キー（例：事務用消耗品費|S|3）、U＝計上列（4月＝1 … 3月＝12。決算整理は13）。',
+         '数式です。消さないでください。Qに「※未登録」と出たら科目表に組み合わせを追加します。', SRC1 + '／月例')
+    item('月例　色（文字色・塗りつぶし）', '置換',
+         '手作業の赤字・青塗りをやめ、状態に応じて自動で色が付くようにしました（凡例は「使い方」シート）。壊れていた条件付き書式（存在しない外部ファイルを参照していたもの）は削除しました。入力するセル（日付・中項目・小項目・摘要・執行額・経費区分・状態）は黄色にしました。',
+         '色の付け忘れ・付け間違いがなくなります。', SRC1 + '／月例')
+    item('月例　790行目以降（月別合計）', '変更なし', '月ごとの合計欄は元のままです。昨年実績の行も含めて合計する従来どおりの計算です。', '', SRC1 + '／月例')
+    item('決算整理　A〜L列・N列', '変更なし', '入力方法・按分の数式・N列（小項目のリスト）は元のままです。', '', SRC1 + '／決算整理')
+    item('決算整理　P〜U列', '追加', '月例と同じ作業列を追加しました（U列は常に13＝4月（未払））。状態は全行「昨年実績」で移行しました。',
+         '令和8年4月支払の黒字10行は令和7年度分の決算整理のため、令和8年度の4月（未払）には入れていません。令和8年度分を入力したら、状態を「未確認」→「確認済」にします。', SRC1 + '／決算整理')
+    item('予算差引簿（短）', '作り直し',
+         '元は手入力で、ブロックの配置が不規則でした（予算現額は他ファイルを参照）。今回は、月例の入力から自動で転記します。\n'
+         '・見出し（○事務費　事務用消耗品費）、列（支出日／摘要／支出／残額）、書式は元と同じ。\n'
+         '・費目は全31（元の事務費5科目・旅費・委託費・賃借料・厚生費・普及費・光熱水料・修繕費・役員報酬・連合会分担金に加え、非常勤職員手当・賃金・諸謝金・負担金の各小項目・事務費負担金払込金・雑費・減価償却費・器具及び備品・前期損益修正損・立替金を追加）。\n'
+         '・各ブロックの右端に「状態」列を追加。\n'
+         '・予算現額は、このブックの費用収益表（短）の予算現額を参照。予算のない費目は「累計」。\n'
+         '・転記先の行数が足りなくなると、見出しの右に赤字で「行不足」と出ます（行数は現状の約1.3倍＋8行にしてあります）。\n'
+         '・「支払なし」の行は転記されません。',
+         '元の差引簿に手入力されていた内容は、月例と同じ支払の二重入力だったため引き継がず、月例から作り直しています。月例に無い手入力の行が元の差引簿にあった場合は、移っていません（ご確認ください）。\nブロックの並びは大きさ順にしたため、元の位置とは異なります。右側の「共済予算」表は削除し、「差引簿集計」に置き換えました。',
+         SRC1 + '／予算差引簿（短）')
+    item('予算差引簿（長）', '作り直し', '（短）と同じ作りです。金額は長期分（厚年＋経過的＋退職等）です。予算現額は費用収益表（長）を参照します。',
+         '経費区分1（共通）の支払は、短期と長期に按分した金額がそれぞれの差引簿に入ります。', SRC1 + '／予算差引簿（長）')
+    item('予算差引簿（短）未払／（長）未払', '追加', '決算整理シートの内容を、同じ形式で費目ごとに転記する差引簿です。年次決算で未払金を確認するときに使います。',
+         '予算現額は表示せず、支出の累計を表示します。', '（新規）')
+    item('給付区分別執行額（月別）（年度分）', '変更なし', '様式・数式は元のままです。',
+         '月例M列を直したため、月別の集計結果は元と変わる月があります。', SRC1)
+    item('リスト／端数処理／Sheet1／Sheet2', '変更なし', '元のままです。', '', SRC1)
+
+    group('② 貸付予算差引簿（元のxls）のシート')
+    item('旅費・事務費（消耗品・図書・通信・会議・雑費）R８\n旅費・事務費以外R８', '変更なし',
+         '費目ブロックの位置・見出し・列・書式・残額の計算は元のままです。この統合ブックにシートごと取り込みました。形式は xls → xlsx になりました。',
+         '貸付は月例のような元の台帳がないため、従来どおり、ここへ直接入力します。', SRC2)
+    item('各ブロックの右端（E列・J列）', '追加', '「状態」列を追加（プルダウン）。入力するセル（日付・摘要・支出・状態）は黄色にしました。',
+         '費用収益表（貸付）へは「確認済」の支出だけが入ります。', SRC2)
+    item('予算現額（各ブロック先頭の残額）', '修正', '他のファイルへのリンク（[1]R8貸付、[2]R7貸付）を、このブック内の「R8貸付」シートの予算額（Q列）への参照に置き換えました。',
+         'ファイルを開き直しても、リンクの更新確認が出ません。', SRC2)
+    item('広銀手数料（７月分）の日付', '修正', '2025/08/31 → 2026/08/31（年の入力誤りと判断）。',
+         '月は同じなので金額への影響はありません。集計は日付の年も見るため、年が違うと集計に入りません。', SRC2)
+    item('色', '置換', '赤字・青塗りの手作業をやめ、状態に応じた自動の色分けにしました。元の黄色（3月分＝4月支払分）の塗りは残しています。',
+         '支払日が翌年度4月の日付で「確認済」にした行は、費用収益表の「4月（未払）」に入ります。', SRC2)
+
+    group('③ 費用収益表（元のxls）のシート')
+    item('R7業務（長+短）／R7業務 (短)／R7業務（長）／R8貸付', '変更なし',
+         'シート名・行列の配置・見出し・予算額・流用額・収益・参考（職員給与）の欄は元のままです（シート名の「R7」もそのままにしてあります）。',
+         '', SRC3)
+    item('台帳につながる行（短・長）', '置換',
+         '（かっこ内は行番号）役員報酬(4)、嘱託報酬(56)・増額報酬(57)・臨時賃金(59)、厚生費(10)、旅費(11)、事務費の6科目(12〜17)、委託費・光熱水料・修繕費・賃借料・普及費・諸謝金(20〜25)、負担金の7科目(26〜32)、連合会分担金・事務費負担金払込金・雑費・減価償却費(34〜37) の4月〜3月と4月（未払）を、手入力から数式にしました（差引簿集計から自動）。増額報酬は「賞与」を含む摘要の分です。',
+         '入力は月例だけ。費用収益表へ転記する作業は不要です。', SRC3)
+    item('台帳につながる行（貸付）', '置換',
+         '厚生費(7)、旅費(8)、事務費の5科目(9〜13)、委託費(16)、修繕費(17)、賃借料(18)、普及費(19)、食糧費(20)、厚生年金保険料等(24)、労災・雇用等保険料(25)、その他負担金(26)、連合会払込金(29)、雑費(30)。',
+         '貸付予算差引簿の「確認済」から自動で入ります。', SRC3)
+    item('手入力のまま残したセル', '変更なし',
+         '収益（地方公共団体負担金・連合会交付金など）、給与（参考欄の職員基本給・手当・賞与、貸付の嘱託報酬・臨時賃金）、貸付の互助会費・共済負担金等、予算額・流用振替額。',
+         '元の台帳（月例・差引簿）に元データがないためです。黄色にしてあります。', SRC3)
+    item('厚生年金保険料等（貸付）', '修正',
+         '5月（72,040円）は貸付予算差引簿の「社会保険協会年会費1,040円＋法人市・県民税71,000円」の合計で、旧表のとおり同じ行に入れています。6月（142,650円）・7月（71,325円）・9月（71,325円）は元の台帳にない手入力値のため、「貸付差引簿集計」の黄色い手入力行に移しました。',
+         '科目の置き場所（その他負担金が適切か）は、ご確認ください。', SRC3)
+    item('表示のルール（締め月）', '追加',
+         '「月次締め」の「今回締める月」までの月は、差引簿集計の確認済の金額を表示（黒字）。それより後の月は、旧表の値＝前年実績・見込を表示（緑字・薄い緑）。4月（未払）は年度末まで見込（赤字・薄いピンク）。',
+         '旧：人が転記して、緑字を黒字に変えていました。', SRC3)
+    item('2行目・V〜X列・AA〜AM列', '追加',
+         '2行目＝月番号（1〜13）。V列＝締め月までの累計、W列＝予算残額（現在）。X列（非表示）＝台帳につながる行の印（検算用）。AA〜AM列（非表示のグループ、[+]で展開）＝旧表の値（前年実績・見込）。',
+         '元の印刷範囲の外側です。', SRC3)
+    item('文字色（黒・緑・赤）', '置換', '手作業だった色分けを、締め月に応じた自動の色（塗りつぶしつき）にしました。', '', SRC3)
+
+    group('④ 新しく追加したシート')
+    item('使い方', '追加', '毎月の流れ（旧→新の対応）、色のルール、追加した列の説明。', '', '（新規）')
+    item('変更点説明', '追加', 'このシートです。', '', '（新規）')
+    item('月次締め', '追加', '今回締める月の選択、締める前のチェック（未確認の件数など）、出納計算表との照合（費用・収益、短期・長期・貸付）。', '黄色のセルに仮締めの出納計算表の月合計を入れると、差額と判定が出ます。', '（新規）')
+    item('差引簿集計（短）（長）', '追加', '差引簿に転記された費目ごとの月別合計（確認済のみ）。費用収益表はここを参照します。予算現額と残額、「費用収益表に入る合計」の行もあります。', '', '（新規）')
+    item('貸付差引簿集計', '追加', '貸付予算差引簿の費目ごとの月別合計（確認済のみ）。旧表の手入力値の行（黄色）を含みます。', '', '（新規）')
+    item('科目表', '追加', '月例・決算整理の「中項目|小項目」を差引簿の費目に振り分けるルール、状態の一覧、締め月の一覧。', '新しい組み合わせを使うときだけ、左の表に1行追加します。', '（新規）')
+    item('検算', '追加', '月例→差引簿→集計→費用収益表の金額が一致しているかの自動検算（12項目）。', '全部OKなら一致しています。', '（新規）')
+    item('旧表照合', '追加', '元の費用収益表（9月締め時点）の数値と、このブックの費用収益表を1セルずつ突き合わせた結果。', '「今回締める月」が9月のとき、不一致0（4,420セル）であることを確認済みです。', '（新規）')
+
+    group('⑤ 旧→新の作業の対応')
+    item('支払担当者', '置換', '旧：月例で赤字を黒字にして金額を修正。→ 新：状態を「昨年実績」→「未確認」にして日付・摘要・金額を直す。', '', '')
+    item('経理担当者', '置換', '旧：伝票が来たら金額を青く塗りつぶす。→ 新：状態を「未確認」→「確認済」にする（自動で青くなる）。', '', '')
+    item('差引簿への記入', '置換', '旧：差引簿へ日付・摘要・金額を手で入力（二重入力）。→ 新：自動転記。', '', '')
+    item('費用収益表への転記', '置換', '旧：月次決算時に、黒字かつ色塗りのものを転記。→ 新：「月次締め」で締める月を選ぶだけ。', '', '')
+    item('出納計算表との照合', '置換', '旧：費用収益表と目で照合。→ 新：月次締めの黄色セルに入力すると差額を自動計算。', '', '')
+    ws.freeze_panes = ws.cell(hdr_row + 1, 1)
     ws.sheet_properties.tabColor = '1F3864'
     return ws
 
@@ -994,8 +1161,9 @@ def main(gyomu_xlsx, kashi_xls, hiyou_xls, out):
     _, old_cell = B.build_old_compare(wb, oldvals, {n: n for n in (SH_HG, SH_HT, SH_HC, SH_HK)})
     build_checks2(wb, blocks_meta, agg_t, agg_c, agg_k, old_cell)
     build_help2(wb)
+    build_changes(wb)
 
-    order = [SH_HELP, SH_CTL, SH_G, SH_KS, SH_DT, SH_DC, SH_UT, SH_UC, SH_ST, SH_SC, SH_K1, SH_K2, SH_SK,
+    order = [SH_HELP, SH_CHG, SH_CTL, SH_G, SH_KS, SH_DT, SH_DC, SH_UT, SH_UC, SH_ST, SH_SC, SH_K1, SH_K2, SH_SK,
              SH_HG, SH_HT, SH_HC, SH_HK, '給付区分別執行額（月別）', '給付区分別執行額（年度分）', 'リスト', '端数処理',
              SH_MST, SH_CHK, SH_OLD, 'Sheet1', 'Sheet2']
     wb._sheets = [wb[n] for n in order]
@@ -1010,7 +1178,7 @@ def main(gyomu_xlsx, kashi_xls, hiyou_xls, out):
         wb[n].sheet_properties.tabColor = '1F3864'
     for n in (SH_DT, SH_DC, SH_UT, SH_UC):
         B.page(wb[n], False, None, paper=8)
-    for n in (SH_ST, SH_SC, SH_SK, SH_CTL, SH_CHK, SH_HELP):
+    for n in (SH_ST, SH_SC, SH_SK, SH_CTL, SH_CHK, SH_HELP, SH_CHG):
         B.page(wb[n], True)
     wb.calculation.fullCalcOnLoad = True
     wb.properties.creator = ''
