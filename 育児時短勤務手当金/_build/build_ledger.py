@@ -374,7 +374,7 @@ for n_ in range(300):
     r_ = 7 + n_
     nl[f"K{r_}"] = f'=IFERROR(MATCH({n_ + 1},{rg("nseq")},0),"")'
     nl[f"A{r_}"] = f'=IF($K{r_}="","",{n_ + 1})'
-    nl[f"B{r_}"] = f'=IF($K{r_}="","",$K{r_})'
+    nl[f"B{r_}"] = f'=IF($K{r_}="","",$K{r_}+{R0 - 1})'
     for cl_, k_ in (("C", "no"), ("D", "nm"), ("E", "dept"), ("F", "key"), ("G", "nar"), ("H", "nd"), ("I", "ndo")):
         nl[f"{cl_}{r_}"] = f'=IF($K{r_}="","",IF(INDEX({rg(k_)},$K{r_})="","",INDEX({rg(k_)},$K{r_})))'
     nl[f"J{r_}"] = f'=IF($K{r_}="","",IF($G{r_}="","理由未選択",IF($H{r_}="","通知日未入力",IF($I{r_}="","出力待ち","出力済"))))'
