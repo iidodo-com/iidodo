@@ -10,7 +10,10 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+import datetime
+
 import openpyxl
+from openpyxl.utils.datetime import to_excel
 from lxml import etree
 
 NS = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
@@ -52,6 +55,8 @@ def main(src, out):
                 ve = c.find(M + 'v')
                 if ve is None:
                     ve = etree.SubElement(c, M + 'v')
+                if isinstance(v, (datetime.datetime, datetime.date)):
+                    v = to_excel(v)
                 if isinstance(v, bool):
                     c.set('t', 'b')
                     ve.text = '1' if v else '0'
