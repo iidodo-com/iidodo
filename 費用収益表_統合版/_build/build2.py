@@ -945,7 +945,7 @@ def main(gyomu_xlsx, kashi_xls, hiyou_xls, out):
     wb._differential_styles = DifferentialStyleList()      # 壊れた条件付き書式が残した約2.8万件の書式定義を捨てる
     for ws_ in wb.worksheets:                               # #REF! になっているシート固有の名前を削除
         for n in list(ws_.defined_names.keys()):
-            if '#REF!' in str(ws_.defined_names[n].attr_text):
+            if '#REF!' in str(ws_.defined_names[n].attr_text) or '[' in str(ws_.defined_names[n].attr_text):
                 del ws_.defined_names[n]
     for n in list(wb.defined_names.keys()):
         if '#REF!' in str(wb.defined_names[n].attr_text) or '[' in str(wb.defined_names[n].attr_text):
