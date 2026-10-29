@@ -91,6 +91,8 @@ def load_kashitsuke(path):
             for i, h in enumerate(hdrs):
                 end = hdrs[i + 1] if i + 1 < len(hdrs) else s.nrows
                 block = s.cell_value(h, hc)
+                notes.setdefault('blocks', []).append(dict(sheet=si, c0=c0, label=block, header=h + 1,
+                                                           first=h + 3, last=end))
                 for r in range(h + 2, end):
                     d, t, a = s.cell_value(r, c0), s.cell_value(r, c0 + 1), s.cell_value(r, c0 + 2)
                     if t == '' or not isinstance(a, float):
@@ -118,7 +120,7 @@ def load_kashitsuke(path):
                         fixed = date.replace(year=date.year + 1)
                         notes['fixed_date'].append((si, r + 1, date, fixed, t, a))
                         date = fixed
-                    rows.append(dict(src=f"管理簿{'①' if si == 0 else '②'}!{r + 1}", sheet=si, block=block, rowno=r + 1,
+                    rows.append(dict(src=f"管理簿{'①' if si == 0 else '②'}!{r + 1}", sheet=si, block=block, rowno=r + 1, c0=c0,
                                      date=date, tek=t, amt=a, st=st,
                                      kind='決算整理' if yellow else '通常'))
     return rows, notes
