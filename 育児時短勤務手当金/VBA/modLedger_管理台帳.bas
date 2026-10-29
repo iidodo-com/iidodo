@@ -220,6 +220,107 @@ Public Sub 未出力の通知書を一括印刷()
     MsgBox n & " 件の通知書を印刷しました。", vbInformation
 End Sub
 
+' ===== 不支給通知書（Word） =====
+' 「不支給通知書テンプレート.docx」（台帳と同じフォルダ）の {通知日} などを差し込み、1つのWord文書にまとめる（1通＝1ページ）
+
+Private Sub Word差し込み(ByVal rows As Collection)
+    Dim wd As Object, out As Object, tmp As Object, tpl As String, outPath As String, v As Variant
+    Dim wn As Worksheet, w As Worksheet, i As Long, rg As Object, n As Long, k As Long
+    Set wn = ThisWorkbook.Worksheets("不支給通知書")
+    Set w = ThisWorkbook.Worksheets("請求記録")
+    tpl = ThisWorkbook.Path & "\不支給通知書テンプレート.docx"
+    If Dir(tpl) = "" Then
+        Dim f As Variant
+        f = Application.GetOpenFilename("Word文書 (*.docx),*.docx", , "不支給通知書テンプレートを選択")
+        If VarType(f) = vbBoolean Then Exit Sub
+        tpl = CStr(f)
+    End If
+    If ThisWorkbook.Path = "" Then MsgBox "先にこのファイルを保存してください。", vbExclamation: Exit Sub
+    outPath = ThisWorkbook.Path & "\不支給通知書_" & Format(Date, "yyyymmdd") & ".docx"
+    k = 1
+    Do While Dir(outPath) <> ""
+        k = k + 1
+        outPath = ThisWorkbook.Path & "\不支給通知書_" & Format(Date, "yyyymmdd") & "_" & k & ".docx"
+    Loop
+    On Error GoTo NoWord
+    Set wd = CreateObject("Word.Application")
+    On Error GoTo Fail
+    wd.Visible = True
+    For Each v In rows
+        wn.Range("L2").Value = v
+        Application.Calculate
+        Set tmp = wd.Documents.Open(tpl, ReadOnly:=True)
+        For i = 2 To 15
+            置換 tmp, CStr(wn.Cells(i, "N").Value), CStr(wn.Cells(i, "O").Value)
+        Next i
+        If out Is Nothing Then
+            Set out = tmp
+            out.SaveAs2 outPath
+        Else
+            Set rg = out.Content
+            rg.Collapse 0
+            rg.InsertBreak 7
+            Set rg = out.Content
+            rg.Collapse 0
+            rg.FormattedText = tmp.Content.FormattedText
+            tmp.Close False
+        End If
+        w.Cells(v, "AR").Value = Date
+        n = n + 1
+    Next v
+    out.Save
+    out.Activate
+    MsgBox n & " 件の通知書をWord文書にまとめました。" & vbLf & outPath & vbLf & "内容を確認して、印刷してください。", vbInformation
+    Exit Sub
+NoWord:
+    MsgBox "Wordを起動できませんでした。", vbExclamation
+    Exit Sub
+Fail:
+    MsgBox "Wordへの差し込みに失敗しました（" & n & " 件まで処理済み）。" & vbLf & Err.Description, vbExclamation
+End Sub
+
+Private Sub 置換(ByVal doc As Object, ByVal tok As String, ByVal val As String)
+    If tok = "" Then Exit Sub
+    If Len(val) > 250 Then val = Left(val, 250)
+    With doc.Content.Find
+        .ClearFormatting
+        .Replacement.ClearFormatting
+        .Text = tok
+        .Replacement.Text = val
+        .Forward = True
+        .Wrap = 0
+        .MatchWildcards = False
+        .Execute Replace:=2
+    End With
+End Sub
+
+' 未出力の通知書をWordにまとめる
+Public Sub 未出力の通知書をWordで作成()
+    Dim noR As Long, noD As Long, items As Collection
+    Set items = 出力対象(noR, noD)
+    If items.Count = 0 Then MsgBox "出力する通知書がありません。" & 不備メッセージ(noR, noD), vbInformation: Exit Sub
+    If MsgBox(items.Count & " 件の通知書をWordで作成します。" & 不備メッセージ(noR, noD) & vbLf & vbLf & "よろしいですか？", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
+    Word差し込み items
+End Sub
+
+' 選んだ行の通知書だけをWordで作成する（出力済みでも可）
+Public Sub 選択行の通知書をWordで作成()
+    Dim r As Long, c As New Collection
+    Select Case ActiveSheet.Name
+        Case "請求記録"
+            r = ActiveCell.Row
+        Case "不支給通知"
+            If IsNumeric(ActiveSheet.Cells(ActiveCell.Row, "B").Value) And ActiveSheet.Cells(ActiveCell.Row, "B").Value <> "" Then r = ActiveSheet.Cells(ActiveCell.Row, "B").Value
+        Case Else
+            MsgBox "「請求記録」または「不支給通知」シートで、通知書を出したい行を選んでから押してください。", vbExclamation
+            Exit Sub
+    End Select
+    If r < 6 Then MsgBox "通知書を出したい行（請求）を選んでください。", vbExclamation: Exit Sub
+    If ThisWorkbook.Worksheets("請求記録").Cells(r, "AF").Value <> "不支給" Then MsgBox "この請求は「不支給」ではありません。", vbExclamation: Exit Sub
+    c.Add r
+    Word差し込み c
+End Sub
+
 ' ===== 旧い管理台帳の入力内容を引き継ぐ =====
 Public Sub 旧台帳から引き継ぐ()
     Dim f As Variant, wo As Workbook, so As Worksheet, sn As Worksheet, j As Long, k As Variant, r As Long, c As Variant, h As Variant

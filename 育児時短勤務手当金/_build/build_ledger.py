@@ -464,6 +464,28 @@ nt.merge_cells("G25:H25"); tx("G25", '=IF(AND($L$12=3,$L$16<>""),TEXT($L$16,"#,#
 nt.merge_cells("B29:H32"); tx("B29", "　この処分に不服があるときは、この処分があったことを知った日の翌日から起算して３箇月以内に、全国市町村職員共済組合連合会審査会に審査請求をすることができます。また、この処分があったことを知った日から６箇月以内に、広島市職員共済組合を被告として訴訟を提起することもできます。", 10.5, wrap_=True, va_="top")
 nt.merge_cells("E35:H35"); tx("E35", "担当：庶務係", 11, "right")
 nt.merge_cells("E36:H36"); tx("E36", "電話：082-504-2061", 11, "right")
+# Word差し込み用（トークン⇔値）
+nt["N1"] = "▼ Word差し込み用（自動）"; nt["N1"].font = Font(name=FN, size=9, bold=True, color="C00000")
+nt.column_dimensions["N"].width = 16; nt.column_dimensions["O"].width = 40
+
+
+def wd_(x_):
+    return f'IF({x_}="","令和　　年　　月　　日","令和"&(YEAR({x_})-2018)&"年"&MONTH({x_})&"月"&DAY({x_})&"日")'
+
+
+det12 = 'OR($L$12=1,$L$12=3)'
+tok = [("{通知日}", "=" + wd_("$L$7")), ("{所属}", "=$L$4"), ("{氏名}", "=$L$3"), ("{職員番号}", "=$L$5"), ("{受理日}", "=" + wd_("$L$6")),
+       ("{対象月}", '=IF($L$2="","",JIS("令和"&$L$8&"年"&$L$9&"月"))'), ("{理由}", "=$L$13"),
+       ("{詳細注記}", f'=IF({det12},"※詳細については下記のとおり","")'),
+       ("{明細項目1}", f'=IF({det12},"育児時短勤務を開始した月の標準報酬月額","")'),
+       ("{明細金額1}", f'=IF(AND({det12},$L$14<>""),TEXT($L$14,"#,##0")&"円","")'),
+       ("{明細項目2}", f'=IF({det12},"対象月の報酬額","")'),
+       ("{明細金額2}", f'=IF(AND({det12},$L$15<>""),TEXT($L$15,"#,##0")&"円","")'),
+       ("{明細項目3}", '=IF($L$12=3,"算出した支給額（最低限度額以下）","")'),
+       ("{明細金額3}", '=IF(AND($L$12=3,$L$16<>""),TEXT($L$16,"#,##0")&"円","")')]
+for i_, (t_, f_) in enumerate(tok, 2):
+    nt[f"N{i_}"] = t_; nt[f"O{i_}"] = f_
+    nt[f"N{i_}"].font = nt[f"O{i_}"].font = Font(name=FN, size=9, color="7F7F7F")
 nt.print_area = "A1:I37"
 nt.page_setup.orientation = "portrait"; nt.page_setup.paperSize = 9
 nt.sheet_properties.pageSetUpPr = openpyxl.worksheet.properties.PageSetupProperties(fitToPage=True)
