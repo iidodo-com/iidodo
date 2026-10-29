@@ -275,7 +275,8 @@ def main():
         elif it.filename == "xl/workbook.xml":
             s = data.decode("utf8")
             if "<workbookPr" in s:
-                s = re.sub(r"<workbookPr", '<workbookPr codeName="ThisWorkbook"', s, count=1)
+                if 'codeName=' not in re.search(r"<workbookPr[^>]*>", s).group(0):
+                    s = re.sub(r"<workbookPr", '<workbookPr codeName="ThisWorkbook"', s, count=1)
             else:
                 s = re.sub(r"(<workbook[^>]*>)", r'\1<workbookPr codeName="ThisWorkbook"/>', s, count=1)
             data = s.encode("utf8")

@@ -18,6 +18,7 @@ from pathlib import Path
 
 import openpyxl
 from openpyxl.formatting.formatting import ConditionalFormattingList
+from openpyxl.styles.differential import DifferentialStyleList
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter as L
@@ -941,6 +942,11 @@ def main(gyomu_xlsx, kashi_xls, hiyou_xls, out):
 
     wb = openpyxl.load_workbook(gyomu_xlsx)
     wb._external_links = []
+    wb._differential_styles = DifferentialStyleList()      # 壊れた条件付き書式が残した約2.8万件の書式定義を捨てる
+    for ws_ in wb.worksheets:                               # #REF! になっているシート固有の名前を削除
+        for n in list(ws_.defined_names.keys()):
+            if '#REF!' in str(ws_.defined_names[n].attr_text):
+                del ws_.defined_names[n]
     for n in list(wb.defined_names.keys()):
         if '#REF!' in str(wb.defined_names[n].attr_text) or '[' in str(wb.defined_names[n].attr_text):
             del wb.defined_names[n]
