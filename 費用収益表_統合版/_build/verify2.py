@@ -86,7 +86,7 @@ def main(final, gyomu, kashi, hiyou):
         ws = new[sheet]
         exp = collections.defaultdict(list)
         for r in grows:
-            if r['kind'] != kind or r['st'] == '支払なし':
+            if r['kind'] != kind or r['st'] == '支払なし' or (kind == '月例' and r['st'] == '昨年実績'):
                 continue
             key = B2.GY_MAP.get(f"{r['chu']}|{r['sho'] or ''}")
             if not key or key == '対象外':

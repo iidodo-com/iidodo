@@ -168,9 +168,15 @@ def prep_input_sheet(ws, rows, first, last, kind):
         ws[f'{C_ST}{r}'].value = st_by_row.get(r)
         ws[f'{C_KEY}{r}'] = (f'=IF($F{r}="","",IFERROR(VLOOKUP($C{r}&"|"&$D{r},{SH_MST}!$A$5:$B$200,2,FALSE),"※未登録"))')
         ws[f'{C_LONG}{r}'] = f'=IF($F{r}="","",$I{r}+$J{r}+$K{r})'
-        ws[f'{C_SKEY}{r}'] = (f'=IF(OR($F{r}="",${C_ST}{r}="支払なし",$H{r}=0,${C_KEY}{r}=""),"",${C_KEY}{r}&"|S|"&'
+        def hidden(nm):       # 月例のみ：昨年実績は、差引簿の基準日以降の分だけ表示する（年度内の月日で比較）
+            if kind != 'g':
+                return ''
+            pos = f'MOD(MONTH($A{r})-4,12)*100+DAY($A{r})'
+            base = f'MOD(MONTH({nm})-4,12)*100+DAY({nm})'
+            return (f',AND(${C_ST}{r}="昨年実績",NOT(IFERROR(AND(ISNUMBER({nm}),ISNUMBER($A{r}),{pos}>={base}),FALSE)))')
+        ws[f'{C_SKEY}{r}'] = (f'=IF(OR($F{r}="",${C_ST}{r}="支払なし",$H{r}=0,${C_KEY}{r}=""{hidden("基準日短")}),"",${C_KEY}{r}&"|S|"&'
                               f'(COUNTIF({C_SKEY}$4:{C_SKEY}{r - 1},${C_KEY}{r}&"|S|*")+1))')
-        ws[f'{C_LKEY}{r}'] = (f'=IF(OR($F{r}="",${C_ST}{r}="支払なし",${C_LONG}{r}=0,${C_KEY}{r}=""),"",${C_KEY}{r}&"|L|"&'
+        ws[f'{C_LKEY}{r}'] = (f'=IF(OR($F{r}="",${C_ST}{r}="支払なし",${C_LONG}{r}=0,${C_KEY}{r}=""{hidden("基準日長")}),"",${C_KEY}{r}&"|L|"&'
                               f'(COUNTIF({C_LKEY}$4:{C_LKEY}{r - 1},${C_KEY}{r}&"|L|*")+1))')
         ws[f'{C_IDX}{r}'] = (f'=IF(OR($F{r}="",$A{r}=""),"",MOD(MONTH($A{r})-4,12)+1)' if kind == 'g' else
                              f'=IF($F{r}="","",13)')
@@ -330,6 +336,30 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
         add_status_fills(ws, f'{A}{first}:{A}{last}', first, ST)
         add_status_fills(ws, f'{ST}{first}:{ST}{last}', first, ST)
         out[k] = dict(sheet=ws.title, first=first, last=last, d=D, t=T, a=A, bal=BAL, st=ST, cap=cap)
+    if not unpaid:
+        nm = '基準日短' if side == 'S' else '基準日長'
+        ws['B1'] = '昨年実績（赤字）を表示する基準日 →'
+        ws['B1'].font = font(11, True)
+        ws['B1'].alignment = Alignment(horizontal='right', vertical='center')
+        ws['C1'].fill = fill(YELLOW)
+        ws['C1'].number_format = 'yyyy/m/d'
+        ws['C1'].font = font(11, True, BLUE_IN)
+        ws['C1'].border = B_ALL
+        ws['C1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws['D1'] = '=IF(ISNUMBER($C$1),"表示中","非表示")'
+        ws['D1'].font = font(11, True, RED_T)
+        ws['D1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws['B2'] = ('空欄＝実績（黒字）のみ表示。日付を入力すると、その日付以降（年度内の月日で比較）の昨年実績（赤字）を表示し、'
+                    '残額にも加えます。消すと元に戻ります。')
+        ws['B2'].font = font(9, color=GREY)
+        ws['B2'].alignment = Alignment(vertical='center', wrap_text=False)
+        ws.row_dimensions[1].height = 24
+        dvd = DataValidation(type='date', operator='greaterThan', formula1='36526', allow_blank=True,
+                             showErrorMessage=True)
+        dvd.error = '日付（例 2026/11/1）で入力してください。消すと昨年実績は非表示になります'
+        ws.add_data_validation(dvd)
+        dvd.add('C1')
+        ws.parent.defined_names[nm] = DefinedName(nm, attr_text=f"'{ws.title}'!$C$1")
     ws.sheet_view.zoomScale = 70
     ws.freeze_panes = None
     return out
@@ -939,6 +969,7 @@ def build_help2(wb):
     r += 1
     section('追加した列・シート（元の様式への追加）')
     row('月例・決算整理 P〜U列', 'P＝状態（入力）。Q〜U＝自動計算の作業列（費目・長期額・差引簿への通番・計上列）。消さないでください。')
+    row('昨年実績の表示切り替え', '「予算差引簿（短）」「（長）」の上部の黄色セル（基準日）に日付を入れると、その日付以降の昨年実績（赤字）が差引簿に現れ、残額に加わります。空欄にすると実績（黒字）だけに戻ります。', '決算見込・次年度予算編成で、残りの期間にあといくら使うかを見るため')
     row('予算差引簿の「状態」列', '各ブロックの右端。月例の状態が自動で表示されます。')
     row('貸付予算差引簿の「状態」列', '各ブロックの右端（入力）。')
     row('差引簿のブロックの大きさ', '行数は余裕を持たせてあります。足りなくなると見出しの右に赤字で「行不足」と出ます。')
@@ -1026,7 +1057,8 @@ def build_changes(wb):
          '・各ブロックの右端に「状態」列を追加。\n'
          '・予算現額は、このブックの費用収益表（短）の予算現額を参照。予算のない費目は「累計」。\n'
          '・転記先の行数が足りなくなると、見出しの右に赤字で「行不足」と出ます（行数は現状の約1.3倍＋8行にしてあります）。\n'
-         '・「支払なし」の行は転記されません。',
+         '・「支払なし」の行は転記されません。\n'
+         '・通常は、実績（確認済・未確認）だけを表示します。シート上部の「基準日」に日付を入れると、その日付以降の昨年実績（赤字）も表示し、残額の計算に加えます（決算見込・次年度予算編成用）。空欄に戻すと非表示です。',
          '元の差引簿に手入力されていた内容は、月例と同じ支払の二重入力だったため引き継がず、月例から作り直しています。月例に無い手入力の行が元の差引簿にあった場合は、移っていません（ご確認ください）。\nブロックの並びは大きさ順にしたため、元の位置とは異なります。右側の「共済予算」表は削除し、「差引簿集計」に置き換えました。',
          SRC1 + '／予算差引簿（短）')
     item('予算差引簿（長）', '作り直し', '（短）と同じ作りです。金額は長期分（厚年＋経過的＋退職等）です。予算現額は費用収益表（長）を参照します。',
