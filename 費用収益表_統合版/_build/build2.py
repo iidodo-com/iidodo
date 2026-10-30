@@ -295,7 +295,7 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
             c._style = copy(tm['lab'])
             c.alignment = Alignment(horizontal='center')
         start = b + 2
-        ws.cell(start, t, '予算現額' if (br and not unpaid) else '（予算なし）')._style = copy(tm['tek'])
+        ws.cell(start, t, '予算現額' if (br and not unpaid) else ('費目計（未払金）' if unpaid else '（予算なし）'))._style = copy(tm['tek'])
         sc = ws.cell(start, bal)
         sc._style = copy(tm['bal'])
         if br and not unpaid:
@@ -304,6 +304,9 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
             sc.value = 0
         ws.cell(start, d)._style = copy(tm['date'])
         ws.cell(start, a)._style = copy(tm['amt'])
+        if unpaid:       # 費目ごとの合計（下に並ぶ行の合計。支払なしは並ばない）
+            ws.cell(start, a, f'=SUM({A}{start + 1}:{A}{start + cap})')
+            ws.cell(start, a).font = font(11, True)
         keycol = C_SKEY if side == 'S' else C_LKEY
         amtcol = 'H' if side == 'S' else C_LONG
         tag = 'S' if side == 'S' else 'L'
@@ -336,6 +339,29 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
         add_status_fills(ws, f'{A}{first}:{A}{last}', first, ST)
         add_status_fills(ws, f'{ST}{first}:{ST}{last}', first, ST)
         out[k] = dict(sheet=ws.title, first=first, last=last, d=D, t=T, a=A, bal=BAL, st=ST, cap=cap)
+    if unpaid:
+        amtc = 'H' if side == 'S' else C_LONG
+        sr2 = lambda c: f"{SH_KS}!${c}${src_first}:${c}${src_last}"
+        base = f'{sr2(C_KEY)},"<>対象外",{sr2(C_KEY)},"<>※未登録"'
+        items = [('未払金 総合計（確認済＝計上額）', f'=SUMIFS({sr2(amtc)},{sr2(C_ST)},"確認済",{base})', 1),
+                 ('うち未確認', f'=SUMIFS({sr2(amtc)},{sr2(C_ST)},"未確認",{base})', 6),
+                 ('昨年実績（参考）', f'=SUMIFS({sr2(amtc)},{sr2(C_ST)},"昨年実績",{base})', 11),
+                 ('合計（支払なしを除く全件）', f'=SUMIFS({sr2(amtc)},{sr2(C_ST)},"<>支払なし",{base})', 16)]
+        for lab, fml, c in items:
+            ws.cell(1, c + 1, lab).font = font(11, True)
+            ws.cell(1, c + 1).alignment = Alignment(horizontal='right', vertical='center')
+            v = ws.cell(1, c + 2, fml)
+            v.number_format = '#,##0;"△ "#,##0'
+            v.font = font(12, True, RED_T if c == 1 else '000000')
+            v.fill = fill('FFF2CC')
+            v.border = B_ALL
+        for lab, kubun, c in (('区分別（確認済）　未払金', '未払金', 1), ('未払費用', '未払費用', 6)):
+            ws.cell(2, c + 1, lab).font = font(9, color=GREY)
+            ws.cell(2, c + 1).alignment = Alignment(horizontal='right', vertical='center')
+            v = ws.cell(2, c + 2, f'=SUMIFS({sr2(amtc)},{sr2(C_ST)},"確認済",{sr2("B")},"{kubun}",{base})')
+            v.number_format = '#,##0;"△ "#,##0'
+            v.font = font(10)
+        ws.row_dimensions[1].height = 24
     if not unpaid:
         nm = '基準日短' if side == 'S' else '基準日長'
         ws['B1'] = '昨年実績（赤字）を表示する基準日 →'
@@ -886,6 +912,11 @@ def build_checks2(wb, blocks_meta, agg_t, agg_c, agg_k, old_cell):
         ('貸付：貸付差引簿集計 ＝ 費用収益表への計上額（締め月まで）',
          f"=SUMPRODUCT(('{SH_SK}'!$C$2:$O$2<=締月)*'{SH_SK}'!$C${kt}:$O${kt})",
          f"=SUMPRODUCT({hy(SH_HK, 'X')},{hy(SH_HK, 'V')})", ''),
+        ('未払金：「予算差引簿（短）未払」の総合計（確認済）＝ 差引簿集計（短）の4月（未払）の合計', f"='{SH_UT}'!$C$1",
+         f"=SUMPRODUCT((('{SH_ST}'!$S$4:$S${agg_t['__total__'] - 1}=\"Y\")+('{SH_ST}'!$S$4:$S${agg_t['__total__'] - 1}=\"N\"))*'{SH_ST}'!$O$4:$O${agg_t['__total__'] - 1})",
+         '未払金の一覧（総合計）が、費目ごとの合計と一致しているか'),
+        ('未払金：「予算差引簿（長）未払」の総合計（確認済）＝ 差引簿集計（長）の4月（未払）の合計', f"='{SH_UC}'!$C$1",
+         f"=SUMPRODUCT((('{SH_SC}'!$S$4:$S${agg_c['__total__'] - 1}=\"Y\")+('{SH_SC}'!$S$4:$S${agg_c['__total__'] - 1}=\"N\"))*'{SH_SC}'!$O$4:$O${agg_c['__total__'] - 1})", ''),
         ('点検に指摘のある件数（費目未登録・差引簿の行不足）', '=0',
          f'=COUNTIF({SH_G}!${C_KEY}${G_FIRST}:${C_KEY}${G_LAST},"※未登録")+COUNTIF({SH_KS}!${C_KEY}${K_FIRST}:${C_KEY}${K_LAST},"※未登録")'
          f"+COUNTIF('{SH_ST}'!$T$4:$T$80,\"行不足\")+COUNTIF('{SH_SC}'!$T$4:$T$80,\"行不足\")",
@@ -1063,8 +1094,8 @@ def build_changes(wb):
          SRC1 + '／予算差引簿（短）')
     item('予算差引簿（長）', '作り直し', '（短）と同じ作りです。金額は長期分（厚年＋経過的＋退職等）です。予算現額は費用収益表（長）を参照します。',
          '経費区分1（共通）の支払は、短期と長期に按分した金額がそれぞれの差引簿に入ります。', SRC1 + '／予算差引簿（長）')
-    item('予算差引簿（短）未払／（長）未払', '追加', '決算整理シートの内容を、同じ形式で費目ごとに転記する差引簿です。年次決算で未払金を確認するときに使います。',
-         '予算現額は表示せず、支出の累計を表示します。', '（新規）')
+    item('予算差引簿（短）未払／（長）未払', '追加', '決算整理シートの内容を、同じ形式で費目ごとに転記する差引簿です。シート上部に未払金の総合計（確認済＝計上額、未確認、昨年実績、合計、区分別）、各ブロックの先頭に費目計を表示します。年次決算の未払金一覧表の代わりに使えます。',
+         '予算現額は表示せず、支出の累計を表示します。総合計は「確認済」の合計が未払金計上金額です。', '（新規）')
     item('給付区分別執行額（月別）（年度分）', '変更なし', '様式・数式は元のままです。',
          '月例M列を直したため、月別の集計結果は元と変わる月があります。', SRC1)
     item('リスト／端数処理／Sheet1／Sheet2', '変更なし', '元のままです。', '', SRC1)
