@@ -4,7 +4,7 @@
 
   var LS_KEY = "gijiroku.geminiApiKey";
   var LS_MODEL = "gijiroku.geminiModel";
-  var DEFAULT_MODEL = "gemini-2.5-flash"; // 変更可能。提供状況は利用者側で要確認。
+  var DEFAULT_MODEL = "gemini-3.8-flash"; // 既定値。画面で変更可能。gemini-2.5-flash は新規APIユーザーで404になる事例あり（姉妹アプリでの検証）。
   var DEMO = window.GIJIROKU_DEMO;
 
   /* ---------- 小道具 ---------- */
