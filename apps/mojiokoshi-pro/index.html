@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>文字起こしアプリ商用版（試作）</title>
+  <meta name="description" content="音声ファイルから文字起こし・整文・要約・決定事項/ToDoまで一括出力する試作アプリ。APIキーはブラウザ内にのみ保存。">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="site-header">
+  <div class="wrap header-in">
+    <a class="brand" href="#/app"><img src="icons/icon.svg" alt="" width="28" height="28"><span>文字起こし<small>商用版（試作）</small></span></a>
+    <nav class="nav" aria-label="メインメニュー">
+      <a href="#/app" data-nav="app">文字起こし</a>
+      <a href="#/history" data-nav="history">履歴</a>
+      <a href="#/help" data-nav="help">使い方</a>
+      <a href="#/pricing" data-nav="pricing">料金</a>
+      <a href="#/settings" data-nav="settings">設定</a>
+    </nav>
+  </div>
+</header>
+
+<div id="mode-banner" class="banner" hidden></div>
+
+<main id="main" class="wrap" tabindex="-1">
+
+  <!-- ========== 文字起こし（入力） ========== -->
+  <section id="view-app" class="view">
+    <h1>音声から議事録までを一括生成</h1>
+    <p class="lead">音声ファイルを選ぶだけで「文字起こし全文／整文／要約／決定事項とToDo」を出力します。</p>
+
+    <ol class="steps" aria-label="手順">
+      <li class="on">① ファイルを選ぶ</li><li>② 音量を確認</li><li>③ 実行</li><li>④ 結果を確認・出力</li>
+    </ol>
+
+    <div class="card">
+      <h2>① 音声ファイル</h2>
+      <label id="drop" class="drop" for="file">
+        <strong>ここにドラッグ＆ドロップ、またはクリックして選択</strong>
+        <span class="muted">mp3 / wav / m4a / aac / ogg / flac / aiff（上限 14MB）</span>
+        <input id="file" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.aif,.webm">
+      </label>
+      <p class="row">
+        <button id="btn-sample" type="button" class="btn ghost">ファイル無しでサンプルを試す（デモ）</button>
+        <span id="file-info" class="muted"></span>
+      </p>
+    </div>
+
+    <div id="check-card" class="card" hidden>
+      <h2>② 送信前の音量チェック</h2>
+      <p class="muted small">音声はこの端末内で解析しており、まだ外部へは送信していません。</p>
+      <canvas id="wave" class="wave" aria-label="音声波形"></canvas>
+      <div id="check-badge"></div>
+      <dl id="check-metrics" class="metrics"></dl>
+      <ul id="check-msgs" class="msgs"></ul>
+      <audio id="player" controls hidden></audio>
+      <label id="force-row" class="check" hidden>
+        <input id="force" type="checkbox"> 音量に問題があることを理解した上で、それでも実行する
+      </label>
+    </div>
+
+    <div id="run-card" class="card" hidden>
+      <h2>③ オプションと実行</h2>
+      <div class="grid2">
+        <label>話者数の目安（任意）
+          <input id="spk-hint" type="number" min="1" max="10" placeholder="例: 3">
+        </label>
+        <label>用語ヒント（任意・1行1語）
+          <textarea id="glossary" rows="2" placeholder="例: 固有名詞の表記ゆれ対策。発話されていない語は出力されません"></textarea>
+        </label>
+      </div>
+      <p class="row">
+        <button id="btn-run" type="button" class="btn primary" disabled>文字起こしを実行</button>
+        <button id="btn-cancel" type="button" class="btn ghost" hidden>キャンセル</button>
+      </p>
+      <div id="progress" class="progress" hidden aria-live="polite"></div>
+      <div id="run-error" class="error" role="alert" hidden></div>
+    </div>
+
+    <p class="muted small">聞き取れない箇所は推測で埋めず「【聞き取れませんでした】」と表示する設計です。ただしAIの出力は完全ではないため、重要な内容は必ず原音で確認してください。</p>
+  </section>
+
+  <!-- ========== 結果 ========== -->
+  <section id="view-result" class="view" hidden>
+    <div id="result-root"></div>
+  </section>
+
+  <!-- ========== 履歴 ========== -->
+  <section id="view-history" class="view" hidden>
+    <h1>履歴</h1>
+    <p class="muted">この端末のブラウザ（localStorage）にのみ保存されています。</p>
+    <div class="row">
+      <input id="hist-q" type="search" class="grow" placeholder="ファイル名・話者名・本文・要約から検索" aria-label="履歴を検索">
+      <button id="hist-clear" type="button" class="btn danger ghost">履歴をすべて削除</button>
+    </div>
+    <p id="hist-count" class="muted small"></p>
+    <ul id="hist-list" class="hist"></ul>
+  </section>
+
+  <!-- ========== 設定 ========== -->
+  <section id="view-settings" class="view" hidden>
+    <h1>設定</h1>
+    <div class="card">
+      <h2>Gemini APIキー</h2>
+      <p class="muted small">キーはこのブラウザの localStorage にのみ保存され、Google の API 以外には送信されません。コードには埋め込まれていません。
+        共用PCでは保存しないでください。<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> で発行できます。</p>
+      <label>APIキー
+        <span class="row">
+          <input id="set-key" type="password" class="grow" autocomplete="off" spellcheck="false" placeholder="AIza…">
+          <button id="set-key-toggle" type="button" class="btn ghost">表示</button>
+        </span>
+      </label>
+      <label>モデル
+        <select id="set-model">
+          <option value="gemini-3.8-flash">gemini-3.8-flash（既定）</option>
+          <option value="gemini-3.5-flash">gemini-3.5-flash（代替）</option>
+          <option value="__custom">カスタム（モデルIDを入力）</option>
+        </select>
+      </label>
+      <label id="set-custom-row" hidden>カスタムモデルID
+        <input id="set-custom" type="text" placeholder="例: gemini-3.6-flash">
+      </label>
+      <label class="check"><input id="set-demo" type="checkbox"> デモモードを強制（APIキーがあってもモックデータを使う）</label>
+      <p class="row">
+        <button id="set-save" type="button" class="btn primary">保存</button>
+        <button id="set-keydel" type="button" class="btn ghost">APIキーだけ削除</button>
+      </p>
+    </div>
+    <div class="card">
+      <h2>データの削除</h2>
+      <p class="muted small">履歴と設定（APIキー含む）をこのブラウザから完全に削除します。</p>
+      <button id="set-wipe" type="button" class="btn danger">すべて削除</button>
+    </div>
+  </section>
+
+  <!-- ========== 使い方 ========== -->
+  <section id="view-help" class="view" hidden>
+    <h1>使い方</h1>
+    <div class="card">
+      <h2>はじめに（約1分）</h2>
+      <ol class="how">
+        <li><strong>デモで全体を確認</strong>：APIキー未設定のまま「文字起こし」画面で「サンプルを試す」を押すと、モックデータで全フローを確認できます。</li>
+        <li><strong>APIキーを設定</strong>：「設定」でGemini APIキーを入力して保存します。キーはお使いのブラウザ内にだけ保存されます。</li>
+        <li><strong>音声を選ぶ</strong>：送信前に波形と音量チェックが表示されます。小さすぎる・無音の場合は警告が出ます。</li>
+        <li><strong>実行</strong>：文字起こし全文／整文／要約／決定事項とToDoが生成されます。</li>
+        <li><strong>確認・修正・出力</strong>：話者名の変更、発言ごとの話者の付け替え、コピー、TXT/Markdown保存ができます。結果は「履歴」に自動保存されます。</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h2>誤りを減らすコツ</h2>
+      <ul class="how">
+        <li>口元の近くで録音し、できるだけ静かな環境で。音割れしない音量に。</li>
+        <li>「【聞き取れませんでした】」「要確認」の表示は、AIが推測せずに残した印です。原音で確認してください。</li>
+        <li>人名・数字・日付など重要な情報は、必ず原音と照合してください。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>注意</h2>
+      <ul class="how">
+        <li>これは<strong>試作版</strong>です。可用性・精度・セキュリティの保証はありません。</li>
+        <li>音声は Google の Gemini API に送信されます。機密性の高い音声を扱う前に<a href="#/privacy">プライバシーポリシー</a>を確認してください。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ========== 料金（ダミー） ========== -->
+  <section id="view-pricing" class="view" hidden>
+    <h1>料金プラン</h1>
+    <p class="notice">⚠ これは<strong>ダミー表示</strong>です。金額・機能は仮置きで、決済機能は実装されておらず、請求は一切発生しません。</p>
+    <div class="plans">
+      <article class="plan">
+        <h2>Free</h2><p class="price">¥0<small>/月</small></p>
+        <ul><li>自分のAPIキーで利用（BYOK）</li><li>履歴はブラウザ内に保存</li><li>デモモード</li></ul>
+        <button class="btn ghost" data-plan="Free">現在のプラン（ダミー）</button>
+      </article>
+      <article class="plan featured">
+        <h2>Pro</h2><p class="price">¥1,980<small>/月（仮）</small></p>
+        <ul><li>APIキー不要（弊社経由）</li><li>クラウド履歴・端末間同期</li><li>長時間音声（File API）</li><li>優先サポート</li></ul>
+        <button class="btn primary" data-plan="Pro">Proを選ぶ（ダミー）</button>
+      </article>
+      <article class="plan">
+        <h2>Team</h2><p class="price">¥5,980<small>/月〜（仮）</small></p>
+        <ul><li>メンバー管理・共有</li><li>監査ログ</li><li>SSO（予定）</li></ul>
+        <button class="btn ghost" data-plan="Team">お問い合わせ（ダミー）</button>
+      </article>
+    </div>
+  </section>
+
+  <!-- ========== 利用規約（ひな形） ========== -->
+  <section id="view-terms" class="view doc" hidden>
+    <h1>利用規約</h1>
+    <p class="notice">⚠ 本文書は試作用の<strong>ひな形</strong>であり、法務の確認を受けていません。商用提供の前に、必ず弁護士等による確認・修正を行ってください。</p>
+    <h2>第1条（適用）</h2>
+    <p>本規約は、「文字起こしアプリ商用版（試作）」（以下「本サービス」）の利用条件を定めるものです。</p>
+    <h2>第2条（サービス内容）</h2>
+    <p>本サービスは、利用者が指定した音声ファイルを、利用者自身が設定した Google Gemini API のAPIキーを用いて処理し、文字起こし・整文・要約・決定事項/ToDoの抽出結果を表示するものです。</p>
+    <h2>第3条（APIキーの管理）</h2>
+    <p>APIキーは利用者の責任で管理するものとし、利用者のブラウザ内にのみ保存されます。API利用に伴う料金・利用上限は、利用者とAPI提供元との契約に従います。</p>
+    <h2>第4条（出力結果）</h2>
+    <p>出力結果はAIにより生成されるため、誤り・脱落・不正確な内容を含むことがあります。重要な判断に用いる場合は、利用者の責任で原音と照合してください。</p>
+    <h2>第5条（禁止事項）</h2>
+    <p>法令または公序良俗に反する利用、他者の権利（著作権・プライバシー等）を侵害する利用、第三者の音声を本人の同意なく処理する行為を禁止します。</p>
+    <h2>第6条（免責）</h2>
+    <p>本サービスは試作版であり、現状有姿で提供されます。提供者は、本サービスの利用により生じた損害について、法令上許される範囲で責任を負いません。</p>
+    <h2>第7条（規約の変更）</h2>
+    <p>本規約は、必要に応じて変更されることがあります。</p>
+    <p class="muted">制定日：未定（ひな形）</p>
+  </section>
+
+  <!-- ========== プライバシーポリシー（ひな形） ========== -->
+  <section id="view-privacy" class="view doc" hidden>
+    <h1>プライバシーポリシー</h1>
+    <p class="notice">⚠ 本文書は試作用の<strong>ひな形</strong>であり、法務の確認を受けていません。商用提供の前に、適用法令（個人情報保護法等）に照らした確認・修正が必要です。</p>
+    <h2>1. 本アプリが保存する情報</h2>
+    <p>APIキー、設定、処理結果の履歴（文字起こし・要約など）は、お使いのブラウザの localStorage にのみ保存されます。本アプリの運営者のサーバーには送信・保存されません（本試作版には運営者側サーバーがありません）。</p>
+    <h2>2. 外部への送信</h2>
+    <p>「実行」を押すと、選択した音声データと指示文が、Google の Gemini API（generativelanguage.googleapis.com）へ直接送信されます。デモモードでは外部へ送信されません。音量チェックは端末内で行われ、送信されません。</p>
+    <h2>3. 送信先での取り扱い</h2>
+    <p>送信されたデータの取り扱い（保存・学習への利用の有無等）は、ご利用のAPIプランと Google の規約・ポリシーに従います。機密性の高い音声を処理する前に、必ず最新の規約をご確認ください。</p>
+    <h2>4. アクセス解析・Cookie</h2>
+    <p>本試作版は、アクセス解析ツールや広告・Cookieを使用していません。</p>
+    <h2>5. データの削除</h2>
+    <p>「設定」画面の「すべて削除」、またはブラウザのサイトデータ削除により、保存情報を消去できます。</p>
+    <h2>6. 第三者の音声</h2>
+    <p>会議・通話等の他者の音声を処理する場合は、利用者の責任で、必要な同意の取得や法令遵守を行ってください。</p>
+    <h2>7. お問い合わせ</h2>
+    <p>（連絡先は商用化時に記載）</p>
+    <p class="muted">制定日：未定（ひな形）</p>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <a href="#/terms">利用規約</a> · <a href="#/privacy">プライバシーポリシー</a> · <a href="#/pricing">料金</a>
+    <p class="muted small">文字起こしアプリ商用版（試作） — AI出力は誤りを含む可能性があります。重要な内容は原音で確認してください。</p>
+  </div>
+</footer>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script src="js/util.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/mock.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/gemini.js"></script>
+<script src="js/export.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
