@@ -66,6 +66,15 @@ button:disabled { opacity: .5; cursor: wait; }
 .doc-table { width: 100%; border-collapse: collapse; margin: 4px 0; }
 .doc-table th, .doc-table td { border: 1px solid #999; padding: 4px 8px; text-align: left; vertical-align: top; }
 .doc-table th { background: #f0f0f0; }
+.adv { margin: 10px 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; }
+.adv summary { cursor: pointer; }
+input[type=number] { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; width: 12em; }
+.progress-box { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+.progress-box[hidden], button[hidden] { display: none; }
+progress { width: 220px; height: 14px; }
+.test-result { margin-top: 8px; font-size: .9rem; border-radius: 8px; }
+.test-result.ok, .test-result.warn, .test-result.err { padding: 8px 12px; border: 1px solid var(--line); }
+.test-result.ok { color: var(--ok); } .test-result.warn { color: var(--warn); } .test-result.err { color: var(--err); }
 .src-views { margin-top: 12px; }
 footer.site { border-top: 1px solid var(--line); padding: 12px 0; }
 
