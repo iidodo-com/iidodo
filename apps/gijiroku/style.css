@@ -1,0 +1,94 @@
+:root {
+  --bg: #f6f7f9; --fg: #1d2330; --muted: #5d6679; --card: #fff; --line: #d7dce5;
+  --accent: #1f5fa8; --accent-fg: #fff; --warn: #8a5a00; --warn-bg: #fff6df;
+  --err: #a31d1d; --ok: #1b6b3a;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14171d; --fg: #e6e9ef; --muted: #9aa3b5; --card: #1c2029; --line: #333a49;
+    --accent: #6aa7ec; --accent-fg: #0b1220; --warn: #f1c46a; --warn-bg: #3a2f14; --err: #ff8a8a; --ok: #77d49a; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.8 "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 0 16px; }
+header.site { background: var(--card); border-bottom: 1px solid var(--line); }
+header.site .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; padding-bottom: 10px; }
+h1 { font-size: 1.15rem; margin: 0; }
+h1 small { font-weight: normal; color: var(--muted); font-size: .8rem; margin-left: .4em; }
+nav a { margin-left: 14px; color: var(--accent); }
+a { color: var(--accent); }
+main { padding-top: 16px; padding-bottom: 32px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 16px 0; }
+h2 { font-size: 1.05rem; margin: 0 0 10px; }
+h3 { font-size: .98rem; margin: 14px 0 4px; }
+.notice { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: .92rem; }
+.small { font-size: .85rem; color: var(--muted); }
+.muted { color: var(--muted); }
+fieldset.kinds { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 12px; padding: 8px 12px; }
+fieldset.kinds label { display: block; padding: 2px 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.field { display: flex; flex-direction: column; gap: 2px; font-size: .88rem; color: var(--muted); }
+.field.block { margin: 8px 0; }
+.field.inline { flex-direction: row; align-items: center; gap: 8px; }
+.field.grow { flex: 1 1 220px; }
+input[type=text], input[type=password], select, textarea {
+  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 8px; width: 100%; }
+textarea { line-height: 1.6; resize: vertical; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 8px 0; }
+.buttons { gap: 8px; }
+button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--card); color: var(--fg); cursor: pointer; min-height: 40px; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.ghost { color: var(--muted); }
+button:disabled { opacity: .5; cursor: wait; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.agree { display: flex; gap: 8px; font-size: .88rem; align-items: flex-start; margin: 8px 0; }
+.agree input { margin-top: 6px; }
+.status { min-height: 1.6em; margin: 6px 0 0; font-size: .92rem; }
+.status.ok { color: var(--ok); } .status.warn { color: var(--warn); } .status.err { color: var(--err); }
+.pill { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: .85rem; border: 1px solid var(--line); }
+.pill.on { color: var(--ok); } .pill.off { color: var(--muted); }
+.steps { padding-left: 1.4em; } .steps li { margin: 6px 0; }
+
+/* 出力プレビュー（A4帳票風） */
+.preview { margin-top: 12px; background: #fff; color: #111; border: 1px solid var(--line);
+  border-radius: 6px; padding: 24px 28px; font-family: "Yu Mincho", "Hiragino Mincho ProN", "MS PMincho", serif; }
+.demo-badge { margin: 0 0 8px; font: .8rem/1.4 sans-serif; color: #8a5a00; background: #fff6df; display: inline-block; padding: 2px 8px; border-radius: 4px; }
+.doc-title { text-align: center; font-size: 1.4rem; letter-spacing: .5em; margin: 0 0 16px; }
+.doc-kv { display: grid; grid-template-columns: 9em 1fr; border-top: 1px solid #999; border-left: 1px solid #999; margin: 0 0 12px; }
+.doc-kv dt, .doc-kv dd { margin: 0; padding: 4px 8px; border-right: 1px solid #999; border-bottom: 1px solid #999; }
+.doc-kv dt { background: #f0f0f0; font-weight: bold; }
+.preview h3 { font-size: 1.05rem; margin: 16px 0 4px; border-bottom: 1px solid #999; }
+.preview h4 { font-size: 1rem; margin: 10px 0 2px; }
+.preview ol, .preview ul { margin: 4px 0; padding-left: 1.6em; }
+.doc-table { width: 100%; border-collapse: collapse; margin: 4px 0; }
+.doc-table th, .doc-table td { border: 1px solid #999; padding: 4px 8px; text-align: left; vertical-align: top; }
+.doc-table th { background: #f0f0f0; }
+.src-views { margin-top: 12px; }
+footer.site { border-top: 1px solid var(--line); padding: 12px 0; }
+
+/* 規約ページ */
+.prose h2 { margin-top: 20px; }
+.prose { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 20px 20px; margin: 16px 0; }
+
+@media (max-width: 560px) {
+  .doc-kv { grid-template-columns: 1fr; }
+  .preview { padding: 14px; }
+  button { flex: 1 1 45%; }
+}
+
+/* 印刷：出力部分のみ、A4 */
+@page { size: A4; margin: 20mm; }
+@media print {
+  body { background: #fff; color: #000; font-size: 11pt; }
+  .no-print, header.site, footer.site { display: none !important; }
+  main.wrap { max-width: none; padding: 0; }
+  .card.result { border: 0; padding: 0; margin: 0; }
+  .preview { border: 0; padding: 0; margin: 0; }
+  .demo-badge { display: none; }
+  .doc-title { font-size: 16pt; }
+  .doc-table, .doc-kv { page-break-inside: avoid; }
+  h3, h4 { page-break-after: avoid; }
+}

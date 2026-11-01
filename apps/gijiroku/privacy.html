@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>プライバシーポリシー｜議事録・文書作成支援（試作）</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <h1>議事録・文書作成支援 <small>試作版</small></h1>
+  <nav><a href="index.html">アプリに戻る</a><a href="terms.html">利用規約</a></nav>
+</div></header>
+<main class="wrap">
+<div class="prose">
+<h2>プライバシーポリシー（試作版・案）</h2>
+<p class="notice">試作版のための案です。本格的な提供の前に、法務担当者による確認と、運営者情報・問い合わせ先の記載が必要です。</p>
+
+<h2>1. 基本方針</h2>
+<p>本アプリは、サーバーを持たない静的なWebアプリです。入力されたテキストやAPIキーを、運営者が収集・保存することはありません（運営者のサーバーへ送信する仕組みがありません）。</p>
+
+<h2>2. 取り扱う情報と保存場所</h2>
+<table class="doc-table">
+  <thead><tr><th>情報</th><th>保存・送信先</th><th>備考</th></tr></thead>
+  <tbody>
+    <tr><td>書き起こしテキスト、補助入力</td><td>ブラウザの画面上のみ。保存しません</td><td>ページを閉じる、または「消去」で失われます。</td></tr>
+    <tr><td>Gemini APIキー、モデル名</td><td>このブラウザの localStorage のみ</td><td>「削除」ボタンで消去できます。ブラウザのサイトデータ削除でも消えます。</td></tr>
+    <tr><td>生成結果</td><td>ブラウザの画面上のみ</td><td>ダウンロードしたファイルは、利用者の端末に保存されます。</td></tr>
+  </tbody>
+</table>
+
+<h2>3. 外部サービスへの送信（重要）</h2>
+<p>「Gemini で整文して生成」を実行すると、入力した書き起こしテキスト、補助入力、整文の指示文が、利用者のブラウザから Google の Gemini API（generativelanguage.googleapis.com）へ直接送信されます。デモモードでは外部へ送信しません。</p>
+<p>送信された内容を Google がどのように取り扱うか（保存、サービス改善への利用の有無など）は、利用するプランや設定により異なる場合があります。必ず Google の最新の利用規約・データ取扱いに関する説明を、利用者自身で確認してください。（本アプリは、これらの条件の内容を保証しません。）</p>
+<p>個人情報、機密情報、非公開情報を送信してよいかは、所属組織の規程に従って判断してください。判断できない場合は、送信しないでください。</p>
+
+<h2>4. Cookie・アクセス解析</h2>
+<p>本アプリは、Cookie の設定およびアクセス解析ツールの組み込みを行っていません。ただし、ホスティング（例：GitHub Pages）の提供者が、通常のアクセスログを取得する場合があります。</p>
+
+<h2>5. APIキーの安全な取扱い</h2>
+<ul>
+  <li>共有パソコンでは保存しない、または使用後に削除してください。</li>
+  <li>Google 側で、キーの利用元（HTTPリファラー）や利用できるAPIを制限してください。</li>
+  <li>漏えいのおそれがある場合は、直ちにキーを無効化し、再発行してください。</li>
+  <li>localStorage は、同じサイト上で動くスクリプトから読み取れます。本アプリは外部のスクリプトを読み込まない構成としていますが、利用者のブラウザ拡張機能等のリスクは残ります。</li>
+</ul>
+
+<h2>6. 変更</h2>
+<p>このポリシーは、必要に応じて変更することがあります。</p>
+
+<h2>7. 問い合わせ先</h2>
+<p>（未定。正式提供時に記載します。）</p>
+</div>
+</main>
+<footer class="site"><div class="wrap"><p><a href="index.html">アプリに戻る</a></p></div></footer>
+</body>
+</html>

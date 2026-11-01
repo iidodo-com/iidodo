@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src https://generativelanguage.googleapis.com; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<title>議事録・文書作成支援（試作）</title>
+<meta name="description" content="会議の書き起こしを、議事録・復命書の様式に整えるブラウザ完結の試作アプリ。">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site no-print">
+  <div class="wrap">
+    <h1>議事録・文書作成支援 <small>試作版</small></h1>
+    <nav>
+      <a href="#howto">使い方</a>
+      <a href="terms.html">利用規約</a>
+      <a href="privacy.html">プライバシーポリシー</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="intro no-print">
+    <p>会議の書き起こしテキストを貼り付けると、<strong>議事録</strong>または<strong>復命書</strong>の様式に整えて出力します。
+    整文には Google の Gemini API を使います（利用者ご自身の APIキーが必要）。
+    <strong>APIキーがなくても、デモモードで全レイアウトを確認できます。</strong></p>
+    <p class="notice">試作版です。出力には誤りが含まれ得ます。公文書として使用する前に、必ず人が原文と照合してください。</p>
+  </section>
+
+  <section class="card no-print" aria-labelledby="h-input">
+    <h2 id="h-input">1. 様式と入力</h2>
+    <fieldset class="kinds">
+      <legend>様式</legend>
+      <label><input type="radio" name="kind" value="minutes" checked> 議事録（日時・場所・出席者・議題・決定事項・ToDo）</label>
+      <label><input type="radio" name="kind" value="fukumeisho"> 復命書（件名・期間・所属職名氏名・用務先・概要）</label>
+    </fieldset>
+
+    <div id="meta" class="meta"></div>
+
+    <label class="field block">
+      <span>書き起こし／メモ（貼り付け）</span>
+      <textarea id="src" rows="12" placeholder="ここに会議の書き起こしテキストを貼り付けてください。"></textarea>
+    </label>
+
+    <div class="row">
+      <label class="field inline">
+        <span>文体</span>
+        <select id="style">
+          <option value="plain">常体（〜する・〜である）</option>
+          <option value="polite">敬体（〜します・〜です）</option>
+        </select>
+      </label>
+    </div>
+
+    <label class="agree">
+      <input type="checkbox" id="agree">
+      Gemini で整文する場合、入力した内容が Google のサーバーへ送信されることを理解し、送信してよい内容であることを確認しました。
+    </label>
+
+    <div class="row buttons">
+      <button type="button" id="btn-run" class="primary">Gemini で整文して生成</button>
+      <button type="button" id="btn-demo">デモ出力で確認（APIなし）</button>
+      <button type="button" id="btn-sample">サンプル文を入力</button>
+      <button type="button" id="btn-clear" class="ghost">消去</button>
+    </div>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="result" class="card result" hidden aria-labelledby="h-out">
+    <div class="no-print">
+      <h2 id="h-out">2. 出力</h2>
+      <div class="row buttons">
+        <button type="button" id="copy-text">テキストをコピー</button>
+        <button type="button" id="copy-md">Markdownをコピー</button>
+        <button type="button" id="dl-txt">TXTでダウンロード</button>
+        <button type="button" id="dl-md">Markdownでダウンロード</button>
+        <button type="button" id="btn-print">印刷</button>
+      </div>
+    </div>
+    <div id="preview" class="preview"></div>
+    <details class="no-print src-views">
+      <summary>テキスト／Markdown の表示</summary>
+      <label class="field block"><span>テキスト</span><textarea id="out-text" rows="10" readonly></textarea></label>
+      <label class="field block"><span>Markdown</span><textarea id="out-md" rows="10" readonly></textarea></label>
+    </details>
+  </section>
+
+  <section class="card no-print" aria-labelledby="h-key">
+    <h2 id="h-key">APIキー設定（Gemini）</h2>
+    <p><span id="key-state" class="pill off">APIキー：未設定（デモモード）</span></p>
+    <p class="small">キーはこのブラウザの localStorage にのみ保存され、運営者のサーバーには送信されません（このアプリにサーバーはありません）。
+    共有パソコンでは保存せず、使用後に必ず「削除」してください。キーには、利用元のサイトを制限する設定（HTTPリファラー制限）をかけることを推奨します。</p>
+    <div class="row">
+      <label class="field grow"><span>APIキー</span>
+        <input type="password" id="apikey" autocomplete="off" spellcheck="false" placeholder="Google AI Studio で発行したキー"></label>
+      <label class="field grow"><span>モデル名</span>
+        <input type="text" id="model" autocomplete="off" spellcheck="false"></label>
+    </div>
+    <div class="row buttons">
+      <button type="button" id="btn-savekey">保存</button>
+      <button type="button" id="btn-delkey" class="ghost">削除</button>
+    </div>
+    <p class="small">モデル名は提供状況により変わります。エラーになる場合は、Google の最新のモデル一覧を確認して入力し直してください。</p>
+  </section>
+
+  <section id="howto" class="card no-print" aria-labelledby="h-how">
+    <h2 id="h-how">使い方</h2>
+    <ol class="steps">
+      <li><strong>まずデモで確認：</strong>様式を選び「サンプル文を入力」→「デモ出力で確認」を押すと、APIキーなしで出力レイアウトを確認できます。</li>
+      <li><strong>APIキーを用意：</strong>Google AI Studio でキーを発行し、「APIキー設定」に入力して保存します。</li>
+      <li><strong>貼り付けて生成：</strong>書き起こしを貼り付け、必要なら日時・場所などを補助入力し、送信前の確認にチェックして「Gemini で整文して生成」を押します。補助入力は書き起こしより優先されます。</li>
+      <li><strong>確認・修正：</strong>「要確認事項」に、書き起こしにない情報を補った箇所や不明点が出ます。原文と照合してください。</li>
+      <li><strong>出力：</strong>コピー、TXT／Markdown のダウンロード、印刷（ブラウザの印刷から PDF 保存も可）が使えます。印刷時は出力部分のみが印字されます。</li>
+    </ol>
+    <h3>整文で行うこと</h3>
+    <ul>
+      <li>話し言葉・言い淀みの整理、一文を短く</li>
+      <li>送り仮名（例：行う、表す）、漢字とひらがなの使い分け（例：できる、こと）</li>
+      <li>数字は算用数字、日付は和暦、時刻は午前・午後を付けて表記</li>
+      <li>敬語・文体の統一</li>
+    </ul>
+    <p class="small">表記ルールは「公用文作成の考え方」等の一般的な公用文の考え方に基づく試作です。広島市「文書事務の手引」の条文を取り込んだものではありません。団体の手引・例規との適合は、利用者が確認してください。</p>
+  </section>
+</main>
+
+<footer class="site no-print">
+  <div class="wrap">
+    <p>議事録・文書作成支援（試作） ／ <a href="terms.html">利用規約</a> ／ <a href="privacy.html">プライバシーポリシー</a></p>
+    <p class="small">本アプリは試作です。AIの出力に誤りが含まれる可能性があります。</p>
+  </div>
+</footer>
+
+<script src="demo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
