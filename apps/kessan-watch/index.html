@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>決算ウォッチ（試作）</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top">
+  <h1>決算ウォッチ<small>（試作）</small></h1>
+  <nav class="links"><a href="help.html">使い方</a><a href="terms.html">利用規約</a><a href="privacy.html">プライバシー</a></nav>
+</header>
+<div id="dummyBanner" class="banner" hidden>表示中の決算日・銘柄情報は<strong>ダミーデータ</strong>です。実際の決算発表日ではありません。必ず各社のIR情報で確認してください。</div>
+<main>
+  <div class="toolbar">
+    <div role="tablist" class="tabs">
+      <button id="tab-list" role="tab" type="button">リスト</button>
+      <button id="tab-calendar" role="tab" type="button">カレンダー</button>
+      <button id="tab-check" role="tab" type="button">通過チェック</button>
+      <button id="tab-stocks" role="tab" type="button">ウォッチ銘柄</button>
+    </div>
+    <div class="tools">
+      <button id="btnAdd" type="button" class="primary">銘柄を追加</button>
+      <button id="btnSync" type="button">予定を再取得</button>
+      <button id="btnSettings" type="button">設定</button>
+    </div>
+  </div>
+  <section id="view-list" role="tabpanel">
+  </section>
+  <section id="view-calendar" role="tabpanel" hidden></section>
+  <section id="view-check" role="tabpanel" hidden></section>
+  <section id="view-stocks" role="tabpanel" hidden></section>
+  <div class="filterbar" id="filterbar">
+    <label>リスト表示: <select id="listFilter">
+      <option value="all">すべて</option><option value="upcoming">これから発表</option><option value="unchecked">通過済・要確認</option>
+    </select></label>
+    <span class="spacer"></span>
+    <button id="btnExport" type="button">バックアップ書出</button>
+    <label class="filebtn">バックアップ読込<input id="fileImport" type="file" accept="application/json" hidden></label>
+    <button id="btnReset" type="button" class="danger">サンプルに戻す</button>
+  </div>
+</main>
+<footer>本アプリは情報の整理ツールであり、投資助言・売買推奨ではありません。投資判断はご自身の責任で行ってください。<a href="terms.html">利用規約</a></footer>
+
+<dialog id="stockDlg"><form id="stockForm" method="dialog">
+  <h2 id="stockTitle">銘柄を追加</h2>
+  <label>コード<input id="f-code" maxlength="12" required placeholder="例: 8035 / NVDA"></label>
+  <label>銘柄名<input id="f-name" maxlength="60" required></label>
+  <label>市場<select id="f-market"><option value="JP">日本</option><option value="US">米国</option></select></label>
+  <label>テーマ<input id="f-theme" maxlength="40" placeholder="例: 製造装置"></label>
+  <label>次回決算日（任意・手入力）<input id="f-date" placeholder="YYYY-MM-DD" maxlength="10"></label>
+  <label>対象期（任意）<input id="f-period" maxlength="30" placeholder="例: 第2四半期"></label>
+  <label>メモ<textarea id="f-memo" rows="3" maxlength="500"></textarea></label>
+  <div class="dlgbtns"><button type="button" data-close>キャンセル</button><button type="submit" class="primary">保存</button></div>
+</form></dialog>
+
+<dialog id="checkDlg"><form id="checkForm" method="dialog">
+  <h2 id="checkTitle"></h2><p id="checkMeta" class="hint"></p>
+  <div id="checkFields"></div>
+  <label>自分の判断メモ<textarea id="c-memo" rows="2" maxlength="1000" placeholder="例: 通過確認後に何を見るか／ルールに照らした所感"></textarea></label>
+  <label class="inline"><input type="checkbox" id="c-done"> 通過確認済みにする</label>
+  <div class="dlgbtns"><button type="button" data-close>閉じる</button><button type="submit" class="primary">保存</button></div>
+</form></dialog>
+
+<dialog id="settingsDlg"><form id="settingsForm" method="dialog">
+  <h2>設定</h2>
+  <label>データ取得元（アダプタ）<select id="s-adapter"></select></label>
+  <label>J-Quants 等のAPIキー（利用者入力）<input id="s-key" type="password" autocomplete="off" placeholder="現在のダミー版では使用されません"></label>
+  <p class="hint">キーはこのブラウザの localStorage にのみ保存されます。共用PCでは入力しないでください。</p>
+  <label>警戒日数（決算の何日前から強調表示するか）<input id="s-warn" type="number" min="0" max="60"></label>
+  <div class="dlgbtns"><button type="button" data-close>キャンセル</button><button type="submit" class="primary">保存して再取得</button></div>
+</form></dialog>
+<div id="toast" role="status" hidden></div>
+
+<script src="data/sample.js"></script>
+<script src="js/adapters.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
