@@ -12,6 +12,7 @@
   <nav class="links"><a href="help.html">使い方</a><a href="terms.html">利用規約</a><a href="privacy.html">プライバシー</a></nav>
 </header>
 <div id="dummyBanner" class="banner" hidden>表示中の決算日・銘柄情報は<strong>ダミーデータ</strong>です。実際の決算発表日ではありません。必ず各社のIR情報で確認してください。</div>
+<div id="errBanner" class="errbanner" role="alert" hidden></div>
 <main>
   <div class="toolbar">
     <div role="tablist" class="tabs">
@@ -23,6 +24,7 @@
     <div class="tools">
       <button id="btnAdd" type="button" class="primary">銘柄を追加</button>
       <button id="btnSync" type="button">予定を再取得</button>
+      <button id="btnIcs" type="button" title="現在の表示範囲の予定を終日イベントとして書き出します">ICS出力</button>
       <button id="btnSettings" type="button">設定</button>
     </div>
   </div>
@@ -66,7 +68,7 @@
 <dialog id="settingsDlg"><form id="settingsForm" method="dialog">
   <h2>設定</h2>
   <label>データ取得元（アダプタ）<select id="s-adapter"></select></label>
-  <label>J-Quants 等のAPIキー（利用者入力）<input id="s-key" type="password" autocomplete="off" placeholder="現在のダミー版では使用されません"></label>
+  <label>J-Quants APIキー（x-api-key・利用者入力）<input id="s-key" type="password" autocomplete="off" placeholder="J-Quantsアダプタ選択時のみ使用"></label>
   <p class="hint">キーはこのブラウザの localStorage にのみ保存されます。共用PCでは入力しないでください。</p>
   <label>警戒日数（決算の何日前から強調表示するか）<input id="s-warn" type="number" min="0" max="60"></label>
   <div class="dlgbtns"><button type="button" data-close>キャンセル</button><button type="submit" class="primary">保存して再取得</button></div>
@@ -75,6 +77,7 @@
 
 <script src="data/sample.js"></script>
 <script src="js/adapters.js"></script>
+<script src="js/ics.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/app.js"></script>
 </body>

@@ -49,23 +49,57 @@
   function badge(e) { var s = statusOf(e); return h("span", { class: "badge " + s.cls, text: s.label }); }
 
   /* ---------- sync via adapter ---------- */
+  function showErr(msg, fallback) {
+    var box = $("errBanner"); box.textContent = "";
+    box.appendChild(document.createTextNode(msg));
+    if (fallback) box.appendChild(h("button", { type: "button", text: "ダミーデータに切り替える", onclick: function () {
+      state.settings.adapter = "dummy"; save(); sync(false);
+    } }));
+    box.appendChild(h("button", { type: "button", text: "閉じる", onclick: function () { box.hidden = true; } }));
+    box.hidden = false;
+  }
   function sync(silent) {
     var adapter = window.KW_ADAPTERS.get(state.settings.adapter);
-    return adapter.fetchSchedule(state.stocks, { apiKey: state.settings.apiKey, today: today() }).then(function (evs) {
+    $("errBanner").hidden = true;
+    return adapter.fetchSchedule(state.stocks, { apiKey: state.settings.apiKey, today: today() }).then(function (res) {
+      var evs = Array.isArray(res) ? res : res.events, warns = Array.isArray(res) ? [] : (res.warnings || []);
       var manual = state.events.filter(function (e) { return e.source === "manual"; });
       var mk = {}; manual.forEach(function (e) { mk[key(e)] = 1; });
       var codes = {}; state.stocks.forEach(function (s) { codes[s.code] = 1; });
       var fetched = evs.filter(function (e) { return codes[e.code] && !mk[key(e)] && validYmd(e.date); });
       state.events = manual.concat(fetched);
       save(); render();
-      if (!silent) toast(adapter.name + " から " + fetched.length + " 件を取得しました");
-    }).catch(function (err) { toast("取得失敗: " + err.message); });
+      if (warns.length) showErr("一部の取得に問題がありました: " + warns.join(" / "), false);
+      else if (!silent) toast(adapter.name + " から " + fetched.length + " 件を取得しました");
+    }).catch(function (err) {
+      render();
+      showErr("「" + adapter.name + "」での取得に失敗しました: " + err.message + "。表示中の予定は更新されていません。", !adapter.isDummy);
+    });
+  }
+
+  /* ---------- ICS ---------- */
+  function visibleEvents() {
+    if (view === "list") return listEvents();
+    if (view === "calendar") {
+      var p = calMonth.getFullYear() + "-" + String(calMonth.getMonth() + 1).padStart(2, "0") + "-";
+      return sortedEvents().filter(function (e) { return e.date.indexOf(p) === 0; });
+    }
+    if (view === "check") return checkEvents().reverse();
+    return sortedEvents();
+  }
+  function exportIcs() {
+    var evs = visibleEvents();
+    if (!evs.length) { toast("出力できる決算予定がありません"); return; }
+    var text = window.KW_ICS.build(evs, function (c) { var s = stockOf(c); return s && s.name; });
+    var blob = new Blob([text], { type: "text/calendar;charset=utf-8" });
+    var a = h("a", { href: URL.createObjectURL(blob), download: "kessan-watch-" + today() + ".ics" });
+    document.body.appendChild(a); a.click(); a.remove();
+    toast(evs.length + " 件を .ics に出力しました");
   }
 
   /* ---------- rendering ---------- */
   function render() {
-    var adapter = window.KW_ADAPTERS.get(state.settings.adapter);
-    $("dummyBanner").hidden = !adapter.isDummy;
+    $("dummyBanner").hidden = !state.events.some(function (e) { return e.source === "dummy"; });
     ["list", "calendar", "stocks", "check"].forEach(function (v) {
       $("tab-" + v).setAttribute("aria-selected", String(v === view));
       $("view-" + v).hidden = v !== view;
@@ -92,6 +126,18 @@
     return n + "/3 欄記録";
   }
 
+  function listEvents() {
+    var fl = $("listFilter").value;
+    return sortedEvents().filter(function (e) {
+      var s = statusOf(e);
+      if (fl === "upcoming") return s.d >= 0 && s.cls !== "done";
+      if (fl === "unchecked") return s.cls === "passed";
+      return true;
+    });
+  }
+  function checkEvents() {
+    return sortedEvents().filter(function (e) { var s = statusOf(e); return s.cls === "passed" || s.cls === "today" || s.cls === "done"; });
+  }
   function renderList() {
     var box = $("view-list"); box.textContent = "";
     var unset = state.stocks.filter(function (s) {
@@ -108,12 +154,7 @@
       });
       note.appendChild(ul); box.appendChild(note);
     }
-    var fl = $("listFilter").value, evs = sortedEvents().filter(function (e) {
-      var s = statusOf(e);
-      if (fl === "upcoming") return s.d >= 0 && s.cls !== "done";
-      if (fl === "unchecked") return s.cls === "passed";
-      return true;
-    });
+    var evs = listEvents();
     if (!evs.length) { box.appendChild(h("p", { class: "empty", text: "該当する決算予定がありません。" })); return; }
     var tb = h("tbody");
     evs.forEach(function (e) { tb.appendChild(eventRow(e)); });
@@ -171,7 +212,7 @@
 
   function renderCheck() {
     var box = $("view-check"); box.textContent = "";
-    var evs = sortedEvents().filter(function (e) { var s = statusOf(e); return s.cls === "passed" || s.cls === "today" || s.cls === "done"; }).reverse();
+    var evs = checkEvents().reverse();
     box.appendChild(h("p", { class: "hint", text: "決算発表日を過ぎた銘柄が「通過済・要確認」として並びます。行をクリックして3欄（実績／ガイダンス／株価反応）を記録します。" }));
     if (!evs.length) { box.appendChild(h("p", { class: "empty", text: "通過済みの決算はまだありません。" })); return; }
     var tb = h("tbody");
@@ -301,6 +342,7 @@
     $("settingsForm").addEventListener("submit", submitSettings);
     $("btnSettings").addEventListener("click", openSettings);
     $("btnSync").addEventListener("click", function () { sync(false); });
+    $("btnIcs").addEventListener("click", exportIcs);
     $("btnExport").addEventListener("click", exportJson);
     $("fileImport").addEventListener("change", function (e) { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = ""; });
     $("btnReset").addEventListener("click", resetSample);

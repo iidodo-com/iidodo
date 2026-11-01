@@ -63,3 +63,6 @@ article.doc h2{margin-top:1.6em;font-size:1.1rem}
 .unsetnote p{margin:4px 0 8px}
 .unsetlist{display:flex;flex-wrap:wrap;gap:6px}
 .unsetlist button{font-size:.82rem}
+.errbanner{background:#fde8e6;color:#7a1a14;padding:8px 16px;font-size:.88rem;border-bottom:1px solid #f0b5b0}
+.errbanner button{margin-left:8px}
+@media (prefers-color-scheme:dark){.errbanner{background:#3b1c19;color:#ffb4ab;border-color:#6a2a25}}
