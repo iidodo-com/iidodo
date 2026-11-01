@@ -44,11 +44,12 @@
       <h2>① 音声ファイル</h2>
       <label id="drop" class="drop" for="file">
         <strong>ここにドラッグ＆ドロップ、またはクリックして選択</strong>
-        <span class="muted">mp3 / wav / m4a / aac / ogg / flac / aiff（上限 14MB）</span>
+        <span class="muted">mp3 / wav / m4a / aac / ogg / flac / aiff（上限 200MB。14MB超は Files API 経由で処理）</span>
         <input id="file" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.aif,.webm">
       </label>
       <p class="row">
         <button id="btn-sample" type="button" class="btn ghost">ファイル無しでサンプルを試す（デモ）</button>
+        <button id="btn-sample-large" type="button" class="btn ghost">大容量サンプル（30MB・Files API経路のデモ）</button>
         <span id="file-info" class="muted"></span>
       </p>
     </div>
@@ -76,11 +77,12 @@
           <textarea id="glossary" rows="2" placeholder="例: 固有名詞の表記ゆれ対策。発話されていない語は出力されません"></textarea>
         </label>
       </div>
+      <p id="route-note" class="route-note" aria-live="polite"></p>
       <p class="row">
         <button id="btn-run" type="button" class="btn primary" disabled>文字起こしを実行</button>
         <button id="btn-cancel" type="button" class="btn ghost" hidden>キャンセル</button>
       </p>
-      <div id="progress" class="progress" hidden aria-live="polite"></div>
+      <div id="progress" class="progress" hidden aria-live="polite"><span id="progress-text"></span><progress id="progress-bar" max="100" value="0" hidden></progress></div>
       <div id="run-error" class="error" role="alert" hidden></div>
     </div>
 
@@ -129,8 +131,10 @@
         <input id="set-custom" type="text" placeholder="例: gemini-3.6-flash">
       </label>
       <label class="check"><input id="set-demo" type="checkbox"> デモモードを強制（APIキーがあってもモックデータを使う）</label>
+      <div id="test-result" class="result-box" role="status" aria-live="polite" hidden></div>
       <p class="row">
         <button id="set-save" type="button" class="btn primary">保存</button>
+        <button id="set-test" type="button" class="btn">接続テスト</button>
         <button id="set-keydel" type="button" class="btn ghost">APIキーだけ削除</button>
       </p>
     </div>
@@ -148,10 +152,10 @@
       <h2>はじめに（約1分）</h2>
       <ol class="how">
         <li><strong>デモで全体を確認</strong>：APIキー未設定のまま「文字起こし」画面で「サンプルを試す」を押すと、モックデータで全フローを確認できます。</li>
-        <li><strong>APIキーを設定</strong>：「設定」でGemini APIキーを入力して保存します。キーはお使いのブラウザ内にだけ保存されます。</li>
-        <li><strong>音声を選ぶ</strong>：送信前に波形と音量チェックが表示されます。小さすぎる・無音の場合は警告が出ます。</li>
+        <li><strong>APIキーを設定</strong>：「設定」でGemini APIキーを入力して保存します。キーはお使いのブラウザ内にだけ保存されます。「接続テスト」でキーとモデルを確認できます。</li>
+        <li><strong>音声を選ぶ</strong>：送信前に波形と音量チェックが表示されます。小さすぎる・無音の場合は警告が出ます。14MBを超える音声は Files API 経由（アップロード→処理待ち→生成）で自動的に処理されます（上限200MB）。</li>
         <li><strong>実行</strong>：文字起こし全文／整文／要約／決定事項とToDoが生成されます。</li>
-        <li><strong>確認・修正・出力</strong>：話者名の変更、発言ごとの話者の付け替え、コピー、TXT/Markdown保存ができます。結果は「履歴」に自動保存されます。</li>
+        <li><strong>確認・修正・出力</strong>：文字起こし・整文・要約・決定事項の本文の直接編集、話者名の変更、発言ごとの話者の付け替え、コピー、TXT/Markdown保存ができます。結果は「履歴」に自動保存されます。</li>
       </ol>
     </div>
     <div class="card">
@@ -222,7 +226,7 @@
     <h2>1. 本アプリが保存する情報</h2>
     <p>APIキー、設定、処理結果の履歴（文字起こし・要約など）は、お使いのブラウザの localStorage にのみ保存されます。本アプリの運営者のサーバーには送信・保存されません（本試作版には運営者側サーバーがありません）。</p>
     <h2>2. 外部への送信</h2>
-    <p>「実行」を押すと、選択した音声データと指示文が、Google の Gemini API（generativelanguage.googleapis.com）へ直接送信されます。デモモードでは外部へ送信されません。音量チェックは端末内で行われ、送信されません。</p>
+    <p>「実行」を押すと、選択した音声データと指示文が、Google の Gemini API（generativelanguage.googleapis.com）へ直接送信されます。14MBを超える音声は Gemini の Files API で一時的にアップロードされ（元のファイル名は送信しません）、処理後に本アプリが削除を試みます（削除に失敗した場合の保持期間は Google の仕様に従います）。デモモードでは外部へ送信されません。音量チェックは端末内で行われ、送信されません。「接続テスト」はAPIキーとモデルIDのみをGoogleへ送信します。</p>
     <h2>3. 送信先での取り扱い</h2>
     <p>送信されたデータの取り扱い（保存・学習への利用の有無等）は、ご利用のAPIプランと Google の規約・ポリシーに従います。機密性の高い音声を処理する前に、必ず最新の規約をご確認ください。</p>
     <h2>4. アクセス解析・Cookie</h2>

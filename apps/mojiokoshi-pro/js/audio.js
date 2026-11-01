@@ -6,11 +6,15 @@
   // しきい値は経験則（ヒューリスティック）。本番では実音声で較正すること。
   const TH = { bad: -42, warn: -32, silenceWarn: 0.6, silenceBad: 0.95, clip: 0.01 };
 
+  const MAX_DECODE_BYTES = 50 * 1024 * 1024; // これを超えるとデコード時のメモリ消費が大きいため解析を省略
   const toDb = (x) => (x > 0 ? 20 * Math.log10(x) : -120);
 
   MP.audio = {
     TH,
     async analyze(file) {
+      if (file.size > MAX_DECODE_BYTES) {
+        return unknown('ファイルが大きいため（50MB超）、ブラウザ内の音量解析を省略しました。送信は可能ですが、音量は確認できていません。');
+      }
       const Ctx = g.AudioContext || g.webkitAudioContext;
       if (!Ctx) return unknown('このブラウザは音声解析に対応していません。');
       const ctx = new Ctx();

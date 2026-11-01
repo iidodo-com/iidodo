@@ -4,7 +4,11 @@
   const U = MP.UNINTELLIGIBLE;
   const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/';
   const MAX_INLINE_BYTES = 14 * 1024 * 1024; // inline_data は base64化で約1.33倍。リクエスト上限(約20MB)を考慮
-  const TIMEOUT_MS = 5 * 60 * 1000;
+  const API = 'https://generativelanguage.googleapis.com/';
+  const FILES_MAX_BYTES = 200 * 1024 * 1024;  // 本アプリの上限（ブラウザのメモリ・待ち時間を考慮した保守的な値）
+  const GEN_TIMEOUT_MS = { inline: 5 * 60 * 1000, files: 10 * 60 * 1000 };
+  const POLL_MS = 2000;
+  const ACTIVE_TIMEOUT_MS = 10 * 60 * 1000;
 
   /* ---- 捏造対策を中心にしたシステムプロンプト ---- */
   const SYSTEM = `あなたは正確性を最優先する日本語の文字起こしアシスタントです。以下のルールは絶対です。
@@ -124,56 +128,184 @@
     catch (e) { throw new Error('モデルの応答をJSONとして解釈できませんでした。再実行してください。'); }
   }
 
-  MP.gemini = {
-    SYSTEM, SCHEMA, MAX_INLINE_BYTES, normalize, mimeOf,
+  const cancelErr = () => Object.assign(new Error('キャンセルしました。'), { name: 'AbortError' });
+  const cleanModel = (m) => String(m || '').trim().replace(/^models\//, '');
 
-    /** 実API呼び出し。opts: {file, apiKey, model, glossary, speakerHint, signal, onStatus} */
-    async run(opts) {
-      if (opts.file.size > MAX_INLINE_BYTES) {
-        throw new Error(`ファイルが大きすぎます（上限 ${MP.fmtSize(MAX_INLINE_BYTES)}。File API対応は今後の課題）。`);
-      }
-      opts.onStatus && opts.onStatus('音声を読み込み中…');
-      const data = await toBase64(opts.file);
-      const body = {
-        systemInstruction: { parts: [{ text: SYSTEM }] },
-        contents: [{ role: 'user', parts: [
-          { inlineData: { mimeType: mimeOf(opts.file), data } },
-          { text: userPrompt(opts) },
-        ] }],
-        generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA },
+  function sleep(ms, signal) {
+    return new Promise((resolve, reject) => {
+      if (signal && signal.aborted) return reject(cancelErr());
+      const t = setTimeout(resolve, ms);
+      if (signal) signal.addEventListener('abort', () => { clearTimeout(t); reject(cancelErr()); }, { once: true });
+    });
+  }
+
+  /** fetch ラッパー。中断・ネットワークエラーを利用者向けメッセージに変換 */
+  async function call(url, init, signal) {
+    try { return await fetch(url, Object.assign({}, init, { signal })); }
+    catch (e) {
+      if (e.name === 'AbortError') throw e;
+      throw new Error('ネットワークエラー。接続を確認してください（ブラウザのCORS制限等で通信が遮断された可能性もあります）。');
+    }
+  }
+  async function readJson(res) { try { return await res.json(); } catch (e) { return null; } }
+
+  /* ---- Files API: ① 開始 → ② アップロード → ③ ACTIVE待ち → ④ fileData参照 → 後始末 ---- */
+  async function startUpload(file, mime, apiKey, signal) {
+    const res = await call(API + 'upload/v1beta/files', {
+      method: 'POST',
+      headers: {
+        'x-goog-api-key': apiKey, 'Content-Type': 'application/json',
+        'X-Goog-Upload-Protocol': 'resumable', 'X-Goog-Upload-Command': 'start',
+        'X-Goog-Upload-Header-Content-Length': String(file.size), 'X-Goog-Upload-Header-Content-Type': mime,
+      },
+      body: JSON.stringify({ file: { display_name: 'mojiokoshi-audio' } }), // 元のファイル名は送らない
+    }, signal);
+    if (!res.ok) throw new Error('アップロードの開始に失敗しました。' + httpMessage(res.status, await readJson(res)));
+    const url = res.headers.get('x-goog-upload-url');
+    if (!url) throw new Error('アップロード先URLを取得できませんでした（ブラウザからのFiles API利用がCORS等で制限されている可能性があります）。');
+    return url;
+  }
+
+  function uploadBytes(url, file, signal, onProgress) {
+    return new Promise((resolve, reject) => {
+      if (signal && signal.aborted) return reject(cancelErr());
+      const x = new XMLHttpRequest();
+      x.open('POST', url);
+      x.setRequestHeader('X-Goog-Upload-Offset', '0');
+      x.setRequestHeader('X-Goog-Upload-Command', 'upload, finalize');
+      x.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+      x.onload = () => {
+        let j = null; try { j = JSON.parse(x.responseText); } catch (e) { /* ignore */ }
+        if (x.status >= 200 && x.status < 300 && j) resolve(j.file || j);
+        else reject(new Error('アップロードに失敗しました。' + httpMessage(x.status, j)));
       };
+      x.onerror = () => reject(new Error('アップロード中にネットワークエラーが発生しました。通信状況を確認して再試行してください。'));
+      x.ontimeout = () => reject(new Error('アップロードがタイムアウトしました。'));
+      if (signal) signal.addEventListener('abort', () => { x.abort(); reject(cancelErr()); }, { once: true });
+      x.send(file);
+    });
+  }
+
+  async function waitActive(f, apiKey, signal, onStatus) {
+    const t0 = Date.now();
+    for (;;) {
+      const st = f.state || 'ACTIVE'; // state が返らない場合はACTIVE扱い
+      if (st === 'ACTIVE') return f;
+      if (st === 'FAILED') {
+        throw new Error('Google側でのファイル処理に失敗しました' + (f.error && f.error.message ? `（${f.error.message}）` : '') + '。音声の形式が未対応・破損の可能性があります。');
+      }
+      const sec = Math.round((Date.now() - t0) / 1000);
+      if (Date.now() - t0 > ACTIVE_TIMEOUT_MS) throw new Error(`ファイルの処理待ちがタイムアウトしました（${Math.round(ACTIVE_TIMEOUT_MS / 60000)}分）。時間をおいて再試行してください。`);
+      onStatus({ text: `Google側でファイルを処理中…（${sec}秒経過 / 状態: ${st}）`, pct: null, stage: 'processing' });
+      await sleep(POLL_MS, signal);
+      const res = await call(`${API}v1beta/${f.name}`, { headers: { 'x-goog-api-key': apiKey } }, signal);
+      const j = await readJson(res);
+      if (!res.ok) throw new Error('ファイル状態の確認に失敗しました。' + httpMessage(res.status, j));
+      f = j;
+    }
+  }
+
+  async function deleteFile(name, apiKey) { // 後始末（失敗しても無視。未削除でも自動期限切れになる想定）
+    try { await fetch(`${API}v1beta/${name}`, { method: 'DELETE', headers: { 'x-goog-api-key': apiKey } }); } catch (e) { /* ignore */ }
+  }
+
+  MP.gemini = {
+    SYSTEM, SCHEMA, MAX_INLINE_BYTES, FILES_MAX_BYTES, normalize, mimeOf, cleanModel,
+
+    /** 送信方式の判定: 'inline'（<=14MB） | 'files'（<=200MB） | 'too_large' */
+    route(size) { return size <= MAX_INLINE_BYTES ? 'inline' : size <= FILES_MAX_BYTES ? 'files' : 'too_large'; },
+
+    /** 実API呼び出し。opts: {file, apiKey, model, glossary, speakerHint, signal, onStatus({text,pct,stage}|string)} */
+    async run(opts) {
+      const say = (o) => { if (opts.onStatus) opts.onStatus(typeof o === 'string' ? { text: o, pct: null } : o); };
+      const mode = this.route(opts.file.size);
+      if (mode === 'too_large') throw new Error(`ファイルが大きすぎます（${MP.fmtSize(opts.file.size)} / 上限 ${MP.fmtSize(FILES_MAX_BYTES)}）。`);
+      const mime = mimeOf(opts.file);
+      const model = cleanModel(opts.model);
+      let uploaded = null, audioPart;
+      try {
+        if (mode === 'inline') {
+          say('音声を読み込み中…');
+          audioPart = { inlineData: { mimeType: mime, data: await toBase64(opts.file) } };
+        } else {
+          say({ text: 'Files API: アップロードを開始しています…', pct: 0, stage: 'upload' });
+          const url = await startUpload(opts.file, mime, opts.apiKey, opts.signal);
+          const f0 = await uploadBytes(url, opts.file, opts.signal, (r) =>
+            say({ text: `Files API: アップロード中… ${Math.round(r * 100)}%（${MP.fmtSize(opts.file.size * r)} / ${MP.fmtSize(opts.file.size)}）`, pct: r, stage: 'upload' }));
+          uploaded = f0.name;
+          const f = await waitActive(f0, opts.apiKey, opts.signal, say);
+          audioPart = { fileData: { mimeType: f.mimeType || mime, fileUri: f.uri } };
+        }
+
+        const body = {
+          systemInstruction: { parts: [{ text: SYSTEM }] },
+          contents: [{ role: 'user', parts: [audioPart, { text: userPrompt(opts) }] }],
+          generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA },
+        };
+        const ctrl = new AbortController();
+        let timedOut = false;
+        const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, GEN_TIMEOUT_MS[mode]);
+        if (opts.signal) opts.signal.addEventListener('abort', () => ctrl.abort(), { once: true });
+        say({ text: 'Gemini で文字起こし・整文・要約を生成中…（長い音声では数分かかります）', pct: null, stage: 'generate' });
+        let res;
+        try {
+          res = await call(`${ENDPOINT}${encodeURIComponent(model)}:generateContent`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': opts.apiKey }, body: JSON.stringify(body),
+          }, ctrl.signal);
+        } catch (e) {
+          if (e.name === 'AbortError') throw timedOut ? new Error(`生成がタイムアウトしました（${GEN_TIMEOUT_MS[mode] / 60000}分）。`) : e;
+          throw e;
+        } finally { clearTimeout(timer); }
+
+        const json = await readJson(res);
+        if (!res.ok) throw new Error(httpMessage(res.status, json));
+        if (json && json.promptFeedback && json.promptFeedback.blockReason) {
+          throw new Error('安全性フィルタによりブロックされました: ' + json.promptFeedback.blockReason);
+        }
+        const cand = json && json.candidates && json.candidates[0];
+        const parts = (cand && cand.content && cand.content.parts) || [];
+        const text = parts.filter((p) => !p.thought && typeof p.text === 'string').map((p) => p.text).join('');
+        if (!text) throw new Error('応答が空でした' + (cand && cand.finishReason ? `（finishReason: ${cand.finishReason}）` : '') + '。');
+        const result = normalize(parseJson(text));
+        if (cand && cand.finishReason && cand.finishReason !== 'STOP') {
+          result.audio_notes = (result.audio_notes ? result.audio_notes + ' ' : '') + `※出力が途中で終了した可能性があります（${cand.finishReason}）。`;
+        }
+        result.sendMode = mode;
+        return result;
+      } finally {
+        if (uploaded) deleteFile(uploaded, opts.apiKey);
+      }
+    },
+
+    /** 接続テスト: models.get でキーの有効性とモデルの存在を確認（生成は行わない＝課金対象の推論なし）。
+     *  戻り値 {ok, summary, detail}。音声入力に対応するかまでは確認できない。 */
+    async testConnection(opts) {
+      const model = cleanModel(opts.model);
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-      if (opts.signal) opts.signal.addEventListener('abort', () => ctrl.abort());
-      opts.onStatus && opts.onStatus('Gemini で文字起こし・整文・要約を生成中…（長い音声では数分かかります）');
+      const timer = setTimeout(() => ctrl.abort(), 15000);
       let res;
       try {
-        res = await fetch(`${ENDPOINT}${encodeURIComponent(opts.model)}:generateContent`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': opts.apiKey },
-          body: JSON.stringify(body),
-          signal: ctrl.signal,
-        });
+        res = await fetch(`${ENDPOINT}${encodeURIComponent(model)}`, { headers: { 'x-goog-api-key': opts.apiKey }, signal: ctrl.signal });
       } catch (e) {
-        if (e.name === 'AbortError') throw new Error(opts.signal && opts.signal.aborted ? 'キャンセルしました。' : 'タイムアウトしました（5分）。');
-        throw new Error('ネットワークエラー。接続を確認してください。');
+        return { ok: false, summary: e.name === 'AbortError' ? 'タイムアウトしました（15秒）' : '通信に失敗しました',
+          detail: 'ネットワーク接続を確認してください（ブラウザのCORS制限や、拡張機能・社内プロキシによる遮断の可能性もあります）。' };
       } finally { clearTimeout(timer); }
-
-      let json = null;
-      try { json = await res.json(); } catch (e) { /* ignore */ }
-      if (!res.ok) throw new Error(httpMessage(res.status, json));
-      if (json && json.promptFeedback && json.promptFeedback.blockReason) {
-        throw new Error('安全性フィルタによりブロックされました: ' + json.promptFeedback.blockReason);
+      const j = await readJson(res);
+      const msg = (j && j.error && j.error.message) || '';
+      if (res.ok) {
+        const methods = Array.isArray(j.supportedGenerationMethods) ? j.supportedGenerationMethods : null;
+        if (methods && !methods.includes('generateContent')) {
+          return { ok: false, summary: 'モデルは存在しますが、文字起こしに使えません', detail: `モデル ${model} は generateContent に対応していません（対応: ${methods.join(', ')}）。別のモデルIDを選んでください。` };
+        }
+        const info = [j.displayName, j.inputTokenLimit ? `入力上限 ${j.inputTokenLimit.toLocaleString()} トークン` : ''].filter(Boolean).join(' / ');
+        return { ok: true, summary: 'APIキーは有効で、モデルが存在します', detail: `モデル: ${model}${info ? '（' + info + '）' : ''}` };
       }
-      const cand = json && json.candidates && json.candidates[0];
-      const parts = (cand && cand.content && cand.content.parts) || [];
-      const text = parts.filter((p) => !p.thought && typeof p.text === 'string').map((p) => p.text).join('');
-      if (!text) throw new Error('応答が空でした' + (cand && cand.finishReason ? `（finishReason: ${cand.finishReason}）` : '') + '。');
-      const result = normalize(parseJson(text));
-      if (cand && cand.finishReason && cand.finishReason !== 'STOP') {
-        result.audio_notes = (result.audio_notes ? result.audio_notes + ' ' : '') + `※出力が途中で終了した可能性があります（${cand.finishReason}）。`;
-      }
-      return result;
+      const keyBad = /API key|API_KEY/i.test(msg) || (res.status === 400 && /key/i.test(msg));
+      if (keyBad || res.status === 401) return { ok: false, summary: 'APIキーが無効です', detail: 'キーの入力ミス・失効・コピー漏れがないか確認してください。' + (msg ? ` 詳細: ${msg}` : '') };
+      if (res.status === 403) return { ok: false, summary: 'このキーには権限がありません', detail: 'Generative Language API が有効なプロジェクトのキーか、キーの利用制限（リファラ/IP等）を確認してください。' + (msg ? ` 詳細: ${msg}` : '') };
+      if (res.status === 404) return { ok: false, summary: 'モデルが見つかりません（HTTP 404）', detail: `モデルID「${model}」が存在しない可能性があります。「カスタム」欄で別のモデルIDを試せます。` + (msg ? ` 詳細: ${msg}` : '') };
+      if (res.status === 429) return { ok: false, summary: 'リクエスト上限に達しています', detail: 'キーとモデルの存在までは確認できませんでした。しばらく待って再試行してください。' + (msg ? ` 詳細: ${msg}` : '') };
+      return { ok: false, summary: `接続テストに失敗しました（HTTP ${res.status}）`, detail: msg };
     },
   };
 })(window);
