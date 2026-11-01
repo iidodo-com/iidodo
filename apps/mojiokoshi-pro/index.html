@@ -120,10 +120,11 @@
       <label>モデル
         <select id="set-model">
           <option value="gemini-3.8-flash">gemini-3.8-flash（既定）</option>
-          <option value="gemini-3.5-flash">gemini-3.5-flash（代替）</option>
+          <option value="gemini-3.5-flash">gemini-3.5-flash（代替・提供状況は要確認）</option>
           <option value="__custom">カスタム（モデルIDを入力）</option>
         </select>
       </label>
+      <p id="set-model-note" class="muted small" hidden>※ gemini-3.5-flash は提供状況は要確認です（Google公式モデル一覧で記載を確認できていません）。エラーになる場合は「カスタム」で別のモデルIDを試してください。</p>
       <label id="set-custom-row" hidden>カスタムモデルID
         <input id="set-custom" type="text" placeholder="例: gemini-3.6-flash">
       </label>

@@ -74,7 +74,7 @@
     const detail = (body && body.error && body.error.message) ? ` 詳細: ${body.error.message}` : '';
     if (status === 400) return 'リクエストが不正です（APIキー不正・モデル名不正・形式未対応の可能性）。' + detail;
     if (status === 401 || status === 403) return 'APIキーが無効、または権限がありません。設定を確認してください。' + detail;
-    if (status === 404) return 'モデルが見つかりません。設定のモデルIDを確認してください。' + detail;
+    if (status === 404) return 'モデルが見つかりません（HTTP 404）。モデルIDが存在しない可能性があります。設定のカスタムモデル欄で別のモデルIDを試せます。' + detail;
     if (status === 413) return 'ファイルが大きすぎます。';
     if (status === 429) return 'リクエスト上限（レート/クォータ）に達しました。しばらく待って再試行してください。' + detail;
     if (status >= 500) return 'Gemini API側のエラーです。時間をおいて再試行してください。' + detail;

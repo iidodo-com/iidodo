@@ -282,15 +282,35 @@
         h('span', { class: 'time' }, ''), spkSelect(s), h('span', { class: 'txt' }, s.text))));
     }
     if (curTab === 'summary') {
-      return cur.summary.length ? h('ul', { class: 'bul' }, ...cur.summary.map((t) => h('li', null, t))) : h('p', { class: 'muted' }, '（要約できる内容がありません）');
+      return h('div', null, editList(cur.summary, '要約'),
+        h('p', { class: 'muted small' }, '各項目は直接編集できます（変更は自動で履歴に保存されます）。'));
     }
     // actions
     return h('div', null,
       h('h3', null, '決定事項'),
-      cur.decisions.length ? h('ul', { class: 'bul' }, ...cur.decisions.map((t) => h('li', null, t))) : h('p', { class: 'muted' }, '（明確な決定事項は検出されませんでした）'),
+      editList(cur.decisions, '決定事項'),
       h('h3', null, 'ToDo'),
       cur.todos.length ? todoTable() : h('p', { class: 'muted' }, '（ToDoは検出されませんでした）'),
       h('p', { class: 'muted small' }, '担当・期限は、発話で明示されていない場合「不明」となります。ここで編集できます。'));
+  }
+
+  /* 配列(文字列)を直接編集できるリスト。変更は即時に履歴へ保存 */
+  function editList(arr, label) {
+    const fit = (ta) => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 2 + 'px'; };
+    const box = h('div', { class: 'edit-list' });
+    if (!arr.length) box.append(h('p', { class: 'muted' }, `（${label}はありません。追加できます）`));
+    arr.forEach((text, i) => {
+      const ta = h('textarea', { rows: '1', 'aria-label': `${label} ${i + 1}`, class: 'edit-item' });
+      ta.value = text;
+      ta.addEventListener('input', () => { arr[i] = ta.value; fit(ta); persist(); });
+      ta.addEventListener('blur', () => { if (!ta.value.trim()) { arr.splice(i, 1); persist(); buildResult(); } });
+      box.append(h('div', { class: 'edit-row' }, h('span', { 'aria-hidden': 'true' }, '・'), ta,
+        h('button', { type: 'button', class: 'btn ghost small-btn', 'aria-label': `${label} ${i + 1} を削除`,
+          onclick: () => { arr.splice(i, 1); persist(); buildResult(); } }, '削除')));
+      requestAnimationFrame(() => fit(ta));
+    });
+    box.append(h('button', { type: 'button', class: 'btn ghost small-btn', onclick: () => { arr.push(''); buildResult(); const t = document.querySelectorAll('.edit-item'); if (t.length) t[t.length - 1].focus(); } }, `＋${label}を追加`));
+    return box;
   }
 
   function todoTable() {
@@ -357,10 +377,14 @@
     $('#set-custom').value = s.customModel;
     $('#set-demo').checked = s.forceDemo;
     $('#set-custom-row').hidden = s.model !== '__custom';
+    $('#set-model-note').hidden = s.model !== 'gemini-3.5-flash';
   }
 
   function initSettings() {
-    $('#set-model').addEventListener('change', (e) => { $('#set-custom-row').hidden = e.target.value !== '__custom'; });
+    $('#set-model').addEventListener('change', (e) => {
+      $('#set-custom-row').hidden = e.target.value !== '__custom';
+      $('#set-model-note').hidden = e.target.value !== 'gemini-3.5-flash';
+    });
     $('#set-key-toggle').addEventListener('click', (e) => {
       const k = $('#set-key'); const show = k.type === 'password';
       k.type = show ? 'text' : 'password'; e.target.textContent = show ? '隠す' : '表示';
