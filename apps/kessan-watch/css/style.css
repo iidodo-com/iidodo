@@ -57,3 +57,9 @@ fieldset textarea{display:block;width:100%;margin-top:6px;padding:6px 8px;border
 article.doc{max-width:760px;margin:0 auto;padding:16px}
 article.doc h2{margin-top:1.6em;font-size:1.1rem}
 @media (max-width:600px){.calcell{min-height:60px}.chip{font-size:.62rem}}
+
+.badge.unset{color:var(--mut);border-style:dashed}
+.unsetnote{background:var(--card);border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin-bottom:12px}
+.unsetnote p{margin:4px 0 8px}
+.unsetlist{display:flex;flex-wrap:wrap;gap:6px}
+.unsetlist button{font-size:.82rem}

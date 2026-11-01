@@ -94,6 +94,20 @@
 
   function renderList() {
     var box = $("view-list"); box.textContent = "";
+    var unset = state.stocks.filter(function (s) {
+      return !state.events.some(function (e) { return e.code === s.code; });
+    });
+    if (unset.length) {
+      var note = h("div", { class: "unsetnote" }, [
+        h("strong", { text: "予定未設定の銘柄（" + unset.length + "件）" }),
+        h("p", { class: "hint", text: "決算日が登録されていません（ダミーデータは同梱サンプル銘柄のみ）。各社のIR情報で決算日を確認し、「予定を追加」から手動で登録してください。" })
+      ]);
+      var ul = h("div", { class: "unsetlist" });
+      unset.forEach(function (s) {
+        ul.appendChild(h("button", { type: "button", onclick: function () { openStock(s.code, true); }, text: s.code + " " + s.name + " ＋予定を追加" }));
+      });
+      note.appendChild(ul); box.appendChild(note);
+    }
     var fl = $("listFilter").value, evs = sortedEvents().filter(function (e) {
       var s = statusOf(e);
       if (fl === "upcoming") return s.d >= 0 && s.cls !== "done";
@@ -134,6 +148,7 @@
     box.appendChild(grid);
   }
 
+  function hasAny(code) { return state.events.some(function (e) { return e.code === code; }); }
   function renderStocks() {
     var box = $("view-stocks"); box.textContent = "";
     if (!state.stocks.length) { box.appendChild(h("p", { class: "empty", text: "ウォッチ銘柄がありません。「銘柄を追加」から登録してください。" })); return; }
@@ -142,8 +157,9 @@
       var next = sortedEvents().filter(function (e) { return e.code === s.code && dayDiff(e.date) >= 0; })[0];
       tb.appendChild(h("tr", {}, [
         h("td", {}, [h("strong", { text: s.code })]), h("td", { text: s.name }), h("td", { text: s.market === "US" ? "米国" : "日本" }),
-        h("td", { text: s.theme || "" }), h("td", { text: next ? next.date : "未設定" }), h("td", { class: "memo", text: s.memo || "" }),
+        h("td", { text: s.theme || "" }), h("td", {}, next ? [next.date] : hasAny(s.code) ? ["－（通過済）"] : [h("span", { class: "badge unset", text: "予定未設定" })]), h("td", { class: "memo", text: s.memo || "" }),
         h("td", { class: "actions" }, [
+          hasAny(s.code) ? null : h("button", { type: "button", class: "primary", onclick: function () { openStock(s.code, true); }, text: "予定を追加" }),
           h("button", { type: "button", onclick: function () { openStock(s.code); }, text: "編集" }),
           h("button", { type: "button", class: "danger", onclick: function () { delStock(s.code); }, text: "削除" })
         ])
@@ -166,7 +182,7 @@
 
   /* ---------- stock dialog ---------- */
   var editingCode = null;
-  function openStock(code) {
+  function openStock(code, focusDate) {
     editingCode = code || null;
     var s = code ? stockOf(code) : { code: "", name: "", market: "JP", theme: "", memo: "" };
     var ev = code ? sortedEvents().filter(function (e) { return e.code === code && e.source === "manual"; })[0] : null;
@@ -175,6 +191,7 @@
     $("f-name").value = s.name; $("f-market").value = s.market; $("f-theme").value = s.theme || ""; $("f-memo").value = s.memo || "";
     $("f-date").value = ev ? ev.date : ""; $("f-period").value = ev ? ev.period : "";
     $("stockDlg").showModal();
+    if (focusDate) $("f-date").focus();
   }
   function submitStock(ev) {
     ev.preventDefault();

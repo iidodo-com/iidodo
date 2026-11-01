@@ -23,7 +23,7 @@
     return toYmd(d);
   }
 
-  /** ダミーアダプタ: 同梱サンプルを本日基準の相対日で返す。ネットワーク通信なし。 */
+  /** ダミーアダプタ: 同梱サンプル14銘柄のみ、本日基準の相対日で返す。表にない銘柄は返さない。ネットワーク通信なし。 */
   var DummyAdapter = {
     id: "dummy",
     name: "ダミーデータ（サンプル同梱）",
@@ -35,12 +35,9 @@
       var out = [];
       stocks.forEach(function (s) {
         var row = table[s.code];
-        if (!row) {
-          // サンプル表にない銘柄: コード文字列から決定的に 3〜40 日後を割り当てる（架空の値）
-          var h = 0;
-          for (var i = 0; i < s.code.length; i++) h = (h * 31 + s.code.charCodeAt(i)) % 997;
-          row = { offset: 3 + (h % 38), period: "ダミー四半期" };
-        }
+        // サンプル表にない銘柄には日付を割り当てない（実在銘柄への架空日付の誤認を防ぐ）。
+        // 予定未設定として扱い、利用者が手動で決算日を追加する。
+        if (!row) return;
         out.push({ code: s.code, date: addDays(base, row.offset), period: row.period, source: "dummy" });
       });
       return Promise.resolve(out);
