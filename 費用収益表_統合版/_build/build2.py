@@ -194,6 +194,11 @@ def prep_input_sheet(ws, rows, first, last, kind):
     rng = f'A{first}:L{last}'
     ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${C_ST}{first}="昨年実績"'],
                                                    font=Font(color=RED_T)))
+    if kind == 'g':      # 確認済・未確認なのに支払日が令和8年度の範囲外（年の入力漏れなど）→ 紫で目立たせる
+        ws.conditional_formatting.add(f'A{first}:A{last}', FormulaRule(
+            formula=[f'AND(OR(${C_ST}{first}="確認済",${C_ST}{first}="未確認"),ISNUMBER($A{first}),'
+                     f'OR($A{first}<DATE(年度+2018,4,1),$A{first}>=DATE(年度+2019,4,1)))'],
+            font=Font(color='FFFFFF', bold=True), fill=PatternFill('solid', bgColor='7030A0', fgColor='7030A0')))
     add_status_fills(ws, f'F{first}:F{last}', first, C_ST)       # 金額セル（旧：青塗り）
     add_status_fills(ws, f'{C_ST}{first}:{C_ST}{last}', first, C_ST)   # 状態セル
     ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${C_ST}{first}="支払なし"'],
@@ -669,6 +674,10 @@ def prep_kashi_sheet(ws, sheet_idx, blocks_meta, krows):
         S = L(st)
         rng = f'{L(d)}{first}:{L(bal)}{b["last"]}'
         ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${S}{first}="昨年実績"'], font=Font(color=RED_T)))
+        ws.conditional_formatting.add(f'{L(d)}{first}:{L(d)}{b["last"]}', FormulaRule(
+            formula=[f'AND(OR(${S}{first}="確認済",${S}{first}="未確認"),ISNUMBER(${L(d)}{first}),'
+                     f'OR(${L(d)}{first}<DATE(年度+2018,4,1),${L(d)}{first}>=DATE(年度+2019,5,1)))'],
+            font=Font(color='FFFFFF', bold=True), fill=PatternFill('solid', bgColor='7030A0', fgColor='7030A0')))
         add_status_fills(ws, f'{L(a)}{first}:{L(a)}{b["last"]}', first, S)
         add_status_fills(ws, f'{S}{first}:{S}{b["last"]}', first, S)
         dv = DataValidation(type='list', formula1=f'={SH_MST}!$I$5:$I$8', allow_blank=True)
@@ -992,6 +1001,7 @@ def build_help2(wb):
               ('未確認', ST_FILL['未確認'], '今年の支払として入力済み・伝票は未確認（旧：黒字・塗りなし）。オレンジ。'),
               ('昨年実績', ST_FILL['昨年実績'], '昨年実績のまま（旧：赤字）。ピンクの塗りと赤字。集計には入りません。'),
               ('支払なし', ST_FILL['支払なし'], '今年度は支払がない行。灰色＋取り消し線。差引簿・集計から除外。'),
+              ('日付（紫・白字）', '7030A0', '確認済・未確認なのに、日付が令和8年度の範囲外（年の入れ忘れ・古い年のまま）。集計に入らないので直してください。'),
               ('費用収益表：未締め月', FUT_FILL, '締め月より後の月＝前年実績・見込（旧：緑字）。薄い緑の塗りと緑字。'),
               ('費用収益表：4月（未払）', ACR_FILL, '年度末の未払見込（旧：赤字）。薄いピンクの塗りと赤字。')]
     for name, col, memo in legend:
