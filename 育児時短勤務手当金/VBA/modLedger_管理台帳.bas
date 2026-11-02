@@ -228,7 +228,6 @@ Private Sub Word差し込み(ByVal rows As Collection)
             tmp.Close False
         End If
         w.Cells(v, "AR").Value = Date
-        w.Cells(v, "AT").ClearContents
         n = n + 1
     Next v
     out.Save
@@ -242,51 +241,41 @@ Fail:
     MsgBox "Wordへの差し込みに失敗しました（" & n & " 件まで処理済み）。" & vbLf & Err.Description, vbExclamation
 End Sub
 
-' 「不支給通知」シートの「作成」欄に直接入力された○（または削除）を、請求記録へ反映してから数式を戻す
-Private Sub 作成欄を反映()
-    Dim sh As Worksheet, r As Long, c As Range, n As Variant
+' 「不支給通知」シートの「作成」欄に○を入れた行の通知書を、Wordで作成する
+Public Sub 選択行の通知書をWordで作成()
+    Dim sh As Worksheet, w As Worksheet, r As Long, n As Variant, rows As New Collection, bad As String, marks As Long
     Set sh = ThisWorkbook.Worksheets("不支給通知")
-    Application.EnableEvents = False
+    Set w = ThisWorkbook.Worksheets("請求記録")
     For r = 7 To 306
-        Set c = sh.Cells(r, "K")
-        If Not c.HasFormula Then
+        If Trim(CStr(sh.Cells(r, "K").Value)) <> "" Then
             n = sh.Cells(r, "B").Value
             If IsNumeric(n) And n <> "" Then
-                If Trim(CStr(c.Value)) <> "" Then
-                    ThisWorkbook.Worksheets("請求記録").Cells(n, "AT").Value = "○"
+                marks = marks + 1
+                If w.Cells(n, "AF").Value <> "不支給" Then
+                    bad = bad & vbLf & w.Cells(n, "B").Value & " " & w.Cells(n, "Z").Value & "（不支給ではありません）"
+                ElseIf w.Cells(n, "AS").Value = "" Then
+                    bad = bad & vbLf & w.Cells(n, "B").Value & " " & w.Cells(n, "Z").Value & "（不支給の理由が未選択）"
+                ElseIf w.Cells(n, "AQ").Value = "" Then
+                    bad = bad & vbLf & w.Cells(n, "B").Value & " " & w.Cells(n, "Z").Value & "（通知日が未入力）"
                 Else
-                    ThisWorkbook.Worksheets("請求記録").Cells(n, "AT").ClearContents
+                    rows.Add CLng(n)
                 End If
             End If
-            c.Formula = "=IF($L" & r & "="""","""",IF(INDEX(請求記録!$AT$6:$AT$3005,$L" & r & ")="""","""",INDEX(請求記録!$AT$6:$AT$3005,$L" & r & ")))"
         End If
     Next r
-    Application.EnableEvents = True
-End Sub
-
-' 「通知書作成（○）」に○を付けた行をWordで作成する
-Public Sub 選択行の通知書をWordで作成()
-    Dim w As Worksheet, r As Long, rows As New Collection, bad As String, marks As Long
-    Set w = ThisWorkbook.Worksheets("請求記録")
-    作成欄を反映
-    For r = 6 To 3005
-        If w.Cells(r, "AT").Value <> "" Then
-            marks = marks + 1
-            If w.Cells(r, "AF").Value <> "不支給" Then
-                bad = bad & vbLf & w.Cells(r, "B").Value & " " & w.Cells(r, "Z").Value & "（不支給ではありません）"
-            ElseIf w.Cells(r, "AS").Value = "" Then
-                bad = bad & vbLf & w.Cells(r, "B").Value & " " & w.Cells(r, "Z").Value & "（不支給の理由が未選択）"
-            ElseIf w.Cells(r, "AQ").Value = "" Then
-                bad = bad & vbLf & w.Cells(r, "B").Value & " " & w.Cells(r, "Z").Value & "（通知日が未入力）"
-            Else
-                rows.Add r
-            End If
-        End If
-    Next r
-    If marks = 0 Then MsgBox "通知書を作る行の「作成」欄に○を付けてから押してください。", vbExclamation: Exit Sub
+    If marks = 0 Then MsgBox "「不支給通知」シートの「作成」欄に○を入力してから押してください。", vbExclamation: Exit Sub
     If bad <> "" Then MsgBox "次の行は作れないため、除きます。" & bad, vbExclamation
     If rows.Count = 0 Then Exit Sub
     Word差し込み rows
+    ' 作成できた行の○を消す
+    For r = 7 To 306
+        If Trim(CStr(sh.Cells(r, "K").Value)) <> "" Then
+            n = sh.Cells(r, "B").Value
+            If IsNumeric(n) And n <> "" Then
+                If w.Cells(n, "AR").Value = Date Then sh.Cells(r, "K").ClearContents
+            End If
+        End If
+    Next r
 End Sub
 
 ' ===== 旧い管理台帳の入力内容を引き継ぐ =====
