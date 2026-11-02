@@ -215,10 +215,10 @@ def drawing_xml(btns):
         out += (f'<xdr:twoCellAnchor editAs="absolute"><xdr:from><xdr:col>{c0}</xdr:col><xdr:colOff>{o0}</xdr:colOff><xdr:row>{r0}</xdr:row><xdr:rowOff>{ro0}</xdr:rowOff></xdr:from>'
                 f'<xdr:to><xdr:col>{c1}</xdr:col><xdr:colOff>{o1}</xdr:colOff><xdr:row>{r1}</xdr:row><xdr:rowOff>{ro1}</xdr:rowOff></xdr:to>'
                 f'<xdr:sp macro="[0]!{b["macro"]}" textlink=""><xdr:nvSpPr><xdr:cNvPr id="{i}" name="Button{i}"/><xdr:cNvSpPr/></xdr:nvSpPr>'
-                f'<xdr:spPr><a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="{b["color"]}"/></a:solidFill>'
-                f'<a:ln w="12700"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:ln></xdr:spPr>'
+                f'<xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="F2F2F2"/></a:solidFill>'
+                f'<a:ln w="9525"><a:solidFill><a:srgbClr val="7F7F7F"/></a:solidFill></a:ln></xdr:spPr>'
                 f'<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/><a:lstStyle/><a:p><a:pPr algn="ctr"/>'
-                f'<a:r><a:rPr lang="ja-JP" sz="1100" b="1"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:rPr><a:t>{b["label"]}</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>')
+                f'<a:r><a:rPr lang="ja-JP" sz="1000" b="0"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:rPr><a:t>{b["label"]}</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>')
     return out + "</xdr:wsDr>"
 
 
@@ -227,11 +227,7 @@ BUTTONS = {  # シート名 -> ボタン定義
              dict(label="翌月分用にクリア", macro="翌月分用にクリア", color="7F7F7F", pos=(10, 1450000, 0, 40000, 10, 2750000, 0, 360000)),
              dict(label="請求日を今日に", macro="請求日を今日にする", color="7F7F7F", pos=(10, 2850000, 0, 40000, 10, 4000000, 0, 360000)),
              dict(label="共済組合へメール送信", macro="共済組合へメール送信", color="C55A11", pos=(11, 60000, 0, 40000, 11, 3000000, 0, 360000))],
-    "不支給通知": [dict(label="未出力をWordで作成", macro="未出力の通知書をWordで作成", color="1F4E78", pos=(2, 0, 0, 60000, 4, 0, 2, 150000)),
-                dict(label="選択行をWordで作成", macro="選択行の通知書をWordで作成", color="1F4E78", pos=(4, 60000, 0, 60000, 6, 0, 2, 150000)),
-                dict(label="選択行の通知書を表示", macro="選択行の通知書を表示", color="7F7F7F", pos=(6, 60000, 0, 60000, 7, 0, 2, 150000)),
-                dict(label="一括PDF出力", macro="未出力の通知書を一括PDF出力", color="2E7D32", pos=(7, 60000, 0, 60000, 9, 0, 2, 150000)),
-                dict(label="一括印刷", macro="未出力の通知書を一括印刷", color="2E7D32", pos=(9, 60000, 0, 60000, 10, 700000, 2, 150000))],
+    "不支給通知": [dict(label="選択行をWordで作成", macro="選択行の通知書をWordで作成", color="", pos=(2, 0, 0, 60000, 4, 0, 2, 150000))],
     "設定": [dict(label="旧台帳から引き継ぐ", macro="旧台帳から引き継ぐ", color="7F7F7F", pos=(13, 0, 0, 60000, 14, 0, 2, 150000))],
     "請求記録": [dict(label="申請書ファイルを取り込む", macro="申請書ファイルを取り込む", color="2E7D32", pos=(12, 0, 0, 60000, 15, 0, 2, 150000)),
              dict(label="フォルダ内の申請書を一括取込", macro="申請書フォルダを一括取り込む", color="2E7D32", pos=(15, 60000, 0, 60000, 18, 0, 2, 150000)),

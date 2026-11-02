@@ -17,7 +17,7 @@ guide = wb.create_sheet("使い方", 0)
 FN = "Meiryo UI"
 YEL = PatternFill("solid", fgColor="FFF9C4")
 GRY = PatternFill("solid", fgColor="E7E6E6")
-SEC = PatternFill("solid", fgColor="1F4E78")
+SEC = PatternFill("solid", fgColor="DDEBF7")
 thin = Side(style="thin", color="999999")
 BOX = Border(left=thin, right=thin, top=thin, bottom=thin)
 
@@ -27,7 +27,7 @@ inp.sheet_view.showGridLines = False
 inp.sheet_view.zoomScale = 100
 
 inp["B1"] = "育児時短勤務手当金請求書　入力シート"
-inp["B1"].font = Font(name=FN, size=16, bold=True)
+inp["B1"].font = Font(name=FN, size=14, bold=True)
 inp.row_dimensions[1].height = 32
 inp.merge_cells("B2:L2")
 inp["B3"] = "黄色いセルに入力してください。右の「チェック」欄が ✓（緑）になれば正しく入力できています。✕（赤）は必ず直してください。標準報酬月額は「⑧」に入力してください（☆の決定額・個人番号は共済組合が記入するので入力不要です）。"
@@ -37,7 +37,7 @@ inp["B3"].font = Font(name=FN, size=10)
 inp.row_dimensions[3].height = 30
 inp["K4"], inp["L4"] = "チェック（自動）", "記入例・説明"
 for c in ("K4", "L4"):
-    inp[c].font = Font(name=FN, size=10, bold=True, color="FFFFFF")
+    inp[c].font = Font(name=FN, size=10, bold=True, color="000000")
     inp[c].fill = SEC
 
 inputs = []  # 入力セル(保護解除・黄色)
@@ -46,7 +46,7 @@ inputs = []  # 入力セル(保護解除・黄色)
 def sec(r, t):
     inp.merge_cells(f"B{r}:L{r}")
     inp[f"B{r}"] = t
-    inp[f"B{r}"].font = Font(name=FN, size=11, bold=True, color="FFFFFF")
+    inp[f"B{r}"].font = Font(name=FN, size=11, bold=True, color="000000")
     inp[f"B{r}"].fill = SEC
 
 
@@ -511,7 +511,7 @@ for cl, nm in zip("BCDEFGHI", ("親睦会", "所属控除金手数料", None, No
 ky.row_dimensions[27].height = 6
 # 通勤手当（複数月分）
 ky.merge_cells("A31:I31")
-kb("A31", "通勤手当（複数月分をまとめて支給されている場合のみ入力）", size=11, bold=True, font=FN, color="FFFFFF", fill=SEC)
+kb("A31", "通勤手当（複数月分をまとめて支給されている場合のみ入力）", size=11, bold=True, font=FN, color="000000", fill=SEC)
 LBL = PatternFill("solid", fgColor="F2F2F2")
 
 
@@ -581,7 +581,7 @@ ky.column_dimensions["K"].hidden = True
 
 # 報酬額の計算
 ky.merge_cells("A40:I40")
-kb("A40", "報酬額の計算（請求書の「支給対象月に支払われた報酬の額」）", size=11, bold=True, font=FN, color="FFFFFF", fill=SEC)
+kb("A40", "報酬額の計算（請求書の「支給対象月に支払われた報酬の額」）", size=11, bold=True, font=FN, color="000000", fill=SEC)
 calc = [(41, "① 総支給額（明細）", "=B12", ""),
         (42, "② − 期末手当", "=-N(D19)", "請求の報酬から除外"),
         (43, "③ − 勤勉手当", "=-N(E19)", "請求の報酬から除外"),
@@ -681,17 +681,17 @@ cols = [("職員番号", "C6"), ("対象年(令和)", "D7"), ("対象月", "F7")
         ("請求期間開始", "N23"), ("請求期間終了", "N24"), ("子の氏名", "C25"), ("子の生年月日", "N26"), ("所属名称", "C15"),
         ("請求日", "N37"), ("初回請求", "C19")]
 for i, (h, a) in enumerate(cols, 1):
-    ex.cell(1, i, h).font = Font(name=FN, bold=True, color="FFFFFF")
+    ex.cell(1, i, h).font = Font(name=FN, bold=True, color="000000")
     ex.cell(1, i).fill = SEC
     ex.cell(2, i, f'=IF(入力!{a}="","",入力!{a})')
     ex.column_dimensions[openpyxl.utils.get_column_letter(i)].width = 14
     if h.endswith("日") or h in ("請求期間開始", "請求期間終了"):
         ex.cell(2, i).number_format = "yyyy/m/d"
-ex.cell(1, 20, "入力エラー件数").font = Font(name=FN, bold=True, color="FFFFFF")
+ex.cell(1, 20, "入力エラー件数").font = Font(name=FN, bold=True, color="000000")
 ex.cell(1, 20).fill = SEC
 ex.cell(2, 20, '=COUNTIF(入力!K6:K57,"✕*")')
 for j, (h, a) in enumerate((("標準報酬等級", "C54"), ("標準報酬月額", "C55")), 21):
-    ex.cell(1, j, h).font = Font(name=FN, bold=True, color="FFFFFF")
+    ex.cell(1, j, h).font = Font(name=FN, bold=True, color="000000")
     ex.cell(1, j).fill = SEC
     ex.cell(2, j, f'=IF(入力!{a}="","",入力!{a})')
     ex.column_dimensions[openpyxl.utils.get_column_letter(j)].width = 14

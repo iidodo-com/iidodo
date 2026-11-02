@@ -122,104 +122,6 @@ Public Sub 未処理に支給月を一括入力()
     MsgBox n & " 件に支給月 " & s & " を入力しました。", vbInformation
 End Sub
 
-' ===== 不支給通知書 =====
-' 請求記録：AF=ステータス AO=不支給理由 AQ=通知日 AR=通知書出力日 AS=適用する不支給理由
-
-' 請求記録（または不支給通知）で選んだ行の通知書を表示する
-Public Sub 選択行の通知書を表示()
-    Dim r As Long, wn As Worksheet
-    Set wn = ThisWorkbook.Worksheets("不支給通知書")
-    Select Case ActiveSheet.Name
-        Case "請求記録"
-            r = ActiveCell.Row
-        Case "不支給通知"
-            If IsNumeric(ActiveSheet.Cells(ActiveCell.Row, "B").Value) And ActiveSheet.Cells(ActiveCell.Row, "B").Value <> "" Then r = ActiveSheet.Cells(ActiveCell.Row, "B").Value
-        Case Else
-            MsgBox "「請求記録」または「不支給通知」シートで、通知書を出したい行のセルを選んでから押してください。", vbExclamation
-            Exit Sub
-    End Select
-    If r < 6 Then MsgBox "通知書を出したい行（請求）を選んでください。", vbExclamation: Exit Sub
-    wn.Range("L2").Value = r
-    Application.Calculate
-    wn.Activate
-    wn.Range("A1").Select
-    If ThisWorkbook.Worksheets("請求記録").Cells(r, "AF").Value <> "不支給" Then
-        MsgBox "この請求のステータスは「不支給」ではありません（" & ThisWorkbook.Worksheets("請求記録").Cells(r, "AF").Value & "）。", vbExclamation
-    End If
-End Sub
-
-' 出力できる行（不支給・理由あり・通知日あり・未出力）を集める。不備の件数も数える
-Private Function 出力対象(ByRef noReason As Long, ByRef noDate As Long) As Collection
-    Dim w As Worksheet, r As Long, c As New Collection
-    Set w = ThisWorkbook.Worksheets("請求記録")
-    For r = 6 To 3005
-        If w.Cells(r, "AF").Value = "不支給" And w.Cells(r, "AR").Value = "" Then
-            If w.Cells(r, "AS").Value = "" Then
-                noReason = noReason + 1
-            ElseIf w.Cells(r, "AQ").Value = "" Then
-                noDate = noDate + 1
-            Else
-                c.Add r
-            End If
-        End If
-    Next r
-    Set 出力対象 = c
-End Function
-
-Private Function 不備メッセージ(ByVal noReason As Long, ByVal noDate As Long) As String
-    If noReason > 0 Then 不備メッセージ = vbLf & "・不支給の理由が未選択：" & noReason & " 件（請求記録の「不支給理由（区分）」）"
-    If noDate > 0 Then 不備メッセージ = 不備メッセージ & vbLf & "・通知日が未入力：" & noDate & " 件（請求記録の「通知日（決裁完了日）」）"
-End Function
-
-' 未出力の通知書を1人1ファイルのPDFで保存する（このファイルと同じ場所の「不支給通知書_日付」フォルダ）
-Public Sub 未出力の通知書を一括PDF出力()
-    Dim noR As Long, noD As Long, items As Collection, v As Variant, wn As Worksheet, w As Worksheet
-    Dim folder As String, fn As String, n As Long
-    If ThisWorkbook.Path = "" Then MsgBox "先にこのファイルを保存してください。", vbExclamation: Exit Sub
-    Set items = 出力対象(noR, noD)
-    If items.Count = 0 Then MsgBox "出力する通知書がありません。" & 不備メッセージ(noR, noD), vbInformation: Exit Sub
-    If MsgBox(items.Count & " 件の通知書をPDFで保存します。" & 不備メッセージ(noR, noD) & vbLf & vbLf & "よろしいですか？", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
-    folder = ThisWorkbook.Path & "\不支給通知書_" & Format(Date, "yyyymmdd")
-    If Dir(folder, vbDirectory) = "" Then MkDir folder
-    Set wn = ThisWorkbook.Worksheets("不支給通知書")
-    Set w = ThisWorkbook.Worksheets("請求記録")
-    On Error GoTo Fail
-    Application.ScreenUpdating = False
-    For Each v In items
-        wn.Range("L2").Value = v
-        Application.Calculate
-        fn = folder & "\不支給通知書_" & w.Cells(v, "B").Value & "_R" & w.Cells(v, "C").Value & "." & w.Cells(v, "D").Value & ".pdf"
-        wn.ExportAsFixedFormat Type:=xlTypePDF, Filename:=fn, Quality:=xlQualityStandard, OpenAfterPublish:=False
-        w.Cells(v, "AR").Value = Date
-        n = n + 1
-    Next v
-    Application.ScreenUpdating = True
-    Shell "explorer.exe """ & folder & """", vbNormalFocus
-    MsgBox n & " 件のPDFを保存しました。" & vbLf & folder, vbInformation
-    Exit Sub
-Fail:
-    Application.ScreenUpdating = True
-    MsgBox "PDFの保存に失敗しました（" & n & " 件まで保存済み）。" & vbLf & Err.Description, vbExclamation
-End Sub
-
-' 未出力の通知書をまとめて印刷する
-Public Sub 未出力の通知書を一括印刷()
-    Dim noR As Long, noD As Long, items As Collection, v As Variant, wn As Worksheet, w As Worksheet, n As Long
-    Set items = 出力対象(noR, noD)
-    If items.Count = 0 Then MsgBox "出力する通知書がありません。" & 不備メッセージ(noR, noD), vbInformation: Exit Sub
-    If MsgBox(items.Count & " 件の通知書を印刷します。" & 不備メッセージ(noR, noD) & vbLf & vbLf & "よろしいですか？", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
-    Set wn = ThisWorkbook.Worksheets("不支給通知書")
-    Set w = ThisWorkbook.Worksheets("請求記録")
-    For Each v In items
-        wn.Range("L2").Value = v
-        Application.Calculate
-        wn.PrintOut Copies:=1
-        w.Cells(v, "AR").Value = Date
-        n = n + 1
-    Next v
-    MsgBox n & " 件の通知書を印刷しました。", vbInformation
-End Sub
-
 ' ===== 不支給通知書（Word） =====
 ' 「不支給通知書テンプレート.docx」（台帳と同じフォルダ）の {通知日} などを差し込み、1つのWord文書にまとめる（1通＝1ページ）
 
@@ -266,6 +168,7 @@ Private Sub Word差し込み(ByVal rows As Collection)
             tmp.Close False
         End If
         w.Cells(v, "AR").Value = Date
+        w.Cells(v, "AT").ClearContents
         n = n + 1
     Next v
     out.Save
@@ -294,31 +197,42 @@ Private Sub 置換(ByVal doc As Object, ByVal tok As String, ByVal val As String)
     End With
 End Sub
 
-' 未出力の通知書をWordにまとめる
-Public Sub 未出力の通知書をWordで作成()
-    Dim noR As Long, noD As Long, items As Collection
-    Set items = 出力対象(noR, noD)
-    If items.Count = 0 Then MsgBox "出力する通知書がありません。" & 不備メッセージ(noR, noD), vbInformation: Exit Sub
-    If MsgBox(items.Count & " 件の通知書をWordで作成します。" & 不備メッセージ(noR, noD) & vbLf & vbLf & "よろしいですか？", vbYesNo + vbQuestion) <> vbYes Then Exit Sub
-    Word差し込み items
-End Sub
-
-' 選んだ行の通知書だけをWordで作成する（出力済みでも可）
+' 「作成」欄に○を付けた行の通知書を、1つのWord文書にまとめる（○が1つも無いときは、選んでいる行だけ）
 Public Sub 選択行の通知書をWordで作成()
-    Dim r As Long, c As New Collection
-    Select Case ActiveSheet.Name
-        Case "請求記録"
-            r = ActiveCell.Row
-        Case "不支給通知"
-            If IsNumeric(ActiveSheet.Cells(ActiveCell.Row, "B").Value) And ActiveSheet.Cells(ActiveCell.Row, "B").Value <> "" Then r = ActiveSheet.Cells(ActiveCell.Row, "B").Value
-        Case Else
-            MsgBox "「請求記録」または「不支給通知」シートで、通知書を出したい行を選んでから押してください。", vbExclamation
-            Exit Sub
-    End Select
-    If r < 6 Then MsgBox "通知書を出したい行（請求）を選んでください。", vbExclamation: Exit Sub
-    If ThisWorkbook.Worksheets("請求記録").Cells(r, "AF").Value <> "不支給" Then MsgBox "この請求は「不支給」ではありません。", vbExclamation: Exit Sub
-    c.Add r
-    Word差し込み c
+    Dim w As Worksheet, r As Long, rows As New Collection, bad As String, marks As Long, a As Variant
+    Set w = ThisWorkbook.Worksheets("請求記録")
+    For r = 6 To 3005
+        If w.Cells(r, "AT").Value <> "" Then marks = marks + 1
+    Next r
+    If marks = 0 Then
+        Select Case ActiveSheet.Name
+            Case "請求記録"
+                r = ActiveCell.Row
+            Case "不支給通知"
+                r = 0
+                If IsNumeric(ActiveSheet.Cells(ActiveCell.Row, "B").Value) And ActiveSheet.Cells(ActiveCell.Row, "B").Value <> "" Then r = ActiveSheet.Cells(ActiveCell.Row, "B").Value
+            Case Else
+                r = 0
+        End Select
+        If r < 6 Then MsgBox "通知書を作る行の「作成」欄に○を付けてから押してください。", vbExclamation: Exit Sub
+        w.Cells(r, "AT").Value = "○"
+    End If
+    For r = 6 To 3005
+        If w.Cells(r, "AT").Value <> "" Then
+            If w.Cells(r, "AF").Value <> "不支給" Then
+                bad = bad & vbLf & w.Cells(r, "B").Value & " " & w.Cells(r, "Z").Value & "（不支給ではありません）"
+            ElseIf w.Cells(r, "AS").Value = "" Then
+                bad = bad & vbLf & w.Cells(r, "B").Value & " " & w.Cells(r, "Z").Value & "（不支給の理由が未選択）"
+            ElseIf w.Cells(r, "AQ").Value = "" Then
+                bad = bad & vbLf & w.Cells(r, "B").Value & " " & w.Cells(r, "Z").Value & "（通知日が未入力）"
+            Else
+                rows.Add r
+            End If
+        End If
+    Next r
+    If bad <> "" Then MsgBox "次の行は作れないため、除きます。" & bad, vbExclamation
+    If rows.Count = 0 Then Exit Sub
+    Word差し込み rows
 End Sub
 
 ' ===== 旧い管理台帳の入力内容を引き継ぐ =====
