@@ -52,6 +52,17 @@ ST_FILL = {'確認済': 'BDD7EE', '未確認': 'F8CBAD', '昨年実績': 'FFD9D9
 FUT_FILL, ACR_FILL = 'E2EFDA', 'FCE4E4'      # 費用収益表：未締め月／4月（未払）
 
 
+def excluded_cf(ws, rng, cond, with_label=True):
+    """集計に入らない行を、紫＋白字で目立たせる。状態セルには「集計外」と表示する（Excelの表示形式）"""
+    from openpyxl.formatting.rule import Rule
+    from openpyxl.styles.differential import DifferentialStyle
+    from openpyxl.styles.numbers import NumberFormat
+    dxf = DifferentialStyle(font=Font(color='FFFFFF', bold=True),
+                            fill=PatternFill('solid', bgColor='7030A0', fgColor='7030A0'),
+                            numFmt=NumberFormat(numFmtId=190, formatCode=';;;"集計外"') if with_label else None)
+    ws.conditional_formatting.add(rng, Rule(type='expression', formula=[cond], dxf=dxf, stopIfTrue=False))
+
+
 def add_status_fills(ws, rng, first_row, status_col):
     """状態に応じてセルを塗りつぶす（条件付き書式）。rng＝塗る範囲、status_col＝状態の列記号"""
     for st, col in ST_FILL.items():
@@ -194,11 +205,11 @@ def prep_input_sheet(ws, rows, first, last, kind):
     rng = f'A{first}:L{last}'
     ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${C_ST}{first}="昨年実績"'],
                                                    font=Font(color=RED_T)))
-    if kind == 'g':      # 確認済・未確認なのに支払日が令和8年度の範囲外（年の入力漏れなど）→ 紫で目立たせる
-        ws.conditional_formatting.add(f'A{first}:A{last}', FormulaRule(
-            formula=[f'AND(OR(${C_ST}{first}="確認済",${C_ST}{first}="未確認"),ISNUMBER($A{first}),'
-                     f'OR($A{first}<DATE(年度+2018,4,1),$A{first}>=DATE(年度+2019,4,1)))'],
-            font=Font(color='FFFFFF', bold=True), fill=PatternFill('solid', bgColor='7030A0', fgColor='7030A0')))
+    if kind == 'g':      # 確認済・未確認なのに支払日が令和8年度の範囲外 → 集計されない（紫・「集計外」）
+        cond = (f'AND(OR(${C_ST}{first}="確認済",${C_ST}{first}="未確認"),'
+                f'OR(NOT(ISNUMBER($A{first})),$A{first}<DATE(年度+2018,4,1),$A{first}>=DATE(年度+2019,4,1)))')
+        excluded_cf(ws, f'A{first}:A{last}', cond, with_label=False)
+        excluded_cf(ws, f'{C_ST}{first}:{C_ST}{last}', cond)
     add_status_fills(ws, f'F{first}:F{last}', first, C_ST)       # 金額セル（旧：青塗り）
     add_status_fills(ws, f'{C_ST}{first}:{C_ST}{last}', first, C_ST)   # 状態セル
     ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${C_ST}{first}="支払なし"'],
@@ -343,6 +354,11 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
         ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${ST}{first}="昨年実績"'], font=Font(color=RED_T)))
         add_status_fills(ws, f'{A}{first}:{A}{last}', first, ST)
         add_status_fills(ws, f'{ST}{first}:{ST}{last}', first, ST)
+        if not unpaid:
+            cond = (f'AND(OR(${ST}{first}="確認済",${ST}{first}="未確認"),'
+                    f'OR(NOT(ISNUMBER(${D}{first})),${D}{first}<DATE(年度+2018,4,1),${D}{first}>=DATE(年度+2019,4,1)))')
+            excluded_cf(ws, f'{D}{first}:{D}{last}', cond, with_label=False)
+            excluded_cf(ws, f'{ST}{first}:{ST}{last}', cond)
         out[k] = dict(sheet=ws.title, first=first, last=last, d=D, t=T, a=A, bal=BAL, st=ST, cap=cap)
     if unpaid:
         amtc = 'H' if side == 'S' else C_LONG
@@ -674,10 +690,19 @@ def prep_kashi_sheet(ws, sheet_idx, blocks_meta, krows):
         S = L(st)
         rng = f'{L(d)}{first}:{L(bal)}{b["last"]}'
         ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${S}{first}="昨年実績"'], font=Font(color=RED_T)))
-        ws.conditional_formatting.add(f'{L(d)}{first}:{L(d)}{b["last"]}', FormulaRule(
-            formula=[f'AND(OR(${S}{first}="確認済",${S}{first}="未確認"),ISNUMBER(${L(d)}{first}),'
-                     f'OR(${L(d)}{first}<DATE(年度+2018,4,1),${L(d)}{first}>=DATE(年度+2019,5,1)))'],
-            font=Font(color='FFFFFF', bold=True), fill=PatternFill('solid', bgColor='7030A0', fgColor='7030A0')))
+        cond = (f'AND(OR(${S}{first}="確認済",${S}{first}="未確認"),'
+                f'OR(NOT(ISNUMBER(${L(d)}{first})),${L(d)}{first}<DATE(年度+2018,4,1),${L(d)}{first}>=DATE(年度+2019,5,1)))')
+        excluded_cf(ws, f'{L(d)}{first}:{L(d)}{b["last"]}', cond, with_label=False)
+        excluded_cf(ws, f'{S}{first}:{S}{b["last"]}', cond)
+        sr = lambda c_: f"${c_}${first}:${c_}${b['last']}"
+        terms = '+'.join(
+            [f'COUNTIFS({sr(S)},"{st_}",{sr(L(d))},"{op}"&DATE(年度+{y_},{m_},1))'
+             for st_ in ('確認済', '未確認') for op, y_, m_ in (('<', 2018, 4), ('>=', 2019, 5))] +
+            [f'COUNTIFS({sr(S)},"{st_}",{sr(L(d))},"")' for st_ in ('確認済', '未確認')])
+        hc = ws.cell(b['header'], st, f'=IF(({terms})>0,"集計外 "&({terms})&"件","")')
+        hc.font = font(9, True, 'FFFFFF')
+        hc.fill = fill('7030A0')
+        hc.alignment = Alignment(horizontal='center')
         add_status_fills(ws, f'{L(a)}{first}:{L(a)}{b["last"]}', first, S)
         add_status_fills(ws, f'{S}{first}:{S}{b["last"]}', first, S)
         dv = DataValidation(type='list', formula1=f'={SH_MST}!$I$5:$I$8', allow_blank=True)
@@ -1001,7 +1026,7 @@ def build_help2(wb):
               ('未確認', ST_FILL['未確認'], '今年の支払として入力済み・伝票は未確認（旧：黒字・塗りなし）。オレンジ。'),
               ('昨年実績', ST_FILL['昨年実績'], '昨年実績のまま（旧：赤字）。ピンクの塗りと赤字。集計には入りません。'),
               ('支払なし', ST_FILL['支払なし'], '今年度は支払がない行。灰色＋取り消し線。差引簿・集計から除外。'),
-              ('日付（紫・白字）', '7030A0', '確認済・未確認なのに、日付が令和8年度の範囲外（年の入れ忘れ・古い年のまま）。集計に入らないので直してください。'),
+              ('日付（紫・白字）', '7030A0', '確認済・未確認なのに、日付が空欄または令和8年度の範囲外（年の入れ忘れ・古い年のまま）。状態のセルに「集計外」と出ます。集計に入らないので日付を直してください。'),
               ('費用収益表：未締め月', FUT_FILL, '締め月より後の月＝前年実績・見込（旧：緑字）。薄い緑の塗りと緑字。'),
               ('費用収益表：4月（未払）', ACR_FILL, '年度末の未払見込（旧：赤字）。薄いピンクの塗りと赤字。')]
     for name, col, memo in legend:
