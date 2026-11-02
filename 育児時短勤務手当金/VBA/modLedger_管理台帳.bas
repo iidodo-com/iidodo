@@ -123,37 +123,97 @@ Public Sub 未処理に支給月を一括入力()
 End Sub
 
 ' ===== 不支給通知書（Word） =====
-' 「不支給通知書テンプレート.docx」（台帳と同じフォルダ）の {通知日} などを差し込み、1つのWord文書にまとめる（1通＝1ページ）
+' 「請求記録」の「通知書作成（○）」に○を付けた行だけを、Wordで作成する。
+' 台帳と同じフォルダの「不支給通知書テンプレート.docx」の {通知日} などに値を差し込み、1つのWord文書（1通＝1ページ）にまとめる
+
+Private Function 和暦(ByVal d As Variant) As String
+    If IsDate(d) Then
+        和暦 = "令和" & (Year(d) - 2018) & "年" & Month(d) & "月" & Day(d) & "日"
+    Else
+        和暦 = "令和　　年　　月　　日"
+    End If
+End Function
+
+Private Function 金額(ByVal v As Variant) As String
+    If IsNumeric(v) And v <> "" Then 金額 = Format(v, "#,##0") & "円"
+End Function
+
+Private Function 差込値(ByVal w As Worksheet, ByVal cf As Worksheet, ByVal r As Long) As Variant
+    Dim t As Long, reason As String, kbn As String, i As Long, vals(0 To 13) As String
+    kbn = w.Cells(r, "AS").Value
+    t = 2
+    For i = 3 To 12
+        If kbn <> "" And cf.Cells(i, "J").Value = kbn Then
+            reason = cf.Cells(i, "K").Value
+            t = Val(cf.Cells(i, "L").Value)
+            Exit For
+        End If
+    Next i
+    If w.Cells(r, "AP").Value <> "" Then reason = w.Cells(r, "AP").Value
+    reason = Replace(reason, "{最低限度額}", Format(cf.Range("C3").Value, "#,##0"))
+    vals(0) = 和暦(w.Cells(r, "AQ").Value)
+    vals(1) = w.Cells(r, "Y").Value
+    vals(2) = w.Cells(r, "X").Value
+    vals(3) = w.Cells(r, "B").Value
+    vals(4) = 和暦(w.Cells(r, "A").Value)
+    vals(5) = StrConv("令和" & w.Cells(r, "C").Value & "年" & w.Cells(r, "D").Value & "月", vbWide)
+    vals(6) = reason
+    If t = 1 Or t = 3 Then
+        vals(7) = "※詳細については下記のとおり"
+        vals(8) = "育児時短勤務を開始した月の標準報酬月額"
+        vals(9) = 金額(w.Cells(r, "AA").Value)
+        vals(10) = "対象月の報酬額"
+        vals(11) = 金額(w.Cells(r, "E").Value)
+    End If
+    If t = 3 Then
+        vals(12) = "算出した支給額（最低限度額以下）"
+        vals(13) = 金額(w.Cells(r, "AC").Value)
+    End If
+    差込値 = vals
+End Function
+
+Private Sub 置換(ByVal doc As Object, ByVal tok As String, ByVal val As String)
+    If Len(val) > 250 Then val = Left(val, 250)
+    With doc.Content.Find
+        .ClearFormatting
+        .Replacement.ClearFormatting
+        .Text = tok
+        .Replacement.Text = val
+        .Forward = True
+        .Wrap = 0
+        .MatchWildcards = False
+        .Execute Replace:=2
+    End With
+End Sub
 
 Private Sub Word差し込み(ByVal rows As Collection)
-    Dim wd As Object, out As Object, tmp As Object, tpl As String, outPath As String, v As Variant
-    Dim wn As Worksheet, w As Worksheet, i As Long, rg As Object, n As Long, k As Long
-    Set wn = ThisWorkbook.Worksheets("不支給通知書")
+    Dim wd As Object, out As Object, tmp As Object, tpl As String, outPath As String, v As Variant, f As Variant
+    Dim w As Worksheet, cf As Worksheet, rg As Object, n As Long, k As Long, i As Long, toks As Variant, vals As Variant
     Set w = ThisWorkbook.Worksheets("請求記録")
+    Set cf = ThisWorkbook.Worksheets("設定")
+    If ThisWorkbook.Path = "" Then MsgBox "先にこのファイルを保存してください。", vbExclamation: Exit Sub
     tpl = ThisWorkbook.Path & "\不支給通知書テンプレート.docx"
     If Dir(tpl) = "" Then
-        Dim f As Variant
         f = Application.GetOpenFilename("Word文書 (*.docx),*.docx", , "不支給通知書テンプレートを選択")
         If VarType(f) = vbBoolean Then Exit Sub
         tpl = CStr(f)
     End If
-    If ThisWorkbook.Path = "" Then MsgBox "先にこのファイルを保存してください。", vbExclamation: Exit Sub
     outPath = ThisWorkbook.Path & "\不支給通知書_" & Format(Date, "yyyymmdd") & ".docx"
     k = 1
     Do While Dir(outPath) <> ""
         k = k + 1
         outPath = ThisWorkbook.Path & "\不支給通知書_" & Format(Date, "yyyymmdd") & "_" & k & ".docx"
     Loop
+    toks = Array("{通知日}", "{所属}", "{氏名}", "{職員番号}", "{受理日}", "{対象月}", "{理由}", "{詳細注記}", "{明細項目1}", "{明細金額1}", "{明細項目2}", "{明細金額2}", "{明細項目3}", "{明細金額3}")
     On Error GoTo NoWord
     Set wd = CreateObject("Word.Application")
     On Error GoTo Fail
     wd.Visible = True
     For Each v In rows
-        wn.Range("L2").Value = v
-        Application.Calculate
+        vals = 差込値(w, cf, CLng(v))
         Set tmp = wd.Documents.Open(tpl, ReadOnly:=True)
-        For i = 2 To 15
-            置換 tmp, CStr(wn.Cells(i, "N").Value), CStr(wn.Cells(i, "O").Value)
+        For i = 0 To 13
+            置換 tmp, CStr(toks(i)), CStr(vals(i))
         Next i
         If out Is Nothing Then
             Set out = tmp
@@ -182,43 +242,13 @@ Fail:
     MsgBox "Wordへの差し込みに失敗しました（" & n & " 件まで処理済み）。" & vbLf & Err.Description, vbExclamation
 End Sub
 
-Private Sub 置換(ByVal doc As Object, ByVal tok As String, ByVal val As String)
-    If tok = "" Then Exit Sub
-    If Len(val) > 250 Then val = Left(val, 250)
-    With doc.Content.Find
-        .ClearFormatting
-        .Replacement.ClearFormatting
-        .Text = tok
-        .Replacement.Text = val
-        .Forward = True
-        .Wrap = 0
-        .MatchWildcards = False
-        .Execute Replace:=2
-    End With
-End Sub
-
-' 「作成」欄に○を付けた行の通知書を、1つのWord文書にまとめる（○が1つも無いときは、選んでいる行だけ）
+' 「通知書作成（○）」に○を付けた行をWordで作成する
 Public Sub 選択行の通知書をWordで作成()
-    Dim w As Worksheet, r As Long, rows As New Collection, bad As String, marks As Long, a As Variant
+    Dim w As Worksheet, r As Long, rows As New Collection, bad As String, marks As Long
     Set w = ThisWorkbook.Worksheets("請求記録")
     For r = 6 To 3005
-        If w.Cells(r, "AT").Value <> "" Then marks = marks + 1
-    Next r
-    If marks = 0 Then
-        Select Case ActiveSheet.Name
-            Case "請求記録"
-                r = ActiveCell.Row
-            Case "不支給通知"
-                r = 0
-                If IsNumeric(ActiveSheet.Cells(ActiveCell.Row, "B").Value) And ActiveSheet.Cells(ActiveCell.Row, "B").Value <> "" Then r = ActiveSheet.Cells(ActiveCell.Row, "B").Value
-            Case Else
-                r = 0
-        End Select
-        If r < 6 Then MsgBox "通知書を作る行の「作成」欄に○を付けてから押してください。", vbExclamation: Exit Sub
-        w.Cells(r, "AT").Value = "○"
-    End If
-    For r = 6 To 3005
         If w.Cells(r, "AT").Value <> "" Then
+            marks = marks + 1
             If w.Cells(r, "AF").Value <> "不支給" Then
                 bad = bad & vbLf & w.Cells(r, "B").Value & " " & w.Cells(r, "Z").Value & "（不支給ではありません）"
             ElseIf w.Cells(r, "AS").Value = "" Then
@@ -230,6 +260,7 @@ Public Sub 選択行の通知書をWordで作成()
             End If
         End If
     Next r
+    If marks = 0 Then MsgBox "通知書を作る行の「作成」欄に○を付けてから押してください。", vbExclamation: Exit Sub
     If bad <> "" Then MsgBox "次の行は作れないため、除きます。" & bad, vbExclamation
     If rows.Count = 0 Then Exit Sub
     Word差し込み rows
