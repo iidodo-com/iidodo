@@ -242,10 +242,33 @@ Fail:
     MsgBox "Wordへの差し込みに失敗しました（" & n & " 件まで処理済み）。" & vbLf & Err.Description, vbExclamation
 End Sub
 
+' 「不支給通知」シートの「作成」欄に直接入力された○（または削除）を、請求記録へ反映してから数式を戻す
+Private Sub 作成欄を反映()
+    Dim sh As Worksheet, r As Long, c As Range, n As Variant
+    Set sh = ThisWorkbook.Worksheets("不支給通知")
+    Application.EnableEvents = False
+    For r = 7 To 306
+        Set c = sh.Cells(r, "K")
+        If Not c.HasFormula Then
+            n = sh.Cells(r, "B").Value
+            If IsNumeric(n) And n <> "" Then
+                If Trim(CStr(c.Value)) <> "" Then
+                    ThisWorkbook.Worksheets("請求記録").Cells(n, "AT").Value = "○"
+                Else
+                    ThisWorkbook.Worksheets("請求記録").Cells(n, "AT").ClearContents
+                End If
+            End If
+            c.Formula = "=IF($L" & r & "="""","""",IF(INDEX(請求記録!$AT$6:$AT$3005,$L" & r & ")="""","""",INDEX(請求記録!$AT$6:$AT$3005,$L" & r & ")))"
+        End If
+    Next r
+    Application.EnableEvents = True
+End Sub
+
 ' 「通知書作成（○）」に○を付けた行をWordで作成する
 Public Sub 選択行の通知書をWordで作成()
     Dim w As Worksheet, r As Long, rows As New Collection, bad As String, marks As Long
     Set w = ThisWorkbook.Worksheets("請求記録")
+    作成欄を反映
     For r = 6 To 3005
         If w.Cells(r, "AT").Value <> "" Then
             marks = marks + 1
