@@ -75,6 +75,10 @@ progress { width: 220px; height: 14px; }
 .test-result { margin-top: 8px; font-size: .9rem; border-radius: 8px; }
 .test-result.ok, .test-result.warn, .test-result.err { padding: 8px 12px; border: 1px solid var(--line); }
 .test-result.ok { color: var(--ok); } .test-result.warn { color: var(--warn); } .test-result.err { color: var(--err); }
+.status .next { display: block; margin-top: 2px; font-weight: bold; }
+.adv h3 { margin-top: 12px; }
+.faq dt { font-weight: bold; margin-top: 8px; }
+.faq dd { margin: 0 0 4px 1em; color: var(--muted); }
 .src-views { margin-top: 12px; }
 footer.site { border-top: 1px solid var(--line); padding: 12px 0; }
 

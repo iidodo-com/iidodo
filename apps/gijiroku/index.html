@@ -53,19 +53,32 @@
       </label>
     </div>
 
-    <details class="adv">
-      <summary>詳細設定（分割処理・氏名マスキング）</summary>
+    <details class="adv" id="mask-details">
+      <summary>詳細設定（氏名の伏せ字・分割処理）</summary>
+
+      <h3>氏名・固有名詞の伏せ字</h3>
+      <label class="field block">
+        <span>伏せる語（カンマ区切り。氏名・団体名・地名など。例：山田,佐藤,広島 太郎）</span>
+        <input type="text" id="mask-terms" autocomplete="off" placeholder="山田,佐藤">
+      </label>
+      <div class="row buttons">
+        <button type="button" id="btn-suggest">書き起こしから候補を抽出</button>
+        <button type="button" id="btn-preview-send">送信される内容を確認</button>
+      </div>
+      <label class="agree"><input type="checkbox" id="premask-on"> <span><strong>送信前に伏せる：</strong>Gemini へ送る入力の上記の語を「〔名称1〕」のような記号に置き換えて送信し、返ってきた結果はこの端末で元の語に戻します。<strong>伏せた語は Google に送信されません。</strong></span></label>
+      <label class="agree"><input type="checkbox" id="mask-on"> <span><strong>出力を伏字にする：</strong>画面・コピー・ダウンロード（TXT／Markdown／DOCX）の上記の語を「●●」に置き換えます。元の入力と結果は変更せず、いつでも切り替えられます。</span></label>
+      <p class="small">2つは独立して使え、併用できます（送信前に伏せ → 結果を元に戻し → 出力は●●）。語は長いものから照合します。表記ゆれ（姓のみ、旧字体、ひらがな表記、略称など）は別の語として指定してください。指定にない語は伏せられません。「候補を抽出」は「〇〇さん」「〇〇課長」などの形だけを拾う簡易機能で、取りこぼし・誤検出があります。必ず「送信される内容を確認」で、伏せ漏れがないかを目視してください。</p>
+      <details id="send-details" class="src-views">
+        <summary>送信される内容の確認</summary>
+        <textarea id="send-preview" rows="8" readonly aria-label="送信される内容"></textarea>
+      </details>
+
+      <h3>長文の分割</h3>
       <label class="field block">
         <span>分割の目安（文字数）。入力がこれを超えると、段落単位で分割して順次処理し、1つの様式に統合します（既定・上限 60,000字）</span>
         <input type="number" id="chunk-size" value="60000" min="200" max="60000" step="100">
       </label>
       <p class="small">動作確認には、サンプル文を入力して 500 程度に下げ、「デモ出力で確認」を押してください（分割→統合を模擬します）。</p>
-      <label class="field block">
-        <span>伏字にする語（カンマ区切り。氏名など。例：山田,佐藤,広島 太郎）</span>
-        <input type="text" id="mask-terms" autocomplete="off" placeholder="山田,佐藤">
-      </label>
-      <label class="agree"><input type="checkbox" id="mask-on"> 出力時に上記の語を「●●」に置換する（元の入力テキストは変更しません。いつでも切り替えられます）</label>
-      <p class="small">伏字は出力にだけ適用されます。Gemini へ送信される入力テキストはマスキングされません。表記ゆれ（姓のみ、旧字体、ひらがな表記など）は別の語として指定してください。</p>
     </details>
 
     <label class="agree">
@@ -76,6 +89,7 @@
     <div class="row buttons">
       <button type="button" id="btn-run" class="primary">Gemini で整文して生成</button>
       <button type="button" id="btn-demo">デモ出力で確認（APIなし）</button>
+      <button type="button" id="btn-resume" hidden>失敗した件から再開</button>
       <button type="button" id="btn-sample">サンプル文を入力</button>
       <button type="button" id="btn-clear" class="ghost">消去</button>
     </div>
@@ -100,7 +114,7 @@
       </div>
     </div>
     <div id="preview" class="preview"></div>
-    <details class="no-print src-views">
+    <details class="no-print src-views" id="src-views">
       <summary>テキスト／Markdown の表示</summary>
       <label class="field block"><span>テキスト</span><textarea id="out-text" rows="10" readonly></textarea></label>
       <label class="field block"><span>Markdown</span><textarea id="out-md" rows="10" readonly></textarea></label>
@@ -128,25 +142,53 @@
   </section>
 
   <section id="howto" class="card no-print" aria-labelledby="h-how">
-    <h2 id="h-how">使い方</h2>
+    <h2 id="h-how">使い方（はじめての方へ）</h2>
+    <p class="small">所要時間の目安：デモの確認は約1分、Gemini で実際に使うまでは約5分です。</p>
+
+    <h3>ステップ1：まず、デモで様子を見る（APIキー不要）</h3>
     <ol class="steps">
-      <li><strong>まずデモで確認：</strong>様式を選び「サンプル文を入力」→「デモ出力で確認」を押すと、APIキーなしで出力レイアウトを確認できます。</li>
-      <li><strong>APIキーを用意：</strong>Google AI Studio でキーを発行し、「APIキー設定」に入力して保存します。</li>
-      <li><strong>貼り付けて生成：</strong>書き起こしを貼り付け、必要なら日時・場所などを補助入力し、送信前の確認にチェックして「Gemini で整文して生成」を押します。補助入力は書き起こしより優先されます。</li>
-      <li><strong>確認・修正：</strong>「要確認事項」に、書き起こしにない情報を補った箇所や不明点が出ます。原文と照合してください。</li>
-      <li><strong>長文：</strong>入力が分割の目安（既定60,000字）を超えると、段落単位で分割して順次処理し、結果を1つの様式に統合します。進捗は「何件目／全何件」で表示されます。統合後は、重複や取りこぼしがないか原文と照合してください。</li>
-      <li><strong>氏名の伏字：</strong>「詳細設定」で語をカンマ区切りで指定し、チェックを入れると出力の該当語が「●●」になります。元の入力は変わりません。</li>
-      <li><strong>接続テスト：</strong>「APIキー設定」の「接続テスト」で、キーの有効性とモデル名の存在を確認できます。</li>
-      <li><strong>出力：</strong>コピー、TXT／Markdown／DOCX のダウンロード、印刷（ブラウザの印刷から PDF 保存も可）が使えます。印刷時は出力部分のみが印字されます。</li>
+      <li>「様式」で「議事録」または「復命書」を選びます。</li>
+      <li>「サンプル文を入力」を押し、続けて「デモ出力で確認（APIなし）」を押します。</li>
+      <li>下に出力が表示されます。入力した文章はどこにも送信されません。</li>
     </ol>
+
+    <h3>ステップ2：Gemini で実際に整文する</h3>
+    <ol class="steps">
+      <li><strong>APIキーを用意する：</strong>Google AI Studio（<a href="https://aistudio.google.com/apikey" rel="noopener noreferrer" target="_blank">aistudio.google.com/apikey</a>）で Gemini API のキーを発行します（画面の名称は変更されることがあります）。</li>
+      <li><strong>保存する：</strong>ページ下部の「APIキー設定」にキーを貼り付けて「保存」し、続けて「接続テスト」を押します。「✓ キーの確認：有効」「✓ モデルの確認」と出れば準備完了です。</li>
+      <li><strong>貼り付ける：</strong>書き起こしを貼り付けます（日時・場所などが分かっていれば、補助入力に書くと正確になります）。</li>
+      <li><strong>必要なら氏名を伏せる：</strong>「詳細設定」で伏せる語を入れ、「送信前に伏せる」を有効にします。「送信される内容を確認」で、実際に送られる内容を見られます。</li>
+      <li><strong>生成する：</strong>送信前の確認にチェックを入れ、「Gemini で整文して生成」を押します。長い文章は自動で分割され、「何件目／全何件」が表示されます。</li>
+      <li><strong>確認・修正する：</strong>出力の「要確認事項」に、書き起こしにない情報を補った点や不明点が出ます。原文と照合し、特に日時・氏名・数値・期限を確かめてください。</li>
+      <li><strong>取り出す：</strong>コピー、TXT／Markdown／DOCX のダウンロード、印刷（ブラウザの印刷から PDF 保存も可）が使えます。印刷では出力部分だけが印字されます。</li>
+    </ol>
+
+    <h3>こんなときは</h3>
+    <dl class="faq">
+      <dt>「APIキーが無効です」と出る</dt>
+      <dd>キーを入れ直して保存し、「接続テスト」で確認します。前後の空白や全角文字が入っていないかも確かめてください。</dd>
+      <dt>「モデルが見つかりません（404）」と出る</dt>
+      <dd>「APIキー設定」のモデル名を直して保存し、「接続テスト」で「モデルの確認」が ✓ になる名前にします。</dd>
+      <dt>「利用上限（429）」「混み合っています」と出る</dt>
+      <dd>自動で最大2回まで再試行します。それでも失敗したら、少し待って「失敗した件から再開」を押します。完了済みの分は再処理されません。</dd>
+      <dt>長文の途中で失敗した</dt>
+      <dd>原因を解消して「失敗した件から再開」を押します。入力は失敗時の内容のままです（直したい場合は「生成」から最初からやり直します）。</dd>
+      <dt>「出力が途中で切れた」と出る</dt>
+      <dd>「詳細設定」の分割の目安を小さく（例：20,000字）して、最初から実行します。</dd>
+      <dt>「安全フィルタでブロックされた」と出る</dt>
+      <dd>該当しそうな部分を削除するか伏せて再実行します。様式の確認だけなら、デモモードが使えます。</dd>
+      <dt>DOCX のボタンが押せない</dt>
+      <dd>ブラウザがDOCXの生成に対応していません。TXT／Markdown でダウンロードして、Word に貼り付けてください。</dd>
+    </dl>
+
     <h3>整文で行うこと</h3>
     <ul>
       <li>話し言葉・言い淀みの整理、一文を短く</li>
       <li>送り仮名（例：行う、表す）、漢字とひらがなの使い分け（例：できる、こと）</li>
       <li>数字は算用数字、日付は和暦、時刻は午前・午後を付けて表記</li>
-      <li>敬語・文体の統一</li>
+      <li>敬語・文体の統一（常体／敬体を選べます）</li>
     </ul>
-    <p class="small">表記ルールは「公用文作成の考え方」等の一般的な公用文の考え方に基づく試作です。広島市「文書事務の手引」の条文を取り込んだものではありません。団体の手引・例規との適合は、利用者が確認してください。</p>
+    <p class="small">表記ルールは「公用文作成の考え方」等の一般的な公用文の考え方に基づく試作です。広島市「文書事務の手引」の本文との適合は確認していません。団体の手引・例規との適合は、利用者が確認してください。</p>
   </section>
 </main>
 

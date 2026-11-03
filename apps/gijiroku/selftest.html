@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>自己テスト｜議事録・文書作成支援（試作）</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <h1>自己テスト <small>ブラウザ内で実行（外部通信なし）</small></h1>
+  <nav><a href="index.html">アプリに戻る</a></nav>
+</div></header>
+<main class="wrap">
+  <section class="card">
+    <p id="summary" role="status">実行中…</p>
+    <p class="small">分割・統合、伏せ字、エラー整形、DOCX の生成と自己検証などを検査します。Gemini API には接続しません（通信はテスト内のモックです）。</p>
+    <table class="doc-table" id="results"><thead><tr><th>結果</th><th>テスト</th><th>詳細</th></tr></thead><tbody></tbody></table>
+  </section>
+</main>
+<script src="demo.js"></script>
+<script src="docx.js"></script>
+<script src="app.js"></script>
+<script src="selftest.js"></script>
+</body>
+</html>

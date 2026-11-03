@@ -74,10 +74,14 @@
   ].join("\n");
 
   // part: {i, n}（1始まり）。n > 1 のときは分割処理の一部であることを指示に加える。
-  function buildPrompt(kind, text, meta, style, part) {
+  function buildPrompt(kind, text, meta, style, part, premask) {
     var sys = SYSTEM_BASE + "\n\n" + (kind === "minutes" ? SCHEMA_MINUTES : SCHEMA_FUKU);
     if (style === "polite") {
       sys += "\n\n文体は敬体（です・ます）でそろえること（表記ルール5の常体指定より優先）。";
+    }
+    if (premask) {
+      sys += "\n\n【伏せ字の扱い】入力中の「〔名称1〕」「〔名称2〕」のような記号は、個人名・固有名詞を伏せたものである。" +
+        "元の名前を推測して補わず、記号を一字も変えずにそのまま出力に使うこと（後ろに「課長」「さん」等の肩書・敬称が続いていてもよい）。";
     }
     if (part && part.n > 1) {
       sys += "\n\n【分割処理】入力は長文を段落単位で分割した全" + part.n + "件のうちの" + part.i + "件目である。" +
@@ -96,8 +100,48 @@
     return { system: sys, user: user };
   }
 
-  /* ---------- Gemini 呼び出し ---------- */
-  function callGemini(apiKey, model, prompt) {
+  /* ---------- エラー整形（何が起きたか＋次にすること） ---------- */
+  function mkErr(what, action, opt) {
+    var e = new Error(what);
+    e.isApp = true; e.action = action || "";
+    e.retry = !!(opt && opt.retry); e.kind = (opt && opt.kind) || "";
+    return e;
+  }
+  function httpError(status, apiMsg, model) {
+    var m = apiMsg ? "（" + String(apiMsg).slice(0, 160) + "）" : "";
+    if (status === 400 && /api[ _]?key/i.test(apiMsg || "")) {
+      return mkErr("APIキーが無効です" + m + "。", "「APIキー設定」でキーを入れ直して保存し、「接続テスト」で確認してください。", { kind: "key" });
+    }
+    if (status === 401 || status === 403) {
+      return mkErr("このAPIキーでは利用が許可されていません（HTTP " + status + "）" + m + "。",
+        "キーの利用制限（HTTPリファラー・対象API）と、Gemini API の有効化を Google 側で確認してください。「接続テスト」も使えます。", { kind: "key" });
+    }
+    if (status === 404) {
+      return mkErr("モデル「" + model + "」が見つかりません（HTTP 404）。",
+        "「接続テスト」でモデルの存在を確認し、モデル名を直して保存してください（既定名：" + DEFAULT_MODEL + "）。", { kind: "model" });
+    }
+    if (status === 429) {
+      return mkErr("利用上限（レート制限またはクォータ）に達しました（HTTP 429）。",
+        "1〜数分待ってから「失敗した件から再開」を押してください。繰り返す場合は、Google 側のクォータ・料金プランを確認するか、分割の目安を大きくして件数を減らしてください。", { retry: true, kind: "quota" });
+    }
+    if (status === 408 || status === 504) {
+      return mkErr("Gemini の応答が時間内に返りませんでした（HTTP " + status + "）。", "しばらく待って「失敗した件から再開」を押すか、分割の目安を小さくして再実行してください。", { retry: true, kind: "timeout" });
+    }
+    if (status === 413) {
+      return mkErr("入力が大きすぎます（HTTP 413）。", "「詳細設定」で分割の目安を小さくして、もう一度実行してください。", { kind: "size" });
+    }
+    if (status >= 500) {
+      return mkErr("Gemini 側が混み合っているか、一時的な障害です（HTTP " + status + "）。", "しばらく待ってから「失敗した件から再開」を押してください。", { retry: true, kind: "server" });
+    }
+    return mkErr("Gemini API がエラーを返しました（HTTP " + status + "）" + m + "。",
+      "分割の目安を小さくする、モデル名を確認する（接続テスト）、のいずれかを試してください。解消しない場合は、デモモードで様式の確認だけはできます。", { kind: "http" });
+  }
+  function timeoutMs() { return window.GIJIROKU_TIMEOUT_MS || 120000; }
+
+  function callGeminiOnce(apiKey, model, prompt) {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      return Promise.reject(mkErr("オフラインのため Gemini に接続できません。", "ネットワークに接続してから、もう一度実行してください。", { kind: "net" }));
+    }
     var url = "https://generativelanguage.googleapis.com/v1beta/models/" +
       encodeURIComponent(model) + ":generateContent";
     var body = {
@@ -105,28 +149,65 @@
       contents: [{ role: "user", parts: [{ text: prompt.user }] }],
       generationConfig: { temperature: 0.2, responseMimeType: "application/json" }
     };
+    var ctl = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { ctl.abort(); }, timeoutMs()) : null;
+    function done() { if (timer) clearTimeout(timer); }
     return fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: ctl ? ctl.signal : undefined
     }).then(function (res) {
       if (!res.ok) {
         return res.text().then(function (t) {
           var msg = "";
           try { msg = (JSON.parse(t).error || {}).message || ""; } catch (e) {}
-          throw new Error("Gemini API エラー（HTTP " + res.status + "）" + (msg ? "：" + msg : ""));
+          throw httpError(res.status, msg, model);
         });
       }
       return res.json();
+    }).then(function (j) { done(); return j; }, function (e) {
+      done();
+      if (e && e.isApp) throw e;
+      if (e && e.name === "AbortError") {
+        throw mkErr("Gemini の応答が " + Math.round(timeoutMs() / 1000) + " 秒以内に返りませんでした。", "「失敗した件から再開」で再試行するか、分割の目安を小さくしてください。", { retry: true, kind: "timeout" });
+      }
+      throw mkErr("Gemini に接続できませんでした（通信エラー）。",
+        "インターネット接続と、社内のプロキシ・ファイアウォールで generativelanguage.googleapis.com への通信が許可されているかを確認し、「失敗した件から再開」を押してください。", { retry: true, kind: "net" });
     }).then(function (j) {
       var c = j && j.candidates && j.candidates[0];
       var parts = c && c.content && c.content.parts;
+      var block = j && j.promptFeedback && j.promptFeedback.blockReason;
+      if (block || (c && /SAFETY|PROHIBITED|BLOCKLIST|SPII/.test(c.finishReason || "") && (!parts || !parts.length))) {
+        throw mkErr("入力内容が Gemini の安全フィルタでブロックされました（理由：" + (block || c.finishReason) + "）。",
+          "ブロックされた部分（過激な表現や個人情報など）を削除または伏せてから再実行してください。様式の確認だけなら、デモモードを使えます。", { kind: "blocked" });
+      }
       if (!parts || !parts.length) {
-        var why = (c && c.finishReason) || (j && j.promptFeedback && j.promptFeedback.blockReason) || "不明";
-        throw new Error("応答が空でした（理由：" + why + "）。");
+        throw mkErr("Gemini から空の応答が返りました（理由：" + ((c && c.finishReason) || "不明") + "）。", "「失敗した件から再開」で再試行してください。繰り返す場合は、分割の目安を小さくしてください。", { retry: true, kind: "empty" });
+      }
+      if (c.finishReason === "MAX_TOKENS") {
+        throw mkErr("Gemini の出力が長すぎて途中で切れました。", "「詳細設定」の分割の目安を小さく（例：20,000字）して、最初から実行し直してください。", { kind: "truncated" });
       }
       return parts.map(function (p) { return p.text || ""; }).join("");
     });
+  }
+
+  // 一時的な失敗（429・5xx・通信・タイムアウト）は自動で最大2回まで再試行する
+  function callGemini(apiKey, model, prompt, onRetry) {
+    var max = 2, attempt = 0;
+    function go() {
+      return callGeminiOnce(apiKey, model, prompt).catch(function (e) {
+        if (e && e.retry && attempt < max) {
+          attempt++;
+          var base = window.GIJIROKU_RETRY_MS == null ? 2000 : window.GIJIROKU_RETRY_MS;
+          var wait = base * attempt;
+          if (onRetry) onRetry(attempt, max, wait, e);
+          return new Promise(function (r) { setTimeout(r, wait); }).then(go);
+        }
+        throw e;
+      });
+    }
+    return go();
   }
 
   /* ---------- 接続テスト（キー有効性・モデル存在） ---------- */
@@ -254,16 +335,22 @@
     return out;
   }
 
-  /* ---------- 氏名マスキング（出力時のみ） ---------- */
+  /* ---------- 氏名マスキング ----------
+   * 出力時マスキング：結果の表示・ダウンロードで語を「●●」に置換する（元の結果は保持）。
+   * 送信前マスキング：Gemini へ送る入力の語を「〔名称N〕」に置換し、応答をこの端末で元の語に戻す。
+   *   語そのものは Google に送信されない（fail-closed：伏せ漏れを検知したら送信を中止する）。
+   * 両者は独立に切り替えられ、併用できる（復元後の文書に出力時マスキングを適用する）。 */
   var MASK = "●●";
+  function escRe(t) { return t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
   function parseMaskTerms(s) {
-    return uniq(String(s || "").split(/[,，、]/).map(function (t) { return t.trim(); }).filter(Boolean))
+    return uniq(String(s || "").split(/[,，、\n]/).map(function (t) { return t.trim(); }).filter(Boolean))
       .sort(function (a, b) { return b.length - a.length; });
   }
+  function termRegex(terms) { return terms.length ? new RegExp(terms.map(escRe).join("|"), "g") : null; }
+  // 1 回の走査で置換する（置換結果の再走査・語の部分一致の取りこぼしを避ける。terms は長い順）
   function maskString(s, terms) {
-    var out = String(s);
-    terms.forEach(function (t) { out = out.split(t).join(MASK); });
-    return out;
+    var re = termRegex(terms);
+    return re ? String(s).replace(re, MASK) : String(s);
   }
   function maskDoc(doc, terms) {
     if (!terms.length) return doc;
@@ -279,6 +366,52 @@
         return c;
       })
     };
+  }
+
+  var PH_SRC = "[〔\\[［【]\\s*名称\\s*([0-9０-９]+)\\s*[〕\\]］】]";
+  function toHalf(d) { return String(d).replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }); }
+  function makePlaceholders(terms) {
+    var idx = {}, re = termRegex(terms);
+    terms.forEach(function (t, i) { idx[t] = i + 1; });
+    function restore(str0) {
+      return String(str0).replace(new RegExp(PH_SRC, "g"), function (m, d) {
+        var n = parseInt(toHalf(d), 10);
+        return terms[n - 1] != null ? terms[n - 1] : m;
+      });
+    }
+    function deep(v) {
+      if (typeof v === "string") return restore(v);
+      if (Array.isArray(v)) return v.map(deep);
+      if (v && typeof v === "object") { var o = {}; Object.keys(v).forEach(function (k) { o[k] = deep(v[k]); }); return o; }
+      return v;
+    }
+    return {
+      terms: terms,
+      apply: function (t) { return re ? String(t).replace(re, function (m) { return "〔名称" + idx[m] + "〕"; }) : String(t); },
+      restore: restore,
+      restoreDeep: deep,
+      // 伏せたはずの語が残っていないか（プレースホルダ自体は除いて判定）
+      leaks: function (t) {
+        var rest = String(t).replace(/〔名称\d+〕/g, "");
+        return terms.filter(function (w) { return rest.indexOf(w) >= 0; });
+      },
+      // 復元できなかったプレースホルダ（応答で番号が崩れた等）の数
+      unresolved: function (t) { return (String(t).match(new RegExp(PH_SRC, "g")) || []).length; }
+    };
+  }
+
+  // 書き起こしから氏名らしい語の候補を拾う（簡易。取りこぼし・誤検出がある。利用者が確認して使う）
+  var TITLE_RE = /([一-龠々]{2,4}?)(さん|氏|君|様|課長|係長|部長|次長|主任|主査|主幹|室長|局長|所長|市長|議員|委員長|委員|先生|会長)/g;
+  var NOT_NAME = /^(人事|総務|財政|企画|市民|事務|担当|各|本|同|副|正|前|現|新|旧|議会|会計|監査|福祉|環境|教育|管理|総括|主管|所管|関係|保健|経済|都市|建設|農林|消防|水道|税務|契約|広報|秘書|防災|危機|情報|施設|財務|庶務|経理|営業|開発|技術|法務|総合|調整|推進|事業)$/;
+  function suggestTerms(text) {
+    var cnt = {}, m;
+    TITLE_RE.lastIndex = 0;
+    while ((m = TITLE_RE.exec(String(text))) !== null) {
+      var w = m[1];
+      if (NOT_NAME.test(w) || /[課部局係室所班会市県区町村]$/.test(w)) continue;
+      cnt[w] = (cnt[w] || 0) + 1;
+    }
+    return Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a] || a.length - b.length; });
   }
 
   function parseJsonLoose(s) {
@@ -420,14 +553,17 @@
   }
 
   /* ---------- UI ---------- */
-  var state = { obj: null, doc: null, text: "", md: "", kind: "minutes", demo: false, cancel: false };
+  var state = { obj: null, doc: null, text: "", md: "", kind: "minutes", demo: false, cancel: false, job: null };
 
   function kind() { return document.querySelector('input[name="kind"]:checked').value; }
 
-  function setStatus(msg, level) {
-    var s = $("status");
-    s.textContent = msg || "";
-    s.className = "status" + (level ? " " + level : "");
+  // msg：何が起きたか／action：次にすること（あれば別行で表示）
+  function setStatus(msg, level, action) {
+    var st = $("status");
+    if (!st) return;
+    st.textContent = msg || "";
+    st.className = "status" + (level ? " " + level : "");
+    if (action) st.appendChild(el("span", "▶ 次の操作：" + action, "next"));
   }
 
   function renderMetaFields() {
@@ -482,13 +618,13 @@
   function loadSample() {
     var k = kind();
     $("src").value = DEMO[k].transcript;
-    setStatus("サンプルの書き起こしを入力しました。", "ok");
+    setStatus("サンプルの書き起こしを入力しました。「デモ出力で確認」を押すと、API なしで出力を確認できます。", "ok");
   }
 
   function chunkLimit() {
-    var n = parseInt($("chunk-size").value, 10);
-    if (!(n >= 200)) n = DEFAULT_CHUNK;
-    return Math.min(n, DEFAULT_CHUNK);
+    var f = $("chunk-size"), n = parseInt(f.value, 10);
+    if (!(n >= 200 && n <= DEFAULT_CHUNK)) { n = DEFAULT_CHUNK; f.value = String(n); } // 範囲外は既定に戻す
+    return n;
   }
 
   function setProgress(i, n, msg) {
@@ -499,20 +635,26 @@
     $("progress-label").textContent = msg || (i + "／" + n + " 件目");
   }
   function setBusy(busy) {
-    $("btn-run").disabled = busy; $("btn-demo").disabled = busy;
+    $("btn-run").disabled = busy; $("btn-demo").disabled = busy; $("btn-resume").disabled = busy;
     $("btn-cancel").hidden = !busy;
     if (!busy) state.cancel = false;
   }
+  function updateResumeBtn() {
+    var j = state.job;
+    $("btn-resume").hidden = !j;
+    if (j) $("btn-resume").textContent = "失敗した件から再開（" + j.results.length + "／" + j.chunks.length + " 件 完了済み）";
+  }
 
-  // 分割ごとに処理（process: (chunkText, part) => Promise<obj>）→ 統合
-  function runChunks(k, text, process, label) {
-    var chunks = splitParagraphs(text, chunkLimit()), n = chunks.length, results = [];
+  // chunks を順に処理して results に積む。完了済み（results.length 件）は飛ばす。統合結果を返す。
+  function runChunks(k, chunks, results, process, label) {
+    var n = chunks.length;
     state.cancel = false;
     setBusy(true);
     var chain = Promise.resolve();
     chunks.forEach(function (c, idx) {
+      if (idx < results.length) return;
       chain = chain.then(function () {
-        if (state.cancel) throw new Error("中止しました。");
+        if (state.cancel) throw mkErr("処理を中止しました（" + results.length + "／" + n + " 件が完了済み）。", "続きから実行する場合は「失敗した件から再開」を押してください。最初からやり直す場合は「生成」を押してください。", { kind: "cancel" });
         setProgress(idx, n, label + "：" + (idx + 1) + "／" + n + " 件目を処理中…（" + c.length + "字）");
         setStatus(n > 1 ? "長文のため" + n + "件に分割して処理します。" : label + "しています…", "");
         return process(c, { i: idx + 1, n: n }).then(function (o) { results.push(o); });
@@ -521,7 +663,16 @@
     return chain.then(function () {
       setProgress(n, n, n + "／" + n + " 件目 完了。統合しました。");
       return { obj: n > 1 ? mergeResults(k, results) : results[0], n: n };
-    }).then(function (r) { setBusy(false); return r; }, function (e) { setBusy(false); setProgress(0, 0); throw e; });
+    }).then(function (r) { setBusy(false); return r; }, function (e) {
+      setBusy(false);
+      var done = results.length;
+      if (e && e.isApp && e.kind !== "cancel") {
+        var what = n > 1 ? "全" + n + "件中 " + (done + 1) + "件目で失敗しました（" + done + "件は完了済み）。" : "処理に失敗しました。";
+        var ne = mkErr(what + e.message, e.action + (e.action ? " 原因を解消したあと、" : "") + "「失敗した件から再開」を押すと、完了済みの分は再処理せず続きから実行します。", e);
+        throw ne;
+      }
+      throw e;
+    });
   }
 
   // デモ：サンプルの出力を n 件に（順序を保って）配り、通常と同じ統合処理を通す（分割動作の模擬）
@@ -538,39 +689,112 @@
     var k = kind(), text = $("src").value.trim();
     var useText = text || DEMO[k].transcript;
     if (!text) $("src").value = useText;
-    var full = DEMO[k].output;
-    runChunks(k, useText, function (c, part) {
+    var full = DEMO[k].output, results = [];
+    var chunks = splitParagraphs(useText, chunkLimit());
+    runChunks(k, chunks, results, function (c, part) {
       return new Promise(function (res) { setTimeout(function () { res(demoPartial(k, full, part)); }, part.n > 1 ? 450 : 0); });
     }, "デモ").then(function (r) {
       showResult(k, r.obj, true);
       setStatus(r.n > 1
         ? "デモ出力を表示しました（" + r.n + "件に分割→統合の動作を模擬。APIは呼んでいません）。"
         : "デモ出力を表示しました（APIは呼んでいません）。", "ok");
-    }).catch(function (e) { setStatus(e.message, "warn"); });
+    }).catch(function (e) { setStatus(e.message, "warn", e.action); });
+  }
+
+  /* ----- Gemini での生成 ----- */
+  function sendSetup(text) {
+    // 送信前マスキングの適用（設定に応じて）。戻り値: {pm, sendText, sendMeta}
+    var terms = parseMaskTerms($("mask-terms").value), pre = $("premask-on").checked;
+    var meta = readMeta();
+    if (!pre) return { pm: null, sendText: text, sendMeta: meta };
+    var pm = makePlaceholders(terms), sendMeta = {};
+    Object.keys(meta).forEach(function (k2) { sendMeta[k2] = pm.apply(meta[k2]); });
+    return { pm: pm, sendText: pm.apply(text), sendMeta: sendMeta };
+  }
+
+  function validateKeyModel(key, model) {
+    if (!key) return mkErr("APIキーが未設定です。", "下の「APIキー設定」にキーを入力して保存してください。キーがなくても「デモ出力で確認」で様式を確認できます。");
+    if (!/^[\x21-\x7E]+$/.test(key)) return mkErr("APIキーに使えない文字（空白・全角文字など）が含まれています。", "コピーし直して、前後の空白を除いたキーを保存してください。");
+    if (!/^[A-Za-z0-9._\/-]+$/.test(model)) return mkErr("モデル名に使えない文字が含まれています。", "半角の英数字・ハイフン・ピリオドで、モデル名を入力し直してください（例：" + DEFAULT_MODEL + "）。");
+    return null;
   }
 
   function runGemini() {
-    var key = lsGet(LS_KEY);
-    var text = $("src").value.trim();
-    if (!key) { setStatus("APIキーが未設定です。下の「APIキー設定」に入力するか、デモ出力をご利用ください。", "warn"); return; }
-    if (!text) { setStatus("書き起こしテキストを入力してください。", "warn"); return; }
-    if (text.length > MAX_TOTAL) { setStatus("テキストが長すぎます（" + MAX_TOTAL.toLocaleString() + "字以内）。会議ごとなどに分けてください。", "warn"); return; }
-    if (!$("agree").checked) { setStatus("送信前の確認にチェックを入れてください（入力内容は Google の Gemini API に送信されます）。", "warn"); return; }
-    var k = kind(), model = (lsGet(LS_MODEL) || DEFAULT_MODEL), meta = readMeta(), style = $("style").value;
-    runChunks(k, text, function (c, part) {
-      return callGemini(key, model, buildPrompt(k, c, meta, style, part)).then(parseJsonLoose);
+    var key = lsGet(LS_KEY), model = lsGet(LS_MODEL) || DEFAULT_MODEL;
+    var text = $("src").value.trim(), k = kind();
+    var bad = validateKeyModel(key, model);
+    if (bad) { setStatus(bad.message, "warn", bad.action); return; }
+    if (!text) { setStatus("書き起こしが入力されていません。", "warn", "テキストを貼り付けてください。試すだけなら「サンプル文を入力」が使えます。"); return; }
+    if (text.length < 10) { setStatus("入力が短すぎて文書にできません（" + text.length + "字）。", "warn", "会議の発言やメモを、もう少し長く貼り付けてください。"); return; }
+    if (text.length > MAX_TOTAL) { setStatus("入力が長すぎます（" + text.length.toLocaleString() + "字。上限 " + MAX_TOTAL.toLocaleString() + "字）。", "warn", "会議ごと・議題ごとなどに分けて、複数回に分けて実行してください。"); return; }
+    if ($("premask-on").checked && !parseMaskTerms($("mask-terms").value).length) {
+      $("mask-details").open = true;
+      setStatus("「送信前に伏せる」が有効ですが、伏せる語が指定されていません。", "warn", "「詳細設定」に伏せる語をカンマ区切りで入力する（「候補を抽出」も使えます）か、「送信前に伏せる」のチェックを外してください。");
+      return;
+    }
+    if (!$("agree").checked) { setStatus("送信前の確認にチェックが入っていません。", "warn", "入力内容が Google の Gemini API に送信されることを確認し、チェックを入れてください。"); return; }
+    var su = sendSetup(text);
+    if (su.pm) { // 安全網：伏せ漏れがあれば送信しない
+      var leaks = su.pm.leaks(su.sendText);
+      Object.keys(su.sendMeta).forEach(function (k2) { leaks = leaks.concat(su.pm.leaks(su.sendMeta[k2])); });
+      if (leaks.length) { setStatus("伏せ漏れを検出したため、送信を中止しました。", "err", "伏せる語の指定（表記ゆれ・空白など）を見直してください。"); return; }
+    }
+    var chunks = splitParagraphs(su.sendText, chunkLimit());
+    state.job = { kind: k, chunks: chunks, results: [], meta: su.sendMeta, style: $("style").value, pm: su.pm };
+    execJob();
+  }
+
+  function onRetry(attempt, max, wait, e) {
+    setStatus("一時的なエラーのため " + Math.round(wait / 1000) + " 秒後に自動で再試行します（" + attempt + "／" + max + " 回目）：" + e.message, "warn");
+  }
+
+  function execJob() {
+    var job = state.job;
+    if (!job) return;
+    updateResumeBtn();
+    runChunks(job.kind, job.chunks, job.results, function (c, part) {
+      // キー・モデルは呼び出しごとに読む（失敗後に直して再開できるように）
+      var key = lsGet(LS_KEY), model = lsGet(LS_MODEL) || DEFAULT_MODEL;
+      var bad = validateKeyModel(key, model);
+      if (bad) return Promise.reject(bad);
+      return callGemini(key, model, buildPrompt(job.kind, c, job.meta, job.style, part, !!job.pm), onRetry)
+        .then(function (raw) { return parseResult(job.kind, raw); })
+        .then(function (o) { return job.pm ? job.pm.restoreDeep(o) : o; });
     }, "整文").then(function (r) {
-      showResult(k, r.obj, false);
-      setStatus((r.n > 1 ? r.n + "件を統合して" : "") + "生成しました。必ず内容を確認してから使用してください。", "ok");
+      var pm = job.pm, unresolved = pm ? pm.unresolved(JSON.stringify(r.obj)) : 0;
+      state.job = null; updateResumeBtn();
+      showResult(job.kind, r.obj, false);
+      if (unresolved) setStatus("生成しましたが、元の語に戻せなかった伏せ記号が " + unresolved + " か所あります。", "warn", "出力中の「〔名称N〕」を、原文と見比べて手で直してください。");
+      else setStatus((r.n > 1 ? r.n + "件を統合して" : "") + "生成しました。", "ok", "必ず原文と照合してから使用してください（特に日時・氏名・数値・期限）。");
     }).catch(function (e) {
-      setStatus((e && e.message ? e.message : "生成に失敗しました。") + (state.cancel ? "" : "（途中までの結果は破棄されました）"), "err");
+      updateResumeBtn();
+      if (e && e.isApp) setStatus(e.message, e.kind === "cancel" ? "warn" : "err", e.action);
+      else setStatus("予期しないエラーが発生しました：" + (e && e.message ? e.message : e), "err", "ページを再読み込みして再実行してください。繰り返す場合は、入力を分割するか、デモモードで動作を確認してください。");
     });
+  }
+
+  function parseResult(kind, raw) {
+    var o;
+    try { o = parseJsonLoose(raw); }
+    catch (e) { throw mkErr("Gemini の応答を読み取れませんでした（JSON ではありません）。", "「失敗した件から再開」で再試行してください。繰り返す場合は、分割の目安を小さくしてください。", { kind: "parse" }); }
+    var keys = SCALARS[kind].concat(LISTS[kind], kind === "minutes" ? ["todos"] : []);
+    if (!o || typeof o !== "object" || Array.isArray(o) || !keys.some(function (k2) { return k2 in o; })) {
+      throw mkErr("Gemini の応答が想定した形式ではありませんでした。", "「失敗した件から再開」で再試行してください。繰り返す場合は、様式（議事録／復命書）の選択が内容に合っているかも確認してください。", { kind: "shape" });
+    }
+    return o;
+  }
+
+  function resumeJob() {
+    if (!state.job) { setStatus("再開できる処理がありません。", "warn", "「生成」を押して、最初から実行してください。"); return; }
+    execJob();
   }
 
   function runTest() {
     var key = $("apikey").value.trim() || lsGet(LS_KEY);
     var model = $("model").value.trim() || DEFAULT_MODEL;
     var box = $("test-result"), btn = $("btn-test");
+    var bad = validateKeyModel(key, model);
+    if (bad) { box.className = "test-result err"; box.textContent = bad.message + " " + bad.action; return; }
     btn.disabled = true;
     box.className = "test-result"; box.textContent = "接続テスト中…";
     testConnection(key, model).then(function (r) {
@@ -578,6 +802,31 @@
       box.textContent = "";
       r.lines.forEach(function (l) { box.appendChild(el("div", l)); });
     }).then(function () { btn.disabled = false; });
+  }
+
+  function previewSend() {
+    var text = $("src").value.trim();
+    if (!text) { setStatus("書き起こしが入力されていません。", "warn", "テキストを貼り付けてから、もう一度押してください。"); return; }
+    var su = sendSetup(text), chunks = splitParagraphs(su.sendText, chunkLimit()), out = [];
+    if (su.pm && !su.pm.terms.length) { setStatus("「送信前に伏せる」が有効ですが、伏せる語が指定されていません。", "warn", "伏せる語を入力してください。"); return; }
+    out.push("※ Gemini には、以下の内容（と整文の指示文）が送信されます。" + (su.pm ? "伏せ語は〔名称N〕に置換済みです。" : "送信前マスキングは無効です（原文のまま送信されます）。"));
+    var mk = Object.keys(su.sendMeta).filter(function (x2) { return str(su.sendMeta[x2]); });
+    if (mk.length) out.push("【補助入力】" + mk.map(function (x2) { return x2 + "＝" + su.sendMeta[x2]; }).join(" ／ "));
+    chunks.forEach(function (c, i) { out.push("", "──── " + (i + 1) + "／" + chunks.length + " 件目 ────", c); });
+    $("send-preview").value = out.join("\n");
+    $("send-details").open = true;
+    setStatus("送信内容を表示しました。", "ok", su.pm ? "伏せ語が残っていないか確認してください。" : "氏名を送りたくない場合は、「送信前に伏せる」を有効にしてください。");
+  }
+
+  function suggestFill() {
+    var text = $("src").value;
+    if (!text.trim()) { setStatus("書き起こしが入力されていません。", "warn", "テキストを貼り付けてから、もう一度押してください。"); return; }
+    var found = suggestTerms(text), have = parseMaskTerms($("mask-terms").value);
+    var add = found.filter(function (w) { return have.indexOf(w) < 0; });
+    if (!add.length) { setStatus(found.length ? "追加できる新しい候補はありません。" : "氏名らしい語（「〇〇さん」「〇〇課長」など）が見つかりませんでした。", "warn", "候補は肩書・敬称が続く語だけを拾う簡易方式です。見つからない氏名は手で入力してください。"); return; }
+    $("mask-terms").value = have.concat(add).join(",");
+    render();
+    setStatus(add.length + "語を候補として追加しました（" + add.join("、") + "）。", "ok", "取りこぼし・誤検出があります。伏せたい語が漏れていないか、不要な語が入っていないかを確認してください。");
   }
 
   function downloadDocx() {
@@ -588,7 +837,9 @@
       a.href = URL.createObjectURL(blob); a.download = fname("docx");
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-    } catch (e) { setStatus("DOCXの生成に失敗しました：" + (e && e.message ? e.message : e), "err"); }
+    } catch (e) {
+      setStatus("DOCX を作成できませんでした：" + (e && e.message ? e.message : e), "err", "TXT または Markdown でダウンロードし、Word に貼り付けてください。");
+    }
   }
 
   function flash(btn, msg) {
@@ -600,8 +851,15 @@
     function fallback() {
       var ta = document.createElement("textarea");
       ta.value = s; document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); flash(btn, "コピーしました"); } catch (e) { flash(btn, "コピー失敗"); }
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
       document.body.removeChild(ta);
+      if (ok) flash(btn, "コピーしました");
+      else {
+        flash(btn, "コピー失敗");
+        $("src-views").open = true;
+        setStatus("クリップボードにコピーできませんでした。", "warn", "下の「テキスト／Markdown の表示」を開いたので、内容を選択して Ctrl+C（Mac は ⌘+C）でコピーしてください。");
+      }
     }
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(s).then(function () { flash(btn, "コピーしました"); }, fallback);
@@ -632,29 +890,33 @@
     refreshKeyUi();
     $("model").value = lsGet(LS_MODEL) || DEFAULT_MODEL;
     document.querySelectorAll('input[name="kind"]').forEach(function (r) {
-      r.addEventListener("change", renderMetaFields);
+      r.addEventListener("change", function () { renderMetaFields(); state.job = null; updateResumeBtn(); });
     });
     $("btn-sample").addEventListener("click", loadSample);
     $("btn-demo").addEventListener("click", runDemo);
     $("btn-run").addEventListener("click", runGemini);
-    $("btn-cancel").addEventListener("click", function () { state.cancel = true; setStatus("中止します（処理中の1件が終わり次第停止）…", "warn"); });
+    $("btn-resume").addEventListener("click", resumeJob);
+    $("btn-cancel").addEventListener("click", function () { state.cancel = true; setStatus("中止しています（処理中の1件が終わり次第、停止します）…", "warn"); });
     $("btn-test").addEventListener("click", runTest);
+    $("btn-suggest").addEventListener("click", suggestFill);
+    $("btn-preview-send").addEventListener("click", previewSend);
     $("mask-on").addEventListener("change", render);
     $("mask-terms").addEventListener("input", render);
     var dx = window.GijirokuDocx;
     if (!dx || !dx.supported()) {
       $("dl-docx").disabled = true;
-      $("dl-docx").title = "このブラウザではDOCXを生成できません";
+      $("dl-docx").title = "このブラウザではDOCXを生成できません（TXT／Markdownは利用できます）";
     } else $("dl-docx").addEventListener("click", downloadDocx);
     $("btn-savekey").addEventListener("click", function () {
       var v = $("apikey").value.trim();
-      if (!v) { setStatus("APIキーを入力してください。", "warn"); return; }
       var m = $("model").value.trim() || DEFAULT_MODEL;
-      if (!lsSet(LS_KEY, v)) { setStatus("このブラウザでは保存できませんでした（プライベートモード等）。", "err"); return; }
+      var bad = validateKeyModel(v, m);
+      if (bad) { setStatus(bad.message, "warn", bad.action); return; }
+      if (!lsSet(LS_KEY, v)) { setStatus("このブラウザでは APIキーを保存できませんでした（プライベートモードや、サイトデータの保存を禁止する設定の可能性があります）。", "err", "通常のウィンドウで開くか、ブラウザの設定でこのサイトの保存を許可してください。保存せずに使い続けることはできません（デモモードは利用可能です）。"); return; }
       lsSet(LS_MODEL, m);
       $("apikey").value = "";
       refreshKeyUi();
-      setStatus("APIキーを保存しました（このブラウザの localStorage のみ）。", "ok");
+      setStatus("APIキーを保存しました（このブラウザの localStorage のみ）。", "ok", "「接続テスト」でキーとモデルを確認できます。");
     });
     $("btn-delkey").addEventListener("click", function () {
       lsDel(LS_KEY); lsDel(LS_MODEL);
@@ -666,7 +928,9 @@
       $("src").value = "";
       document.querySelectorAll("#meta input").forEach(function (i) { i.value = ""; });
       $("result").hidden = true;
-      state.obj = null; state.doc = null; state.text = ""; state.md = "";
+      $("send-preview").value = "";
+      state.obj = null; state.doc = null; state.text = ""; state.md = ""; state.job = null;
+      updateResumeBtn();
       setProgress(0, 0);
       setStatus("入力と出力を消去しました。", "ok");
     });
@@ -675,11 +939,19 @@
     $("dl-txt").addEventListener("click", function () { download(fname("txt"), "text/plain", state.text); });
     $("dl-md").addEventListener("click", function () { download(fname("md"), "text/markdown", state.md); });
     $("btn-print").addEventListener("click", function () { window.print(); });
+    function unexpected() {
+      setStatus("予期しないエラーが発生しました。", "err", "ページを再読み込みして、もう一度お試しください。入力が消えた場合は、元のテキストを貼り付け直してください。");
+    }
+    window.addEventListener("error", unexpected);
+    window.addEventListener("unhandledrejection", unexpected);
   }
 
   // テスト用に純粋関数を公開
-  window.GijirokuCore = { splitParagraphs: splitParagraphs, mergeResults: mergeResults, maskString: maskString, parseMaskTerms: parseMaskTerms, testConnection: testConnection, buildPrompt: buildPrompt, buildDoc: buildDoc, toText: toText, toMarkdown: toMarkdown, parseJsonLoose: parseJsonLoose };
+  window.GijirokuCore = { httpError: httpError, makePlaceholders: makePlaceholders, suggestTerms: suggestTerms, parseResult: parseResult, callGemini: callGemini, maskDoc: maskDoc, splitParagraphs: splitParagraphs, mergeResults: mergeResults, maskString: maskString, parseMaskTerms: parseMaskTerms, testConnection: testConnection, buildPrompt: buildPrompt, buildDoc: buildDoc, toText: toText, toMarkdown: toMarkdown, parseJsonLoose: parseJsonLoose };
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-  else init();
+  // 画面（index.html）でのみ初期化する（selftest.html などでは公開関数だけを使う）
+  if (document.getElementById("btn-run")) {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+    else init();
+  }
 })();
