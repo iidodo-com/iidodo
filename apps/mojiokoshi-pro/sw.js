@@ -1,8 +1,8 @@
 /* Service Worker: アプリシェルのみキャッシュ。外部API（Gemini）は一切キャッシュしない */
-const CACHE = 'mojiokoshi-pro-v1';
+const CACHE = 'mojiokoshi-pro-v2';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/style.css',
-  './js/util.js', './js/storage.js', './js/mock.js', './js/audio.js', './js/gemini.js', './js/export.js', './js/app.js',
+  './js/util.js', './js/errors.js', './js/storage.js', './js/mock.js', './js/mask.js', './js/audio.js', './js/gemini.js', './js/export.js', './js/app.js',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

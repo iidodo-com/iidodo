@@ -145,3 +145,21 @@ audio { width: 100%; margin-top: 8px; }
 .seg-edit { margin: 0; resize: vertical; min-height: 2.4em; line-height: 1.6; }
 .flag.edited { background: var(--muted); }
 .flags { font-size: .75rem; }
+
+.hint { margin: 4px 0 0; font-weight: 400; }
+.welcome { border-color: var(--accent); }
+.toc { font-size: .92rem; line-height: 2; }
+.toc a { white-space: nowrap; }
+.mask-row { align-items: flex-end; }
+.inline-label { margin: 0; width: 9.5em; }
+.inline-label input { width: 100%; }
+.mask-list { list-style: none; padding: 0; margin: 8px 0; }
+.mask-list li { display: flex; align-items: center; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.send-preview { margin: 8px 0; font-size: .9rem; }
+.send-preview summary { cursor: pointer; color: var(--accent); }
+.send-preview ul { margin: 6px 0; padding-left: 1.2em; }
+.mask-out { margin: 10px 0 0; }
+.help-tbl td, .help-tbl th { vertical-align: top; font-size: .88rem; }
+.help-tbl td:first-child { font-weight: 600; min-width: 12em; }
+details { margin: 6px 0; }
+details summary { cursor: pointer; font-weight: 600; }

@@ -2,6 +2,10 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
+  <!-- CSP: 自ドメインのスクリプト/スタイルのみ許可。外部への通信は Gemini API (generativelanguage.googleapis.com) のみ。
+       ※ frame-ancestors 等はmetaでは指定できないため、本番ではサーバーのレスポンスヘッダで設定する（README参照） -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://generativelanguage.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>文字起こしアプリ商用版（試作）</title>
   <meta name="description" content="音声ファイルから文字起こし・整文・要約・決定事項/ToDoまで一括出力する試作アプリ。APIキーはブラウザ内にのみ保存。">
@@ -13,6 +17,7 @@
 </head>
 <body>
 <a class="skip" href="#main">本文へ移動</a>
+<noscript><div class="notice wrap">このアプリの利用には JavaScript を有効にする必要があります。ブラウザの設定を確認してください。</div></noscript>
 
 <header class="site-header">
   <div class="wrap header-in">
@@ -28,6 +33,7 @@
 </header>
 
 <div id="mode-banner" class="banner" hidden></div>
+<div id="storage-banner" class="banner" hidden></div>
 
 <main id="main" class="wrap" tabindex="-1">
 
@@ -35,6 +41,16 @@
   <section id="view-app" class="view">
     <h1>音声から議事録までを一括生成</h1>
     <p class="lead">音声ファイルを選ぶだけで「文字起こし全文／整文／要約／決定事項とToDo」を出力します。</p>
+
+    <div id="welcome" class="card welcome" hidden>
+      <h2>はじめての方へ（3ステップ）</h2>
+      <ol class="how">
+        <li><strong>まずデモで試す</strong>：下の「ファイル無しでサンプルを試す」→「文字起こしを実行」。APIキーは不要で、結果画面まで確認できます。</li>
+        <li><strong>実際に使う</strong>：「設定」でAPIキーを入力して「接続テスト」→ 音声ファイルを選んで実行。</li>
+        <li><strong>確認・修正・出力</strong>：結果の4つのタブを確認し、必要なら直接修正して、コピーまたはTXT/Markdownで保存します。</li>
+      </ol>
+      <p class="row"><a class="btn" href="#/help">詳しい使い方を見る</a><button id="welcome-close" type="button" class="btn ghost">閉じる（次回から表示しない）</button></p>
+    </div>
 
     <ol class="steps" aria-label="手順">
       <li class="on">① ファイルを選ぶ</li><li>② 音量を確認</li><li>③ 実行</li><li>④ 結果を確認・出力</li>
@@ -52,6 +68,7 @@
         <button id="btn-sample-large" type="button" class="btn ghost">大容量サンプル（30MB・Files API経路のデモ）</button>
         <span id="file-info" class="muted"></span>
       </p>
+      <div id="file-error" class="error" role="alert" hidden></div>
     </div>
 
     <div id="check-card" class="card" hidden>
@@ -67,6 +84,26 @@
       </label>
     </div>
 
+    <div id="mask-card" class="card" hidden>
+      <h2>送信前マスキング（任意）</h2>
+      <p class="muted small">氏名・社名・電話番号などが話されている区間を指定すると、その部分を<strong>無音にした音声</strong>を作って送信します。無音化した区間の内容は Google に送られず、結果にも出ません。加工はこのブラウザ内で行い、元のファイルは変更されません。</p>
+      <p class="notice small">⚠ 音声から氏名を自動で見つけて伏せることはできません（文字起こし前のため）。上のプレーヤーで再生しながら、該当する区間を指定してください。指定漏れの部分はそのまま送信されます。</p>
+      <div id="mask-unavail" class="notice" hidden></div>
+      <div id="mask-controls">
+        <div class="row mask-row">
+          <label class="inline-label">開始 <input id="mask-start" type="text" inputmode="decimal" placeholder="例: 1:23" autocomplete="off"></label>
+          <button id="mask-set-start" type="button" class="btn ghost small-btn">再生位置を入れる</button>
+          <label class="inline-label">終了 <input id="mask-end" type="text" inputmode="decimal" placeholder="例: 1:40" autocomplete="off"></label>
+          <button id="mask-set-end" type="button" class="btn ghost small-btn">再生位置を入れる</button>
+          <button id="mask-add" type="button" class="btn">＋区間を追加</button>
+        </div>
+        <ul id="mask-list" class="mask-list"></ul>
+        <p id="mask-total" class="muted small"></p>
+        <p class="row"><button id="mask-preview" type="button" class="btn ghost">マスク後の音声を試聴して確認</button><span id="mask-preview-info" class="muted small" aria-live="polite"></span></p>
+        <audio id="mask-preview-audio" controls hidden></audio>
+      </div>
+    </div>
+
     <div id="run-card" class="card" hidden>
       <h2>③ オプションと実行</h2>
       <div class="grid2">
@@ -78,6 +115,10 @@
         </label>
       </div>
       <p id="route-note" class="route-note" aria-live="polite"></p>
+      <details id="send-preview" class="send-preview">
+        <summary>送信内容の確認（Google に送られるもの）</summary>
+        <ul id="send-list"></ul>
+      </details>
       <p class="row">
         <button id="btn-run" type="button" class="btn primary" disabled>文字起こしを実行</button>
         <button id="btn-cancel" type="button" class="btn ghost" hidden>キャンセル</button>
@@ -139,6 +180,15 @@
       </p>
     </div>
     <div class="card">
+      <h2>伏せ字辞書（氏名・固有名詞）</h2>
+      <p class="muted small">1行に1語（カンマ区切りも可）。登録した語は、①出力（コピー／TXT／Markdown）で <strong>■</strong> に置換され、②文字起こし画面の「用語ヒント」から除外されて送信されます。辞書はこのブラウザ内にのみ保存されます。<br>※ 音声そのものから語を伏せるには、文字起こし画面の「送信前マスキング」で区間を指定してください（辞書では音声は伏せられません）。</p>
+      <label>辞書
+        <textarea id="set-mask-terms" rows="4" placeholder="例:&#10;山田太郎&#10;株式会社サンプル"></textarea>
+      </label>
+      <label class="check"><input id="set-mask-output" type="checkbox"> 出力時に伏せ字を適用する（既定ON）</label>
+      <p class="row"><button id="set-mask-save" type="button" class="btn primary">辞書を保存</button><span id="set-mask-count" class="muted small" aria-live="polite"></span></p>
+    </div>
+    <div class="card">
       <h2>データの削除</h2>
       <p class="muted small">履歴と設定（APIキー含む）をこのブラウザから完全に削除します。</p>
       <button id="set-wipe" type="button" class="btn danger">すべて削除</button>
@@ -148,31 +198,98 @@
   <!-- ========== 使い方 ========== -->
   <section id="view-help" class="view" hidden>
     <h1>使い方</h1>
-    <div class="card">
-      <h2>はじめに（約1分）</h2>
+    <p class="lead">はじめての方は「1. 3ステップで始める」だけ読めば使えます。困ったときは「5. エラーが出たとき」を見てください。</p>
+    <nav class="card toc" aria-label="この画面の目次">
+      <a href="#/help/start">1. 3ステップで始める</a> · <a href="#/help/key">2. APIキーについて</a> · <a href="#/help/screen">3. 画面の見かた</a> ·
+      <a href="#/help/privacy">4. 個人情報を守る（マスキング）</a> · <a href="#/help/error">5. エラーが出たとき</a> · <a href="#/help/faq">6. よくある質問</a>
+    </nav>
+
+    <div class="card" id="help-start">
+      <h2>1. 3ステップで始める</h2>
       <ol class="how">
-        <li><strong>デモで全体を確認</strong>：APIキー未設定のまま「文字起こし」画面で「サンプルを試す」を押すと、モックデータで全フローを確認できます。</li>
-        <li><strong>APIキーを設定</strong>：「設定」でGemini APIキーを入力して保存します。キーはお使いのブラウザ内にだけ保存されます。「接続テスト」でキーとモデルを確認できます。</li>
-        <li><strong>音声を選ぶ</strong>：送信前に波形と音量チェックが表示されます。小さすぎる・無音の場合は警告が出ます。14MBを超える音声は Files API 経由（アップロード→処理待ち→生成）で自動的に処理されます（上限200MB）。</li>
-        <li><strong>実行</strong>：文字起こし全文／整文／要約／決定事項とToDoが生成されます。</li>
-        <li><strong>確認・修正・出力</strong>：文字起こし・整文・要約・決定事項の本文の直接編集、話者名の変更、発言ごとの話者の付け替え、コピー、TXT/Markdown保存ができます。結果は「履歴」に自動保存されます。</li>
+        <li><strong>まずデモで試す（APIキー不要）</strong>：「文字起こし」画面で「ファイル無しでサンプルを試す」→「文字起こしを実行」。架空の会議データで、結果画面までの流れを体験できます。</li>
+        <li><strong>実際に使う</strong>：「設定」でGemini APIキーを入力して「保存」→「接続テスト」で成功を確認。「文字起こし」で音声ファイルを選び、送信前の音量チェックを確認して「文字起こしを実行」。</li>
+        <li><strong>確認・修正・出力</strong>：結果の4タブ（文字起こし全文／整文／要約／決定事項とToDo）を確認し、誤りは直接直します。「コピー」または「TXT／Markdownでダウンロード」で保存。結果は「履歴」に自動保存されます。</li>
       </ol>
     </div>
-    <div class="card">
-      <h2>誤りを減らすコツ</h2>
+
+    <div class="card" id="help-key">
+      <h2>2. APIキーについて</h2>
       <ul class="how">
-        <li>口元の近くで録音し、できるだけ静かな環境で。音割れしない音量に。</li>
-        <li>「【聞き取れませんでした】」「要確認」の表示は、AIが推測せずに残した印です。原音で確認してください。</li>
-        <li>人名・数字・日付など重要な情報は、必ず原音と照合してください。</li>
+        <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> でGemini APIキーを発行します（料金や無料枠はGoogleの規約に従います）。</li>
+        <li>キーは<strong>このブラウザの中にだけ</strong>保存されます。当アプリの運営者や第三者のサーバーには送られません（通信先はGoogleのみ）。</li>
+        <li>共用パソコンでは、使い終わったら「設定」→「APIキーだけ削除」を押してください。</li>
+        <li>キーの漏えいが心配なときは、Google側でキーを無効化・再発行してください。</li>
       </ul>
     </div>
-    <div class="card">
-      <h2>注意</h2>
+
+    <div class="card" id="help-screen">
+      <h2>3. 画面の見かた</h2>
       <ul class="how">
-        <li>これは<strong>試作版</strong>です。可用性・精度・セキュリティの保証はありません。</li>
-        <li>音声は Google の Gemini API に送信されます。機密性の高い音声を扱う前に<a href="#/privacy">プライバシーポリシー</a>を確認してください。</li>
+        <li><strong>音量チェック</strong>：送信前に、波形・平均音量・無音の割合を表示します。「問題あり」の音声は、確認チェックを入れないと実行できません（聞き取れない箇所が多くなるため）。</li>
+        <li><strong>【聞き取れませんでした】／要確認</strong>：AIが推測せずに残した印です。原音を聞いて確認し、正しい内容に書き換えると「要確認」は解除されます。</li>
+        <li><strong>編集済</strong>：あなたが手で修正した発言の印です。</li>
+        <li><strong>話者</strong>：「話者ラベル」で名前を変更でき、各発言のプルダウンで話者を付け替えられます。担当者名にも反映されます。</li>
+        <li><strong>14MBを超える音声</strong>：自動的に「Files API」でアップロードされます（上限200MB）。時間がかかるため、進捗が表示されます。</li>
+        <li><strong>デモモード</strong>：APIキー未設定、または設定で強制ONのとき。画面上部に表示され、実際の送信は一切行いません。</li>
       </ul>
     </div>
+
+    <div class="card" id="help-privacy">
+      <h2>4. 個人情報を守る（マスキング）</h2>
+      <p>名前や電話番号などを外部に送りたくない場合の機能が3つあります。<strong>それぞれ守れる範囲が違う</strong>ので、違いを理解して使ってください。</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>機能</th><th>何をするか</th><th>守れる範囲</th></tr></thead>
+        <tbody>
+          <tr><td><strong>送信前マスキング</strong><br>（文字起こし画面）</td><td>指定した時間区間の音声を<strong>無音化</strong>してから送信</td><td>無音化した区間の内容は<strong>Googleに送られません</strong>。指定した区間だけが対象です。</td></tr>
+          <tr><td><strong>用語ヒントの除外</strong></td><td>伏せ字辞書の語を含む行を、用語ヒントから除いて送信</td><td>用語ヒント（テキスト）に辞書の語が混ざって送られるのを防ぎます。</td></tr>
+          <tr><td><strong>出力時の伏せ字</strong><br>（辞書）</td><td>コピー／TXT／Markdown で、辞書の語を ■ に置換</td><td>出力ファイルの共有時の漏えいを防ぎます。<strong>Googleへの送信後の処理</strong>であり、送信内容は伏せません。</td></tr>
+        </tbody>
+      </table></div>
+      <ol class="how">
+        <li>設定の「伏せ字辞書」に、氏名・社名などを1行1語で登録（出力時の伏せ字用）。</li>
+        <li>文字起こし画面で音声を選び、プレーヤーで再生しながら、氏名などが話されている区間の「開始」「終了」を指定して「＋区間を追加」（「再生位置を入れる」で現在位置を入力できます）。</li>
+        <li>「マスク後の音声を試聴して確認」で、その区間が無音になっていることを必ず確認してから実行。</li>
+        <li>「送信内容の確認」を開くと、Googleに何が送られるかを実行前に確認できます。</li>
+      </ol>
+      <p class="notice">⚠ 音声から氏名を自動で検出して伏せることは、文字起こし前にはできません。<strong>指定していない区間はそのまま送信されます。</strong>機密性の高い音声は、送信前に全体を確認してください。</p>
+    </div>
+
+    <div class="card" id="help-error">
+      <h2>5. エラーが出たとき</h2>
+      <p class="muted small">エラー表示には「次にやること」が必ず付きます。よくあるものを一覧にしました。</p>
+      <div class="tbl-wrap"><table class="tbl help-tbl">
+        <thead><tr><th>表示されるメッセージ</th><th>主な原因</th><th>次にやること</th></tr></thead>
+        <tbody>
+          <tr><td>APIキーが無効です</td><td>キーの入力ミス・失効・余分な空白</td><td>設定でキーを入れ直し、「接続テスト」で確認</td></tr>
+          <tr><td>モデルが見つかりません（404）</td><td>モデルIDが存在しない・提供終了</td><td>設定の「カスタム」欄で別のモデルIDを入力し、「接続テスト」で確認</td></tr>
+          <tr><td>リクエスト上限に達しました（429）</td><td>短時間に多数の実行、または利用枠の超過</td><td>1〜数分待って再実行。頻発するならGoogle側の利用枠・課金を確認</td></tr>
+          <tr><td>Google側で一時的なエラー（5xx）</td><td>サーバーの混雑・障害</td><td>自動で最大2回再試行します。それでも失敗なら数分後に再実行</td></tr>
+          <tr><td>タイムアウトしました</td><td>音声が長い・回線が不安定</td><td>音声を分割するか、回線の安定した場所で再実行</td></tr>
+          <tr><td>Googleのサーバーに接続できませんでした</td><td>ネットワーク切断、VPN/プロキシ/拡張機能による遮断</td><td>接続を確認し、拡張機能を一時的にオフにする、または別のネットワークで再実行</td></tr>
+          <tr><td>オフラインです</td><td>インターネットに接続していない</td><td>接続を回復して再実行（デモモードはオフラインでも動きます）</td></tr>
+          <tr><td>ファイルが大きすぎます</td><td>200MBを超えている</td><td>音声を分割、またはMP3など小さい形式に変換</td></tr>
+          <tr><td>音声として認識できません／動画ファイルです／空のファイル</td><td>音声以外のファイル、動画、0バイト</td><td>対応形式（WAV・MP3・AIFF・AAC・OGG・FLAC・M4A・Opus・WebM）の音声を選び直す。動画は音声だけ書き出す</td></tr>
+          <tr><td>形式未対応・破損の可能性／400エラー</td><td>Geminiが読めない形式、ファイルの破損</td><td>MP3またはWAVに変換して再実行</td></tr>
+          <tr><td>ファイルの処理に失敗しました（Files API）</td><td>形式未対応・破損</td><td>MP3またはWAVに変換して再実行</td></tr>
+          <tr><td>安全性フィルタによりブロックされました</td><td>内容がGoogleの安全基準に抵触と判定</td><td>区間を分けて再実行。内容を確認</td></tr>
+          <tr><td>出力が長すぎて途中で打ち切られました</td><td>音声が長く、出力が上限を超えた</td><td>10〜20分程度に分割して処理</td></tr>
+          <tr><td>保存できませんでした</td><td>ブラウザの保存容量不足、またはプライベートモード</td><td>不要な履歴を削除。結果はTXT/Markdownでも保存を</td></tr>
+          <tr><td>結果が【聞き取れませんでした】ばかり</td><td>音量が小さい・雑音が多い</td><td>音量チェックを確認し、録音し直す（口元を近づける・静かな場所）</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="card" id="help-faq">
+      <h2>6. よくある質問</h2>
+      <details><summary>音声データは保存されますか？</summary><p>当アプリは音声を保存しません（ブラウザ内で処理し、Googleへ送信するだけです）。履歴に残るのは、文字起こし結果とファイル名だけです。送信後のGoogle側の取り扱いは、ご利用のAPIプランとGoogleの規約に従います。</p></details>
+      <details><summary>結果はどこに保存されますか？</summary><p>お使いのブラウザの中（localStorage）だけです。ブラウザのデータを消去すると失われるため、大切な結果はTXT/Markdownで保存してください。端末間の同期はありません。</p></details>
+      <details><summary>AIの出力は信頼できますか？</summary><p>誤りを含む可能性があります。人名・数字・日付などの重要な情報は、必ず原音で確認してください。聞き取れなかった箇所は推測せず【聞き取れませんでした】と表示する設計ですが、誤りがゼロになる保証はありません。</p></details>
+      <details><summary>料金はかかりますか？</summary><p>当アプリ自体の料金プランはダミー表示です。Gemini APIの利用料金・無料枠は、お持ちのAPIキーとGoogleの規約に従います。</p></details>
+      <details><summary>スマホのホーム画面に追加できますか？</summary><p>対応ブラウザでは「ホーム画面に追加」または「アプリをインストール」から追加できます（PWA）。</p></details>
+      <details><summary>データを全部消したい</summary><p>「設定」→「すべて削除」で、履歴・設定・APIキー・辞書をこのブラウザから削除できます。</p></details>
+    </div>
+    <p class="muted small">これは<strong>試作版</strong>です。可用性・精度・セキュリティの保証はありません。詳しくは <a href="#/terms">利用規約</a> と <a href="#/privacy">プライバシーポリシー</a> をご確認ください。</p>
   </section>
 
   <!-- ========== 料金（ダミー） ========== -->
@@ -224,9 +341,9 @@
     <h1>プライバシーポリシー</h1>
     <p class="notice">⚠ 本文書は試作用の<strong>ひな形</strong>であり、法務の確認を受けていません。商用提供の前に、適用法令（個人情報保護法等）に照らした確認・修正が必要です。</p>
     <h2>1. 本アプリが保存する情報</h2>
-    <p>APIキー、設定、処理結果の履歴（文字起こし・要約など）は、お使いのブラウザの localStorage にのみ保存されます。本アプリの運営者のサーバーには送信・保存されません（本試作版には運営者側サーバーがありません）。</p>
+    <p>APIキー、設定、伏せ字辞書、処理結果の履歴（文字起こし・要約など）は、お使いのブラウザの localStorage にのみ保存されます（ブラウザが localStorage を提供しない場合は、そのタブの間だけメモリに保持されます）。本アプリの運営者のサーバーには送信・保存されません（本試作版には運営者側サーバーがありません）。</p>
     <h2>2. 外部への送信</h2>
-    <p>「実行」を押すと、選択した音声データと指示文が、Google の Gemini API（generativelanguage.googleapis.com）へ直接送信されます。14MBを超える音声は Gemini の Files API で一時的にアップロードされ（元のファイル名は送信しません）、処理後に本アプリが削除を試みます（削除に失敗した場合の保持期間は Google の仕様に従います）。デモモードでは外部へ送信されません。音量チェックは端末内で行われ、送信されません。「接続テスト」はAPIキーとモデルIDのみをGoogleへ送信します。</p>
+    <p>「実行」を押すと、選択した音声データと指示文が、Google の Gemini API（generativelanguage.googleapis.com）へ直接送信されます。14MBを超える音声は Gemini の Files API で一時的にアップロードされ（元のファイル名は送信しません）、処理後に本アプリが削除を試みます（削除に失敗した場合の保持期間は Google の仕様に従います）。デモモードでは外部へ送信されません。音量チェックは端末内で行われ、送信されません。「送信前マスキング」を使うと、指定した区間を無音化した音声（ブラウザ内で作成）が元のファイルの代わりに送信され、無音化した区間の内容は送信されません。ただし、指定されていない区間はそのまま送信されます。「伏せ字辞書」による ■ への置換は、送信後に行う出力時の処理であり、送信内容は変えません（用語ヒントから辞書の語を除外する場合を除く）。「接続テスト」はAPIキーとモデルIDのみをGoogleへ送信します。</p>
     <h2>3. 送信先での取り扱い</h2>
     <p>送信されたデータの取り扱い（保存・学習への利用の有無等）は、ご利用のAPIプランと Google の規約・ポリシーに従います。機密性の高い音声を処理する前に、必ず最新の規約をご確認ください。</p>
     <h2>4. アクセス解析・Cookie</h2>
@@ -251,8 +368,10 @@
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
 <script src="js/util.js"></script>
+<script src="js/errors.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/mock.js"></script>
+<script src="js/mask.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/gemini.js"></script>
 <script src="js/export.js"></script>

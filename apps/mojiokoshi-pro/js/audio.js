@@ -16,7 +16,7 @@
         return unknown('ファイルが大きいため（50MB超）、ブラウザ内の音量解析を省略しました。送信は可能ですが、音量は確認できていません。');
       }
       const Ctx = g.AudioContext || g.webkitAudioContext;
-      if (!Ctx) return unknown('このブラウザは音声解析に対応していません。');
+      if (!Ctx) return unknown('このブラウザは音声解析に対応していません。送信は可能ですが、音量は確認できていません。');
       const ctx = new Ctx();
       try {
         const buf = await ctx.decodeAudioData(await file.arrayBuffer());
@@ -66,7 +66,7 @@
         if (!messages.length) messages.push('音量は問題ありません。');
         return { level, duration: buf.duration, rmsDb, peakDb, silenceRatio, clipRatio, messages, peaks };
       } catch (e) {
-        return unknown('ブラウザで音声を解析できませんでした（形式未対応の可能性）。送信は可能ですが、音量は確認できていません。');
+        return unknown('ブラウザで音声を解析できませんでした（形式未対応または破損の可能性）。送信は可能ですが、音量は確認できていません。実行に失敗する場合は MP3 または WAV に変換してください。');
       } finally {
         try { ctx.close(); } catch (e) {}
       }

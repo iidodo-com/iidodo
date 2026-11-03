@@ -2,11 +2,16 @@
 (function () {
   const MP = window.MP;
   const { h, $, clear, toast } = MP;
+  const { AppError } = MP;
   const { MAX_INLINE_BYTES, FILES_MAX_BYTES } = MP.gemini;
   const LARGE_SAMPLE_BYTES = 30 * 1024 * 1024;
+  const SAMPLE_DURATION = 104;
 
   // sample: false | 'normal' | 'large'
-  const state = { file: null, sample: false, check: null, running: false, ctrl: null, objUrl: null };
+  const state = {
+    file: null, sample: false, check: null, running: false, ctrl: null, objUrl: null,
+    ranges: [], fileWarn: [], masked: null, // masked: {key, built, url}
+  };
 
   /* ================= ルーター ================= */
   const VIEWS = ['app', 'result', 'history', 'settings', 'help', 'pricing', 'terms', 'privacy'];
@@ -14,20 +19,22 @@
   function route() {
     flushSave();
     const parts = (location.hash.replace(/^#\/?/, '') || 'app').split('/');
-    let name = VIEWS.includes(parts[0]) ? parts[0] : 'app';
+    const name = VIEWS.includes(parts[0]) ? parts[0] : 'app';
     VIEWS.forEach((v) => { $('#view-' + v).hidden = v !== name; });
     document.querySelectorAll('[data-nav]').forEach((a) => {
       const on = a.dataset.nav === name || (name === 'result' && a.dataset.nav === 'history');
       on ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
     });
+    if (name !== 'settings') $('#set-key').value = ''; // 画面外にAPIキーを残さない
     if (name === 'history') renderHistory();
     if (name === 'settings') loadSettingsForm();
     if (name === 'result') {
       if (!renderResult(parts[1])) { location.replace('#/history'); return; }
     }
-    if (name === 'app' && !$('#run-card').hidden) renderRouteNote();
+    if (name === 'app' && !$('#run-card').hidden) renderSendPreview();
     renderBanner();
-    window.scrollTo(0, 0);
+    const target = name === 'help' && parts[1] ? document.getElementById('help-' + parts[1]) : null;
+    if (target) target.scrollIntoView(); else window.scrollTo(0, 0);
     $('#main').focus({ preventScroll: true });
   }
 
@@ -44,6 +51,12 @@
     } else {
       b.hidden = true;
     }
+    const sb = $('#storage-banner');
+    sb.hidden = MP.store.persistent;
+    if (!MP.store.persistent) {
+      clear(sb).append(h('div', { class: 'wrap' }, h('strong', null, '保存できない環境です'),
+        ' — このブラウザではデータを保存できないため、設定・履歴はこのタブを閉じると消えます（プライベートモードの可能性があります）。大切な結果はTXT/Markdownで保存してください。'));
+    }
   }
 
   /* ================= 入力画面 ================= */
@@ -51,31 +64,55 @@
     document.querySelectorAll('.steps li').forEach((li, i) => li.classList.toggle('on', i === n));
   }
 
+  function dropMasked() {
+    if (state.masked && state.masked.url) URL.revokeObjectURL(state.masked.url);
+    state.masked = null;
+    const a = $('#mask-preview-audio'); a.hidden = true; a.removeAttribute('src');
+    $('#mask-preview-info').textContent = '';
+  }
+
   function resetInput() {
     if (state.objUrl) { URL.revokeObjectURL(state.objUrl); state.objUrl = null; }
-    state.file = null; state.sample = false; state.check = null;
-    $('#check-card').hidden = true; $('#run-card').hidden = true;
+    dropMasked();
+    state.file = null; state.sample = false; state.check = null; state.ranges = []; state.fileWarn = [];
+    ['#check-card', '#mask-card', '#run-card', '#file-error'].forEach((sel) => { $(sel).hidden = true; });
     $('#file-info').textContent = '';
     $('#file').value = '';
     $('#player').hidden = true;
     $('#force').checked = false;
+    $('#mask-start').value = ''; $('#mask-end').value = '';
     $('#progress').hidden = true; $('#run-error').hidden = true;
     setStep(0);
   }
 
-  function isAudio(f) {
-    return /^audio\//.test(f.type) || /\.(mp3|wav|m4a|aac|ogg|flac|aiff?|webm|mp4)$/i.test(f.name);
+  /** 取り込み前の検証。失敗時は {err}、成功時は {warn:[...]} */
+  function validateFile(file) {
+    const ext = MP.gemini.extOf(file);
+    const nm = file.name.length > 60 ? file.name.slice(0, 57) + '…' : file.name;
+    if (!file.size) return { err: new AppError(`「${nm}」は空のファイル（0バイト）です。`, '録音が正しく保存されたか確認し、別のファイルを選んでください。') };
+    if (/^video\//.test(file.type)) {
+      return { err: new AppError(`「${nm}」は動画ファイルです。`, '動画から音声だけを書き出し（MP3 / WAV / M4A）てから、もう一度選んでください。') };
+    }
+    const audioLike = /^audio\//.test(file.type) || MP.gemini.SUPPORTED_EXT.includes(ext);
+    if (!audioLike) {
+      return { err: new AppError(`「${nm}」は音声ファイルとして認識できません。`, '対応形式（WAV / MP3 / AIFF / AAC / OGG / FLAC / M4A / Opus / WebM）の音声を選んでください。他の形式は変換してからお試しください。') };
+    }
+    if (MP.gemini.route(file.size) === 'too_large') {
+      return { err: new AppError(`ファイルが大きすぎます（${MP.fmtSize(file.size)} / 上限 ${MP.fmtSize(FILES_MAX_BYTES)}）。`, '音声を分割するか、MP3 など小さい形式に変換してから、もう一度選んでください。') };
+    }
+    const warn = [];
+    if (!MP.gemini.SUPPORTED_EXT.includes(ext)) {
+      warn.push(`拡張子「.${ext || '（なし）'}」は、Gemini の対応形式（WAV/MP3/AIFF/AAC/OGG/FLAC/M4A/Opus/WebM）に明記されていません。実行時にエラーになる場合は MP3 または WAV に変換してください。`);
+    }
+    return { warn };
   }
 
   async function onFile(file) {
     resetInput();
     if (!file) return;
-    if (!isAudio(file)) { toast('音声ファイルを選択してください', 'err'); return; }
-    if (MP.gemini.route(file.size) === 'too_large') {
-      toast(`ファイルが大きすぎます（${MP.fmtSize(file.size)} / 上限 ${MP.fmtSize(FILES_MAX_BYTES)}）`, 'err');
-      return;
-    }
-    state.file = file;
+    const v = validateFile(file);
+    if (v.err) { MP.renderError($('#file-error'), v.err); return; }
+    state.file = file; state.fileWarn = v.warn;
     $('#file-info').textContent = `${file.name}（${MP.fmtSize(file.size)}）を解析中…`;
     $('#check-card').hidden = false;
     state.objUrl = URL.createObjectURL(file);
@@ -91,26 +128,10 @@
     resetInput();
     state.sample = kind;
     state.check = MP.mock.fakeCheck();
-    if (kind === 'large') { state.check.duration = 1800; state.check.messages = ['デモ用の擬似データです（実ファイルは解析していません）。']; }
+    if (kind === 'large') state.check.duration = 1800;
     $('#check-card').hidden = false;
     $('#file-info').textContent = kind === 'large' ? `大容量サンプル（デモ・${MP.fmtSize(LARGE_SAMPLE_BYTES)}相当）` : 'サンプル音声（デモ）';
     showCheck();
-  }
-
-  /** 現在の入力の送信対象サイズ */
-  const inputSize = () => (state.file ? state.file.size : state.sample === 'large' ? LARGE_SAMPLE_BYTES : 3 * 1024 * 1024);
-
-  function renderRouteNote() {
-    const demo = MP.store.isDemo(MP.store.getSettings());
-    const size = inputSize();
-    const mode = MP.gemini.route(size);
-    const note = $('#route-note');
-    const dm = demo ? '（デモ：実際には送信せず、手順の表示のみ行います）' : '';
-    if (mode === 'inline') {
-      note.textContent = `送信方式: inline（${MP.fmtSize(size)}・上限 ${MP.fmtSize(MAX_INLINE_BYTES)} 以下）。音声を直接リクエストに含めて送信します。${dm}`;
-    } else {
-      note.textContent = `送信方式: Files API（${MP.fmtSize(size)}・inline上限 ${MP.fmtSize(MAX_INLINE_BYTES)} 超）。アップロード → Google側の処理待ち（ACTIVE）→ 生成 の順で処理するため、時間がかかります。${dm}`;
-    }
   }
 
   const LEVEL_LABEL = {
@@ -127,14 +148,15 @@
       ...[['長さ', c.duration ? MP.fmtTime(c.duration) : '—'], ['平均音量(有音部)', f(c.rmsDb, ' dBFS')],
         ['ピーク', f(c.peakDb, ' dBFS')], ['無音の割合', c.silenceRatio == null ? '—' : (c.silenceRatio * 100).toFixed(0) + '%']]
         .map(([k, v]) => h('div', null, h('dt', null, k), h('dd', null, v))));
-    clear($('#check-msgs')).append(...c.messages.map((m) => h('li', null, m)));
+    clear($('#check-msgs')).append(...[...c.messages, ...state.fileWarn].map((m) => h('li', null, m)));
     const cv = $('#wave');
     cv.hidden = !c.peaks.length;
     if (c.peaks.length) requestAnimationFrame(() => MP.audio.drawWave(cv, c.peaks, c.level));
     $('#force-row').hidden = c.level !== 'bad';
     $('#force').checked = false;
+    showMaskCard();
     $('#run-card').hidden = false;
-    renderRouteNote();
+    renderSendPreview();
     setStep(2);
     updateRunBtn();
   }
@@ -144,6 +166,107 @@
     $('#btn-run').disabled = state.running || !(state.file || state.sample) || (needForce && !$('#force').checked);
   }
 
+  /* ---------- 送信前マスキング（区間指定 → 無音化） ---------- */
+  const fmtPos = (t) => { const m = Math.floor(t / 60); const s = (t % 60).toFixed(1); return `${String(m).padStart(2, '0')}:${s.padStart(4, '0')}`; };
+  const duration = () => (state.check && state.check.duration) || 0;
+
+  function showMaskCard() {
+    $('#mask-card').hidden = false;
+    const un = $('#mask-unavail'), ctrls = $('#mask-controls');
+    let msg = '';
+    if (state.file && state.file.size > MP.mask.MAX_MASK_BYTES) {
+      msg = `${MP.fmtSize(MP.mask.MAX_MASK_BYTES)}を超えるファイルは、ブラウザのメモリ制限により送信前マスキングを使えません。音声を分割するか、MP3 などに変換してください。`;
+    } else if (state.file && !duration()) {
+      msg = 'この音声はブラウザで読み込めないため、送信前マスキングを使えません。MP3 または WAV に変換してから取り込んでください。';
+    }
+    un.hidden = !msg; un.textContent = msg; ctrls.hidden = !!msg;
+    $('#mask-set-start').hidden = $('#mask-set-end').hidden = !state.file; // サンプルには再生できる音声がない
+    renderRanges();
+  }
+
+  function renderRanges() {
+    const ul = clear($('#mask-list'));
+    state.ranges.forEach((r, i) => ul.append(h('li', null,
+      `${fmtPos(r.start)} 〜 ${fmtPos(r.end)}（${(r.end - r.start).toFixed(1)}秒）`,
+      h('button', { type: 'button', class: 'btn ghost small-btn', 'aria-label': `区間${i + 1}を削除`, onclick: () => { state.ranges.splice(i, 1); onRangesChanged(); } }, '削除'))));
+    const sec = MP.mask.totalSeconds(state.ranges);
+    $('#mask-total').textContent = state.ranges.length
+      ? `${state.ranges.length}区間・計${sec.toFixed(1)}秒を無音化して送信します。`
+      : '区間は指定されていません（元の音声をそのまま送信します）。';
+    $('#mask-preview').disabled = !state.ranges.length || !state.file;
+  }
+
+  function onRangesChanged() { dropMasked(); renderRanges(); renderSendPreview(); }
+
+  function addRange() {
+    const s = MP.mask.parseTime($('#mask-start').value), e = MP.mask.parseTime($('#mask-end').value);
+    if (!Number.isFinite(s) || !Number.isFinite(e)) { toast('時刻は「1:23」「01:02:03」「83」のように入力してください。', 'err'); return; }
+    if (e <= s) { toast('終了は開始より後の時刻にしてください。', 'err'); return; }
+    const dur = duration();
+    if (dur && s >= dur) { toast(`開始が音声の長さ（${MP.fmtTime(dur)}）を超えています。`, 'err'); return; }
+    if (state.ranges.length >= MP.mask.MAX_RANGES) { toast(`区間は最大${MP.mask.MAX_RANGES}件までです。`, 'err'); return; }
+    state.ranges = MP.mask.normalizeRanges([...state.ranges, { start: s, end: e }], dur);
+    $('#mask-start').value = ''; $('#mask-end').value = '';
+    onRangesChanged();
+  }
+
+  const rangesKey = () => JSON.stringify(state.ranges);
+  /** マスク後WAVを作る（同じ区間なら再利用） */
+  async function getMasked() {
+    if (state.masked && state.masked.key === rangesKey()) return state.masked.built;
+    const built = await MP.mask.buildMaskedWav(state.file, state.ranges);
+    if (state.masked && state.masked.url) URL.revokeObjectURL(state.masked.url);
+    state.masked = { key: rangesKey(), built, url: URL.createObjectURL(built.file) };
+    return built;
+  }
+
+  async function previewMasked() {
+    const info = $('#mask-preview-info'), btn = $('#mask-preview');
+    btn.disabled = true; info.textContent = 'マスク後の音声を作成中…';
+    try {
+      const built = await getMasked();
+      const a = $('#mask-preview-audio'); a.src = state.masked.url; a.hidden = false;
+      info.textContent = `作成しました（${MP.fmtSize(built.size)}・${built.ranges.length}区間を無音化）。再生して、指定区間が無音になっていることを確認してください。`;
+    } catch (e) { info.textContent = ''; MP.errorToast(e); }
+    finally { renderRanges(); }
+  }
+
+  /* ---------- 送信方式・送信内容プレビュー ---------- */
+  const inputSize = () => (state.file ? state.file.size : state.sample === 'large' ? LARGE_SAMPLE_BYTES : 3 * 1024 * 1024);
+  /** 実際に送信される音声サイズ（マスキング時は16kHzモノラルWAVの推定値） */
+  const sendSize = () => (state.file && state.ranges.length ? MP.mask.estimateWavSize(duration()) : inputSize());
+
+  function renderSendPreview() {
+    const s = MP.store.getSettings();
+    const demo = MP.store.isDemo(s);
+    const size = sendSize();
+    const mode = MP.gemini.route(size);
+    const dm = demo ? '（デモ：実際には送信せず、手順の表示のみ行います）' : '';
+    $('#route-note').textContent = mode === 'inline'
+      ? `送信方式: inline（${MP.fmtSize(size)}・上限 ${MP.fmtSize(MAX_INLINE_BYTES)} 以下）。音声を直接リクエストに含めて送信します。${dm}`
+      : mode === 'files'
+        ? `送信方式: Files API（${MP.fmtSize(size)}・inline上限 ${MP.fmtSize(MAX_INLINE_BYTES)} 超）。アップロード → Google側の処理待ち（ACTIVE）→ 生成 の順で処理するため、時間がかかります。${dm}`
+        : `送信できません：${MP.fmtSize(size)} は上限 ${MP.fmtSize(FILES_MAX_BYTES)} を超えています。音声を分割してください。`;
+
+    const g = MP.mask.removeTermLines($('#glossary').value, s.maskTerms);
+    const nGloss = g.text ? g.text.split('\n').length : 0;
+    const items = [];
+    if (state.ranges.length) {
+      const sec = MP.mask.totalSeconds(state.ranges).toFixed(1);
+      items.push(state.file
+        ? `音声: 指定の${state.ranges.length}区間（計${sec}秒）を無音化した16kHzモノラルWAV（約${MP.fmtSize(size)}）を送信します。元のファイルは送信されません。`
+        : `音声: （デモ）指定の${state.ranges.length}区間（計${sec}秒）を無音化した音声を送信する想定です。`);
+    } else {
+      items.push(`音声: 選択したファイル（${MP.fmtSize(size)}）をそのまま送信します。`);
+    }
+    items.push('指示文: 推測禁止ルールを含む固定の指示文（README/ソースで確認できます）。');
+    items.push(`用語ヒント: ${nGloss}行を送信します。` + (g.removed ? `伏せ字辞書の語を含む${g.removed}行は、送信前に除外します。` : ''));
+    if ($('#spk-hint').value.trim()) items.push(`話者数の目安: ${$('#spk-hint').value.trim()}人`);
+    items.push('ファイル名: 送信しません。　APIキー: 認証のため Google にのみ送信します（URLには含めません）。');
+    clear($('#send-list')).append(...items.map((t) => h('li', null, t)));
+  }
+
+  /* ---------- 実行 ---------- */
   async function onRun() {
     const s = MP.store.getSettings();
     const demo = MP.store.isDemo(s);
@@ -156,21 +279,43 @@
       bar.hidden = t.pct == null;
       if (t.pct != null) bar.value = Math.round(t.pct * 100);
     };
+    state.running = true; updateRunBtn();
+    $('#btn-cancel').hidden = false;
+    state.ctrl = new AbortController();
     const wait = (ms) => new Promise((r, j) => {
       const t = setTimeout(r, ms);
       state.ctrl.signal.addEventListener('abort', () => { clearTimeout(t); j(Object.assign(new Error('キャンセルしました。'), { name: 'AbortError' })); }, { once: true });
     });
-    const size = inputSize();
-    const sendMode = MP.gemini.route(size);
-    state.running = true; updateRunBtn();
-    $('#btn-cancel').hidden = false;
-    state.ctrl = new AbortController();
     try {
-      let content;
+      if (!demo && navigator.onLine === false) {
+        throw new AppError('オフラインです。', 'インターネットに接続してから、もう一度実行してください（デモモードならオフラインでも画面を確認できます）。');
+      }
+      if (!demo && !state.file) throw new AppError('サンプルは実際のAPIでは使えません。', '音声ファイルを選んでから実行してください。');
+
+      /* ① 送信する音声を決定（送信前マスキング） */
+      let sendFile = state.file, preMask = null;
+      if (state.ranges.length) {
+        if (state.file) {
+          say('送信前マスキング: 指定区間を無音化しています…');
+          const built = await getMasked();
+          sendFile = built.file;
+          preMask = { count: built.ranges.length, seconds: built.mutedSeconds };
+        } else {
+          preMask = { count: state.ranges.length, seconds: MP.mask.totalSeconds(state.ranges) };
+        }
+      }
+      const size = sendFile ? sendFile.size : inputSize();
+      const sendMode = MP.gemini.route(size);
+      if (sendMode === 'too_large') {
+        throw new AppError(`送信する音声が大きすぎます（${MP.fmtSize(size)} / 上限 ${MP.fmtSize(FILES_MAX_BYTES)}）。`, '音声を分割してから、もう一度実行してください。');
+      }
+      const glossary = MP.mask.removeTermLines($('#glossary').value, s.maskTerms).text; // 辞書の語を含む行は送らない
       const model = MP.store.effectiveModel(s);
+
+      /* ② 処理 */
+      let content;
       if (demo) {
         if (sendMode === 'files') {
-          // Files API 経路のデモ表示（実通信なし）
           for (let i = 0; i <= 10; i++) { say({ text: `（デモ）Files API: アップロード中… ${i * 10}%`, pct: i / 10 }); await wait(120); }
           for (let sec = 0; sec < 3; sec++) { say({ text: `（デモ）Google側でファイルを処理中…（${sec * 2}秒経過 / 状態: PROCESSING）`, pct: null }); await wait(500); }
           say({ text: '（デモ）ファイルの状態: ACTIVE。fileData で参照して生成します。', pct: null }); await wait(400);
@@ -182,10 +327,9 @@
         content = MP.mock.make();
         content.sendMode = sendMode;
       } else {
-        if (!state.file) throw new Error('サンプルは実APIでは使えません。ファイルを選択してください。');
         content = await MP.gemini.run({
-          file: state.file, apiKey: s.apiKey.trim(), model,
-          glossary: $('#glossary').value.trim(), speakerHint: $('#spk-hint').value.trim(),
+          file: sendFile, apiKey: s.apiKey.trim(), model, glossary,
+          speakerHint: $('#spk-hint').value.trim(), maskedSeconds: preMask ? preMask.seconds : 0,
           signal: state.ctrl.signal, onStatus: say,
         });
       }
@@ -197,12 +341,14 @@
         model: demo ? 'demo' : model, demo,
         audioLevel: state.check ? state.check.level : 'unknown',
         audioRmsDb: state.check ? state.check.rmsDb : null,
+        preMask,
       }, content);
-      if (!MP.store.saveRecord(rec)) throw new Error('結果の保存に失敗しました（容量超過）。履歴を整理してください。');
+      if (MP.store.saveRecord(rec)) { transient = null; }
+      else { transient = Object.assign({}, rec, { unsaved: true }); } // 保存に失敗しても結果は失わない
       setStep(3);
       location.hash = '#/result/' + rec.id;
     } catch (e) {
-      errBox.hidden = false; errBox.textContent = e.name === 'AbortError' ? 'キャンセルしました。' : (e.message || String(e));
+      MP.renderError(errBox, e);
     } finally {
       state.running = false; state.ctrl = null;
       prog.hidden = true; bar.hidden = true; $('#btn-cancel').hidden = true; updateRunBtn();
@@ -220,16 +366,28 @@
     $('#force').addEventListener('change', updateRunBtn);
     $('#btn-run').addEventListener('click', onRun);
     $('#btn-cancel').addEventListener('click', () => state.ctrl && state.ctrl.abort());
+    $('#glossary').addEventListener('input', renderSendPreview);
+    $('#spk-hint').addEventListener('input', renderSendPreview);
+    // 送信前マスキング
+    $('#mask-add').addEventListener('click', addRange);
+    $('#mask-end').addEventListener('keydown', (e) => { if (e.key === 'Enter') addRange(); });
+    $('#mask-set-start').addEventListener('click', () => { $('#mask-start').value = fmtPos($('#player').currentTime || 0); });
+    $('#mask-set-end').addEventListener('click', () => { $('#mask-end').value = fmtPos($('#player').currentTime || 0); });
+    $('#mask-preview').addEventListener('click', previewMasked);
+    // 初回案内
+    if (!MP.store.getFlag('welcomeSeen')) $('#welcome').hidden = false;
+    $('#welcome-close').addEventListener('click', () => { $('#welcome').hidden = true; MP.store.setFlag('welcomeSeen'); });
   }
 
   /* ================= 結果画面 ================= */
   let cur = null;       // 表示中のレコード
+  let transient = null; // 履歴に保存できなかった直後の結果（画面では表示し続ける）
   let curTab = 'transcript';
 
   const spName = (id) => cur.speakers[id] || `話者${id}`;
   let saveTimer = null;
   /** 即時保存（保留中の遅延保存はここに集約） */
-  const persist = () => { clearTimeout(saveTimer); saveTimer = null; return cur ? MP.store.saveRecord(cur) : true; };
+  const persist = () => { clearTimeout(saveTimer); saveTimer = null; return cur && !cur.unsaved ? MP.store.saveRecord(cur) : true; };
   /** 入力中の頻繁な保存を間引く（400ms）。画面遷移・タブ非表示時は flushSave で確実に保存 */
   const persistSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(persist, 400); };
   function flushSave() { if (saveTimer) persist(); }
@@ -241,8 +399,8 @@
   function renderResult(id) {
     flushSave();
     const prevId = cur && cur.id;
-    cur = MP.store.getRecord(id);
-    if (!cur) { toast('履歴が見つかりません', 'err'); return false; }
+    cur = MP.store.getRecord(id) || (transient && transient.id === id ? transient : null);
+    if (!cur) { MP.errorToast(new AppError('指定された履歴が見つかりません。', '履歴ページで一覧から選び直してください。')); return false; }
     if (cur.id !== prevId) curTab = 'transcript';
     // 旧データ保護
     cur.todos.forEach((t) => { if (t.done == null) t.done = false; });
@@ -260,9 +418,10 @@
 
     root.append(
       h('h1', null, '結果'),
-      h('p', { class: 'muted' }, `${cur.fileName} ・ ${MP.fmtDate(cur.createdAt)} ・ ${cur.demo ? 'デモ' : cur.model}${cur.sendMode ? ' ・ 送信方式: ' + (cur.sendMode === 'files' ? 'Files API' : 'inline') : ''}`,
+      h('p', { class: 'muted' }, `${cur.fileName} ・ ${MP.fmtDate(cur.createdAt)} ・ ${cur.demo ? 'デモ' : cur.model}${cur.sendMode ? ' ・ 送信方式: ' + (cur.sendMode === 'files' ? 'Files API' : 'inline') : ''}${cur.preMask && cur.preMask.count ? ` ・ 送信前マスキング: ${cur.preMask.count}区間（計${Math.round(cur.preMask.seconds)}秒）` : ''}`,
         cur.duration ? ` ・ ${MP.fmtTime(cur.duration)}` : ''),
       h('p', { class: 'notice', id: 'unc-warn', hidden: !unc }, unc ? uncText(unc) : ''),
+      cur.unsaved ? h('p', { class: 'error', role: 'alert' }, '⚠ この結果はまだ履歴に保存されていません（保存容量不足）。このページを離れると失われるため、今すぐ TXT / Markdown でダウンロードしてください。履歴の不要な項目を削除すれば、次回から保存できます。') : null,
       ...warns.map((w) => h('p', { class: 'notice' }, '⚠ ' + w)),
       cur.audio_notes ? h('p', { class: 'muted small' }, 'AIの所見: ' + cur.audio_notes) : null,
       speakerPanel(),
@@ -272,12 +431,37 @@
           onclick: () => { curTab = s.key; buildResult(); },
         }, `${'①②③④'[i]} ${s.title}`))),
       h('div', { class: 'card', role: 'tabpanel' }, tabBody()),
+      maskOutputControl(),
       h('div', { class: 'row actions' },
-        h('button', { type: 'button', class: 'btn', onclick: () => MP.exporter.copy(MP.exporter.sectionText(cur, curTab, 'txt')) }, 'このタブをコピー'),
-        h('button', { type: 'button', class: 'btn', onclick: () => MP.exporter.copy(MP.exporter.toText(cur)) }, '全体をコピー'),
-        h('button', { type: 'button', class: 'btn', onclick: () => MP.exporter.download(MP.exporter.toText(cur), MP.exporter.baseName(cur) + '.txt', 'text/plain') }, 'TXTでダウンロード'),
-        h('button', { type: 'button', class: 'btn', onclick: () => MP.exporter.download(MP.exporter.toMarkdown(cur), MP.exporter.baseName(cur) + '.md', 'text/markdown') }, 'Markdownでダウンロード'),
+        h('button', { type: 'button', class: 'btn', onclick: () => MP.exporter.copy(MP.exporter.sectionText(expRec(), curTab, 'txt')) }, 'このタブをコピー'),
+        h('button', { type: 'button', class: 'btn', onclick: () => MP.exporter.copy(MP.exporter.toText(expRec())) }, '全体をコピー'),
+        h('button', { type: 'button', class: 'btn', onclick: () => { const r = expRec(); MP.exporter.download(MP.exporter.toText(r), MP.exporter.baseName(r) + '.txt', 'text/plain'); } }, 'TXTでダウンロード'),
+        h('button', { type: 'button', class: 'btn', onclick: () => { const r = expRec(); MP.exporter.download(MP.exporter.toMarkdown(r), MP.exporter.baseName(r) + '.md', 'text/markdown'); } }, 'Markdownでダウンロード'),
         h('a', { class: 'btn ghost', href: '#/app' }, '新しい音声を処理')));
+  }
+
+  /* --- 出力時の伏せ字（辞書の語を ■ に置換してコピー/ダウンロード） --- */
+  function expRec() {
+    const s = MP.store.getSettings();
+    if (s.maskOutput && s.maskTerms.length) {
+      const c = MP.mask.maskRecord(cur, s.maskTerms);
+      c.maskedOutput = true;
+      return c;
+    }
+    return cur;
+  }
+
+  function maskOutputControl() {
+    const s = MP.store.getSettings();
+    if (!s.maskTerms.length) {
+      return h('p', { class: 'muted small' }, '出力時の伏せ字: 辞書が未登録です。氏名などを伏せて出力したい場合は ', h('a', { href: '#/settings' }, '設定の「伏せ字辞書」'), ' に登録してください。');
+    }
+    return h('label', { class: 'check mask-out' },
+      h('input', { type: 'checkbox', id: 'mask-output', checked: !!s.maskOutput, onchange: (e) => {
+        const cs = MP.store.getSettings(); cs.maskOutput = e.target.checked; MP.store.saveSettings(cs);
+        toast(e.target.checked ? '出力を伏せ字にします' : '出力を伏せ字にしません（辞書の語がそのまま出力されます）');
+      } }),
+      `コピー／ダウンロードで、辞書の ${s.maskTerms.length} 語を ■ に置換する（画面の表示は変わりません）`);
   }
 
   /* --- 話者パネル（ラベル名の変更・話者追加） --- */
@@ -464,7 +648,13 @@
     $('#set-demo').checked = s.forceDemo;
     $('#set-custom-row').hidden = s.model !== '__custom';
     $('#set-model-note').hidden = s.model !== 'gemini-3.5-flash';
+    $('#set-mask-terms').value = s.maskTerms.join('\n');
+    $('#set-mask-output').checked = s.maskOutput;
+    $('#set-mask-count').textContent = s.maskTerms.length ? `登録済み: ${s.maskTerms.length}語` : '未登録';
   }
+
+  /** APIキーの形式チェック（全角文字・空白・改行が混ざるとリクエストが失敗するため） */
+  const keyProblem = (k) => (/[^\x21-\x7E]/.test(k) ? 'APIキーに使えない文字（全角文字・空白・改行など）が含まれています。Google AI Studio からコピーし直してください。' : '');
 
   function initSettings() {
     $('#set-model').addEventListener('change', (e) => {
@@ -487,6 +677,7 @@
       const sel = $('#set-model').value;
       const model = MP.gemini.cleanModel(sel === '__custom' ? $('#set-custom').value : sel);
       if (!key) { showTest('warn', '接続テストを実行していません', ['APIキーが未入力です。キーを入力してから再度お試しください（キー未入力の間は通信しません）。']); return; }
+      if (keyProblem(key)) { showTest('bad', '接続テストを実行していません', [keyProblem(key)]); return; }
       if (!model) { showTest('warn', '接続テストを実行していません', ['カスタムモデルIDが未入力です。']); return; }
       const btn = $('#set-test'); btn.disabled = true;
       showTest('warn', 'テスト中…', [`モデル ${model} の存在とAPIキーを確認しています。`]);
@@ -500,12 +691,23 @@
       } finally { btn.disabled = false; }
     });
     $('#set-save').addEventListener('click', () => {
-      const s = {
+      const s = Object.assign(MP.store.getSettings(), { // 辞書など他の設定を消さないようにマージ
         apiKey: $('#set-key').value.trim(), model: $('#set-model').value,
         customModel: $('#set-custom').value.trim(), forceDemo: $('#set-demo').checked,
-      };
-      if (s.model === '__custom' && !s.customModel) { toast('カスタムモデルIDを入力してください', 'err'); return; }
+      });
+      if (keyProblem(s.apiKey)) { toast(keyProblem(s.apiKey), 'err'); return; }
+      if (s.model === '__custom' && !s.customModel) { toast('カスタムモデルIDを入力してください（例: gemini-3.6-flash）', 'err'); return; }
       if (MP.store.saveSettings(s)) { toast('設定を保存しました'); renderBanner(); }
+    });
+    $('#set-mask-save').addEventListener('click', () => {
+      const s = MP.store.getSettings();
+      s.maskTerms = MP.mask.parseTermsText($('#set-mask-terms').value);
+      s.maskOutput = $('#set-mask-output').checked;
+      if (MP.store.saveSettings(s)) {
+        const n = MP.store.getSettings().maskTerms.length;
+        $('#set-mask-terms').value = MP.store.getSettings().maskTerms.join('\n');
+        $('#set-mask-count').textContent = n ? `登録済み: ${n}語` : '未登録'; toast('伏せ字辞書を保存しました');
+      }
     });
     $('#set-keydel').addEventListener('click', () => {
       const s = MP.store.getSettings(); s.apiKey = ''; MP.store.saveSettings(s);
@@ -525,6 +727,18 @@
   }
 
   /* ================= 起動 ================= */
+  // 想定外の例外は、利用者に次の行動を示す（内部情報は出さない）
+  let lastGlobalToast = 0;
+  const globalFail = () => {
+    if (Date.now() - lastGlobalToast < 5000) return;
+    lastGlobalToast = Date.now();
+    MP.errorToast(new Error(''));
+  };
+  window.addEventListener('error', globalFail);
+  window.addEventListener('unhandledrejection', globalFail);
+  window.addEventListener('offline', () => toast('オフラインになりました。実行にはインターネット接続が必要です（デモモードは利用できます）。', 'err'));
+  window.addEventListener('online', () => toast('オンラインに戻りました。'));
+
   initApp(); initHistory(); initSettings(); initPricing();
   window.addEventListener('hashchange', route);
   route();

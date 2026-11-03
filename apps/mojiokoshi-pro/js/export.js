@@ -3,6 +3,9 @@
   const MP = g.MP;
   const name = (rec, id) => (rec.speakers && rec.speakers[id]) || `話者${id}`;
   const esc = (s) => String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
+  /* Markdown出力時のエスケープ: 本文は <> のみ（生HTMLとして解釈されるのを防ぐ）、名前・表セルは記法文字も */
+  const mdText = (s) => String(s).replace(/[<>]/g, (m) => '\\' + m);
+  const mdName = (s) => String(s).replace(/[\\*_`\[\]<>]/g, (m) => '\\' + m);
 
   const SECTIONS = [
     { key: 'transcript', title: '文字起こし全文' },
@@ -14,22 +17,23 @@
   /** セクション本文（fmt: 'txt' | 'md'） */
   function section(rec, key, fmt) {
     const md = fmt === 'md';
+    const T = md ? mdText : (x) => x;
     if (key === 'transcript') {
-      return rec.transcript.map((s) => `${s.start ? `[${s.start}] ` : ''}${md ? `**${name(rec, s.spk)}**` : name(rec, s.spk)}: ${s.text}`).join(md ? '\n\n' : '\n');
+      return rec.transcript.map((s) => `${s.start ? `[${s.start}] ` : ''}${md ? `**${mdName(name(rec, s.spk))}**` : name(rec, s.spk)}: ${T(s.text)}`).join(md ? '\n\n' : '\n');
     }
     if (key === 'polished') {
-      return rec.polished.map((s) => `${md ? `**${name(rec, s.spk)}**` : name(rec, s.spk)}: ${s.text}`).join(md ? '\n\n' : '\n') || '（なし）';
+      return rec.polished.map((s) => `${md ? `**${mdName(name(rec, s.spk))}**` : name(rec, s.spk)}: ${T(s.text)}`).join(md ? '\n\n' : '\n') || '（なし）';
     }
     if (key === 'summary') {
-      return rec.summary.length ? rec.summary.map((s) => `${md ? '- ' : '・'}${s}`).join('\n') : '（なし）';
+      return rec.summary.length ? rec.summary.map((s) => `${md ? '- ' : '・'}${T(s)}`).join('\n') : '（なし）';
     }
     // actions
-    const dec = rec.decisions.length ? rec.decisions.map((d) => `${md ? '- ' : '・'}${d}`).join('\n') : '（なし）';
+    const dec = rec.decisions.length ? rec.decisions.map((d) => `${md ? '- ' : '・'}${T(d)}`).join('\n') : '（なし）';
     let todo;
     if (!rec.todos.length) todo = '（なし）';
     else if (md) {
       todo = '| 完了 | タスク | 担当 | 期限 |\n|---|---|---|---|\n' +
-        rec.todos.map((t) => `| ${t.done ? '☑' : '☐'} | ${esc(t.task)} | ${esc(t.owner)} | ${esc(t.due)} |`).join('\n');
+        rec.todos.map((t) => `| ${t.done ? '☑' : '☐'} | ${esc(mdName(t.task))} | ${esc(mdName(t.owner))} | ${esc(mdName(t.due))} |`).join('\n');
     } else {
       todo = rec.todos.map((t) => `${t.done ? '☑' : '☐'} ${t.task}（担当: ${t.owner} / 期限: ${t.due}）`).join('\n');
     }
@@ -38,11 +42,13 @@
 
   function header(rec, md) {
     const lines = [
-      `ファイル: ${rec.fileName}`,
+      `ファイル: ${md ? mdText(rec.fileName) : rec.fileName}`,
       `作成日時: ${MP.fmtDate(rec.createdAt)}`,
       `モデル: ${rec.demo ? 'デモ（モックデータ）' : rec.model}`,
       '※ AIによる生成物です。聞き取れなかった箇所は「' + MP.UNINTELLIGIBLE + '」と表示しています。重要な内容は必ず原音で確認してください。',
     ];
+    if (rec.preMask && rec.preMask.count) lines.splice(3, 0, `送信前マスキング: ${rec.preMask.count}区間（計${Math.round(rec.preMask.seconds)}秒）を無音化して送信`);
+    if (rec.maskedOutput) lines.splice(3, 0, '出力時の伏せ字: 適用済み（辞書の語を ■ に置換）');
     return md ? lines.map((l) => `> ${l}`).join('\n') : lines.join('\n');
   }
 
@@ -60,11 +66,12 @@
     async copy(text) {
       try { await navigator.clipboard.writeText(text); }
       catch (e) {
-        const ta = MP.h('textarea', { style: 'position:fixed;opacity:0' });
+        const ta = MP.h('textarea', { 'aria-hidden': 'true', tabindex: '-1' });
+        ta.style.position = 'fixed'; ta.style.opacity = '0'; // CSSOM経由（CSPのstyle-srcを緩めないため）
         ta.value = text; document.body.append(ta); ta.select();
         const ok = document.execCommand && document.execCommand('copy');
         ta.remove();
-        if (!ok) { MP.toast('コピーに失敗しました', 'err'); return false; }
+        if (!ok) { MP.toast('コピーに失敗しました。ブラウザのクリップボード許可を確認するか、TXTでダウンロードしてください。', 'err'); return false; }
       }
       MP.toast('コピーしました');
       return true;
