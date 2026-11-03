@@ -49,31 +49,79 @@
   function badge(e) { var s = statusOf(e); return h("span", { class: "badge " + s.cls, text: s.label }); }
 
   /* ---------- sync via adapter ---------- */
-  function showErr(msg, fallback) {
+  var syncing = false;
+
+  /** 取得失敗/警告の表示。reason=失敗理由, hint=再試行方法。既存の予定表示は変更しない */
+  function showErr(o) {
     var box = $("errBanner"); box.textContent = "";
-    box.appendChild(document.createTextNode(msg));
-    if (fallback) box.appendChild(h("button", { type: "button", text: "ダミーデータに切り替える", onclick: function () {
+    box.appendChild(h("strong", { text: o.title }));
+    box.appendChild(h("div", { text: o.reason }));
+    if (o.hint) box.appendChild(h("div", { class: "hintline", text: "対処: " + o.hint }));
+    if (o.keep) box.appendChild(h("div", { class: "hintline", text: o.keep }));
+    var row = h("div", { class: "errbtns" });
+    if (o.retry) row.appendChild(h("button", { type: "button", class: "primary", text: "再試行", onclick: function () { sync(false); } }));
+    if (o.settings) row.appendChild(h("button", { type: "button", text: "設定を開く", onclick: openSettings }));
+    if (o.fallback) row.appendChild(h("button", { type: "button", text: "ダミーデータに切り替える", onclick: function () {
+      if (!confirm("ダミー（架空）の決算日で表示を置き換えます。実際の発表日ではありません。切り替えますか？")) return;
       state.settings.adapter = "dummy"; save(); sync(false);
     } }));
-    box.appendChild(h("button", { type: "button", text: "閉じる", onclick: function () { box.hidden = true; } }));
+    row.appendChild(h("button", { type: "button", text: "閉じる", onclick: function () { box.hidden = true; } }));
+    box.appendChild(row);
     box.hidden = false;
   }
+
+  function fmtAt(iso) {
+    var d = new Date(iso); if (isNaN(d)) return "";
+    return (d.getMonth() + 1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+  function renderSyncStatus() {
+    var el = $("syncStatus"), ls = state.meta && state.meta.lastSync;
+    var ad = window.KW_ADAPTERS.get(state.settings.adapter);
+    el.textContent = "取得元: " + ad.name + (ls && ls.at ? " ／ 最終取得 " + fmtAt(ls.at) + "（" + ls.count + "件）" : " ／ 未取得");
+  }
+
+  /** 新旧イベントのマージ。
+   *  - 手入力(manual)は常に保持し、同一キーの取得結果より優先
+   *  - 取得に失敗した銘柄は前回のイベントを保持（一時的な障害で予定が消えない）
+   *  - 通過チェックを記録済みの前回イベントは、今回の取得結果に無くても保持（記録へ辿れなくなるのを防ぐ）。
+   *    ※ 取得元が変わった場合、保持された旧ソースの予定(例: ダミー)には元の出所表示が残る */
+  function mergeEvents(prev, fetched, failedCodes) {
+    var manual = prev.filter(function (e) { return e.source === "manual"; });
+    var mk = {}; manual.forEach(function (e) { mk[key(e)] = 1; });
+    var failed = {}; (failedCodes || []).forEach(function (c) { failed[c] = 1; });
+    var fk = {}; fetched.forEach(function (e) { fk[key(e)] = 1; });
+    var kept = prev.filter(function (e) {
+      if (e.source === "manual" || mk[key(e)] || fk[key(e)]) return false;
+      return !!failed[e.code] || !!state.checks[key(e)];
+    });
+    return manual.concat(fetched.filter(function (e) { return !mk[key(e)]; }), kept);
+  }
+
   function sync(silent) {
+    if (syncing) return Promise.resolve();
     var adapter = window.KW_ADAPTERS.get(state.settings.adapter);
+    syncing = true; $("btnSync").disabled = true; $("btnSync").textContent = "取得中…";
     $("errBanner").hidden = true;
     return adapter.fetchSchedule(state.stocks, { apiKey: state.settings.apiKey, today: today() }).then(function (res) {
       var evs = Array.isArray(res) ? res : res.events, warns = Array.isArray(res) ? [] : (res.warnings || []);
-      var manual = state.events.filter(function (e) { return e.source === "manual"; });
-      var mk = {}; manual.forEach(function (e) { mk[key(e)] = 1; });
+      var failedCodes = Array.isArray(res) ? [] : (res.failedCodes || []);
       var codes = {}; state.stocks.forEach(function (s) { codes[s.code] = 1; });
-      var fetched = evs.filter(function (e) { return codes[e.code] && !mk[key(e)] && validYmd(e.date); });
-      state.events = manual.concat(fetched);
+      var fetched = evs.filter(function (e) { return codes[e.code] && validYmd(e.date); });
+      state.events = mergeEvents(state.events, fetched, failedCodes);
+      state.meta.lastSync = { adapter: adapter.id, at: new Date().toISOString(), count: fetched.length };
       save(); render();
-      if (warns.length) showErr("一部の取得に問題がありました: " + warns.join(" / "), false);
+      if (warns.length) showErr({ title: "一部の取得に問題がありました", reason: warns.join(" ／ "), hint: failedCodes.length ? "「再試行」で未取得の銘柄を取り直せます。" : "", retry: failedCodes.length > 0, keep: failedCodes.length ? "取得できなかった銘柄 (" + failedCodes.join(", ") + ") は前回の表示を保持しています。" : "" });
       else if (!silent) toast(adapter.name + " から " + fetched.length + " 件を取得しました");
     }).catch(function (err) {
-      render();
-      showErr("「" + adapter.name + "」での取得に失敗しました: " + err.message + "。表示中の予定は更新されていません。", !adapter.isDummy);
+      render();   // 既存の予定・チェック記録は一切変更しない
+      showErr({
+        title: "「" + adapter.name + "」での取得に失敗しました",
+        reason: err.message, hint: err.hint,
+        keep: "画面の予定は前回の状態のまま保持しています（" + (state.meta.lastSync && state.meta.lastSync.at ? "最終取得 " + fmtAt(state.meta.lastSync.at) : "取得履歴なし") + "）。登録済みの銘柄・チェック記録・手入力の予定は失われません。",
+        retry: true, settings: err.kind === "nokey" || err.kind === "auth", fallback: !adapter.isDummy
+      });
+    }).then(function () {
+      syncing = false; $("btnSync").disabled = false; $("btnSync").textContent = "予定を再取得";
     });
   }
 
@@ -99,6 +147,7 @@
 
   /* ---------- rendering ---------- */
   function render() {
+    renderSyncStatus();
     $("dummyBanner").hidden = !state.events.some(function (e) { return e.source === "dummy"; });
     ["list", "calendar", "stocks", "check"].forEach(function (v) {
       $("tab-" + v).setAttribute("aria-selected", String(v === view));
@@ -305,7 +354,8 @@
     save(); $("settingsDlg").close(); sync(false);
   }
   function exportJson() {
-    var blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    var out = JSON.parse(JSON.stringify(state)); out.settings.apiKey = "";   // APIキーはバックアップに含めない
+    var blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
     var a = h("a", { href: URL.createObjectURL(blob), download: "kessan-watch-backup-" + today() + ".json" });
     document.body.appendChild(a); a.click(); a.remove();
   }
@@ -314,9 +364,10 @@
     r.onload = function () {
       try {
         var o = JSON.parse(r.result);
-        if (!Array.isArray(o.stocks)) throw new Error("形式が不正です");
-        if (!confirm("現在のデータを置き換えます。よろしいですか？")) return;
-        window.KW_STORE.save(o); state = window.KW_STORE.load(); render(); toast("読み込みました");
+        if (!o || !Array.isArray(o.stocks)) throw new Error("このアプリのバックアップ形式ではありません");
+        var clean = window.KW_STORE.sanitize(o);
+        if (!confirm("現在のデータを置き換えます（銘柄 " + clean.stocks.length + " 件・予定 " + clean.events.length + " 件）。よろしいですか？")) return;
+        state = clean; save(); render(); toast("読み込みました");
       } catch (e) { toast("読み込み失敗: " + e.message); }
     };
     r.readAsText(file);

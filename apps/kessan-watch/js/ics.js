@@ -3,7 +3,7 @@
   "use strict";
   var enc = typeof TextEncoder !== "undefined" ? new TextEncoder() : null;
 
-  function esc(t) { return String(t).replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n"); }
+  function esc(t) { return String(t).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n"); }
   function utf8len(ch) { return enc ? enc.encode(ch).length : unescape(encodeURIComponent(ch)).length; }
   /** 75オクテット/行で折り返す（継続行は先頭に空白1つ）。文字の途中では切らない。 */
   function fold(line) {
@@ -30,14 +30,18 @@
   /** events: [{code,date,period,source}], nameOf(code) → 銘柄名 */
   function build(events, nameOf, now) {
     now = now || new Date();
-    var L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//kessan-watch//prototype//JA", "CALSCALE:GREGORIAN", "X-WR-CALNAME:" + esc("決算ウォッチ")];
+    var L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//kessan-watch//prototype//JA", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:" + esc("決算ウォッチ")];
+    var seenUid = {};
     events.forEach(function (e) {
+      // UID は「銘柄コード+対象期」で固定（日付変更後に再取り込みしても同一予定として更新されるようにする）
+      var uid = uidPart(e.code + "-" + e.period) + "@kessan-watch";
+      if (seenUid[uid]) return; seenUid[uid] = 1;
       var dummy = e.source === "dummy", name = nameOf(e.code) || e.code;
       var desc = (dummy ? "【ダミーデータ】実際の決算発表日ではありません。\n" : "") +
         "決算ウォッチ(試作)から出力。発表日は変更される場合があります。必ず各社の公式IR情報で確認してください。\n" +
         "出典: " + (e.source === "manual" ? "利用者の手入力" : e.source === "jquants" ? "J-Quants API" : e.source);
       L.push("BEGIN:VEVENT",
-        "UID:" + uidPart(e.code + "-" + e.period) + "-" + ymd8(e.date) + "@kessan-watch",
+        "UID:" + uid,
         "DTSTAMP:" + stamp(now),
         "DTSTART;VALUE=DATE:" + ymd8(e.date),
         "DTEND;VALUE=DATE:" + nextDay8(e.date),

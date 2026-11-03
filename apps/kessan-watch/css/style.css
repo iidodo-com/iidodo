@@ -66,3 +66,9 @@ article.doc h2{margin-top:1.6em;font-size:1.1rem}
 .errbanner{background:#fde8e6;color:#7a1a14;padding:8px 16px;font-size:.88rem;border-bottom:1px solid #f0b5b0}
 .errbanner button{margin-left:8px}
 @media (prefers-color-scheme:dark){.errbanner{background:#3b1c19;color:#ffb4ab;border-color:#6a2a25}}
+.errbanner .hintline{margin-top:2px}
+.errbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.errbanner button{margin-left:0}
+.syncstatus{margin:0 0 8px;font-size:.8rem;color:var(--mut)}
+button:disabled{opacity:.6;cursor:wait}
+:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
