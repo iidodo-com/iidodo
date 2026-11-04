@@ -65,7 +65,7 @@ def excluded_cf(ws, rng, cond, with_label=True):
     from openpyxl.formatting.rule import Rule
     from openpyxl.styles.differential import DifferentialStyle
     from openpyxl.styles.numbers import NumberFormat
-    dxf = DifferentialStyle(font=Font(color='FFFFFF', bold=True),
+    dxf = DifferentialStyle(font=Font(color='FFFFFF', bold=False),
                             fill=PatternFill('solid', bgColor='7030A0', fgColor='7030A0'),
                             numFmt=NumberFormat(numFmtId=190, formatCode=';;;"集計外"') if with_label else None)
     ws.conditional_formatting.add(rng, Rule(type='expression', formula=[cond], dxf=dxf, stopIfTrue=False))
@@ -230,7 +230,7 @@ def prep_input_sheet(ws, rows, first, last, kind):
     dv.add(f'{CS}{first}:{CS}{last}')
     ws.conditional_formatting.add(
         f'{C_KEY}{first}:{C_KEY}{last}', FormulaRule(formula=[f'${C_KEY}{first}="※未登録"'],
-                                                      font=Font(color='FFFFFF', bold=True),
+                                                      font=Font(color='FFFFFF', bold=False),
                                                       fill=PatternFill('solid', bgColor=RED_T, fgColor=RED_T)))
     ws.auto_filter.ref = f'A4:{C_IDX}{last}'
 
@@ -503,7 +503,7 @@ def build_agg(wb, title, sheetname, blocks, unpaid_blocks, hiyou_sheet, side_lab
         u = unpaid_blocks[k]
         ur = lambda c, bb=u: f"'{bb['sheet']}'!${bb[c]}${bb['first']}:${bb[c]}${bb['last']}"
         put(ws, (r, 15), f'=SUMIFS({ur("a")},{ur("st")},"確認済")', nf=NUM, al=RIGHT, bd=B_ROW)
-        put(ws, (r, 16), f'=SUM(C{r}:O{r})', nf=NUM, al=RIGHT, bd=B_ROW, f=font(bold=True))
+        put(ws, (r, 16), f'=SUM(C{r}:O{r})', nf=NUM, al=RIGHT, bd=B_ROW, f=font(bold=False))
         put(ws, (r, 17), f"='{hiyou_sheet}'!$S${br}" if br else None, nf=NUM, al=RIGHT, bd=B_ROW)
         put(ws, (r, 18), f'=IF(Q{r}="","",Q{r}-P{r})' if br else None, nf=NUM, al=RIGHT, bd=B_ROW)
         put(ws, (r, 19), 'Y' if y else 'N', al=Alignment(horizontal='center'), bd=B_ROW)
@@ -524,10 +524,10 @@ def build_agg(wb, title, sheetname, blocks, unpaid_blocks, hiyou_sheet, side_lab
             put(ws, (r, 19), '内訳', al=Alignment(horizontal='center'), bd=B_ROW, f=font(9, color=GREY))
             r += 1
     last = r - 1
-    put(ws, (r, 1), '費用収益表に入る合計', f=font(bold=True), fl=GREY_L, bd=B_ALL)
+    put(ws, (r, 1), '費用収益表に入る合計', f=font(bold=False), fl=GREY_L, bd=B_ALL)
     for c in range(3, 17):
         cl = L(c)
-        put(ws, (r, c), f'=SUMIF($S$4:$S${last},"Y",{cl}4:{cl}{last})', f=font(bold=True), fl=GREY_L, nf=NUM,
+        put(ws, (r, c), f'=SUMIF($S$4:$S${last},"Y",{cl}4:{cl}{last})', f=font(bold=False), fl=GREY_L, nf=NUM,
             al=RIGHT, bd=B_ALL)
     rows['__total__'] = r
     ws.freeze_panes = 'C4'
@@ -594,7 +594,7 @@ def build_agg_kashi(wb, blocks_meta, residual):
         else:
             for i in range(1, 14):
                 put(ws, (r, 2 + i), 0, nf=NUM, al=RIGHT, bd=B_ROW)
-        put(ws, (r, 16), f'=SUM(C{r}:O{r})', nf=NUM, al=RIGHT, bd=B_ROW, f=font(bold=True))
+        put(ws, (r, 16), f'=SUM(C{r}:O{r})', nf=NUM, al=RIGHT, bd=B_ROW, f=font(bold=False))
         r += 1
     # 手入力行（旧・費用収益表で給与システム等から手入力されていた分）
     rows['厚生年金保険料等（手入力）'] = r
@@ -602,13 +602,13 @@ def build_agg_kashi(wb, blocks_meta, residual):
     for i in range(1, 14):
         v = residual.get(i, 0)
         put(ws, (r, 2 + i), v if v else None, nf=NUM, al=RIGHT, bd=B_ROW, fl=YELLOW, f=font(color=BLUE_IN))
-    put(ws, (r, 16), f'=SUM(C{r}:O{r})', nf=NUM, al=RIGHT, bd=B_ROW, f=font(bold=True))
+    put(ws, (r, 16), f'=SUM(C{r}:O{r})', nf=NUM, al=RIGHT, bd=B_ROW, f=font(bold=False))
     r += 1
     rows['__total__'] = r
-    put(ws, (r, 1), '合計', f=font(bold=True), fl=GREY_L, bd=B_ALL)
+    put(ws, (r, 1), '合計', f=font(bold=False), fl=GREY_L, bd=B_ALL)
     for c in range(3, 17):
         cl = L(c)
-        put(ws, (r, c), f'=SUM({cl}4:{cl}{r - 1})', f=font(bold=True), fl=GREY_L, nf=NUM, al=RIGHT, bd=B_ALL)
+        put(ws, (r, c), f'=SUM({cl}4:{cl}{r - 1})', f=font(bold=False), fl=GREY_L, nf=NUM, al=RIGHT, bd=B_ALL)
     ws.freeze_panes = 'C4'
     ws.sheet_properties.tabColor = '2E75B6'
     return ws, rows
@@ -868,8 +868,8 @@ def build_control2(wb, blocks_meta):
         put(ws, f'{col}16', f'=IF(締月=0,"-",IF(AND({col}12=0,{col}14=0),"OK","要対応"))', f=font(10, True), fl=GREY_L,
             al=Alignment(horizontal='center'), bd=B_ALL)
     ws.merge_cells('E16:I16')
-    ws.conditional_formatting.add('C16:D16', FormulaRule(formula=['C16="OK"'], font=Font(bold=True, color='548235')))
-    ws.conditional_formatting.add('C16:D16', FormulaRule(formula=['C16="要対応"'], font=Font(bold=True, color=RED_T)))
+    ws.conditional_formatting.add('C16:D16', FormulaRule(formula=['C16="OK"'], font=Font(bold=False, color='548235')))
+    ws.conditional_formatting.add('C16:D16', FormulaRule(formula=['C16="要対応"'], font=Font(bold=False, color=RED_T)))
 
     r0 = 19
     put(ws, (r0, 2), '② 出納計算表との照合（黄色のセルに仮締めした出納計算表の月合計を入力）', f=font(11, True, NAVY))
@@ -910,10 +910,10 @@ def build_control2(wb, blocks_meta):
         ws.conditional_formatting.add(f'B{first}:I{r - 1}', FormulaRule(
             formula=[f'ROW()-{first}+1>締月'], font=Font(color='A6A6A6')))
         ws.conditional_formatting.add(f'I{first}:I{r - 1}', FormulaRule(
-            formula=[f'LEFT(I{first},2)="NG"'], font=Font(bold=True, color='FFFFFF'),
+            formula=[f'LEFT(I{first},2)="NG"'], font=Font(bold=False, color='FFFFFF'),
             fill=PatternFill('solid', bgColor=RED_T, fgColor=RED_T)))
         ws.conditional_formatting.add(f'I{first}:I{r - 1}', FormulaRule(
-            formula=[f'I{first}="OK"'], font=Font(bold=True, color='548235')))
+            formula=[f'I{first}="OK"'], font=Font(bold=False, color='548235')))
         ws.conditional_formatting.add(f'I{first}:I{r - 1}', FormulaRule(
             formula=[f'RIGHT(I{first},3)="未入力"'], font=Font(color='BF8F00')))
         put(ws, (r, 2), '締め月までの合計', f=font(10, True), fl=GREY_L, bd=B_ALL)
@@ -1022,9 +1022,9 @@ def build_checks2(wb, blocks_meta, agg_t, agg_c, agg_k, old_cell):
     put(ws, 'C3', f'=COUNTIF(F6:F{last},"NG")', f=font(11, True), nf='0', al=Alignment(horizontal='center'))
     ws['F3'].value = '=C3'
     ws['F3'].font = font(8, color='FFFFFF')
-    ws.conditional_formatting.add(f'F6:F{last}', FormulaRule(formula=['F6="NG"'], font=Font(bold=True, color='FFFFFF'),
+    ws.conditional_formatting.add(f'F6:F{last}', FormulaRule(formula=['F6="NG"'], font=Font(bold=False, color='FFFFFF'),
                                                              fill=PatternFill('solid', bgColor=RED_T, fgColor=RED_T)))
-    ws.conditional_formatting.add(f'F6:F{last}', FormulaRule(formula=['F6="OK"'], font=Font(bold=True, color='548235')))
+    ws.conditional_formatting.add(f'F6:F{last}', FormulaRule(formula=['F6="OK"'], font=Font(bold=False, color='548235')))
     ws.sheet_properties.tabColor = '548235'
     return ws
 
@@ -1335,6 +1335,31 @@ def polish(wb):
                 cell.fill = PatternFill(fill_type=None)
                 cell.border = Border(bottom=Side(style='medium', color='FF000000'))
             ws['A2'].font = Font(name=PLAIN_FONT, sz=9, color='FF404040')
+
+    # 太字をやめ、追加したシート・列は同じ大きさ（10pt）の文字にそろえる
+    mine = [SH_HELP, SH_CTL, SH_DT, SH_DC, SH_UT, SH_UC, SH_ST, SH_SC, SH_SK, SH_MST, SH_CHK, SH_OLD]
+    for name in mine:
+        for row in wb[name].iter_rows():
+            for c in row:
+                f = c.font
+                if f is not None and c.value is not None:
+                    c.font = Font(name=PLAIN_FONT, sz=10, b=False, i=False, color=f.color, strike=f.strike)
+    for name in (SH_G, SH_KS):
+        for ref in ('N3', 'M3', 'P4', 'Q4', 'R4', 'S4', 'T4', 'U4', 'N4', 'M4'):
+            f = wb[name][ref].font
+            if wb[name][ref].value is not None:
+                wb[name][ref].font = Font(name=f.name, sz=f.sz, b=False, color=f.color)
+    for name in (SH_HG, SH_HT, SH_HC, SH_HK):
+        ws = wb[name]
+        for row in ws.iter_rows(min_col=22):
+            for c in row:
+                if c.value is not None:
+                    f = c.font
+                    c.font = Font(name=PLAIN_FONT, sz=10, b=False, color=f.color)
+        for c in range(3, 16):
+            cell = ws.cell(2, c)
+            if cell.value is not None:
+                cell.font = Font(name=PLAIN_FONT, sz=8, b=False, color='FF7F7F7F')
 
 
 # ----------------------------------------------------------------------------
