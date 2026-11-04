@@ -308,7 +308,7 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
             pos[k] = dict(row=r0, col=1 + 5 * j, cap=caps[k])
         r0 += height + 2
     for col in range(1, 21):
-        ws.column_dimensions[L(col)].width = {0: 10.5, 1: 36, 2: 11, 3: 12, 4: 9}[(col - 1) % 5]
+        ws.column_dimensions[L(col)].width = {0: 10.5, 1: 42, 2: 11, 3: 12, 4: 9}[(col - 1) % 5]
     out = {}
     for k, h, br, y in GY_BLOCKS:
         p = pos[k]
@@ -347,6 +347,7 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
             pick = lambda col: f'=IFERROR(INDEX({sr(col)},{m}),"")'
             ws.cell(r, d, pick('A'))._style = copy(tm['date'])
             ws.cell(r, t, pick('E'))._style = copy(tm['tek'])
+            ws.cell(r, t).alignment = Alignment(horizontal='left', vertical='center', wrap_text=False, shrink_to_fit=True)
             ws.cell(r, a, pick(amtcol))._style = copy(tm['amt'])
             prev = f'{BAL}{r - 1}'
             if br and not unpaid:
@@ -682,6 +683,7 @@ def prep_kashi_sheet(ws, sheet_idx, blocks_meta, krows):
         lab.alignment = Alignment(horizontal='center')
         ws.column_dimensions[L(st)].width = 8
         ws.column_dimensions[L(d)].width = 10.5
+        ws.column_dimensions[L(t)].width = 46
         for r in range(b['first'] + 1, b['last'] + 1):
             row = st_rows.get((c0, r))
             for c in (d, t, a, bal):
@@ -690,6 +692,7 @@ def prep_kashi_sheet(ws, sheet_idx, blocks_meta, krows):
                     cell.fill = PatternFill(fill_type=None)
                 black(cell)
             ws.cell(r, d).number_format = DATE_FMT
+            ws.cell(r, t).alignment = Alignment(horizontal='left', vertical='center', wrap_text=False, shrink_to_fit=True)
             sc = ws.cell(r, st)
             sc.value = row['st'] if row else None
             sc.font = font(9, color='595959')
@@ -714,9 +717,10 @@ def prep_kashi_sheet(ws, sheet_idx, blocks_meta, krows):
              for st_ in ('確認済', '未確認') for op, y_, m_ in (('<', 2018, 4), ('>=', 2019, 5))] +
             [f'COUNTIFS({sr(S)},"{st_}",{sr(L(d))},"")' for st_ in ('確認済', '未確認')])
         hc = ws.cell(b['header'], st, f'=IF(({terms})>0,"集計外 "&({terms})&"件","")')
-        hc.font = font(9, True, 'FFFFFF')
-        hc.fill = fill('7030A0')
         hc.alignment = Alignment(horizontal='center')
+        ws.conditional_formatting.add(hc.coordinate, FormulaRule(
+            formula=[f'LEN({hc.coordinate})>0'], font=Font(color='FFFFFF'),
+            fill=PatternFill('solid', bgColor='7030A0', fgColor='7030A0')))
         add_status_fills(ws, f'{L(a)}{first}:{L(a)}{b["last"]}', first, S)
         add_status_fills(ws, f'{S}{first}:{S}{b["last"]}', first, S)
         dv = DataValidation(type='list', formula1=f'={SH_MST}!$I$5:$I$8', allow_blank=True)
@@ -1244,7 +1248,7 @@ def build_changes(wb):
 # ----------------------------------------------------------------------------
 # 仕上げ：装飾を落とし、元のブックに合わせた地味な見た目・文面にそろえる
 # ----------------------------------------------------------------------------
-PLAIN_FONT = 'ＭＳ Ｐゴシック'
+PLAIN_FONT = 'ＭＳ ゴシック'
 DARK_FILLS = {'001F3864', '002E75B6', '00548235', '007F7F7F', 'FF1F3864', 'FF2E75B6', 'FF548235', 'FF7F7F7F'}
 REWORD = {
     (SH_HELP, 'A2'): 'このブックは、業務経理区分別執行管理簿、貸付予算差引簿及び費用収益表を一つにまとめたものです。各シートの様式は元のままとし、転記は自動で行います。',
@@ -1360,6 +1364,15 @@ def polish(wb):
             cell = ws.cell(2, c)
             if cell.value is not None:
                 cell.font = Font(name=PLAIN_FONT, sz=8, b=False, color='FF7F7F7F')
+
+    # フォントはすべて ＭＳ ゴシック
+    for ws in wb.worksheets:
+        for row in ws.iter_rows():
+            for c in row:
+                f = c.font
+                if f is not None and f.name != PLAIN_FONT:
+                    c.font = Font(name=PLAIN_FONT, sz=f.sz, b=f.b, i=f.i, u=f.u, strike=f.strike, color=f.color,
+                                  vertAlign=f.vertAlign)
 
 
 # ----------------------------------------------------------------------------
