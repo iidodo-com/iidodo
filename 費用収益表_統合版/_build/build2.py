@@ -760,6 +760,27 @@ def kashi_terms(blocks_meta, fn):
     return '+'.join(out)
 
 
+def g_unconf_expr():
+    """業務：未確認（伝票待ち）の件数。締め月までの分に加え、支払日が空欄・年度外の行（月次の集計に入らない行）も数える"""
+    a = f'{SH_G}!$A${G_FIRST}:$A${G_LAST}'
+    st_ = f'{SH_G}!${stc(SH_G)}${G_FIRST}:${stc(SH_G)}${G_LAST}'
+    u = f'{SH_G}!${C_IDX}${G_FIRST}:${C_IDX}${G_LAST}'
+    bad = f'(({a}<DATE(年度+2018,4,1))+({a}>=DATE(年度+2019,4,1))>0)'
+    g = f'SUMPRODUCT(({st_}="未確認")*((({u}<=締月)+{bad})>0))'
+    k = (f'COUNTIFS({SH_KS}!${C_IDX}${K_FIRST}:${C_IDX}${K_LAST},"<="&締月,'
+         f'{SH_KS}!${stc(SH_KS)}${K_FIRST}:${stc(SH_KS)}${K_LAST},"未確認")')
+    return f'IF(締月=0,0,{g}+{k})'
+
+
+def k_unconf_expr(blocks_meta):
+    """貸付：未確認の件数。今回締める月の末日までの分に加え、日付が空欄・年度外の行も数える"""
+    body = kashi_terms(blocks_meta, lambda sh, d, t, a, s_, f1, l1: (
+        f'COUNTIFS({sh}!${s_}${f1}:${s_}${l1},"未確認",{sh}!${d}${f1}:${d}${l1},"<"&翌月初)'
+        f'+COUNTIFS({sh}!${s_}${f1}:${s_}${l1},"未確認",{sh}!${d}${f1}:${d}${l1},"")'
+        f'+COUNTIFS({sh}!${s_}${f1}:${s_}${l1},"未確認",{sh}!${d}${f1}:${d}${l1},">="&DATE(年度+2019,5,1))'))
+    return f'IF(締月=0,0,{body})'
+
+
 def build_control2(wb, blocks_meta):
     ws = wb.create_sheet(SH_CTL)
     ws.sheet_view.showGridLines = False
@@ -830,7 +851,7 @@ def build_control2(wb, blocks_meta):
         f'SUMIFS({sh}!${a}${f1}:${a}${l1},{sh}!${s}${f1}:${s}${l1},"確認済",{sh}!${d}${f1}:${d}${l1},">="&月初,{sh}!${d}${f1}:${d}${l1},"<"&翌月初)')) + ')'
     items = [
         ('確認済の件数', '=' + cnt('確認済'), '=' + kcnt('確認済'), '差引簿・費用収益表に計上される行数'),
-        ('未確認（伝票待ち）の件数', '=' + cnt('未確認'), '=' + kcnt('未確認'), '0 にしてから締めます（伝票を確認して「確認済」へ）'),
+        ('未確認（伝票待ち）の件数', '=' + g_unconf_expr(), '=' + k_unconf_expr(blocks_meta), '0件にしてから締めます（締め月までの分と、日付が空欄・年度外の行を含みます）'),
         ('昨年実績のまま残っている件数（参考）', '=' + cnt('昨年実績'), '=' + kcnt('昨年実績'), '今年は支払がない行は「支払なし」にすると見やすくなります'),
         ('点検NGの件数', '=' + ng_g, '=' + ng_k, '費目未登録・差引簿の行不足・日付が年度外又は空欄（月例・貸付。例：2021年のまま）'),
         ('確認済 金額合計', '=' + amt_g, '=' + amt_k, '業務は短期＋長期の合計（月例＋決算整理）'),
@@ -982,9 +1003,9 @@ def build_checks2(wb, blocks_meta, agg_t, agg_c, agg_k, old_cell):
          f'=COUNTIF({SH_G}!${C_KEY}${G_FIRST}:${C_KEY}${G_LAST},"※未登録")+COUNTIF({SH_KS}!${C_KEY}${K_FIRST}:${C_KEY}${K_LAST},"※未登録")'
          f"+COUNTIF('{SH_ST}'!$T$4:$T$80,\"行不足\")+COUNTIF('{SH_SC}'!$T$4:$T$80,\"行不足\")",
          '月例の費目(Q列)に「※未登録」／差引簿の行数が足りない費目がないか'),
-        ('業務：締め月までに「未確認」が残っていない', '=0', f'={unconf(SH_G, G_FIRST, G_LAST)}+{unconf(SH_KS, K_FIRST, K_LAST)}',
+        ('業務：締め月までに「未確認」が残っていない（日付が空欄・年度外の行を含む）', '=0', '=' + g_unconf_expr(),
          '伝票を確認して「確認済」にしてから締める'),
-        ('貸付：締め月までに「未確認」が残っていない', '=0', f'={kunconf}', ''),
+        ('貸付：締め月までに「未確認」が残っていない（日付が空欄・年度外の行を含む）', '=0', '=' + k_unconf_expr(blocks_meta), ''),
         ('旧・費用収益表との一致（旧表で確定計上済みの月＝9月締めの状態）', '=0', f'={old_cell}',
          '「今回締める月」が9月のときだけ比較します（他の月は対象外として0扱い）'),
     ]
