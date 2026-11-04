@@ -277,11 +277,22 @@ Private Sub cmbCat_Change()
 End Sub
 
 ' ---------- 登録 ----------
+' 入力シートの 2〜ROW_LAST 行のうち、B〜K列がすべて空の最初の行を返す(無ければ0)
 Private Function NextRow(ws As Worksheet) As Long
-    Dim r As Long
-    r = ws.Cells(ws.Rows.Count, "K").End(xlUp).Row + 1
-    If r < 2 Then r = 2
-    If r > ROW_LAST Then NextRow = 0 Else NextRow = r
+    Dim v As Variant, i As Long, j As Long, blank As Boolean
+    v = ws.Range("B2:K" & ROW_LAST).Value
+    For i = 1 To UBound(v, 1)
+        blank = True
+        For j = 1 To UBound(v, 2)
+            If IsError(v(i, j)) Then
+                blank = False: Exit For
+            ElseIf Len(CStr(v(i, j))) > 0 Then
+                blank = False: Exit For
+            End If
+        Next
+        If blank Then NextRow = i + 1: Exit Function
+    Next
+    NextRow = 0
 End Function
 
 Private Sub btnReg_Click()
@@ -299,7 +310,7 @@ Private Sub btnReg_Click()
 
     Set ws = ThisWorkbook.Worksheets("入力")
     r = NextRow(ws)
-    If r = 0 Then MsgBox "入力欄の最終行に達しました。入力シートの数式行を下へコピーして行を増やしてください。", vbExclamation: Exit Sub
+    If r = 0 Then MsgBox "入力シートの 2〜" & ROW_LAST & " 行目に、空いている行が見つかりません。" & vbCrLf & "(B〜K列がすべて空の行を探しています)", vbExclamation: Exit Sub
 
     ws.Range("B" & r).Value = CLng(txtYear.Value)
     If Len(txtDate.Value) > 0 Then ws.Range("C" & r).Value = CDate(txtDate.Value)
