@@ -9,6 +9,7 @@ Option Explicit
 
 Public Sub Setup()
     Dim db As DAO.Database
+    MsgBox "KensyutsuDB v3 の構築を開始します。", vbInformation
     Set db = CurrentDb
 
     If TableExists("T_検出事項") Then
@@ -35,6 +36,7 @@ End Sub
 
 ' フォームだけを(再)作成する。既存の F_検出入力 / F_メニュー は削除してから作り直す。
 Public Sub SetupForms()
+    MsgBox "KensyutsuDB v3 のフォームを作成します。", vbInformation
     On Error Resume Next
     DoCmd.Close acForm, "F_検出入力", acSaveNo
     DoCmd.Close acForm, "F_メニュー", acSaveNo
@@ -186,6 +188,7 @@ Private Sub BuildInputForm()
     frm.HasModule = True
 
     code = FormCode()
+    If frm.Module.CountOfLines > 0 Then frm.Module.DeleteLines 1, frm.Module.CountOfLines
     frm.Module.InsertText code
 
     y = 200
@@ -251,7 +254,8 @@ End Sub
 ' フォームに埋め込むイベントコード(` は二重引用符に置換)
 Private Function FormCode() As String
     Dim s As String
-    s = "Private Function Esc(ByVal t As String) As String" & vbCrLf
+    s = "Option Compare Database" & vbCrLf & "Option Explicit" & vbCrLf & vbCrLf
+    s = s & "Private Function Esc(ByVal t As String) As String" & vbCrLf
     s = s & "    Esc = Replace(t, `'`, `''`)" & vbCrLf
     s = s & "End Function" & vbCrLf & vbCrLf
     s = s & "Private Sub RefreshLists()" & vbCrLf
