@@ -814,7 +814,12 @@ def build_control2(wb, blocks_meta):
     def kcnt(st):
         return 'IF(締月=0,0,' + kashi_terms(blocks_meta, lambda sh, d, t, a, s, f1, l1: (
             f'COUNTIFS({sh}!${s}${f1}:${s}${l1},"{st}",{sh}!${d}${f1}:${d}${l1},">="&月初,{sh}!${d}${f1}:${d}${l1},"<"&翌月初)')) + ')'
-    ng_g = (f'COUNTIF({SH_G}!${C_KEY}${G_FIRST}:${C_KEY}${G_LAST},"※未登録")+COUNTIF({SH_KS}!${C_KEY}${K_FIRST}:${C_KEY}${K_LAST},"※未登録")'
+    gs = stc(SH_G)
+    out_of_fy = '+'.join(
+        f'COUNTIFS({SH_G}!${gs}${G_FIRST}:${gs}${G_LAST},"{st_}",{SH_G}!$A${G_FIRST}:$A${G_LAST},"{op}"&DATE(年度+{y_},{m_},1))'
+        for st_ in ('確認済', '未確認') for op, y_, m_ in (('<', 2018, 4), ('>=', 2019, 4))) + '+' + '+'.join(
+        f'COUNTIFS({SH_G}!${gs}${G_FIRST}:${gs}${G_LAST},"{st_}",{SH_G}!$A${G_FIRST}:$A${G_LAST},"")' for st_ in ('確認済', '未確認'))
+    ng_g = (f'{out_of_fy}+COUNTIF({SH_G}!${C_KEY}${G_FIRST}:${C_KEY}${G_LAST},"※未登録")+COUNTIF({SH_KS}!${C_KEY}${K_FIRST}:${C_KEY}${K_LAST},"※未登録")'
             f"+COUNTIF('{SH_ST}'!$T$4:$T$80,\"行不足\")+COUNTIF('{SH_SC}'!$T$4:$T$80,\"行不足\")")
     ng_k = kashi_terms(blocks_meta, lambda sh, d, t, a, s, f1, l1: (
         f'COUNTIFS({sh}!${d}${f1}:${d}${l1},">0",{sh}!${s}${f1}:${s}${l1},"")'
@@ -827,7 +832,7 @@ def build_control2(wb, blocks_meta):
         ('確認済の件数', '=' + cnt('確認済'), '=' + kcnt('確認済'), '差引簿・費用収益表に計上される行数'),
         ('未確認（伝票待ち）の件数', '=' + cnt('未確認'), '=' + kcnt('未確認'), '0 にしてから締めます（伝票を確認して「確認済」へ）'),
         ('昨年実績のまま残っている件数（参考）', '=' + cnt('昨年実績'), '=' + kcnt('昨年実績'), '今年は支払がない行は「支払なし」にすると見やすくなります'),
-        ('点検NGの件数', '=' + ng_g, '=' + ng_k, '費目未登録・差引簿の行不足・状態未設定・貸付の日付が年度外（例：2021年のまま）'),
+        ('点検NGの件数', '=' + ng_g, '=' + ng_k, '費目未登録・差引簿の行不足・日付が年度外又は空欄（月例・貸付。例：2021年のまま）'),
         ('確認済 金額合計', '=' + amt_g, '=' + amt_k, '業務は短期＋長期の合計（月例＋決算整理）'),
     ]
     for k, (lab, fg, fk, memo) in enumerate(items):
@@ -938,6 +943,11 @@ def build_checks2(wb, blocks_meta, agg_t, agg_c, agg_k, old_cell):
 
     kledger = kashi_terms(blocks_meta, lambda sh, d, t, a, s, f1, l1: (
         f'SUMIFS({sh}!${a}${f1}:${a}${l1},{sh}!${s}${f1}:${s}${l1},"確認済")'))
+    gs = stc(SH_G)
+    out_of_fy_check = '+'.join(
+        f'COUNTIFS({SH_G}!${gs}${G_FIRST}:${gs}${G_LAST},"{st_}",{SH_G}!$A${G_FIRST}:$A${G_LAST},"{op}"&DATE(年度+{y_},{m_},1))'
+        for st_ in ('確認済', '未確認') for op, y_, m_ in (('<', 2018, 4), ('>=', 2019, 4))) + '+' + '+'.join(
+        f'COUNTIFS({SH_G}!${gs}${G_FIRST}:${gs}${G_LAST},"{st_}",{SH_G}!$A${G_FIRST}:$A${G_LAST},"")' for st_ in ('確認済', '未確認'))
     kt = agg_k['__total__']
     km = agg_k['厚生年金保険料等（手入力）']
     kunconf = kashi_terms(blocks_meta, lambda sh, d, t, a, s, f1, l1: (
@@ -966,6 +976,8 @@ def build_checks2(wb, blocks_meta, agg_t, agg_c, agg_k, old_cell):
          '未払金の一覧（総合計）が、費目ごとの合計と一致しているか'),
         ('未払金：「予算差引簿（長）未払」の総合計（確認済）＝ 差引簿集計（長）の4月（未払）の合計', f"='{SH_UC}'!$C$1",
          f"=SUMPRODUCT((('{SH_SC}'!$S$4:$S${agg_c['__total__'] - 1}=\"Y\")+('{SH_SC}'!$S$4:$S${agg_c['__total__'] - 1}=\"N\"))*'{SH_SC}'!$O$4:$O${agg_c['__total__'] - 1})", ''),
+        ('月例：確認済・未確認の行に、支払日が令和8年度の範囲外又は空欄のものがない', '=0',
+         '=' + out_of_fy_check, '該当の行は、月例の状態のセルに「集計外」と表示されます。支払日を訂正してください。'),
         ('点検に指摘のある件数（費目未登録・差引簿の行不足）', '=0',
          f'=COUNTIF({SH_G}!${C_KEY}${G_FIRST}:${C_KEY}${G_LAST},"※未登録")+COUNTIF({SH_KS}!${C_KEY}${K_FIRST}:${C_KEY}${K_LAST},"※未登録")'
          f"+COUNTIF('{SH_ST}'!$T$4:$T$80,\"行不足\")+COUNTIF('{SH_SC}'!$T$4:$T$80,\"行不足\")",
