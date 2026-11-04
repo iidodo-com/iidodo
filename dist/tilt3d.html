@@ -186,7 +186,7 @@ button:disabled{opacity:.5;cursor:default}
       for(var i=0;i<dm.width*dm.height;i++){var v=dm.data[i*ch];id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=v;id.data[i*4+3]=255;}
       tc.putImageData(id,0,0);blurInto(t);push();
       aiStatus('AIで奥行きを推定しました。傾けてみてください。');
-    }catch(e){aiStatus('AI推定に失敗しました: '+(e&&e.message||e)+'(通信を確認して再試行してください)',true);}
+    }catch(e){aiStatus('AI推定に失敗しました: '+(e&&e.message||e)+'(アプリ内プレビューでは通信が遮断されます。Chrome で開き直してください)',true);}
     finally{busy=false;btn.disabled=false;}
   });
 
@@ -219,7 +219,7 @@ button:disabled{opacity:.5;cursor:default}
   $('center').addEventListener('click',function(){if(last)base={x:last.x,y:last.y}});
   $('motion').addEventListener('click',async function(){
     var s=$('sensor');
-    if(!window.DeviceOrientationEvent){s.textContent='傾きセンサー: このブラウザは非対応です';return;}
+    if(!window.DeviceOrientationEvent){s.textContent='傾きセンサー: この画面では使えません。アプリ内プレビューの可能性があります。保存したファイルを Chrome で開いてください';return;}
     if(!window.isSecureContext){s.textContent='傾きセンサー: https のページ(または端末に保存したファイル)で開いてください';}
     try{
       if(typeof DeviceOrientationEvent.requestPermission==='function'){
