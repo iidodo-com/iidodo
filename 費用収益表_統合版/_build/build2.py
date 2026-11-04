@@ -1209,6 +1209,102 @@ def build_changes(wb):
 
 
 # ----------------------------------------------------------------------------
+# 仕上げ：装飾を落とし、元のブックに合わせた地味な見た目・文面にそろえる
+# ----------------------------------------------------------------------------
+PLAIN_FONT = 'ＭＳ Ｐゴシック'
+DARK_FILLS = {'001F3864', '002E75B6', '00548235', '007F7F7F', 'FF1F3864', 'FF2E75B6', 'FF548235', 'FF7F7F7F'}
+REWORD = {
+    (SH_HELP, 'A2'): 'このブックは、業務経理区分別執行管理簿、貸付予算差引簿及び費用収益表を一つにまとめたものです。各シートの様式は元のままとし、転記は自動で行います。',
+    (SH_HELP, 'B4'): '転記の流れ', (SH_HELP, 'B5'): '入力', (SH_HELP, 'B6'): '差引簿への転記',
+    (SH_HELP, 'B7'): '月別合計', (SH_HELP, 'B8'): '費用収益表への転記',
+    (SH_HELP, 'C6'): '月例に入力した内容は、予算差引簿（短）（長）の費目ごとに、日付・摘要・金額が自動で転記されます。決算整理の内容は「未払」の差引簿に転記されます。',
+    (SH_HELP, 'C7'): '差引簿集計（短）（長）及び貸付差引簿集計で、費目ごとの月別合計を求めます。',
+    (SH_HELP, 'C8'): '費用収益表の各費目・各月に自動で反映されます。月次締めの「今回締める月」までは確定表示、それ以降は前年実績・見込（緑字）です。',
+    (SH_HELP, 'C11'): '昨年実績の行を今年の支払の内容（日付・摘要・金額）に直し、状態を「昨年実績」から「未確認」に変更します。',
+    (SH_HELP, 'C12'): '支払伝票を確認したら、状態を「未確認」から「確認済」に変更します（プルダウンから選択）。',
+    (SH_HELP, 'C13'): '月次締めで今回締める月を選択し、仮締めした出納計算表の月合計を黄色のセルに入力します。差額が0であれば一致です。検算シートがすべてOKであれば、ブック内の金額は一致しています。',
+    (SH_HELP, 'B15'): '色の区分（状態に応じてセルが塗りつぶされます）',
+    (SH_HELP, 'C17'): '支払伝票を確認済みの行です（旧：青塗り）。金額と状態のセルが青になります。',
+    (SH_HELP, 'C18'): '今年の支払として入力済みで、伝票が未確認の行です（旧：黒字・塗りなし）。オレンジになります。',
+    (SH_HELP, 'C19'): '昨年実績のままの行です（旧：赤字）。ピンクの塗りと赤字になります。集計には含まれません。',
+    (SH_HELP, 'C21'): '確認済又は未確認の行で、日付が空欄又は令和8年度の範囲外のものです。状態のセルに「集計外」と表示され、集計に含まれません。日付を訂正してください。',
+    (SH_HELP, 'C22'): '締め月より後の月で、前年実績・見込を表示しています（旧：緑字）。薄い緑の塗りと緑字になります。',
+    (SH_HELP, 'C23'): '年度末の未払見込です（旧：赤字）。薄いピンクの塗りと赤字になります。',
+    (SH_HELP, 'C26'): '月例はN列、決算整理はM列（印刷範囲のすぐ右）に状態の入力列があります。P〜U列は計算用の列（費目・長期額・差引簿の通番・計上列）です。削除しないでください。',
+    (SH_HELP, 'C27'): '予算差引簿（短）（長）の上部の黄色のセル（基準日）に日付を入力すると、その日付以降の昨年実績（赤字）が差引簿に表示され、残額に加算されます。空欄にすると実績のみの表示に戻ります。',
+    (SH_HELP, 'C28'): '各ブロックの右端に、月例の状態が表示されます。',
+    (SH_HELP, 'C30'): 'ブロックの行数には余裕を持たせています。不足した場合は、見出しの右に赤字で「行不足」と表示されます。',
+    (SH_CTL, 'A2'): '今回締める月を選択すると、費用収益表がその月まで確定表示になります（転記の作業は不要です）。黄色のセルに仮締めした出納計算表の月合計を入力し、差額が0であれば一致です。',
+    (SH_CTL, 'D4'): '費用収益表（長+短）の年度を参照',
+    (SH_CTL, 'D5'): '選択した月まで費用収益表に確定計上されます（9月まで締め済みの場合は「9月」）',
+    (SH_CTL, 'F4'): '検算結果', (SH_CTL, 'B6'): '月番号', (SH_CTL, 'B7'): '対象月の開始日・翌月初',
+    (SH_CTL, 'B9'): '１　締める前の確認（今回締める月の分）',
+    (SH_CTL, 'E12'): '0件にしてから締めます（伝票を確認し、状態を「確認済」にします）',
+    (SH_CTL, 'E13'): '今年は支払がない行は、状態を「支払なし」にします',
+    (SH_CTL, 'B19'): '２　出納計算表との照合（黄色のセルに、仮締めした出納計算表の月合計を入力）',
+    (SH_G, 'N3'): '状態（入力）', (SH_KS, 'M3'): '状態（入力）',
+    (SH_DT, 'B1'): '昨年実績（赤字）を表示する基準日', (SH_DC, 'B1'): '昨年実績（赤字）を表示する基準日',
+    (SH_DT, 'B2'): '空欄のときは実績（黒字）のみを表示します。日付を入力すると、その日付以降（年度内の月日で比較）の昨年実績（赤字）も表示し、残額に加算します。',
+    (SH_DC, 'B2'): '空欄のときは実績（黒字）のみを表示します。日付を入力すると、その日付以降（年度内の月日で比較）の昨年実績（赤字）も表示し、残額に加算します。',
+    (SH_ST, 'A1'): '差引簿集計（短期）　費目ごとの月別合計（確認済のみ）。4月（未払）は「未払」差引簿の確認済の合計',
+    (SH_SC, 'A1'): '差引簿集計（長期）　費目ごとの月別合計（確認済のみ）。4月（未払）は「未払」差引簿の確認済の合計',
+    (SH_SK, 'A1'): '貸付差引簿集計　費目ごとの月別合計（確認済のみ）。4月（未払）は翌年度4月の日付の確認済の合計',
+    (SH_MST, 'A2'): '通常は変更しません。新しい組み合わせを使う場合は、左の表に1行追加します（A列＝中項目|小項目、B列＝費目）。',
+    (SH_MST, 'E7'): '支払伝票を確認済みの行。締め月までの分が費用収益表に反映されます',
+    (SH_CHK, 'A1'): '検算（金額の突合）',
+    (SH_CHK, 'A2'): '「結果」欄がすべて OK であれば、月例・決算整理、差引簿、集計、費用収益表の金額は一致しています。NG の場合は、該当行の説明を確認して入力を訂正してください。',
+    (SH_CHK, 'G12'): '確認済であるにもかかわらず集計に入っていない行（日付が令和8年度の範囲外のものなど）がある場合に NG となります。',
+    (SH_CHK, 'G19'): '「今回締める月」が9月の場合のみ比較します（他の月は対象外とし、0として扱います）。',
+    (SH_OLD, 'A1'): '旧表照合（旧・費用収益表との突合）',
+    (SH_OLD, 'A2'): '旧表（9月締め時点）の数値を値で貼り付け、このブックの費用収益表との差をセルごとに計算しています。「今回締める月」が9月のときに不一致が0であれば、旧表と一致しています。',
+}
+
+
+def polish(wb):
+    for ws in wb.worksheets:
+        ws.sheet_properties.tabColor = None
+    for (sh, ref), text in REWORD.items():
+        wb[sh][ref].value = text
+    for sh in (SH_HG, SH_HT, SH_HC, SH_HK):
+        wb[sh]['AA2'].value = '参考値（旧表の値。未締め月に表示する前年実績・見込）'
+    ws = wb[SH_OLD]
+    for row in ws.iter_rows(min_col=1, max_col=1):
+        v = row[0].value
+        if isinstance(v, str) and v.startswith('【'):
+            row[0].value = v.replace('【', '').replace('】', '').replace(' 旧表の値（A:W）／ 差（Z:AV）', '　旧表の値（A〜W列）、差（Z〜AV列）')
+    wb[SH_G]['Q4'].value = wb[SH_KS]['Q4'].value = '費目\n（計算）'
+    wb[SH_G]['R4'].value = wb[SH_KS]['R4'].value = '長期額\n（計算）'
+    wb[SH_G]['U4'].value = wb[SH_KS]['U4'].value = '計上列\n（計算）'
+    # 検算・月次締めの残りの記号
+    for ws in wb.worksheets:
+        for row in ws.iter_rows(max_row=min(ws.max_row, 80)):
+            for c in row:
+                if isinstance(c.value, str) and not c.value.startswith('=') and ('→' in c.value) and ws.title not in (SH_G, SH_KS):
+                    c.value = c.value.replace(' → ', '、').replace('→', '、')
+    # 見た目：濃い塗りをやめて薄い灰色に、白字は黒字に、フォントは元のブックと同じに
+    for ws in wb.worksheets:
+        for row in ws.iter_rows():
+            for c in row:
+                f = c.font
+                if f is not None and f.name == 'Meiryo UI':
+                    c.font = Font(name=PLAIN_FONT, sz=f.sz, b=f.b, i=f.i, u=f.u, strike=f.strike,
+                                  color=(f.color if f.color is not None and f.color.rgb not in ('FF1F3864', '001F3864', 'FFFFFFFF', '00FFFFFF') else 'FF000000'))
+                if c.fill is not None and c.fill.fill_type and c.fill.fgColor.rgb in DARK_FILLS:
+                    c.fill = PatternFill('solid', fgColor='FFD9D9D9')
+                    c.font = Font(name=f.name, sz=f.sz, b=True, i=f.i, color='FF000000')
+        if ws.title in (SH_HELP, SH_CTL, SH_CHK, SH_OLD, SH_MST, SH_ST, SH_SC, SH_SK):
+            a1 = ws['A1']
+            a1.fill = PatternFill(fill_type=None)
+            a1.font = Font(name=PLAIN_FONT, sz=13, b=True, color='FF000000')
+            a1.alignment = Alignment(vertical='center', indent=0)
+            for c in range(1, 25):
+                cell = ws.cell(1, c)
+                cell.fill = PatternFill(fill_type=None)
+                cell.border = Border(bottom=Side(style='medium', color='FF000000'))
+            ws['A2'].font = Font(name=PLAIN_FONT, sz=9, color='FF404040')
+
+
+# ----------------------------------------------------------------------------
 # 組み立て
 # ----------------------------------------------------------------------------
 def main(gyomu_xlsx, kashi_xls, hiyou_xls, out):
@@ -1294,6 +1390,7 @@ def main(gyomu_xlsx, kashi_xls, hiyou_xls, out):
         B.page(wb[n], False, None, paper=8)
     for n in (SH_ST, SH_SC, SH_SK, SH_CTL, SH_CHK, SH_HELP):
         B.page(wb[n], True)
+    polish(wb)
     wb.calculation.fullCalcOnLoad = True
     wb.properties.creator = ''
     wb.properties.lastModifiedBy = ''
