@@ -46,6 +46,14 @@ G_FIRST, G_LAST = 5, 788       # 月例
 K_FIRST, K_LAST = 5, 1835      # 決算整理
 # 月例・決算整理に足す作業列
 C_ST, C_KEY, C_LONG, C_SKEY, C_LKEY, C_IDX = 'P', 'Q', 'R', 'S', 'T', 'U'
+# 状態の列：決算整理は印刷範囲（A〜L）のすぐ右のM列、月例はM列（作業列）の右のN列
+ST_COL = {'月例': 'N', '決算整理': 'M'}
+DATE_FMT = '[$-411]ge\\.m\\.d'      # R8.10.29
+
+
+def stc(sheet):
+    return ST_COL[sheet]
+
 
 # 状態の色（セルの塗りつぶし）
 ST_FILL = {'確認済': 'BDD7EE', '未確認': 'F8CBAD', '昨年実績': 'FFD9D9', '支払なし': 'E7E6E6'}
@@ -155,8 +163,9 @@ def prep_input_sheet(ws, rows, first, last, kind):
     ws.conditional_formatting = ConditionalFormattingList()
     ws.data_validations.dataValidation = [d for d in ws.data_validations.dataValidation
                                            if not (d.formula1 and '#REF!' in str(d.formula1))]
+    CS = ST_COL[ws.title]
     st_by_row = {int(r['src'].split('!')[1]): r['st'] for r in rows}
-    heads = {C_ST: '状態', C_KEY: '費目\n(自動)', C_LONG: '長期額\n(自動)', C_SKEY: '短期\n通番キー', C_LKEY: '長期\n通番キー',
+    heads = {CS: '状態', C_KEY: '費目\n(自動)', C_LONG: '長期額\n(自動)', C_SKEY: '短期\n通番キー', C_LKEY: '長期\n通番キー',
              C_IDX: '計上列\n(自動)'}
     hdr_style = style_of(ws, 'H4')
     for col, t in heads.items():
@@ -164,10 +173,12 @@ def prep_input_sheet(ws, rows, first, last, kind):
         c.value = t
         c._style = copy(hdr_style)
         c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-    for col, w in {C_ST: 10, C_KEY: 18, C_LONG: 11, C_SKEY: 20, C_LKEY: 20, C_IDX: 8}.items():
+    for col, w in {CS: 10, C_KEY: 18, C_LONG: 11, C_SKEY: 20, C_LKEY: 20, C_IDX: 8}.items():
         ws.column_dimensions[col].width = w
-    ws[f'{C_ST}3'] = '←支払担当者が「未確認」、経理担当者が伝票確認後に「確認済」'
-    ws[f'{C_ST}3'].font = font(9, color=GREY)
+    ws[f'{CS}3'] = '↓状態'
+    ws[f'{CS}3'].font = font(9, True, RED_T)
+    if kind == 'k':
+        ws.print_area = f'A1:M{1879}'      # 状態の列を印刷範囲に入れる
     base = ws[f'F{first}']
     for r in range(first, last + 1):
         for c in range(1, 13):
@@ -176,7 +187,7 @@ def prep_input_sheet(ws, rows, first, last, kind):
                 continue
             black(cell)
             cell.fill = PatternFill(fill_type=None)
-        ws[f'{C_ST}{r}'].value = st_by_row.get(r)
+        ws[f'{CS}{r}'].value = st_by_row.get(r)
         ws[f'{C_KEY}{r}'] = (f'=IF($F{r}="","",IFERROR(VLOOKUP($C{r}&"|"&$D{r},{SH_MST}!$A$5:$B$200,2,FALSE),"※未登録"))')
         ws[f'{C_LONG}{r}'] = f'=IF($F{r}="","",$I{r}+$J{r}+$K{r})'
         def hidden(nm):       # 月例のみ：昨年実績は、差引簿の基準日以降の分だけ表示する（年度内の月日で比較）
@@ -184,10 +195,10 @@ def prep_input_sheet(ws, rows, first, last, kind):
                 return ''
             pos = f'MOD(MONTH($A{r})-4,12)*100+DAY($A{r})'
             base = f'MOD(MONTH({nm})-4,12)*100+DAY({nm})'
-            return (f',AND(${C_ST}{r}="昨年実績",NOT(IFERROR(AND(ISNUMBER({nm}),ISNUMBER($A{r}),{pos}>={base}),FALSE)))')
-        ws[f'{C_SKEY}{r}'] = (f'=IF(OR($F{r}="",${C_ST}{r}="支払なし",$H{r}=0,${C_KEY}{r}=""{hidden("基準日短")}),"",${C_KEY}{r}&"|S|"&'
+            return (f',AND(${CS}{r}="昨年実績",NOT(IFERROR(AND(ISNUMBER({nm}),ISNUMBER($A{r}),{pos}>={base}),FALSE)))')
+        ws[f'{C_SKEY}{r}'] = (f'=IF(OR($F{r}="",${CS}{r}="支払なし",$H{r}=0,${C_KEY}{r}=""{hidden("基準日短")}),"",${C_KEY}{r}&"|S|"&'
                               f'(COUNTIF({C_SKEY}$4:{C_SKEY}{r - 1},${C_KEY}{r}&"|S|*")+1))')
-        ws[f'{C_LKEY}{r}'] = (f'=IF(OR($F{r}="",${C_ST}{r}="支払なし",${C_LONG}{r}=0,${C_KEY}{r}=""{hidden("基準日長")}),"",${C_KEY}{r}&"|L|"&'
+        ws[f'{C_LKEY}{r}'] = (f'=IF(OR($F{r}="",${CS}{r}="支払なし",${C_LONG}{r}=0,${C_KEY}{r}=""{hidden("基準日長")}),"",${C_KEY}{r}&"|L|"&'
                               f'(COUNTIF({C_LKEY}$4:{C_LKEY}{r - 1},${C_KEY}{r}&"|L|*")+1))')
         ws[f'{C_IDX}{r}'] = (f'=IF(OR($F{r}="",$A{r}=""),"",MOD(MONTH($A{r})-4,12)+1)' if kind == 'g' else
                              f'=IF($F{r}="","",13)')
@@ -195,28 +206,28 @@ def prep_input_sheet(ws, rows, first, last, kind):
             c = ws[f'{col}{r}']
             c.font = font(9, color='595959')
             c.fill = fill(GREY_L)
-        for col in ('A', 'B', 'C', 'D', 'E', 'F', 'G', C_ST):
+        for col in ('A', 'B', 'C', 'D', 'E', 'F', 'G', CS):
             if kind == 'g' and col == 'B':
                 continue
             ws[f'{col}{r}'].fill = fill(YELLOW)
         if kind == 'g':
             ws[f'M{r}'] = f'=IF(F{r}="",0,MONTH(A{r}))'      # 月（旧：手入力・1行ずれの誤りがあった）
-        ws[f'A{r}'].number_format = 'yyyy/m/d' if ws[f'A{r}'].number_format == 'General' else ws[f'A{r}'].number_format
+        ws[f'A{r}'].number_format = DATE_FMT
     rng = f'A{first}:L{last}'
-    ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${C_ST}{first}="昨年実績"'],
+    ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${CS}{first}="昨年実績"'],
                                                    font=Font(color=RED_T)))
-    if kind == 'g':      # 確認済・未確認なのに支払日が令和8年度の範囲外 → 集計されない（紫・「集計外」）
-        cond = (f'AND(OR(${C_ST}{first}="確認済",${C_ST}{first}="未確認"),'
+    if kind == 'g':      # 昨年実績以外（確認済・未確認・状態未入力）で、支払日が令和8年度の範囲外 → 集計されない（紫・「集計外」）
+        cond = (f'AND($F{first}<>"",${CS}{first}<>"昨年実績",${CS}{first}<>"支払なし",'
                 f'OR(NOT(ISNUMBER($A{first})),$A{first}<DATE(年度+2018,4,1),$A{first}>=DATE(年度+2019,4,1)))')
         excluded_cf(ws, f'A{first}:A{last}', cond, with_label=False)
-        excluded_cf(ws, f'{C_ST}{first}:{C_ST}{last}', cond)
-    add_status_fills(ws, f'F{first}:F{last}', first, C_ST)       # 金額セル（旧：青塗り）
-    add_status_fills(ws, f'{C_ST}{first}:{C_ST}{last}', first, C_ST)   # 状態セル
-    ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${C_ST}{first}="支払なし"'],
+        excluded_cf(ws, f'{CS}{first}:{CS}{last}', cond)
+    add_status_fills(ws, f'F{first}:F{last}', first, CS)       # 金額セル（旧：青塗り）
+    add_status_fills(ws, f'{CS}{first}:{CS}{last}', first, CS)   # 状態セル
+    ws.conditional_formatting.add(rng, FormulaRule(formula=[f'${CS}{first}="支払なし"'],
                                                    font=Font(color='A6A6A6', strike=True)))
     dv = DataValidation(type='list', formula1=f'={SH_MST}!$I$5:$I$8', allow_blank=True)
     ws.add_data_validation(dv)
-    dv.add(f'{C_ST}{first}:{C_ST}{last}')
+    dv.add(f'{CS}{first}:{CS}{last}')
     ws.conditional_formatting.add(
         f'{C_KEY}{first}:{C_KEY}{last}', FormulaRule(formula=[f'${C_KEY}{first}="※未登録"'],
                                                       font=Font(color='FFFFFF', bold=True),
@@ -297,7 +308,7 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
             pos[k] = dict(row=r0, col=1 + 5 * j, cap=caps[k])
         r0 += height + 2
     for col in range(1, 21):
-        ws.column_dimensions[L(col)].width = {0: 9, 1: 36, 2: 11, 3: 12, 4: 9}[(col - 1) % 5]
+        ws.column_dimensions[L(col)].width = {0: 10.5, 1: 36, 2: 11, 3: 12, 4: 9}[(col - 1) % 5]
     out = {}
     for k, h, br, y in GY_BLOCKS:
         p = pos[k]
@@ -319,6 +330,7 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
         else:
             sc.value = 0
         ws.cell(start, d)._style = copy(tm['date'])
+        ws.cell(start, d).number_format = DATE_FMT
         ws.cell(start, a)._style = copy(tm['amt'])
         if unpaid:       # 費目ごとの合計（下に並ぶ行の合計。支払なしは並ばない）
             ws.cell(start, a, f'=SUM({A}{start + 1}:{A}{start + cap})')
@@ -342,10 +354,10 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
             else:
                 bf = f'=IF({A}{r}="","",{prev}+{A}{r})'
             ws.cell(r, bal, bf)._style = copy(tm['bal'])
-            sc2 = ws.cell(r, st, pick(C_ST))
+            sc2 = ws.cell(r, st, pick(stc(src_sheet)))
             sc2.font = font(9, color='595959')
             sc2.alignment = Alignment(horizontal='center')
-            ws.cell(r, d).number_format = 'm/d'
+            ws.cell(r, d).number_format = DATE_FMT
         first, last = start + 1, start + cap
         for rr in range(start, last + 1):
             for cc in (d, t, a, bal):
@@ -364,10 +376,10 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
         amtc = 'H' if side == 'S' else C_LONG
         sr2 = lambda c: f"{SH_KS}!${c}${src_first}:${c}${src_last}"
         base = f'{sr2(C_KEY)},"<>対象外",{sr2(C_KEY)},"<>※未登録"'
-        items = [('未払金 総合計（確認済＝計上額）', f'=SUMIFS({sr2(amtc)},{sr2(C_ST)},"確認済",{base})', 1),
-                 ('うち未確認', f'=SUMIFS({sr2(amtc)},{sr2(C_ST)},"未確認",{base})', 6),
-                 ('昨年実績（参考）', f'=SUMIFS({sr2(amtc)},{sr2(C_ST)},"昨年実績",{base})', 11),
-                 ('合計（支払なしを除く全件）', f'=SUMIFS({sr2(amtc)},{sr2(C_ST)},"<>支払なし",{base})', 16)]
+        items = [('未払金 総合計（確認済＝計上額）', f'=SUMIFS({sr2(amtc)},{sr2(stc(SH_KS))},"確認済",{base})', 1),
+                 ('うち未確認', f'=SUMIFS({sr2(amtc)},{sr2(stc(SH_KS))},"未確認",{base})', 6),
+                 ('昨年実績（参考）', f'=SUMIFS({sr2(amtc)},{sr2(stc(SH_KS))},"昨年実績",{base})', 11),
+                 ('合計（支払なしを除く全件）', f'=SUMIFS({sr2(amtc)},{sr2(stc(SH_KS))},"<>支払なし",{base})', 16)]
         for lab, fml, c in items:
             ws.cell(1, c + 1, lab).font = font(11, True)
             ws.cell(1, c + 1).alignment = Alignment(horizontal='right', vertical='center')
@@ -379,7 +391,7 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
         for lab, kubun, c in (('区分別（確認済）　未払金', '未払金', 1), ('未払費用', '未払費用', 6)):
             ws.cell(2, c + 1, lab).font = font(9, color=GREY)
             ws.cell(2, c + 1).alignment = Alignment(horizontal='right', vertical='center')
-            v = ws.cell(2, c + 2, f'=SUMIFS({sr2(amtc)},{sr2(C_ST)},"確認済",{sr2("B")},"{kubun}",{base})')
+            v = ws.cell(2, c + 2, f'=SUMIFS({sr2(amtc)},{sr2(stc(SH_KS))},"確認済",{sr2("B")},"{kubun}",{base})')
             v.number_format = '#,##0;"△ "#,##0'
             v.font = font(10)
         ws.row_dimensions[1].height = 24
@@ -389,7 +401,7 @@ def rebuild_sasihiki(ws, side, src_sheet, src_first, src_last, budget_sheet, cou
         ws['B1'].font = font(11, True)
         ws['B1'].alignment = Alignment(horizontal='right', vertical='center')
         ws['C1'].fill = fill(YELLOW)
-        ws['C1'].number_format = 'yyyy/m/d'
+        ws['C1'].number_format = DATE_FMT
         ws['C1'].font = font(11, True, BLUE_IN)
         ws['C1'].border = B_ALL
         ws['C1'].alignment = Alignment(horizontal='center', vertical='center')
@@ -669,6 +681,7 @@ def prep_kashi_sheet(ws, sheet_idx, blocks_meta, krows):
         lab.font = copy(ws.cell(b['header'] + 1, a).font)
         lab.alignment = Alignment(horizontal='center')
         ws.column_dimensions[L(st)].width = 8
+        ws.column_dimensions[L(d)].width = 10.5
         for r in range(b['first'] + 1, b['last'] + 1):
             row = st_rows.get((c0, r))
             for c in (d, t, a, bal):
@@ -676,6 +689,7 @@ def prep_kashi_sheet(ws, sheet_idx, blocks_meta, krows):
                 if cell.fill and cell.fill.fill_type and cell.fill.fgColor.rgb not in ('FFFFFF00', '00FFFF00'):
                     cell.fill = PatternFill(fill_type=None)
                 black(cell)
+            ws.cell(r, d).number_format = DATE_FMT
             sc = ws.cell(r, st)
             sc.value = row['st'] if row else None
             sc.font = font(9, color='595959')
@@ -767,8 +781,8 @@ def build_control2(wb, blocks_meta):
         f=font(9, color=GREY), al=Alignment(horizontal='center'), nf='0')
     put(ws, 'B7', '対象月の開始日／翌月初（自動）', f=font(9, color=GREY))
     put(ws, 'C7', '=IF(締月=0,0,IF(締月=13,DATE(年度+2019,4,1),DATE(年度+2018+IF(締月>9,1,0),MOD(締月+2,12)+1,1)))',
-        f=font(9, color=GREY), nf='yyyy/m/d', al=Alignment(horizontal='center'))
-    put(ws, 'D7', '=EDATE(C7,1)', f=font(9, color=GREY), nf='yyyy/m/d', al=Alignment(horizontal='center'))
+        f=font(9, color=GREY), nf=DATE_FMT, al=Alignment(horizontal='center'))
+    put(ws, 'D7', '=EDATE(C7,1)', f=font(9, color=GREY), nf=DATE_FMT, al=Alignment(horizontal='center'))
     dv = DataValidation(type='list', formula1=f'={SH_MST}!$N$5:$N$18', allow_blank=False, showErrorMessage=True)
     ws.add_data_validation(dv)
     dv.add('C5')
@@ -795,7 +809,7 @@ def build_control2(wb, blocks_meta):
         return (f"IF(締月=0,0,{fn(SH_G, G_FIRST, G_LAST)}+{fn(SH_KS, K_FIRST, K_LAST)})")
 
     def cnt(st):
-        return g(lambda sh, a, b: f'COUNTIFS({sh}!${C_IDX}${a}:${C_IDX}${b},締月,{sh}!${C_ST}${a}:${C_ST}${b},"{st}")')
+        return g(lambda sh, a, b: f'COUNTIFS({sh}!${C_IDX}${a}:${C_IDX}${b},締月,{sh}!${stc(sh)}${a}:${stc(sh)}${b},"{st}")')
 
     def kcnt(st):
         return 'IF(締月=0,0,' + kashi_terms(blocks_meta, lambda sh, d, t, a, s, f1, l1: (
@@ -806,7 +820,7 @@ def build_control2(wb, blocks_meta):
         f'COUNTIFS({sh}!${d}${f1}:${d}${l1},">0",{sh}!${s}${f1}:${s}${l1},"")'
         + ''.join(f'+COUNTIFS({sh}!${s}${f1}:${s}${l1},"{st}",{sh}!${d}${f1}:${d}${l1},"{op}"&DATE(年度+{y},{m},1))'
                   for st in ('確認済', '未確認') for op, y, m in (('<', 2018, 4), ('>=', 2019, 5)))))
-    amt_g = g(lambda sh, a, b: f'SUMIFS({sh}!$F${a}:$F${b},{sh}!${C_IDX}${a}:${C_IDX}${b},締月,{sh}!${C_ST}${a}:${C_ST}${b},"確認済")')
+    amt_g = g(lambda sh, a, b: f'SUMIFS({sh}!$F${a}:$F${b},{sh}!${C_IDX}${a}:${C_IDX}${b},締月,{sh}!${stc(sh)}${a}:${stc(sh)}${b},"確認済")')
     amt_k = 'IF(締月=0,0,' + kashi_terms(blocks_meta, lambda sh, d, t, a, s, f1, l1: (
         f'SUMIFS({sh}!${a}${f1}:${a}${l1},{sh}!${s}${f1}:${s}${l1},"確認済",{sh}!${d}${f1}:${d}${l1},">="&月初,{sh}!${d}${f1}:${d}${l1},"<"&翌月初)')) + ')'
     items = [
@@ -916,11 +930,11 @@ def build_checks2(wb, blocks_meta, agg_t, agg_c, agg_k, old_cell):
 
     def led(side_col):
         return '+'.join(
-            f'SUMIFS({sh}!${side_col}${a}:${side_col}${b},{sh}!${C_ST}${a}:${C_ST}${b},"確認済",{sh}!${C_IDX}${a}:${C_IDX}${b},"<="&締月,{sh}!${C_KEY}${a}:${C_KEY}${b},"<>対象外")'
+            f'SUMIFS({sh}!${side_col}${a}:${side_col}${b},{sh}!${stc(sh)}${a}:${stc(sh)}${b},"確認済",{sh}!${C_IDX}${a}:${C_IDX}${b},"<="&締月,{sh}!${C_KEY}${a}:${C_KEY}${b},"<>対象外")'
             for sh, a, b in ((SH_G, G_FIRST, G_LAST), (SH_KS, K_FIRST, K_LAST)))
 
     def unconf(sh, a, b):
-        return f'COUNTIFS({sh}!${C_IDX}${a}:${C_IDX}${b},"<="&締月,{sh}!${C_ST}${a}:${C_ST}${b},"未確認")'
+        return f'COUNTIFS({sh}!${C_IDX}${a}:${C_IDX}${b},"<="&締月,{sh}!${stc(sh)}${a}:${stc(sh)}${b},"未確認")'
 
     kledger = kashi_terms(blocks_meta, lambda sh, d, t, a, s, f1, l1: (
         f'SUMIFS({sh}!${a}${f1}:${a}${l1},{sh}!${s}${f1}:${s}${l1},"確認済")'))
@@ -1035,7 +1049,7 @@ def build_help2(wb):
         r += 1
     r += 1
     section('追加した列・シート（元の様式への追加）')
-    row('月例・決算整理 P〜U列', 'P＝状態（入力）。Q〜U＝自動計算の作業列（費目・長期額・差引簿への通番・計上列）。消さないでください。')
+    row('月例・決算整理の「状態」列', '月例はN列、決算整理はM列（印刷範囲の右端のすぐ隣）に「状態」の入力列を置きました。P〜U列は自動計算の作業列（費目・長期額・差引簿への通番・計上列）です。消さないでください。')
     row('昨年実績の表示切り替え', '「予算差引簿（短）」「（長）」の上部の黄色セル（基準日）に日付を入れると、その日付以降の昨年実績（赤字）が差引簿に現れ、残額に加わります。空欄にすると実績（黒字）だけに戻ります。', '決算見込・次年度予算編成で、残りの期間にあといくら使うかを見るため')
     row('予算差引簿の「状態」列', '各ブロックの右端。月例の状態が自動で表示されます。')
     row('貸付予算差引簿の「状態」列', '各ブロックの右端（入力）。')
@@ -1262,9 +1276,8 @@ def main(gyomu_xlsx, kashi_xls, hiyou_xls, out):
     _, old_cell = B.build_old_compare(wb, oldvals, {n: n for n in (SH_HG, SH_HT, SH_HC, SH_HK)})
     build_checks2(wb, blocks_meta, agg_t, agg_c, agg_k, old_cell)
     build_help2(wb)
-    build_changes(wb)
 
-    order = [SH_HELP, SH_CHG, SH_CTL, SH_G, SH_KS, SH_DT, SH_DC, SH_UT, SH_UC, SH_ST, SH_SC, SH_K1, SH_K2, SH_SK,
+    order = [SH_HELP, SH_CTL, SH_G, SH_KS, SH_DT, SH_DC, SH_UT, SH_UC, SH_ST, SH_SC, SH_K1, SH_K2, SH_SK,
              SH_HG, SH_HT, SH_HC, SH_HK, '給付区分別執行額（月別）', '給付区分別執行額（年度分）', 'リスト', '端数処理',
              SH_MST, SH_CHK, SH_OLD, 'Sheet1', 'Sheet2']
     wb._sheets = [wb[n] for n in order]
@@ -1279,7 +1292,7 @@ def main(gyomu_xlsx, kashi_xls, hiyou_xls, out):
         wb[n].sheet_properties.tabColor = '1F3864'
     for n in (SH_DT, SH_DC, SH_UT, SH_UC):
         B.page(wb[n], False, None, paper=8)
-    for n in (SH_ST, SH_SC, SH_SK, SH_CTL, SH_CHK, SH_HELP, SH_CHG):
+    for n in (SH_ST, SH_SC, SH_SK, SH_CTL, SH_CHK, SH_HELP):
         B.page(wb[n], True)
     wb.calculation.fullCalcOnLoad = True
     wb.properties.creator = ''
