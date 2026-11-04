@@ -11,6 +11,7 @@
 2. Alt+F11 で VBA エディタを開く → ファイル → ファイルのインポート → `KensyutsuDB.bas`。
 3. ツール → 参照設定で「Microsoft Office xx.0 Access database engine Object Library」（DAO）が有効であることを確認する（通常は既定で有効）。
 4. イミディエイトウィンドウ（Ctrl+G）に `Setup` と入力して Enter。
+   （フォームでエラーが出て中断した場合は、テーブルは作成済みなので `SetupForms` だけを実行する。仮名の「フォーム1」が残っていたら保存せず削除する）
 5. 完了メッセージの後、いったん閉じて開き直すと `F_メニュー` が起動する。
 
 ## 作成されるもの

@@ -28,11 +28,22 @@ Public Sub Setup()
     CreateRelationships db
     LoadMasters db, tsv
     CreateQueries db
+    SetupForms
+
+    MsgBox "構築が完了しました。F_メニュー から操作できます。", vbInformation
+End Sub
+
+' フォームだけを(再)作成する。既存の F_検出入力 / F_メニュー は削除してから作り直す。
+Public Sub SetupForms()
+    On Error Resume Next
+    DoCmd.Close acForm, "F_検出入力", acSaveNo
+    DoCmd.Close acForm, "F_メニュー", acSaveNo
+    DoCmd.DeleteObject acForm, "F_検出入力"
+    DoCmd.DeleteObject acForm, "F_メニュー"
+    On Error GoTo 0
     BuildInputForm
     BuildMenuForm
     SetStartupForm "F_メニュー"
-
-    MsgBox "構築が完了しました。F_メニュー から操作できます。", vbInformation
 End Sub
 
 ' ---------------- テーブル ----------------
@@ -240,8 +251,7 @@ End Sub
 ' フォームに埋め込むイベントコード(` は二重引用符に置換)
 Private Function FormCode() As String
     Dim s As String
-    s = "Option Compare Database" & vbCrLf & "Option Explicit" & vbCrLf & vbCrLf
-    s = s & "Private Function Esc(ByVal t As String) As String" & vbCrLf
+    s = "Private Function Esc(ByVal t As String) As String" & vbCrLf
     s = s & "    Esc = Replace(t, `'`, `''`)" & vbCrLf
     s = s & "End Function" & vbCrLf & vbCrLf
     s = s & "Private Sub RefreshLists()" & vbCrLf
