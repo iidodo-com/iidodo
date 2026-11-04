@@ -5,97 +5,108 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>立体チルト</title>
 <style>
-:root{--bg:#0f1214;--panel:#171b1e;--line:#2a3136;--fg:#e8ecee;--mute:#8b979e;--accent:#ff7a3d;--ok:#6fd08c;color-scheme:dark}
+:root{--bg:#0f1214;--panel:#171b1e;--line:#2a3136;--fg:#e8ecee;--mute:#8b979e;--accent:#ff7a3d;--ok:#6fd08c;--err:#ff8a7a;color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,-apple-system,"Hiragino Sans","Yu Gothic",sans-serif}
 body{padding:16px max(16px,env(safe-area-inset-right)) 40px max(16px,env(safe-area-inset-left))}
 main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 h1{font-size:21px;margin:0;line-height:1.3}
-.lead{margin:0;color:var(--mute);font-size:13px}
-.stage{--ar:1;position:relative;width:min(100%,calc(72vh * var(--ar)));margin:0 auto;aspect-ratio:var(--ar);border-radius:6px;overflow:hidden;background:#000;border:1px solid var(--line);touch-action:none;cursor:grab}
+.stage{--ar:1;position:relative;width:min(100%,calc(70vh * var(--ar)));margin:0 auto;aspect-ratio:var(--ar);border-radius:6px;overflow:hidden;background:#000;border:1px solid var(--line);touch-action:none;cursor:grab}
 .stage.drag{outline:3px dashed var(--accent)}
 canvas{width:100%;height:100%;display:block}
-.hint{position:absolute;right:8px;bottom:8px;font:12px ui-monospace,monospace;color:#fff;background:rgba(0,0,0,.6);padding:3px 8px;border-radius:3px;pointer-events:none}
+.badge{position:absolute;left:8px;top:8px;font:12px ui-monospace,monospace;color:#fff;background:rgba(0,0,0,.6);padding:3px 8px;border-radius:3px;pointer-events:none}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:12px}
 .row{display:flex;gap:10px;flex-wrap:wrap}
 button{font:700 14px system-ui,sans-serif;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:4px;padding:10px 12px;cursor:pointer}
-.row button{flex:1 1 150px}
+.row button{flex:1 1 140px}
 button:hover{border-color:var(--accent)}
-button.primary{background:var(--accent);color:#1a0d05;border-color:var(--accent)}
-button[aria-pressed="true"]{background:var(--accent);color:#1a0d05;border-color:var(--accent)}
+button.primary,button[aria-pressed="true"]{background:var(--accent);color:#1a0d05;border-color:var(--accent)}
 button:disabled{opacity:.5;cursor:default}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mute)}
-.field input[type=file]{color:var(--fg);font-size:13px;width:100%}
+.field input[type=file]{color:var(--fg);font-size:14px;width:100%}
 .field input[type=range]{width:100%;accent-color:var(--accent)}
 .field b{color:var(--fg);font-family:ui-monospace,monospace;font-weight:400}
-.status{font:12.5px ui-monospace,monospace;color:var(--mute);margin:0;word-break:break-all}
-.status.ok{color:var(--ok)}
+.chk{display:flex;gap:8px;align-items:center;font-size:13.5px}
+.status{font:12.5px ui-monospace,monospace;color:var(--mute);margin:0;word-break:break-all;min-height:1.4em}
+.status.ok{color:var(--ok)}.status.err{color:var(--err)}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;display:none}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
 .note{font-size:12.5px;color:var(--mute);margin:0}
-.note b{color:var(--fg)}
+summary{cursor:pointer;font-size:13px;color:var(--mute)}
+pre{white-space:pre-wrap;font:11.5px/1.5 ui-monospace,monospace;color:var(--mute);margin:8px 0 0}
+a.dl{color:var(--accent);font-weight:700}
 </style>
 </head>
 <body>
 <main>
   <h1>立体チルト</h1>
-  <p class="lead">1枚の画像から奥行きを作り、スマホを傾けると立体的に動かします。</p>
 
   <div class="stage" id="stage">
     <canvas id="gl"></canvas>
-    <span class="hint" id="hint">傾ける / なぞる</span>
+    <span class="badge" id="badge">自動で揺れています</span>
   </div>
 
   <div class="panel">
-    <button class="primary" id="motion">① 傾きセンサーを有効にする</button>
-    <p class="status" id="sensor">傾きセンサー: 未開始(PCではマウスで動かせます)</p>
-
-    <label class="field">② 画像を選ぶ(またはこの画面にドラッグ / 貼り付け)
+    <label class="field">① 画像を選ぶ(この画面へドラッグ / 貼り付けも可)
       <input type="file" id="fImg" accept="image/*"></label>
-    <button id="ai">③ AIで奥行きを推定する(初回のみ約27MBを取得)</button>
-    <p class="status" id="aiStatus"></p>
+    <label class="chk"><input type="checkbox" id="auto" checked> 画像を選んだら、AIで奥行きを自動推定する</label>
+    <div class="bar" id="bar"><i id="barI"></i></div>
+    <p class="status" id="msg"></p>
 
-    <label class="field">奥行きの強さ <b id="vStr">0.60</b>
-      <input type="range" id="str" min="0" max="1" step="0.01" value="0.6"></label>
-    <label class="field">傾きの感度(小さいほど大きく傾けないと動かない) <b id="vSens">25°</b>
-      <input type="range" id="sens" min="10" max="50" step="1" value="25"></label>
+    <button class="primary" id="motion">② スマホの傾きで動かす</button>
+    <p class="status" id="sensor">傾きセンサー: 未開始(指やマウスでなぞっても動きます)</p>
+
+    <label class="field">奥行きの強さ <b id="vStr">0.40</b>
+      <input type="range" id="str" min="0" max="1" step="0.01" value="0.4"></label>
+    <label class="field">奥行きのメリハリ(手前を強調 ← → 奥を強調) <b id="vGm">1.00</b>
+      <input type="range" id="gm" min="0.4" max="2.2" step="0.05" value="1"></label>
+    <label class="field">ピント面(動かない奥行き。0=一番奥 / 1=一番手前) <b id="vFc">0.50</b>
+      <input type="range" id="fc" min="0" max="1" step="0.01" value="0.5"></label>
+    <label class="field">傾きの感度(大きいほど深く傾けないと動かない) <b id="vSens">20°</b>
+      <input type="range" id="sens" min="8" max="45" step="1" value="20"></label>
 
     <div class="row">
       <button id="center">中心をリセット</button>
       <button id="inv" aria-pressed="false">手前と奥を反転</button>
       <button id="sd" aria-pressed="false">深度を見る</button>
+      <button id="rec">動画で保存(5秒)</button>
+      <button id="ai">AIで奥行きを推定</button>
       <button id="sample">例に戻す</button>
     </div>
+    <p class="status" id="recMsg"></p>
 
     <details>
-      <summary class="note">自分で作った深度マップを使う(任意)</summary>
+      <summary>自分で作った深度マップを使う / 診断情報</summary>
       <label class="field" style="margin-top:8px">深度マップ画像(白=手前、黒=奥)
         <input type="file" id="fDep" accept="image/*"></label>
+      <pre id="diag"></pre>
     </details>
-    <p class="note">画像は端末内で処理され、送信されません。AI推定を使うときだけ、モデルのダウンロード(jsDelivr / Hugging Face)の通信が発生します。</p>
+    <p class="note">画像は端末内で処理され、送信されません。AI推定の初回だけ、モデル(約27MB)のダウンロード通信が発生します。</p>
   </div>
 </main>
 
 <script>
 (function(){
-  var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var cv=document.getElementById('gl'), stage=document.getElementById('stage');
-  var gl=cv.getContext('webgl',{antialias:false});
   var $=function(id){return document.getElementById(id)};
+  var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var cv=$('gl'),stage=$('stage');
+  var gl=cv.getContext('webgl',{antialias:false,preserveDrawingBuffer:true});
   if(!gl){stage.outerHTML='<p>このブラウザはWebGLに対応していません。</p>';return;}
 
-  /* ---------- WebGL: parallax by re-sampling the image through the depth map ---------- */
+  /* ---------- WebGL ---------- */
   var vs='attribute vec2 p;varying vec2 v;void main(){v=p*.5+.5;gl_Position=vec4(p,0.,1.);}';
-  var fs='precision mediump float;varying vec2 v;uniform sampler2D img,dep;uniform vec2 tilt;uniform float str,inv,sd;'+
-    'float D(vec2 q){float d=texture2D(dep,q).r;return mix(d,1.-d,inv);}'+
+  var fs='precision mediump float;varying vec2 v;uniform sampler2D img,dep;uniform vec2 tilt;uniform float str,inv,sd,gm,fc;'+
+    'float D(vec2 q){float d=texture2D(dep,q).r;d=mix(d,1.-d,inv);return pow(clamp(d,0.,1.),gm);}'+
     'void main(){vec2 uv=(v-.5)/(1.+str*.9)+.5;vec2 off=tilt*str*.45;vec2 q=uv;'+
-    'for(int i=0;i<10;i++){q=clamp(uv+off*(D(q)-.5),0.,1.);}'+
+    'for(int i=0;i<12;i++){q=clamp(uv+off*(D(q)-fc),0.,1.);}'+
     'if(sd>.5){gl_FragColor=vec4(vec3(D(q)),1.);}else{gl_FragColor=texture2D(img,q);}}';
   function sh(t,s){var o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o;}
   var pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,vs));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(pr);gl.useProgram(pr);
   gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer());
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
   var loc=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
-  var U={};['img','dep','tilt','str','inv','sd'].forEach(function(n){U[n]=gl.getUniformLocation(pr,n)});
+  var U={};['img','dep','tilt','str','inv','sd','gm','fc'].forEach(function(n){U[n]=gl.getUniformLocation(pr,n)});
   gl.uniform1i(U.img,0);gl.uniform1i(U.dep,1);
   [0,1].forEach(function(u){gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_2D,gl.createTexture());
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
@@ -103,18 +114,20 @@ button:disabled{opacity:.5;cursor:default}
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
   function upload(unit,c){gl.activeTexture(gl.TEXTURE0+unit);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,c);}
 
-  /* ---------- image + depth canvases (same size) ---------- */
-  var imgC=document.createElement('canvas'), depC=document.createElement('canvas'), W=768, H=768;
+  var imgC=document.createElement('canvas'),depC=document.createElement('canvas'),W=768,H=768;
   function setSize(w,h){W=w;H=h;imgC.width=depC.width=cv.width=w;imgC.height=depC.height=cv.height=h;stage.style.setProperty('--ar',w/h);}
   function push(){upload(0,imgC);upload(1,depC);}
 
+  /* ---------- messages ---------- */
+  function msg(t,kind){var m=$('msg');m.textContent=t;m.className='status'+(kind?' '+kind:'');}
+  function prog(p){var b=$('bar');if(p==null){b.style.display='none';return;}b.style.display='block';$('barI').style.width=Math.max(0,Math.min(100,p))+'%';}
+
+  /* ---------- sample scene ---------- */
   function sample(){
     setSize(768,768);var S=768,a=imgC.getContext('2d'),b=depC.getContext('2d');
-    function both(path,col,g){[[a,col],[b,typeof g==='function'?g():'rgb('+g+','+g+','+g+')']].forEach(function(x){
-      x[0].fillStyle=x[1];x[0].beginPath();path(x[0]);x[0].fill();});}
+    function both(path,col,g){[[a,col],[b,typeof g==='function'?g():'rgb('+g+','+g+','+g+')']].forEach(function(x){x[0].fillStyle=x[1];x[0].beginPath();path(x[0]);x[0].fill();});}
     var sky=a.createLinearGradient(0,0,0,S);sky.addColorStop(0,'#2b3a67');sky.addColorStop(.55,'#e8836b');sky.addColorStop(1,'#f6c27a');
-    both(function(c){c.rect(0,0,S,S)},sky,0);
-    both(function(c){c.arc(520,250,70,0,7)},'#ffe9b0',20);
+    both(function(c){c.rect(0,0,S,S)},sky,0);both(function(c){c.arc(520,250,70,0,7)},'#ffe9b0',20);
     function ridge(base,amp,f,ph){return function(c){c.moveTo(0,S);for(var x=0;x<=S;x+=8)c.lineTo(x,base-amp*Math.abs(Math.sin(x*f+ph))-amp*.3*Math.sin(x*f*2.7+ph));c.lineTo(S,S);};}
     both(ridge(400,90,.008,1),'#4a4570',70);both(ridge(470,60,.011,2),'#35345a',110);both(ridge(540,40,.014,3),'#232748',150);
     function tree(x,y,h,col,g){both(function(c){c.moveTo(x,y-h);c.lineTo(x+h*.32,y);c.lineTo(x-h*.32,y)},col,g);both(function(c){c.rect(x-3,y,6,h*.12)},'#1a1520',g);}
@@ -122,125 +135,198 @@ button:disabled{opacity:.5;cursor:default}
     var gnd=a.createLinearGradient(0,600,0,S);gnd.addColorStop(0,'#1c2a3d');gnd.addColorStop(1,'#101a2a');
     var gd=b.createLinearGradient(0,600,0,S);gd.addColorStop(0,'rgb(190,190,190)');gd.addColorStop(1,'rgb(235,235,235)');
     both(function(c){c.rect(0,600,S,S)},gnd,function(){return gd});
-    tree(660,740,300,'#0d1624',225);
-    both(function(c){c.arc(250,700,95,0,7)},'#e9a24a',250);both(function(c){c.arc(250,700,55,0,7)},'#ffd37a',255);
+    tree(660,740,300,'#0d1624',225);both(function(c){c.arc(250,700,95,0,7)},'#e9a24a',250);both(function(c){c.arc(250,700,55,0,7)},'#ffd37a',255);
     [[90,720],[420,690],[480,730]].forEach(function(p){both(function(c){c.arc(p[0],p[1],14,0,7)},'#f4eee0',240)});
-    push();
+    push();hasImage=false;
   }
 
-  /* ---------- loading the user's image ---------- */
-  function loadImg(file){return new Promise(function(ok,ng){var u=URL.createObjectURL(file),i=new Image();
-    i.onload=function(){URL.revokeObjectURL(u);ok(i)};i.onerror=function(){ng(new Error('画像を開けませんでした'))};i.src=u;});}
-  function useImage(im){
-    var w=im.naturalWidth||im.width,h=im.naturalHeight||im.height,s=Math.min(1,1024/Math.max(w,h));
-    setSize(Math.max(2,Math.round(w*s)),Math.max(2,Math.round(h*s)));
-    imgC.getContext('2d').drawImage(im,0,0,W,H);
-    simpleDepth();push();
-    aiStatus('画像を読み込みました。③でAI推定をすると奥行きが正確になります。');
-    haveCustom=true;
+  /* ---------- image loading (robust) ---------- */
+  var hasImage=false;
+  function loadImgEl(file){return new Promise(function(ok,ng){var u=URL.createObjectURL(file),i=new Image();
+    i.onload=function(){URL.revokeObjectURL(u);ok(i)};i.onerror=function(){ng(new Error('この形式の画像は開けません(JPEG / PNG / WebP を使ってください)'))};i.src=u;});}
+  async function decode(file){
+    if(window.createImageBitmap){
+      try{return await createImageBitmap(file,{imageOrientation:'from-image'});}catch(e){}
+      try{return await createImageBitmap(file);}catch(e){}
+    }
+    return loadImgEl(file);
   }
-  var haveCustom=false;
-  function handleFiles(files){var f=files&&files[0];if(!f)return;
-    loadImg(f).then(useImage).catch(function(e){aiStatus(e.message,true)});}
-  $('fImg').addEventListener('change',function(e){handleFiles(e.target.files)});
+  async function handleFile(f){
+    if(!f)return;
+    try{
+      msg('画像を読み込み中…('+f.name+')');
+      var im=await decode(f),w=im.width||im.naturalWidth,h=im.height||im.naturalHeight,s=Math.min(1,1024/Math.max(w,h));
+      setSize(Math.max(2,Math.round(w*s)),Math.max(2,Math.round(h*s)));
+      var c=imgC.getContext('2d');c.clearRect(0,0,W,H);c.drawImage(im,0,0,W,H);
+      if(im.close)im.close();
+      simpleDepth();push();hasImage=true;
+      if($('auto').checked)runAI();else msg('読み込みました。「AIで奥行きを推定」を押すと精度が上がります。','ok');
+    }catch(e){msg('画像を読み込めませんでした: '+(e&&e.message||e),'err');}
+  }
+  $('fImg').addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];handleFile(f);});
   stage.addEventListener('dragover',function(e){e.preventDefault();stage.classList.add('drag')});
   stage.addEventListener('dragleave',function(){stage.classList.remove('drag')});
-  stage.addEventListener('drop',function(e){e.preventDefault();stage.classList.remove('drag');handleFiles(e.dataTransfer.files)});
-  addEventListener('paste',function(e){var it=e.clipboardData&&e.clipboardData.files;if(it&&it.length)handleFiles(it)});
+  stage.addEventListener('drop',function(e){e.preventDefault();stage.classList.remove('drag');handleFile(e.dataTransfer.files[0])});
+  addEventListener('paste',function(e){var f=e.clipboardData&&e.clipboardData.files;if(f&&f.length)handleFile(f[0])});
+  $('fDep').addEventListener('change',async function(e){var f=e.target.files[0];if(!f)return;
+    try{var im=await decode(f);var c=depC.getContext('2d');c.clearRect(0,0,W,H);c.drawImage(im,0,0,W,H);push();msg('深度マップを読み込みました','ok');}
+    catch(err){msg('深度マップを開けませんでした: '+err.message,'err');}});
+  $('sample').addEventListener('click',function(){sample();msg('')});
 
-  $('fDep').addEventListener('change',function(e){var f=e.target.files[0];if(!f)return;
-    loadImg(f).then(function(im){var c=depC.getContext('2d');c.clearRect(0,0,W,H);c.drawImage(im,0,0,W,H);push();aiStatus('深度マップを読み込みました');})
-    .catch(function(e){aiStatus(e.message,true)});});
-  $('sample').addEventListener('click',function(){sample();haveCustom=false;aiStatus('')});
-
-  /* simple fallback depth: lower = nearer, brighter = nearer, more saturated = nearer, centre = nearer */
-  function simpleDepth(){
-    var n=192,t=document.createElement('canvas');t.width=t.height=n;var tc=t.getContext('2d');
-    tc.drawImage(imgC,0,0,n,n);var px=tc.getImageData(0,0,n,n),d=px.data,o=new Float32Array(n*n),mn=1e9,mx=-1e9;
+  /* ---------- depth ---------- */
+  function simpleDepth(){   /* quick placeholder until the AI result arrives */
+    var n=160,t=document.createElement('canvas');t.width=t.height=n;var tc=t.getContext('2d');
+    tc.drawImage(imgC,0,0,n,n);var px=tc.getImageData(0,0,n,n),d=px.data,o=new Float32Array(n*n);
     for(var y=0;y<n;y++)for(var x=0;x<n;x++){var i=(y*n+x)*4,r=d[i]/255,g=d[i+1]/255,b=d[i+2]/255;
       var lum=.3*r+.59*g+.11*b,sat=Math.max(r,g,b)-Math.min(r,g,b),cx=x/n-.5,cy=y/n-.55,ctr=1-Math.min(1,Math.sqrt(cx*cx+cy*cy)*2);
-      var v=.35*(y/n)+.25*lum+.2*sat+.2*ctr;o[y*n+x]=v;if(v<mn)mn=v;if(v>mx)mx=v;}
-    for(var k=0;k<n*n;k++){var q=Math.round(255*(o[k]-mn)/(mx-mn||1));d[k*4]=d[k*4+1]=d[k*4+2]=q;d[k*4+3]=255;}
-    tc.putImageData(px,0,0);blurInto(t);
+      o[y*n+x]=.35*(y/n)+.25*lum+.2*sat+.2*ctr;}
+    writeDepth(o,n,n);
   }
-  function blurInto(src){var dc=depC.getContext('2d');dc.clearRect(0,0,W,H);
-    try{dc.filter='blur(6px)'}catch(e){}dc.drawImage(src,0,0,W,H);dc.filter='none';}
+  /* values (any range) -> percentile stretch -> light blur -> depth canvas. Also puts the focus plane at the median. */
+  function writeDepth(vals,w,h){
+    var N=w*h,sorted=Float32Array.from(vals).sort(),lo=sorted[Math.floor(N*.02)],hi=sorted[Math.floor(N*.98)],span=(hi-lo)||1;
+    var t=document.createElement('canvas');t.width=w;t.height=h;var tc=t.getContext('2d'),id=tc.createImageData(w,h);
+    for(var i=0;i<N;i++){var q=Math.max(0,Math.min(1,(vals[i]-lo)/span))*255;id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=q;id.data[i*4+3]=255;}
+    tc.putImageData(id,0,0);
+    var dc=depC.getContext('2d');dc.clearRect(0,0,W,H);
+    try{dc.filter='blur('+Math.max(1,Math.round(W/170))+'px)'}catch(e){}
+    dc.drawImage(t,0,0,W,H);dc.filter='none';
+    var med=(sorted[Math.floor(N*.5)]-lo)/span;
+    setFocus(Math.max(.15,Math.min(.85,med)));
+    push();
+  }
+  function setFocus(v){fc=v;$('fc').value=v;$('vFc').textContent=v.toFixed(2);}
 
-  /* ---------- AI depth (Depth Anything small via transformers.js, runs in the browser) ---------- */
-  var pipe=null,busy=false;
-  function aiStatus(t,err){var s=$('aiStatus');s.textContent=t;s.className='status'+(err?'':(t?' ok':''));if(err)s.style.color='#ff8a7a';else s.style.color='';}
-  $('ai').addEventListener('click',async function(){
-    if(busy)return;busy=true;var btn=$('ai');btn.disabled=true;
+  /* ---------- AI depth: Depth Anything V2 small via transformers.js (runs in the browser) ---------- */
+  var pipe=null,busy=false,timer=null;
+  async function loadPipe(){
+    var attempts=[
+      {lib:'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1',model:'onnx-community/depth-anything-v2-small',opt:{dtype:'q8'},name:'Depth Anything V2'},
+      {lib:'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2',model:'Xenova/depth-anything-small-hf',opt:{},name:'Depth Anything'}
+    ],lastErr;
+    for(var k=0;k<attempts.length;k++){var a=attempts[k];
+      try{
+        msg('AIモデル('+a.name+')を読み込み中…');
+        var tf=await import(a.lib);tf.env.allowLocalModels=false;
+        try{tf.env.backends.onnx.wasm.proxy=true}catch(e){}
+        var opt=Object.assign({progress_callback:function(p){if(p.status==='progress'&&p.progress!=null){prog(p.progress);msg('モデル取得中 '+Math.round(p.progress)+'%(初回のみ)');}}},a.opt);
+        return await tf.pipeline('depth-estimation',a.model,opt);
+      }catch(e){lastErr=e;}
+    }
+    throw lastErr;
+  }
+  async function runAI(){
+    if(busy)return;busy=true;$('ai').disabled=true;
     try{
-      if(!pipe){
-        aiStatus('AIモデルを読み込み中…');
-        var tf=await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
-        tf.env.allowLocalModels=false;
-        pipe=await tf.pipeline('depth-estimation','Xenova/depth-anything-small-hf',{progress_callback:function(p){
-          if(p.status==='progress')aiStatus('モデル取得中 '+Math.round(p.progress)+'% ('+(p.file||'')+')');}});
-      }
-      aiStatus('奥行きを推定中…(数秒〜数十秒)');
-      await new Promise(function(r){setTimeout(r,30)});
-      var out=await pipe(imgC.toDataURL('image/jpeg',.92)),dm=out.depth;
-      var t=document.createElement('canvas');t.width=dm.width;t.height=dm.height;var tc=t.getContext('2d'),id=tc.createImageData(dm.width,dm.height),ch=dm.channels||1;
-      for(var i=0;i<dm.width*dm.height;i++){var v=dm.data[i*ch];id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=v;id.data[i*4+3]=255;}
-      tc.putImageData(id,0,0);blurInto(t);push();
-      aiStatus('AIで奥行きを推定しました。傾けてみてください。');
-    }catch(e){aiStatus('AI推定に失敗しました: '+(e&&e.message||e)+'(アプリ内プレビューでは通信が遮断されます。Chrome で開き直してください)',true);}
-    finally{busy=false;btn.disabled=false;}
-  });
+      if(!pipe)pipe=await loadPipe();
+      prog(null);var t0=performance.now();
+      timer=setInterval(function(){msg('奥行きを推定中… '+Math.round((performance.now()-t0)/1000)+'秒(スマホでは数十秒かかることがあります)');},500);
+      await new Promise(function(r){setTimeout(r,40)});
+      var url=imgC.toDataURL('image/jpeg',.92),out=await pipe(url),dm=out.depth,ch=dm.channels||1,n=dm.width*dm.height,vals=new Float32Array(n);
+      for(var i=0;i<n;i++)vals[i]=dm.data[i*ch];
+      writeDepth(vals,dm.width,dm.height);
+      msg('AIで奥行きを推定しました('+Math.round((performance.now()-t0)/1000)+'秒)。傾けてみてください。','ok');
+    }catch(e){msg('AI推定に失敗しました: '+(e&&e.message||e)+'  通信できない環境(アプリ内プレビューなど)では動きません。簡易推定のまま表示しています。','err');}
+    finally{clearInterval(timer);prog(null);busy=false;$('ai').disabled=false;}
+  }
+  $('ai').addEventListener('click',function(){if(!hasImage){msg('先に画像を選んでください','err');return;}runAI();});
 
   /* ---------- controls ---------- */
-  var str=.6,inv=0,sd=0,sens=25;
-  $('str').addEventListener('input',function(e){str=+e.target.value;$('vStr').textContent=str.toFixed(2)});
-  $('sens').addEventListener('input',function(e){sens=+e.target.value;$('vSens').textContent=sens+'°'});
+  var str=.4,inv=0,sd=0,sens=20,gmv=1,fc=.5;
+  function bind(id,out,fn,fmt){$(id).addEventListener('input',function(e){var v=+e.target.value;fn(v);$(out).textContent=fmt(v)})}
+  bind('str','vStr',function(v){str=v},function(v){return v.toFixed(2)});
+  bind('gm','vGm',function(v){gmv=v},function(v){return v.toFixed(2)});
+  bind('fc','vFc',function(v){fc=v},function(v){return v.toFixed(2)});
+  bind('sens','vSens',function(v){sens=v},function(v){return v+'°'});
   function tog(id,fn){var b=$(id);b.addEventListener('click',function(){var on=b.getAttribute('aria-pressed')!=='true';b.setAttribute('aria-pressed',on);fn(on?1:0)})}
   tog('inv',function(v){inv=v});tog('sd',function(v){sd=v});
 
   /* ---------- tilt input ---------- */
-  var tx=0,ty=0,cx=0,cy=0,mode='idle',base=null,last=null,t0=performance.now(),hint=$('hint');
+  var tx=0,ty=0,cx=0,cy=0,mode='idle',base=null,cur=null,lastSensor=0,t0=performance.now(),badge=$('badge');
+  var cnt={ori:0,motion:0},srcUsed='',perm='(未要求)';
   function clamp(v){return Math.max(-1,Math.min(1,v))}
-  function setPtr(e){var r=stage.getBoundingClientRect();tx=clamp(((e.clientX-r.left)/r.width-.5)*2);ty=clamp(((e.clientY-r.top)/r.height-.5)*2);
-    if(mode!=='gyro'){mode='ptr';hint.style.display='none';}}
+  function setPtr(e){if(mode==='gyro'||mode==='rec')return;var r=stage.getBoundingClientRect();
+    tx=clamp(((e.clientX-r.left)/r.width-.5)*2);ty=clamp(((e.clientY-r.top)/r.height-.5)*2);mode='ptr';badge.textContent='なぞり操作';}
   stage.addEventListener('pointermove',setPtr);stage.addEventListener('pointerdown',setPtr);
-  stage.addEventListener('pointerleave',function(){if(mode==='ptr'){mode='idle';tx=ty=0}});
-  stage.addEventListener('pointerup',function(e){if(e.pointerType==='touch'&&mode==='ptr'){mode='idle';tx=ty=0}});
+  stage.addEventListener('pointerleave',function(){if(mode==='ptr'){mode='idle';tx=ty=0;badge.textContent='自動で揺れています'}});
+  stage.addEventListener('pointerup',function(e){if(e.pointerType==='touch'&&mode==='ptr'){mode='idle';tx=ty=0;badge.textContent='自動で揺れています'}});
 
-  function onOrient(e){
-    if(e.gamma==null||e.beta==null)return;
-    var ang=(screen.orientation&&screen.orientation.angle)||window.orientation||0,x,y;
-    if(ang===90){x=e.beta;y=-e.gamma}else if(ang===270||ang===-90){x=-e.beta;y=e.gamma}else if(ang===180){x=-e.gamma;y=-e.beta}else{x=e.gamma;y=e.beta}
-    last={x:x,y:y};
-    if(!base)base={x:x,y:y-(ang===0||ang===180?30:0)};   /* portrait: assume the phone is held about 30° back */
-    tx=clamp((x-base.x)/sens);ty=clamp((y-base.y)/sens);
-    if(mode!=='gyro'){mode='gyro';hint.style.display='none';}
-    var s=$('sensor');s.className='status ok';s.textContent='傾きセンサー: 動作中  左右 '+x.toFixed(0)+'° / 前後 '+y.toFixed(0)+'°';
+  function feed(x,y,src){   /* x: right-tilt deg, y: front-tilt deg */
+    cur={x:x,y:y};if(!base)base={x:x,y:y};
+    var nx=clamp((x-base.x)/sens),ny=clamp((y-base.y)/sens);
+    tx+=(nx-tx)*.4;ty+=(ny-ty)*.4;lastSensor=performance.now();srcUsed=src;
+    if(mode!=='rec'){mode='gyro';badge.textContent='傾き操作中';}
+    var s=$('sensor');s.className='status ok';s.textContent='傾きセンサー: 動作中('+src+')  左右 '+x.toFixed(0)+'° / 前後 '+y.toFixed(0)+'°';
   }
-  $('center').addEventListener('click',function(){if(last)base={x:last.x,y:last.y}});
+  function angle(){return (screen.orientation&&screen.orientation.angle)||window.orientation||0}
+  function onOri(e){
+    if(e.gamma==null||e.beta==null)return;cnt.ori++;
+    var a=angle(),x,y;
+    if(a===90){x=e.beta;y=-e.gamma}else if(a===270||a===-90){x=-e.beta;y=e.gamma}else if(a===180){x=-e.gamma;y=-e.beta}else{x=e.gamma;y=e.beta}
+    feed(x,y,'deviceorientation');
+  }
+  function onMotion(e){   /* fallback: tilt from the accelerometer's gravity vector, only when no orientation events arrive */
+    cnt.motion++;var g=e.accelerationIncludingGravity;if(!g||g.x==null)return;
+    if(cnt.ori>3&&performance.now()-lastSensor<800&&srcUsed==='deviceorientation')return;
+    var gam=-Math.atan2(g.x,Math.hypot(g.y,g.z))*57.3,bet=Math.atan2(g.y,g.z)*57.3,a=angle(),x,y;
+    if(a===90){x=bet;y=-gam}else if(a===270||a===-90){x=-bet;y=gam}else{x=gam;y=bet}
+    feed(x,y,'devicemotion(加速度)');
+  }
+  var attached=false;
+  function attach(){if(attached)return;attached=true;
+    addEventListener('deviceorientation',onOri);addEventListener('deviceorientationabsolute',onOri);addEventListener('devicemotion',onMotion);}
+  attach();   /* Android Chrome needs no permission: start listening right away */
+  $('center').addEventListener('click',function(){if(cur){base={x:cur.x,y:cur.y};tx=ty=0}});
   $('motion').addEventListener('click',async function(){
-    var s=$('sensor');
-    if(!window.DeviceOrientationEvent){s.textContent='傾きセンサー: この画面では使えません。アプリ内プレビューの可能性があります。保存したファイルを Chrome で開いてください';return;}
-    if(!window.isSecureContext){s.textContent='傾きセンサー: https のページ(または端末に保存したファイル)で開いてください';}
+    var s=$('sensor');s.className='status';s.textContent='傾きセンサー: 確認中…';
     try{
-      if(typeof DeviceOrientationEvent.requestPermission==='function'){
-        var r=await DeviceOrientationEvent.requestPermission();
-        if(r!=='granted'){s.textContent='傾きセンサー: 許可されませんでした(設定 > Safari > モーションと画面の向き を確認)';return;}
-      }
-    }catch(e){s.textContent='傾きセンサー: '+e.message;return;}
-    removeEventListener('deviceorientation',onOrient);addEventListener('deviceorientation',onOrient);
-    s.textContent='傾きセンサー: 待機中…端末を少し動かしてください';
-    setTimeout(function(){if(!last)s.textContent='傾きセンサー: 値が来ません。ブラウザのサイト設定で「モーションセンサー」を許可してください';},2500);
+      if(window.DeviceOrientationEvent&&typeof DeviceOrientationEvent.requestPermission==='function'){perm=await DeviceOrientationEvent.requestPermission();}
+      else perm='(不要)';
+    }catch(e){perm='エラー: '+(e&&e.message||e);}
+    try{if(window.DeviceMotionEvent&&typeof DeviceMotionEvent.requestPermission==='function')await DeviceMotionEvent.requestPermission();}catch(e){}
+    base=null;
+    setTimeout(function(){
+      if(cur&&performance.now()-lastSensor<1500)return;
+      s.className='status err';
+      s.textContent='傾きの値が届きません(許可の結果: '+perm+')。'+(window.isSecureContext?'':'このページは https ではないため、ブラウザがセンサーを止めている可能性があります。')+'Chrome のサイト設定でモーションセンサーを許可し、画面の自動回転をオンにしてください。それでも動かない場合は、なぞって操作できます。';
+    },1800);
+  });
+  setInterval(function(){
+    $('diag').textContent='secure='+window.isSecureContext+'  orientationEvents='+cnt.ori+'  motionEvents='+cnt.motion+'\npermission='+perm+'  source='+srcUsed+'\nrequestPermission='+(window.DeviceOrientationEvent&&typeof DeviceOrientationEvent.requestPermission)+'\nangle='+angle()+'\n'+navigator.userAgent;
+  },700);
+
+  /* ---------- recording a 5s clip ---------- */
+  var recStart=0;
+  $('rec').addEventListener('click',function(){
+    var m=$('recMsg');
+    if(!window.MediaRecorder||!cv.captureStream){m.textContent='このブラウザは動画保存に対応していません';m.className='status err';return;}
+    var types=['video/mp4;codecs=avc1','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'],mt=types.filter(function(t){return MediaRecorder.isTypeSupported(t)})[0];
+    var chunks=[],rec;
+    try{rec=new MediaRecorder(cv.captureStream(30),mt?{mimeType:mt,videoBitsPerSecond:6e6}:{});}catch(e){m.textContent='録画を開始できません: '+e.message;m.className='status err';return;}
+    rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data)};
+    rec.onstop=function(){
+      mode='idle';badge.textContent='自動で揺れています';
+      var type=rec.mimeType||'video/webm',blob=new Blob(chunks,{type:type}),ext=/mp4/.test(type)?'mp4':'webm',url=URL.createObjectURL(blob);
+      m.className='status ok';m.innerHTML='';
+      var a=document.createElement('a');a.href=url;a.download='tilt3d.'+ext;a.className='dl';a.textContent='動画を保存する(tilt3d.'+ext+')';m.appendChild(a);
+      a.click();
+    };
+    mode='rec';recStart=performance.now();badge.textContent='録画中…';m.className='status';m.textContent='5秒録画します…';
+    rec.start();setTimeout(function(){rec.stop()},5000);
   });
 
+  /* ---------- render loop ---------- */
   function frame(now){
-    if(mode==='idle'&&!reduce){var t=(now-t0)/1000;tx=Math.sin(t*.9)*.7;ty=Math.cos(t*.6)*.35;}
-    cx+=(tx-cx)*.15;cy+=(ty-cy)*.15;
+    if(mode==='gyro'&&now-lastSensor>2000){mode='idle';badge.textContent='自動で揺れています';}
+    if(mode==='rec'){var p=(now-recStart)/5000*Math.PI*2;tx=Math.sin(p)*.85;ty=Math.cos(p)*.4;}
+    else if(mode==='idle'&&!reduce){var t=(now-t0)/1000;tx=Math.sin(t*.9)*.7;ty=Math.cos(t*.6)*.35;}
+    cx+=(tx-cx)*.2;cy+=(ty-cy)*.2;
     gl.viewport(0,0,cv.width,cv.height);
-    gl.uniform2f(U.tilt,cx,-cy);gl.uniform1f(U.str,str);gl.uniform1f(U.inv,inv);gl.uniform1f(U.sd,sd);
+    gl.uniform2f(U.tilt,cx,-cy);gl.uniform1f(U.str,str);gl.uniform1f(U.inv,inv);gl.uniform1f(U.sd,sd);gl.uniform1f(U.gm,gmv);gl.uniform1f(U.fc,fc);
     gl.drawArrays(gl.TRIANGLE_STRIP,0,4);requestAnimationFrame(frame);
   }
   sample();requestAnimationFrame(frame);
-  window.__tilt={get mode(){return mode},get size(){return [W,H]}};
+  window.__tilt={get mode(){return mode},get size(){return [W,H]},get has(){return hasImage}};
 })();
 </script>
 </body>
