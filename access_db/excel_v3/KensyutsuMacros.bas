@@ -27,6 +27,10 @@ Public Sub InstallForm()
     stp = "VBAプロジェクトへのアクセス"
     Set vbp = ThisWorkbook.VBProject
 
+    ' VBAプロジェクト名が frmInput…だと、フォーム名(frmInput)とぶつかるため、別の名前に直す
+    stp = "プロジェクト名の確認"
+    If Left(vbp.Name, 8) = "frmInput" Then vbp.Name = "KensyutsuDB"
+
     stp = "既存の frmInput の削除"
     Set vbc = Nothing
     On Error Resume Next
