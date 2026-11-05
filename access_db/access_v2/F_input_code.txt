@@ -1,0 +1,146 @@
+Option Compare Database
+Option Explicit
+
+' ============================================================
+'  F_検出入力 のフォームコード(Step2Forms.bas が、このファイルを読み込んで埋め込む)
+' ============================================================
+
+Private Function Esc(ByVal s As String) As String
+    Esc = Replace(s, "'", "''")
+End Function
+
+Private Function Q(ByVal s As String) As String
+    Q = Chr(34) & Replace(s, Chr(34), Chr(34) & Chr(34)) & Chr(34)
+End Function
+
+' 上位の選択に応じて、下位のプルダウンの候補を作り直す
+Private Sub RefreshLists()
+    Dim a As String, b As String, c As String, k As String, w As String
+    a = Nz(Me.cmb1, ""): b = Nz(Me.cmb2, ""): c = Nz(Me.cmb3, ""): k = Nz(Me.cmbCat, "")
+
+    Me.cmb1.RowSource = "SELECT DISTINCT M.項目1 FROM M_問題点 AS M WHERE M.有効 = True ORDER BY M.項目1;"
+
+    w = "M.有効 = True"
+    If a <> "" Then w = w & " AND M.項目1 = '" & Esc(a) & "'"
+    Me.cmb2.RowSource = "SELECT DISTINCT M.項目2 FROM M_問題点 AS M WHERE " & w & " ORDER BY M.項目2;"
+
+    If b <> "" Then w = w & " AND M.項目2 = '" & Esc(b) & "'"
+    Me.cmb3.RowSource = "SELECT DISTINCT M.項目3 FROM M_問題点 AS M WHERE " & w & " AND M.項目3 Is Not Null ORDER BY M.項目3;"
+
+    If c <> "" Then w = w & " AND M.項目3 = '" & Esc(c) & "'"
+    Me.cmbCat.RowSource = "SELECT DISTINCT K.区分ID, M.区分名 FROM M_問題点 AS M INNER JOIN M_区分 AS K ON M.区分名 = K.区分名 " & _
+                          "WHERE " & w & " ORDER BY K.区分ID;"
+
+    If k <> "" Then w = w & " AND M.区分名 = '" & Esc(k) & "'"
+    Me.cmbProb.RowSource = "SELECT M.問題点ID, M.区分名, M.問題点 FROM M_問題点 AS M WHERE " & w & " ORDER BY M.問題点ID;"
+End Sub
+
+Private Sub Form_Load()
+    Me.cmbFind.RowSource = "SELECT 検出ID, 対象局課名, 問題点 FROM Q_検出事項一覧 ORDER BY 検出ID DESC;"
+    RefreshLists
+End Sub
+
+Private Sub Form_Current()
+    Dim id As Variant
+    id = Me.cmbProb.Value
+    If Not IsNull(id) Then
+        Me.cmb1 = DLookup("項目1", "M_問題点", "問題点ID = " & id)
+        Me.cmb2 = DLookup("項目2", "M_問題点", "問題点ID = " & id)
+        Me.cmb3 = DLookup("項目3", "M_問題点", "問題点ID = " & id)
+        Me.cmbCat = DLookup("区分名", "M_問題点", "問題点ID = " & id)
+    Else
+        Me.cmb1 = Null: Me.cmb2 = Null: Me.cmb3 = Null: Me.cmbCat = Null
+    End If
+    RefreshLists
+End Sub
+
+Private Sub cmb1_AfterUpdate()
+    Me.cmb2 = Null: Me.cmb3 = Null: Me.cmbCat = Null: Me.cmbProb = Null
+    RefreshLists
+End Sub
+
+Private Sub cmb2_AfterUpdate()
+    Me.cmb3 = Null: Me.cmbCat = Null: Me.cmbProb = Null
+    RefreshLists
+End Sub
+
+Private Sub cmb3_AfterUpdate()
+    Me.cmbCat = Null: Me.cmbProb = Null
+    RefreshLists
+End Sub
+
+Private Sub cmbCat_AfterUpdate()
+    Me.cmbProb = Null
+    RefreshLists
+End Sub
+
+Private Sub Form_BeforeUpdate(Cancel As Integer)
+    Dim nm As Variant
+    If Len(Trim(Nz(Me.txtDept, ""))) = 0 Then
+        MsgBox "対象局課名を入力してください。", vbExclamation: Cancel = True: Exit Sub
+    End If
+    If IsNull(Me.cmbProb) Then
+        MsgBox "問題点を選択してください。", vbExclamation: Cancel = True: Exit Sub
+    End If
+    nm = DLookup("問題点", "M_問題点", "問題点ID = " & Me.cmbProb)
+    If Left(Nz(nm, ""), 5) = "（その他）" And Len(Trim(Nz(Me.txtNaiyo, ""))) = 0 Then
+        MsgBox "「（その他）」を選んだ場合は、内容を入力してください。", vbExclamation: Cancel = True: Exit Sub
+    End If
+    If Me.NewRecord Then
+        Me![登録者] = Environ("USERNAME")
+        Me![登録日時] = Now
+    End If
+End Sub
+
+Private Sub Form_AfterUpdate()
+    Me.cmbFind.Requery
+End Sub
+
+' 次の入力でも使うので、基本情報を既定値として覚えておく
+Private Sub RememberHeader()
+    If Not IsNull(Me.txtYear) Then Me.txtYear.DefaultValue = CStr(Me.txtYear)
+    If Not IsNull(Me.txtDate) Then Me.txtDate.DefaultValue = "#" & Format(Me.txtDate, "yyyy/mm/dd") & "#"
+    If Not IsNull(Me.txtDept) Then Me.txtDept.DefaultValue = Q(CStr(Me.txtDept))
+    If Not IsNull(Me.cmbGroup) Then Me.cmbGroup.DefaultValue = CStr(Me.cmbGroup)
+    If Not IsNull(Me.txtTanto) Then Me.txtTanto.DefaultValue = Q(CStr(Me.txtTanto))
+End Sub
+
+Private Sub btnSave_Click()
+    On Error GoTo EH
+    If Me.Dirty Then Me.Dirty = False
+    RememberHeader
+    DoCmd.GoToRecord , , acNewRec
+    Exit Sub
+EH:
+    MsgBox "保存できませんでした: " & Err.Description, vbExclamation
+End Sub
+
+Private Sub btnDelete_Click()
+    On Error GoTo EH
+    If Me.NewRecord Then Me.Undo: Exit Sub
+    If MsgBox("このレコードを削除しますか?", vbYesNo + vbQuestion, "削除の確認") = vbYes Then
+        DoCmd.RunCommand acCmdDeleteRecord
+    End If
+    Exit Sub
+EH:
+    MsgBox "削除できませんでした: " & Err.Description, vbExclamation
+End Sub
+
+Private Sub btnClose_Click()
+    DoCmd.Close acForm, Me.Name
+End Sub
+
+' 記録を探す(検出ID・局課・問題点の一覧から選ぶと、その記録へ移動)
+Private Sub cmbFind_AfterUpdate()
+    Dim rs As DAO.Recordset
+    If IsNull(Me.cmbFind) Then Exit Sub
+    On Error GoTo EH
+    If Me.Dirty Then Me.Dirty = False
+    Set rs = Me.RecordsetClone
+    rs.FindFirst "検出ID = " & Me.cmbFind
+    If Not rs.NoMatch Then Me.Bookmark = rs.Bookmark
+    Me.cmbFind = Null
+    Exit Sub
+EH:
+    MsgBox "移動できませんでした: " & Err.Description, vbExclamation
+End Sub
