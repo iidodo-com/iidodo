@@ -58,7 +58,8 @@ Private Function AddLbl(p As Object, cap As String, x As Single, y As Single, w 
     l.Caption = cap & IIf(req, " *", "")
     l.Left = x: l.Top = y + 3: l.Width = w: l.Height = 15
     l.Font.Name = FONT_NAME: l.Font.Size = FONT_SIZE
-    l.ForeColor = IIf(req, RGB(192, 0, 0), RGB(64, 64, 64))
+    l.ForeColor = IIf(req, RGB(192, 0, 0), RGB(0, 0, 0))
+    l.Font.Bold = req
     l.BackStyle = fmBackStyleTransparent
     Set AddLbl = l
 End Function
@@ -365,7 +366,7 @@ Private Sub btnLoad_Click()
     lblMsg.Caption = ""
     If Len(txtNo.Value) = 0 Or Not IsNumeric(txtNo.Value) Then MsgBox "No.を数字で入力してください。", vbExclamation: Exit Sub
     n = CLng(txtNo.Value): r = n + 1
-    If r < 2 Or r > ROW_LAST Then MsgBox "No.は 1〜" & (ROW_LAST - 1) & " の範囲で入力してください。", vbExclamation: Exit Sub
+    If r < 2 Or r > ROW_LAST Then MsgBox "No.は 1～" & (ROW_LAST - 1) & " の範囲で入力してください。", vbExclamation: Exit Sub
     Set ws = ThisWorkbook.Worksheets("入力")
     If IsRowEmpty(ws, r) Then MsgBox "No." & n & " の行にはデータがありません。", vbExclamation: Exit Sub
     LoadRow ws, r
@@ -445,7 +446,7 @@ Private Sub btnReg_Click()
         r = mRow
     Else
         r = NextRow(ws)
-        If r = 0 Then MsgBox "入力シートの 2〜" & ROW_LAST & " 行目に、空いている行が見つかりません。", vbExclamation: Exit Sub
+        If r = 0 Then MsgBox "入力シートの 2～" & ROW_LAST & " 行目に、空いている行が見つかりません。", vbExclamation: Exit Sub
     End If
 
     ws.Range("B" & r).Value = CLng(txtYear.Value)

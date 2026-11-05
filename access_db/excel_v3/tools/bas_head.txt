@@ -1,0 +1,44 @@
+Attribute VB_Name = "KensyutsuMacros"
+Option Explicit
+
+' ============================================================
+'  検出事項データベース(Excel版 v3) マクロ集(フォームのコードを内蔵)
+'   InstallForm     入力フォームを(再)作成する。このファイルをインポートして1回実行する
+'   OpenInputForm   入力フォームを開く
+'   SetShortcut     Ctrl+Shift+I で入力フォームを開けるようにする(任意)
+'   FitBesshiRows   別紙(復命用)の行を整える(空き行を隠し、行の高さを原本の規則に揃える)
+'
+'  前提(InstallForm のみ):
+'   ファイル→オプション→トラストセンター→トラストセンターの設定→マクロの設定
+'   「VBA プロジェクト オブジェクト モデルへのアクセスを信頼する」にチェック
+' ============================================================
+
+' 入力フォーム(UserForm: frmInput)を作成する。既にあれば作り直す。
+Public Sub InstallForm()
+    Dim vbc As Object, s As String
+    On Error GoTo EH
+
+    ' 既に frmInput があれば作り直す
+    For Each vbc In ThisWorkbook.VBProject.VBComponents
+        If vbc.Name = "frmInput" Then
+            ThisWorkbook.VBProject.VBComponents.Remove vbc
+            Exit For
+        End If
+    Next
+
+    Set vbc = ThisWorkbook.VBProject.VBComponents.Add(3)   ' 3 = UserForm
+    vbc.Name = "frmInput"
+
+    s = @@CAT@@
+    If vbc.CodeModule.CountOfLines > 0 Then vbc.CodeModule.DeleteLines 1, vbc.CodeModule.CountOfLines
+    vbc.CodeModule.AddFromString s
+
+    MsgBox "入力フォームを作成しました。" & vbCrLf & "続けて OpenInputForm を実行すると、入力画面が開きます。", vbInformation
+    Exit Sub
+
+EH:
+    MsgBox "作成できませんでした: " & Err.Description & vbCrLf & vbCrLf & _
+           "「VBAプロジェクト オブジェクト モデルへのアクセスを信頼する」を有効にしてから、もう一度実行してください。" & vbCrLf & _
+           "(ファイル → オプション → トラストセンター → トラストセンターの設定 → マクロの設定)", vbExclamation
+End Sub
+
