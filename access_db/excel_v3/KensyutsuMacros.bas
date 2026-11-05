@@ -4,6 +4,7 @@ Option Explicit
 ' ============================================================
 '  検出事項データベース(Excel版 v3) マクロ集(フォームのコードを内蔵)
 '   InstallForm     入力フォームを(再)作成する。このファイルをインポートして1回実行する
+'   ExportFormCode  (InstallForm が失敗するとき用)フォームのコードをテキストファイルに書き出す
 '   OpenInputForm   入力フォームを開く
 '   SetShortcut     Ctrl+Shift+I で入力フォームを開けるようにする(任意)
 '   FitBesshiRows   別紙(復命用)の行を整える(空き行を隠し、行の高さを原本の規則に揃える)
@@ -13,33 +14,70 @@ Option Explicit
 '   「VBA プロジェクト オブジェクト モデルへのアクセスを信頼する」にチェック
 ' ============================================================
 
+' フォームのコード全体(各 FCn 関数に分割して内蔵)
+Private Function FormCodeText() As String
+    FormCodeText = FC1() & FC2() & FC3() & FC4() & FC5() & FC6() & FC7() & FC8()
+End Function
+
 ' 入力フォーム(UserForm: frmInput)を作成する。既にあれば作り直す。
 Public Sub InstallForm()
-    Dim vbc As Object, s As String
+    Dim vbp As Object, vbc As Object, s As String, stp As String
     On Error GoTo EH
 
-    ' 既に frmInput があれば作り直す
-    For Each vbc In ThisWorkbook.VBProject.VBComponents
-        If vbc.Name = "frmInput" Then
-            ThisWorkbook.VBProject.VBComponents.Remove vbc
-            Exit For
-        End If
-    Next
+    stp = "VBAプロジェクトへのアクセス"
+    Set vbp = ThisWorkbook.VBProject
 
-    Set vbc = ThisWorkbook.VBProject.VBComponents.Add(3)   ' 3 = UserForm
+    stp = "既存の frmInput の削除"
+    Set vbc = Nothing
+    On Error Resume Next
+    Set vbc = vbp.VBComponents("frmInput")
+    On Error GoTo EH
+    If Not vbc Is Nothing Then vbp.VBComponents.Remove vbc
+
+    stp = "フォームの追加"
+    Set vbc = vbp.VBComponents.Add(3)          ' 3 = UserForm
+
+    stp = "フォーム名の設定(frmInput)"
     vbc.Name = "frmInput"
 
-    s = FC1() & FC2() & FC3() & FC4() & FC5() & FC6() & FC7() & FC8()
+    stp = "コードの組み立て"
+    s = FormCodeText()
+
+    stp = "既存コードの消去"
     If vbc.CodeModule.CountOfLines > 0 Then vbc.CodeModule.DeleteLines 1, vbc.CodeModule.CountOfLines
+
+    stp = "コードの書き込み"
     vbc.CodeModule.AddFromString s
 
     MsgBox "入力フォームを作成しました。" & vbCrLf & "続けて OpenInputForm を実行すると、入力画面が開きます。", vbInformation
     Exit Sub
 
 EH:
-    MsgBox "作成できませんでした: " & Err.Description & vbCrLf & vbCrLf & _
-           "「VBAプロジェクト オブジェクト モデルへのアクセスを信頼する」を有効にしてから、もう一度実行してください。" & vbCrLf & _
-           "(ファイル → オプション → トラストセンター → トラストセンターの設定 → マクロの設定)", vbExclamation
+    MsgBox "「" & stp & "」で止まりました。" & vbCrLf & _
+           "エラー " & Err.Number & " (&H" & Hex(Err.Number) & "): " & Err.Description & vbCrLf & vbCrLf & _
+           "続けて ExportFormCode を実行すると、コードをテキストファイルに書き出せます(手動で貼り付ける方法)。", vbExclamation
+End Sub
+
+' InstallForm が使えないとき用: フォームのコードを frmInput_code.txt に書き出す。
+' 書き出したら、VBE で「挿入→ユーザーフォーム」を作り、オブジェクト名を frmInput にして、
+' コード表示(F7)にファイルの中身を全部貼り付ける。
+Public Sub ExportFormCode()
+    Dim p As String, st As Object
+    On Error GoTo EH
+    p = ThisWorkbook.Path
+    If Len(p) = 0 Then p = CurDir
+    p = p & "\frmInput_code.txt"
+    Set st = CreateObject("ADODB.Stream")
+    st.Type = 2
+    st.Charset = "utf-8"
+    st.Open
+    st.WriteText FormCodeText()
+    st.SaveToFile p, 2
+    st.Close
+    MsgBox "書き出しました:" & vbCrLf & p, vbInformation
+    Exit Sub
+EH:
+    MsgBox "書き出せませんでした: " & Err.Description, vbExclamation
 End Sub
 
 ' 入力フォームを開く(モードレス: シートを見ながら入力できる)
