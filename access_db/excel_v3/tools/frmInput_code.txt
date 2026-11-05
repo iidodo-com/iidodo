@@ -1,0 +1,516 @@
+Option Explicit
+
+' ============================================================
+'  検出事項 入力フォーム(UserForm 名: frmInput) v3
+'  ・所属: 部局 → 局 → 部 → 課 / 分類: 項目1 → (2) → (3) → 区分 → 問題点
+'  ・No.を入力して「読込」すると、その行を修正できる
+'  コントロールは実行時に作成する(フォーム自体は空のままでよい)。
+' ============================================================
+
+Private WithEvents cmbD As MSForms.ComboBox
+Private WithEvents cmbE As MSForms.ComboBox
+Private WithEvents cmbF As MSForms.ComboBox
+Private WithEvents cmb1 As MSForms.ComboBox
+Private WithEvents cmb2 As MSForms.ComboBox
+Private WithEvents cmb3 As MSForms.ComboBox
+Private WithEvents cmbCat As MSForms.ComboBox
+Private WithEvents btnReg As MSForms.CommandButton
+Private WithEvents btnNew As MSForms.CommandButton
+Private WithEvents btnDel As MSForms.CommandButton
+Private WithEvents btnClose As MSForms.CommandButton
+Private WithEvents btnLoad As MSForms.CommandButton
+
+Private txtNo As MSForms.TextBox
+Private txtYear As MSForms.TextBox
+Private txtDate As MSForms.TextBox
+Private txtTanto As MSForms.TextBox
+Private cmbGroup As MSForms.ComboBox
+Private cmbG As MSForms.ComboBox
+Private cmbProb As MSForms.ComboBox
+Private txtNaiyo As MSForms.TextBox
+Private txtShosai As MSForms.TextBox
+Private cmbStatus As MSForms.ComboBox
+Private cmbBiko As MSForms.ComboBox
+Private txtKonkyo As MSForms.TextBox
+Private txtKw As MSForms.TextBox
+Private chkShuchi As MSForms.CheckBox
+Private lblMsg As MSForms.Label
+Private lblMode As MSForms.Label
+
+Private busy As Boolean
+Private mRow As Long                        ' 0=新規入力 / それ以外=修正中の行
+Private Const ROW_LAST As Long = 2001       ' 入力シートの最終行
+Private Const FONT_NAME As String = "Meiryo UI"
+Private Const FONT_SIZE As Single = 10
+' リストシートのキー列(キー列の右隣が値の列)
+Private Const KC_E As Long = 17             ' 局   (キー=部局)
+Private Const KC_F As Long = 20             ' 部   (キー=部局|局)
+Private Const KC_G As Long = 23             ' 課   (キー=部局|局|部)
+Private Const KC_2 As Long = 3              ' 項目2 (キー=項目1)
+Private Const KC_3 As Long = 6              ' 項目3 (キー=項目1|項目2)
+Private Const KC_C As Long = 9              ' 区分  (キー=項目1|項目2|項目3)
+Private Const KC_P As Long = 12             ' 問題点(キー=項目1|項目2|項目3|区分)
+
+' ---------- 部品作成(parent はフォームまたはフレーム) ----------
+Private Function AddLbl(p As Object, cap As String, x As Single, y As Single, w As Single, Optional req As Boolean = False) As MSForms.Label
+    Dim l As MSForms.Label
+    Set l = p.Controls.Add("Forms.Label.1", , True)
+    l.Caption = cap & IIf(req, " *", "")
+    l.Left = x: l.Top = y + 3: l.Width = w: l.Height = 15
+    l.Font.Name = FONT_NAME: l.Font.Size = FONT_SIZE
+    l.ForeColor = IIf(req, RGB(192, 0, 0), RGB(64, 64, 64))
+    l.BackStyle = fmBackStyleTransparent
+    Set AddLbl = l
+End Function
+
+Private Function AddTxt(p As Object, nm As String, x As Single, y As Single, w As Single, Optional h As Single = 20, Optional multi As Boolean = False) As MSForms.TextBox
+    Dim t As MSForms.TextBox
+    Set t = p.Controls.Add("Forms.TextBox.1", nm, True)
+    t.Left = x: t.Top = y: t.Width = w: t.Height = h
+    t.Font.Name = FONT_NAME: t.Font.Size = FONT_SIZE
+    t.BorderStyle = fmBorderStyleSingle: t.BorderColor = RGB(166, 166, 166)
+    If multi Then
+        t.MultiLine = True: t.EnterKeyBehavior = True: t.ScrollBars = fmScrollBarsVertical
+        t.WordWrap = True
+    End If
+    Set AddTxt = t
+End Function
+
+Private Function AddCmb(p As Object, nm As String, x As Single, y As Single, w As Single) As MSForms.ComboBox
+    Dim c As MSForms.ComboBox
+    Set c = p.Controls.Add("Forms.ComboBox.1", nm, True)
+    c.Left = x: c.Top = y: c.Width = w: c.Height = 20
+    c.Font.Name = FONT_NAME: c.Font.Size = FONT_SIZE
+    c.Style = fmStyleDropDownList
+    c.ListRows = 14
+    c.BorderStyle = fmBorderStyleSingle: c.BorderColor = RGB(166, 166, 166)
+    Set AddCmb = c
+End Function
+
+Private Function AddFrame(nm As String, cap As String, y As Single, h As Single) As MSForms.Frame
+    Dim f As MSForms.Frame
+    Set f = Me.Controls.Add("Forms.Frame.1", nm, True)
+    f.Caption = cap: f.Left = 10: f.Top = y: f.Width = 568: f.Height = h
+    f.Font.Name = FONT_NAME: f.Font.Size = FONT_SIZE: f.Font.Bold = True
+    f.ForeColor = RGB(31, 78, 120)
+    f.BackColor = RGB(255, 255, 255)
+    Set AddFrame = f
+End Function
+
+Private Function AddBtn(p As Object, nm As String, cap As String, x As Single, y As Single, w As Single, h As Single, primary As Boolean) As MSForms.CommandButton
+    Dim b As MSForms.CommandButton
+    Set b = p.Controls.Add("Forms.CommandButton.1", nm, True)
+    b.Caption = cap: b.Left = x: b.Top = y: b.Width = w: b.Height = h
+    b.Font.Name = FONT_NAME: b.Font.Size = FONT_SIZE: b.Font.Bold = primary
+    If primary Then
+        b.BackColor = RGB(255, 255, 255): b.ForeColor = RGB(31, 78, 120)
+    Else
+        b.BackColor = RGB(214, 225, 240): b.ForeColor = RGB(31, 78, 120)
+    End If
+    Set AddBtn = b
+End Function
+
+' ---------- 初期化 ----------
+Private Sub UserForm_Initialize()
+    Dim fr As MSForms.Frame, ban As MSForms.Label
+
+    Me.Caption = "検出事項 入力"
+    Me.BackColor = RGB(240, 243, 248)
+    Me.Width = 604: Me.Height = 600
+
+    Set ban = Me.Controls.Add("Forms.Label.1", "lblTitle", True)
+    ban.Left = 0: ban.Top = 0: ban.Width = 604: ban.Height = 38
+    ban.Caption = "  検出事項 入力"
+    ban.Font.Name = FONT_NAME: ban.Font.Size = 14: ban.Font.Bold = True
+    ban.BackColor = RGB(31, 78, 120): ban.ForeColor = RGB(255, 255, 255)
+    ban.BackStyle = fmBackStyleOpaque
+
+    Set btnReg = AddBtn(Me, "btnReg", "登録", 236, 4, 100, 30, True)
+    Set btnNew = AddBtn(Me, "btnNew", "新規", 342, 4, 66, 30, False)
+    Set btnDel = AddBtn(Me, "btnDel", "削除", 414, 4, 66, 30, False)
+    Set btnClose = AddBtn(Me, "btnClose", "閉じる", 486, 4, 66, 30, False)
+
+    Set lblMsg = Me.Controls.Add("Forms.Label.1", "lblMsg", True)
+    lblMsg.Left = 12: lblMsg.Top = 42: lblMsg.Width = 570: lblMsg.Height = 18
+    lblMsg.Font.Name = FONT_NAME: lblMsg.Font.Size = 9
+    lblMsg.ForeColor = RGB(0, 112, 192): lblMsg.BackStyle = fmBackStyleTransparent
+
+    ' --- 修正するとき ---
+    Set fr = AddFrame("fr0", "修正するとき(No.を入力して読込)", 64, 50)
+    AddLbl fr, "No.", 10, 6, 28
+    Set txtNo = AddTxt(fr, "txtNo", 40, 6, 54)
+    Set btnLoad = AddBtn(fr, "btnLoad", "読込", 102, 5, 60, 22, False)
+    Set lblMode = fr.Controls.Add("Forms.Label.1", "lblMode", True)
+    lblMode.Left = 176: lblMode.Top = 9: lblMode.Width = 370: lblMode.Height = 15
+    lblMode.Font.Name = FONT_NAME: lblMode.Font.Size = FONT_SIZE: lblMode.Font.Bold = True
+    lblMode.ForeColor = RGB(31, 78, 120): lblMode.BackStyle = fmBackStyleTransparent
+
+    ' --- 基本情報 ---
+    Set fr = AddFrame("fr1", "基本情報(登録後も残ります)", 118, 62)
+    AddLbl fr, "監査年度(令和)", 10, 6, 78, True
+    Set txtYear = AddTxt(fr, "txtYear", 88, 6, 44)
+    AddLbl fr, "実地監査年月日", 150, 6, 82
+    Set txtDate = AddTxt(fr, "txtDate", 234, 6, 90)
+    AddLbl fr, "担当者", 342, 6, 40
+    Set txtTanto = AddTxt(fr, "txtTanto", 386, 6, 160)
+    AddLbl fr, "グループ", 10, 32, 70
+    Set cmbGroup = AddCmb(fr, "cmbGroup", 88, 32, 160)
+
+    ' --- 所属 ---
+    Set fr = AddFrame("fr2", "所属(上から順に選択。登録後も残ります)", 186, 114)
+    AddLbl fr, "部局", 10, 6, 70, True
+    Set cmbD = AddCmb(fr, "cmbD", 88, 6, 458)
+    AddLbl fr, "局", 10, 32, 70, True
+    Set cmbE = AddCmb(fr, "cmbE", 88, 32, 458)
+    AddLbl fr, "部", 10, 58, 70
+    Set cmbF = AddCmb(fr, "cmbF", 88, 58, 458)
+    AddLbl fr, "課", 10, 84, 70, True
+    Set cmbG = AddCmb(fr, "cmbG", 88, 84, 458)
+
+    ' --- 分類 ---
+    Set fr = AddFrame("fr3", "問題点の分類(上から順に選択)", 306, 158)
+    AddLbl fr, "項目1", 10, 6, 70
+    Set cmb1 = AddCmb(fr, "cmb1", 88, 6, 458)
+    AddLbl fr, "項目(2)", 10, 32, 70
+    Set cmb2 = AddCmb(fr, "cmb2", 88, 32, 458)
+    AddLbl fr, "項目(3)", 10, 58, 70
+    Set cmb3 = AddCmb(fr, "cmb3", 88, 58, 458)
+    AddLbl fr, "区分", 10, 84, 70
+    Set cmbCat = AddCmb(fr, "cmbCat", 88, 84, 140)
+    AddLbl fr, "問題点", 10, 110, 70, True
+    Set cmbProb = AddCmb(fr, "cmbProb", 88, 110, 458)
+
+    ' --- 内容 ---
+    Set fr = AddFrame("fr4", "内容", 470, 152)
+    AddLbl fr, "内容(要約)", 10, 6, 70
+    Set txtNaiyo = AddTxt(fr, "txtNaiyo", 88, 6, 458, 44, True)
+    AddLbl fr, "詳細", 10, 58, 70
+    Set txtShosai = AddTxt(fr, "txtShosai", 88, 58, 458, 70, True)
+
+    ' --- 対応・その他 ---
+    Set fr = AddFrame("fr5", "対応・その他", 626, 122)
+    AddLbl fr, "対応状況", 10, 6, 70
+    Set cmbStatus = AddCmb(fr, "cmbStatus", 88, 6, 240)
+    Set chkShuchi = fr.Controls.Add("Forms.CheckBox.1", "chkShuchi", True)
+    chkShuchi.Caption = "全庁周知が必要": chkShuchi.Left = 350: chkShuchi.Top = 8: chkShuchi.Width = 190
+    chkShuchi.Font.Name = FONT_NAME: chkShuchi.Font.Size = FONT_SIZE: chkShuchi.BackStyle = fmBackStyleTransparent
+    AddLbl fr, "備考区分", 10, 32, 70
+    Set cmbBiko = AddCmb(fr, "cmbBiko", 88, 32, 458)
+    AddLbl fr, "根拠規定", 10, 58, 70
+    Set txtKonkyo = AddTxt(fr, "txtKonkyo", 88, 58, 458)
+    AddLbl fr, "キーワード", 10, 84, 70
+    Set txtKw = AddTxt(fr, "txtKw", 88, 84, 458)
+
+    Me.ScrollBars = fmScrollBarsVertical
+    Me.ScrollHeight = 760
+    Me.KeepScrollBarsVisible = fmScrollBarsNone
+
+    txtYear.Value = CStr(Year(Date) - 2018)
+    txtDate.ControlTipText = "例: 2026/6/4"
+
+    FillList cmbGroup, ThisWorkbook.Worksheets("M_設定"), 1, 2, 9
+    FillList cmbStatus, ThisWorkbook.Worksheets("M_設定"), 3, 2, 11
+    FillList cmbBiko, ThisWorkbook.Worksheets("M_設定"), 5, 2, 4
+    FillList cmbD, ThisWorkbook.Worksheets("リスト"), 15, 2, 0
+    FillList cmb1, ThisWorkbook.Worksheets("リスト"), 1, 2, 0
+    mRow = 0
+    ShowMode
+End Sub
+
+' ---------- リストの読み込み ----------
+' 1列を上から詰めてコンボに入れる。lastRow=0 なら最初の空白セルの手前まで。
+Private Sub FillList(c As MSForms.ComboBox, ws As Worksheet, col As Long, firstRow As Long, lastRow As Long)
+    Dim r As Long, v As Variant
+    busy = True
+    c.Clear
+    r = firstRow
+    Do
+        If lastRow > 0 And r > lastRow Then Exit Do
+        v = ws.Cells(r, col).Value
+        If Len(CStr(v)) = 0 Then
+            If lastRow = 0 Then Exit Do
+        Else
+            c.AddItem CStr(v)
+        End If
+        r = r + 1
+        If r > 5000 Then Exit Do
+    Loop
+    busy = False
+End Sub
+
+' 空白・全角空白を除いて比較用に整える
+Private Function Norm(ByVal s As String) As String
+    Norm = Replace(Replace(s, ChrW(12288), ""), " ", "")
+End Function
+
+' リストシートの「キー列(keyCol)=key」の行の、次列の値をコンボに入れる。入れた件数を返す
+Private Function FillByKey(c As MSForms.ComboBox, keyCol As Long, key As String) As Long
+    Dim ws As Worksheet, n As Long, r As Long, v As Variant, k As String, cnt As Long
+    Set ws = ThisWorkbook.Worksheets("リスト")
+    c.Clear
+    n = ws.Cells(ws.Rows.Count, keyCol).End(xlUp).Row
+    If n < 2 Then Exit Function
+    v = ws.Range(ws.Cells(2, keyCol), ws.Cells(n, keyCol + 1)).Value
+    k = Norm(key)
+    For r = 1 To UBound(v, 1)
+        If Norm(CStr(v(r, 1))) = k Then
+            c.AddItem CStr(v(r, 2)): cnt = cnt + 1
+        End If
+    Next
+    FillByKey = cnt
+End Function
+
+Private Sub ShowCount(nm As String, n As Long)
+    If n = 0 Then lblMsg.Caption = nm & ": 候補がありません。" Else lblMsg.Caption = nm & ": " & n & " 件の候補があります。"
+End Sub
+
+' コンボの項目を文字で選ぶ(無ければ未選択)
+Private Sub SelectItem(c As MSForms.ComboBox, ByVal t As String)
+    Dim i As Long
+    c.ListIndex = -1
+    If Len(t) = 0 Then Exit Sub
+    For i = 0 To c.ListCount - 1
+        If Norm(CStr(c.List(i))) = Norm(t) Then c.ListIndex = i: Exit Sub
+    Next
+End Sub
+
+' ---------- 連動: 所属 ----------
+Private Sub cmbD_Change()
+    If busy Then Exit Sub
+    busy = True
+    cmbE.Clear: cmbF.Clear: cmbG.Clear
+    If cmbD.ListIndex >= 0 Then ShowCount "局", FillByKey(cmbE, KC_E, cmbD.Value)
+    busy = False
+End Sub
+
+Private Sub cmbE_Change()
+    If busy Then Exit Sub
+    busy = True
+    cmbF.Clear: cmbG.Clear
+    If cmbE.ListIndex >= 0 Then ShowCount "部", FillByKey(cmbF, KC_F, cmbD.Value & "|" & cmbE.Value)
+    busy = False
+End Sub
+
+Private Sub cmbF_Change()
+    If busy Then Exit Sub
+    busy = True
+    cmbG.Clear
+    If cmbF.ListIndex >= 0 Then ShowCount "課", FillByKey(cmbG, KC_G, cmbD.Value & "|" & cmbE.Value & "|" & cmbF.Value)
+    busy = False
+End Sub
+
+' ---------- 連動: 分類 ----------
+Private Sub FillCat()
+    ShowCount "区分", FillByKey(cmbCat, KC_C, cmb1.Value & "|" & cmb2.Value & "|" & cmb3.Value)
+End Sub
+
+Private Sub cmb1_Change()
+    If busy Then Exit Sub
+    busy = True
+    cmb2.Clear: cmb3.Clear: cmbCat.Clear: cmbProb.Clear
+    If cmb1.ListIndex >= 0 Then ShowCount "項目(2)", FillByKey(cmb2, KC_2, cmb1.Value)
+    busy = False
+End Sub
+
+Private Sub cmb2_Change()
+    If busy Then Exit Sub
+    busy = True
+    cmb3.Clear: cmbCat.Clear: cmbProb.Clear
+    If cmb2.ListIndex >= 0 Then
+        ShowCount "項目(3)", FillByKey(cmb3, KC_3, cmb1.Value & "|" & cmb2.Value)
+        If cmb3.ListCount = 0 Then
+            FillCat      ' 項目(3)が無い事務は、そのまま区分へ
+            lblMsg.Caption = "この項目には項目(3)がありません。区分を選んでください。"
+        End If
+    End If
+    busy = False
+End Sub
+
+Private Sub cmb3_Change()
+    If busy Then Exit Sub
+    busy = True
+    cmbCat.Clear: cmbProb.Clear
+    If cmb3.ListIndex >= 0 Then FillCat
+    busy = False
+End Sub
+
+Private Sub cmbCat_Change()
+    If busy Then Exit Sub
+    busy = True
+    cmbProb.Clear
+    If cmbCat.ListIndex >= 0 Then
+        ShowCount "問題点", FillByKey(cmbProb, KC_P, cmb1.Value & "|" & cmb2.Value & "|" & cmb3.Value & "|" & cmbCat.Value)
+    End If
+    busy = False
+End Sub
+
+' ---------- モード表示 ----------
+Private Sub ShowMode()
+    If mRow > 0 Then
+        lblMode.Caption = "修正中: No." & (mRow - 1) & "(入力シート " & mRow & " 行目)"
+        btnReg.Caption = "修正を保存"
+    Else
+        lblMode.Caption = "新規入力"
+        btnReg.Caption = "登録"
+    End If
+End Sub
+
+' ---------- 行の読込(修正) ----------
+Private Function IsRowEmpty(ws As Worksheet, r As Long) As Boolean
+    IsRowEmpty = (Application.WorksheetFunction.CountA(ws.Range("B" & r & ":N" & r)) = 0)
+End Function
+
+Private Sub btnLoad_Click()
+    Dim n As Long, r As Long, ws As Worksheet
+    lblMsg.Caption = ""
+    If Len(txtNo.Value) = 0 Or Not IsNumeric(txtNo.Value) Then MsgBox "No.を数字で入力してください。", vbExclamation: Exit Sub
+    n = CLng(txtNo.Value): r = n + 1
+    If r < 2 Or r > ROW_LAST Then MsgBox "No.は 1〜" & (ROW_LAST - 1) & " の範囲で入力してください。", vbExclamation: Exit Sub
+    Set ws = ThisWorkbook.Worksheets("入力")
+    If IsRowEmpty(ws, r) Then MsgBox "No." & n & " の行にはデータがありません。", vbExclamation: Exit Sub
+    LoadRow ws, r
+    mRow = r
+    ShowMode
+    lblMsg.Caption = "No." & n & " を読み込みました。直したら「修正を保存」を押してください。"
+End Sub
+
+Private Sub LoadRow(ws As Worksheet, r As Long)
+    busy = True
+    txtYear.Value = CStr(ws.Range("B" & r).Value)
+    If IsDate(ws.Range("C" & r).Value) Then txtDate.Value = Format(ws.Range("C" & r).Value, "yyyy/mm/dd") Else txtDate.Value = ""
+    txtTanto.Value = CStr(ws.Range("I" & r).Value)
+    SelectItem cmbGroup, CStr(ws.Range("H" & r).Value)
+    ' 所属
+    SelectItem cmbD, CStr(ws.Range("D" & r).Value)
+    FillByKey cmbE, KC_E, CStr(cmbD.Value)
+    SelectItem cmbE, CStr(ws.Range("E" & r).Value)
+    FillByKey cmbF, KC_F, cmbD.Value & "|" & cmbE.Value
+    SelectItem cmbF, CStr(ws.Range("F" & r).Value)
+    FillByKey cmbG, KC_G, cmbD.Value & "|" & cmbE.Value & "|" & cmbF.Value
+    SelectItem cmbG, CStr(ws.Range("G" & r).Value)
+    ' 分類
+    SelectItem cmb1, CStr(ws.Range("J" & r).Value)
+    FillByKey cmb2, KC_2, CStr(cmb1.Value)
+    SelectItem cmb2, CStr(ws.Range("K" & r).Value)
+    FillByKey cmb3, KC_3, cmb1.Value & "|" & cmb2.Value
+    SelectItem cmb3, CStr(ws.Range("L" & r).Value)
+    FillByKey cmbCat, KC_C, cmb1.Value & "|" & cmb2.Value & "|" & cmb3.Value
+    SelectItem cmbCat, CStr(ws.Range("M" & r).Value)
+    FillByKey cmbProb, KC_P, cmb1.Value & "|" & cmb2.Value & "|" & cmb3.Value & "|" & cmbCat.Value
+    SelectItem cmbProb, CStr(ws.Range("N" & r).Value)
+    ' 内容など
+    txtNaiyo.Value = CStr(ws.Range("P" & r).Value)
+    txtShosai.Value = CStr(ws.Range("Q" & r).Value)
+    SelectItem cmbStatus, CStr(ws.Range("R" & r).Value)
+    SelectItem cmbBiko, CStr(ws.Range("S" & r).Value)
+    txtKonkyo.Value = CStr(ws.Range("T" & r).Value)
+    txtKw.Value = CStr(ws.Range("U" & r).Value)
+    chkShuchi.Value = (CStr(ws.Range("V" & r).Value) = "要")
+    busy = False
+End Sub
+
+' ---------- 登録・修正の保存 ----------
+Private Function NextRow(ws As Worksheet) As Long
+    Dim v As Variant, i As Long, j As Long, blank As Boolean
+    v = ws.Range("B2:N" & ROW_LAST).Value
+    For i = 1 To UBound(v, 1)
+        blank = True
+        For j = 1 To UBound(v, 2)
+            If IsError(v(i, j)) Then
+                blank = False: Exit For
+            ElseIf Len(CStr(v(i, j))) > 0 Then
+                blank = False: Exit For
+            End If
+        Next
+        If blank Then NextRow = i + 1: Exit Function
+    Next
+    NextRow = 0
+End Function
+
+Private Sub btnReg_Click()
+    Dim ws As Worksheet, r As Long
+    lblMsg.Caption = ""
+    If Len(txtYear.Value) = 0 Or Not IsNumeric(txtYear.Value) Then MsgBox "監査年度を数字で入力してください。", vbExclamation: Exit Sub
+    If Len(cmbD.Value) = 0 Or Len(cmbE.Value) = 0 Or Len(cmbG.Value) = 0 Then MsgBox "所属(部局・局・課)を選択してください。", vbExclamation: Exit Sub
+    If Len(txtDate.Value) > 0 Then
+        If Not IsDate(txtDate.Value) Then MsgBox "実地監査年月日は 2026/6/4 の形式で入力してください。", vbExclamation: Exit Sub
+    End If
+    If Len(cmbProb.Value) = 0 Then MsgBox "問題点を選択してください。", vbExclamation: Exit Sub
+    If Left(cmbProb.Value, 5) = "（その他）" And Len(Trim(txtNaiyo.Value)) = 0 Then
+        MsgBox "「（その他）」を選んだ場合は、内容(要約)を入力してください。", vbExclamation: Exit Sub
+    End If
+
+    Set ws = ThisWorkbook.Worksheets("入力")
+    If mRow > 0 Then
+        r = mRow
+    Else
+        r = NextRow(ws)
+        If r = 0 Then MsgBox "入力シートの 2〜" & ROW_LAST & " 行目に、空いている行が見つかりません。", vbExclamation: Exit Sub
+    End If
+
+    ws.Range("B" & r).Value = CLng(txtYear.Value)
+    If Len(txtDate.Value) > 0 Then ws.Range("C" & r).Value = CDate(txtDate.Value) Else ws.Range("C" & r).ClearContents
+    ws.Range("D" & r).Value = cmbD.Value
+    ws.Range("E" & r).Value = cmbE.Value
+    ws.Range("F" & r).Value = cmbF.Value
+    ws.Range("G" & r).Value = cmbG.Value
+    ws.Range("H" & r).Value = cmbGroup.Value
+    ws.Range("I" & r).Value = txtTanto.Value
+    ws.Range("J" & r).Value = cmb1.Value
+    ws.Range("K" & r).Value = cmb2.Value
+    ws.Range("L" & r).Value = cmb3.Value
+    ws.Range("M" & r).Value = cmbCat.Value
+    ws.Range("N" & r).Value = cmbProb.Value
+    ws.Range("P" & r).Value = txtNaiyo.Value
+    ws.Range("Q" & r).Value = txtShosai.Value
+    ws.Range("R" & r).Value = cmbStatus.Value
+    ws.Range("S" & r).Value = cmbBiko.Value
+    ws.Range("T" & r).Value = txtKonkyo.Value
+    ws.Range("U" & r).Value = txtKw.Value
+    ws.Range("V" & r).Value = IIf(chkShuchi.Value, "要", "不要")
+
+    If mRow > 0 Then
+        lblMsg.Caption = "No." & (r - 1) & " を修正しました。"
+    Else
+        lblMsg.Caption = "登録しました(No." & (r - 1) & "、入力シート " & r & " 行目)。続けて入力できます。"
+    End If
+    mRow = 0
+    ShowMode
+    ClearDetail
+End Sub
+
+Private Sub ClearDetail()
+    busy = True
+    cmb1.ListIndex = -1
+    cmb2.Clear: cmb3.Clear: cmbCat.Clear: cmbProb.Clear
+    txtNaiyo.Value = "": txtShosai.Value = ""
+    cmbStatus.ListIndex = -1: cmbBiko.ListIndex = -1
+    txtKonkyo.Value = "": txtKw.Value = ""
+    chkShuchi.Value = False
+    txtNo.Value = ""
+    busy = False
+End Sub
+
+Private Sub btnNew_Click()
+    mRow = 0
+    ShowMode
+    ClearDetail
+    lblMsg.Caption = "新規入力にしました。"
+End Sub
+
+Private Sub btnDel_Click()
+    Dim ws As Worksheet
+    If mRow = 0 Then MsgBox "削除するには、先にNo.を入力して「読込」してください。", vbExclamation: Exit Sub
+    If MsgBox("No." & (mRow - 1) & " を削除しますか?" & vbCrLf & "(その行の入力内容を空にします)", vbYesNo + vbQuestion, "削除の確認") <> vbYes Then Exit Sub
+    Set ws = ThisWorkbook.Worksheets("入力")
+    ws.Range("B" & mRow & ":N" & mRow).ClearContents
+    ws.Range("P" & mRow & ":V" & mRow).ClearContents
+    lblMsg.Caption = "No." & (mRow - 1) & " を削除しました。"
+    mRow = 0
+    ShowMode
+    ClearDetail
+End Sub
+
+Private Sub btnClose_Click()
+    Unload Me
+End Sub
