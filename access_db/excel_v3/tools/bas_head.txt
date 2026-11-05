@@ -19,30 +19,61 @@ Private Function FormCodeText() As String
     FormCodeText = @@CAT@@
 End Function
 
-' 入力フォーム(UserForm: frmInput)を作成する。既にあれば作り直す。
+' 以前に作ったフォーム(失敗して残った空のフォームを含む)かどうか
+Private Function IsOurForm(vbc As Object) As Boolean
+    Dim n As Long, t As String
+    If vbc.Name = "frmInput" Then IsOurForm = True: Exit Function
+    n = vbc.CodeModule.CountOfLines
+    If n <= 3 Then IsOurForm = True: Exit Function
+    If n > 12 Then n = 12
+    t = vbc.CodeModule.Lines(1, n)
+    IsOurForm = (InStr(t, "検出事項 入力フォーム") > 0)
+End Function
+
+' 作ったフォームの名前をブックに記録する / 読み出す
+Private Sub SaveFormName(nm As String)
+    On Error Resume Next
+    ThisWorkbook.Names("KensyutsuFormName").Delete
+    On Error GoTo 0
+    ThisWorkbook.Names.Add Name:="KensyutsuFormName", RefersTo:="=""" & nm & """", Visible:=True
+End Sub
+
+Private Function GetFormName() As String
+    Dim t As String
+    On Error Resume Next
+    t = ThisWorkbook.Names("KensyutsuFormName").RefersTo
+    On Error GoTo 0
+    t = Replace(Replace(t, "=", ""), """", "")
+    If Len(t) = 0 Then t = "frmInput"
+    GetFormName = t
+End Function
+
+' 入力フォームを作成する。以前のフォームがあれば作り直す。
+' (フォーム名の付け替えは行わず、自動で付く名前(UserForm1 など)のまま使う)
 Public Sub InstallForm()
-    Dim vbp As Object, vbc As Object, s As String, stp As String
+    Dim vbp As Object, vbc As Object, s As String, stp As String, i As Long, nm As String
     On Error GoTo EH
 
     stp = "VBAプロジェクトへのアクセス"
     Set vbp = ThisWorkbook.VBProject
 
-    ' VBAプロジェクト名が frmInput…だと、フォーム名(frmInput)とぶつかるため、別の名前に直す
-    stp = "プロジェクト名の確認"
-    If Left(vbp.Name, 8) = "frmInput" Then vbp.Name = "KensyutsuDB"
-
-    stp = "既存の frmInput の削除"
-    Set vbc = Nothing
-    On Error Resume Next
-    Set vbc = vbp.VBComponents("frmInput")
-    On Error GoTo EH
-    If Not vbc Is Nothing Then vbp.VBComponents.Remove vbc
+    stp = "以前のフォームの削除"
+    For i = vbp.VBComponents.Count To 1 Step -1
+        Set vbc = vbp.VBComponents(i)
+        If vbc.Type = 3 Then                       ' 3 = UserForm
+            If IsOurForm(vbc) Then vbp.VBComponents.Remove vbc
+        End If
+    Next
 
     stp = "フォームの追加"
-    Set vbc = vbp.VBComponents.Add(3)          ' 3 = UserForm
+    Set vbc = vbp.VBComponents.Add(3)
 
-    stp = "フォーム名の設定(frmInput)"
+    stp = "フォーム名の設定(frmInput。できなくても続行)"
+    On Error Resume Next
     vbc.Name = "frmInput"
+    If Err.Number <> 0 Then Err.Clear
+    On Error GoTo EH
+    nm = vbc.Name
 
     stp = "コードの組み立て"
     s = FormCodeText()
@@ -53,7 +84,11 @@ Public Sub InstallForm()
     stp = "コードの書き込み"
     vbc.CodeModule.AddFromString s
 
-    MsgBox "入力フォームを作成しました。" & vbCrLf & "続けて OpenInputForm を実行すると、入力画面が開きます。", vbInformation
+    stp = "フォーム名の記録"
+    SaveFormName nm
+
+    MsgBox "入力フォームを作成しました(フォーム名: " & nm & ")。" & vbCrLf & _
+           "続けて OpenInputForm を実行すると、入力画面が開きます。", vbInformation
     Exit Sub
 
 EH:
@@ -63,8 +98,9 @@ EH:
 End Sub
 
 ' InstallForm が使えないとき用: フォームのコードを frmInput_code.txt に書き出す。
-' 書き出したら、VBE で「挿入→ユーザーフォーム」を作り、オブジェクト名を frmInput にして、
-' コード表示(F7)にファイルの中身を全部貼り付ける。
+' 書き出したら、VBE で「挿入→ユーザーフォーム」を作り、コード表示(F7)にファイルの中身を全部貼り付ける。
+' (その場合、フォーム名は何でもよい。OpenInputForm は、記録された名前を使うので、
+'  手動で作った場合は、イミディエイトで  ThisWorkbook.Names.Add "KensyutsuFormName", "=""UserForm1"""  のように記録する)
 Public Sub ExportFormCode()
     Dim p As String, st As Object
     On Error GoTo EH
