@@ -115,7 +115,7 @@ ws_l.sheet_state='hidden'
 # ---------- 入力 ----------
 COL=dict(no='A',year='B',date='C',bk='D',ky='E',bu='F',ka='G',grp='H',tanto='I',k1='J',k2='K',k3='L',cat='M',prob='N',cnt='O',naiyo='P',shosai='Q',status='R',biko='S',konkyo='T',kw='U',shuchi='V',dept='W',key='X',hit='Y',order='Z',agg='AA')
 cols=[('No.',6),('監査年度\n(令和)',9),('実地監査\n年月日',12),('部局',18),('局',16),('部',20),('課',22),('グループ',10),('担当者',10),('項目1',22),('項目(2)',26),('項目(3)',26),('区分',11),('問題点',40),('件数\n(自動)',6),
-      ('内容(要約)',40),('詳細(事例・誤/正・金額等)',50),('対応状況',26),('備考区分',22),('根拠規定',24),('キーワード\n(;区切り)',20),('全庁周知',9),('局課(自動)',8),('キー(自動)',8),('抽出(自動)',8),('出力順(自動)',8),('集計キー(自動)',8)]
+      ('内容(要約)',40),('詳細(事例・誤/正・金額等)',50),('対応状況',26),('備考区分',22),('根拠規定',24),('キーワード\n(;区切り)',20),('全庁周知',9),('局課(自動)',8),('キー(自動)',8),('抽出(自動)',8),('出力順(自動)',8),('集計キー(自動)',8),('日付キー(自動)',8)]
 for j,(t,w) in enumerate(cols,1): head(ws_in,1,j,t,w)
 ws_in.row_dimensions[1].height=32
 last=N+1
@@ -125,12 +125,13 @@ for r in range(2,last+1):
     ws_in.cell(r,15,f'=IF(N{r}="","",1)')
     ws_in.cell(r,23,f'=IF(G{r}="","",E{r}&G{r})')
     ws_in.cell(r,24,f'=IF(N{r}="","",J{r}&"|"&K{r}&"|"&L{r}&"|"&M{r}&"|"&N{r})')
-    ws_in.cell(r,25,f'=IF(AND(B{r}<>"",B{r}={REP}$C$2,OR({REP}$L$3="",ISNUMBER(SEARCH({REP}$L$3,W{r}))),OR({REP}$L$4="",ISNUMBER(SEARCH({REP}$L$4,W{r}))),OR({REP}$L$5="",ISNUMBER(SEARCH({REP}$L$5,W{r})))),1,0)')
+    ws_in.cell(r,25,f'=IF(AND(COUNTA(B{r}:N{r})>0,OR({REP}$C$2="",B{r}={REP}$C$2),AB{r}>={REP}$N$2,AB{r}<={REP}$N$3,OR({REP}$L$3="",ISNUMBER(SEARCH({REP}$L$3,W{r}))),OR({REP}$L$4="",ISNUMBER(SEARCH({REP}$L$4,W{r}))),OR({REP}$L$5="",ISNUMBER(SEARCH({REP}$L$5,W{r})))),1,0)')
     ws_in.cell(r,26,f'=IF(Y{r}=1,SUM($Y$2:Y{r}),"")')
     ws_in.cell(r,27,f'=IF(N{r}="","",IF(問題点入力表!$U$2,J{r},"")&"|"&IF(問題点入力表!$U$3,K{r},"")&"|"&IF(問題点入力表!$U$4,L{r},"")&"|"&IF(問題点入力表!$U$5,M{r},"")&"|"&IF(問題点入力表!$U$6,N{r},""))')
+    ws_in.cell(r,28,f'=IF(C{r}="",0,C{r})')
     ws_in.cell(r,3).number_format='yyyy/mm/dd'
     for c in (16,17): ws_in.cell(r,c).alignment=Alignment(wrap_text=True,vertical='top')
-for c in range(23,28): ws_in.column_dimensions[L(c)].hidden=True
+for c in range(23,29): ws_in.column_dimensions[L(c)].hidden=True
 def dv_list(f,col,msg=None):
     dv=DataValidation(type='list',formula1=f,allow_blank=True); dv.errorStyle='warning'; dv.showErrorMessage=True
     dv.errorTitle='リストにない値'; dv.error=msg or 'リストにない値です。このまま入力しますか？'; dv.add(f'{col}2:{col}{last}'); ws_in.add_data_validation(dv)
@@ -157,10 +158,14 @@ if TESTROWS:
         for c,x in vals.items(): ws_in.cell(k,c,x)
 # ---------- 復命用一覧 ----------
 ws_rep['A1']='復命用 検出事項一覧'; ws_rep['A1'].font=Font(name=FONT,bold=True,size=14)
-ws_rep['B2']='監査年度(令和)'; ws_rep['C2']=8; ws_rep['B3']='対象局課名(空欄=全て)'
-for a in ('C2','C3'): ws_rep[a].fill=inp_fill; ws_rep[a].border=box
+ws_rep['B2']='監査年度(令和・空欄=全て)'; ws_rep['C2']=8; ws_rep['B3']='対象局課名(空欄=全て)'
+ws_rep['B4']='実地監査 年月 FROM～TO'; ws_rep['C4'].number_format='yyyy/mm'; ws_rep['D4'].number_format='yyyy/mm'
+ws_rep['N2']='=IFERROR(IF($C$4="",0,DATE(YEAR($C$4),MONTH($C$4),1)),0)'; ws_rep['N3']='=IFERROR(IF($D$4="",99999,EOMONTH($D$4,0)),99999)'
+ws_rep.column_dimensions['N'].hidden=True
+for a in ('C2','C3','C4','D4'): ws_rep[a].fill=inp_fill; ws_rep[a].border=box
 ws_rep['E2']='→「入力」シートの該当データを自動で並べます。そのままコピーして復命書に貼り付けできます。'; ws_rep['E2'].font=Font(name=FONT,size=9,color='7F7F7F')
-ws_rep['E3']='→ 空欄=全て／スペース区切りで複数語(すべてを含む局課)／「東区役所」は「東区」として検索'; ws_rep['E3'].font=Font(name=FONT,size=9,color='7F7F7F')
+ws_rep['E3']='→ 空欄=全て／スペース区切りで複数語(すべてを含む局課)／「東区役所」は「東区」として検索'
+ws_rep['E4']='→ FROM(C4)・TO(D4)に 2026/6 のように年月を入れると、その期間の実地監査分に絞ります(空欄=制限なし)'; ws_rep['E4'].font=Font(name=FONT,size=9,color='7F7F7F'); ws_rep['E3'].font=Font(name=FONT,size=9,color='7F7F7F')
 rc=[('No.',6),('課名等',26),('項目',46),('問題点(件数)',46),('備考',22),('詳細',60),('対応状況',26),('問題点区分',12),('担当',10)]
 for j,(t,w) in enumerate(rc,1): head(ws_rep,5,j,t,w)
 ws_rep['K2']='正規化'; ws_rep['L2']='=TRIM(SUBSTITUTE(SUBSTITUTE($C$3,"　"," "),"区役所","区"))'
@@ -180,8 +185,10 @@ for r in range(6,6+RR):
 ws_rep.freeze_panes='A6'
 # ---------- 問題点入力表(4行目の〇で集計項目を切り替え) ----------
 ws_cr['A1']='問題点入力表(自動集計)'; ws_cr['A1'].font=Font(name=FONT,bold=True,size=14)
-ws_cr['A2']='監査年度(令和)'; ws_cr['B2']=8; ws_cr['A3']='対象局課名(空欄=全て)'
-for a in ('B2','B3'): ws_cr[a].fill=inp_fill; ws_cr[a].border=box
+ws_cr['A2']='監査年度(令和・空欄=全て)'; ws_cr['B2']=8; ws_cr['A3']='対象局課名(空欄=全て)'
+ws_cr['C1']='実地監査の期間(年月)'; ws_cr['C1'].font=Font(name=FONT,size=9,bold=True,color='C00000'); ws_cr['C2'].number_format='"FROM "yyyy/mm'; ws_cr['C3'].number_format='"TO   "yyyy/mm'
+ws_cr['W2']='=IFERROR(IF($C$2="",0,DATE(YEAR($C$2),MONTH($C$2),1)),0)'; ws_cr['W3']='=IFERROR(IF($C$3="",99999,EOMONTH($C$3,0)),99999)'
+for a in ('B2','B3','C2','C3'): ws_cr[a].fill=inp_fill; ws_cr[a].border=box
 ws_cr['P2']='正規化'; ws_cr['Q2']='=TRIM(SUBSTITUTE(SUBSTITUTE($B$3,"　"," "),"区役所","区"))'
 ws_cr['P3']='語1'; ws_cr['Q3']='=IFERROR(LEFT(Q2,FIND(" ",Q2)-1),Q2)'; ws_cr['R3']='=IFERROR(TRIM(MID(Q2,FIND(" ",Q2)+1,200)),"")'
 ws_cr['P4']='語2'; ws_cr['Q4']='=IFERROR(LEFT(R3,FIND(" ",R3)-1),R3)'; ws_cr['R4']='=IFERROR(TRIM(MID(R3,FIND(" ",R3)+1,200)),"")'
@@ -189,7 +196,7 @@ ws_cr['P5']='語3'; ws_cr['Q5']='=R4'
 for i,(c) in enumerate('ABCDE',2):
     ws_cr[f'U{i}']=f'=OR(COUNTA($A$4:$E$4)=0,${c}$4<>"")'
 crit='入力!$W$2:$W$%d,"*"&$Q$3&"*",入力!$W$2:$W$%d,"*"&$Q$4&"*",入力!$W$2:$W$%d,"*"&$Q$5&"*"'%(last,last,last)
-ws_cr['D2']='入力件数計'; ws_cr['E2']=f'=SUMIFS(入力!$O$2:$O${last},入力!$B$2:$B${last},$B$2,{crit})'
+ws_cr['D2']='入力件数計'; ws_cr['E2']=f'=SUMIFS(入力!$O$2:$O${last},入力!$B$2:$B${last},">="&IF($B$2="",0,$B$2),入力!$B$2:$B${last},"<="&IF($B$2="",9999,$B$2),入力!$AB$2:$AB${last},">="&$W$2,入力!$AB$2:$AB${last},"<="&$W$3,{crit})'
 ws_cr['D3']='本表の合計'; ws_cr['F2']='差(※マスタ外の問題点を自由入力した分)'
 ws_cr['F3']='←「合計」列を絞り込み(0を除外)すると、検出のあった項目だけ表示されます。'
 ws_cr['A4']=None
@@ -213,21 +220,25 @@ for i in range(NM-1):
     ws_cr.cell(r,6,f'=IF($P{r}="","",SUM(G{r}:N{r}))')
     for g in range(GROUPS):
         c=GC0+g; cl=L(c)
-        ws_cr.cell(r,c,f'=IF({cl}$5="","",IF($P{r}="","",SUMIFS(入力!$O$2:$O${last},入力!$AA$2:$AA${last},INDEX($T$6:$T${e1},$P{r}),入力!$B$2:$B${last},$B$2,入力!$H$2:$H${last},{cl}$5,{crit})))')
+        ws_cr.cell(r,c,f'=IF({cl}$5="","",IF($P{r}="","",SUMIFS(入力!$O$2:$O${last},入力!$AA$2:$AA${last},INDEX($T$6:$T${e1},$P{r}),入力!$B$2:$B${last},">="&IF($B$2="",0,$B$2),入力!$B$2:$B${last},"<="&IF($B$2="",9999,$B$2),入力!$AB$2:$AB${last},">="&$W$2,入力!$AB$2:$AB${last},"<="&$W$3,入力!$H$2:$H${last},{cl}$5,{crit})))')
 ws_cr['E3']=f'=SUM(F6:F{e1})'
-for c in (15,16,17,18,19,20,21): ws_cr.column_dimensions[L(c)].hidden=True
+for c in (15,16,17,18,19,20,21,23): ws_cr.column_dimensions[L(c)].hidden=True
 ws_cr.freeze_panes='F6'; ws_cr.auto_filter.ref=f'A5:N{e1}'
 ws_cr.conditional_formatting.add(f'F6:N{e1}',FormulaRule(formula=['AND(ISNUMBER(F6),F6>0)'],fill=PatternFill('solid',bgColor='FFE699',fgColor='FFE699')))
 # ---------- 区分別集計 ----------
 ws_sm['A1']='区分別・グループ別 件数(自動集計)'; ws_sm['A1'].font=Font(name=FONT,bold=True,size=14)
-ws_sm['A2']='監査年度(令和)'; ws_sm['B2']=8; ws_sm['B2'].fill=inp_fill; ws_sm['B2'].border=box
+ws_sm['A2']='監査年度(令和・空欄=全て)'; ws_sm['B2']=8
+ws_sm['A3']='実地監査 FROM(年月)'; ws_sm['C3']='TO(年月)'; ws_sm['B3'].number_format='yyyy/mm'; ws_sm['D3'].number_format='yyyy/mm'
+ws_sm['L2']='=IFERROR(IF($B$3="",0,DATE(YEAR($B$3),MONTH($B$3),1)),0)'; ws_sm['L3']='=IFERROR(IF($D$3="",99999,EOMONTH($D$3,0)),99999)'
+for a in ('B2','B3','D3'): ws_sm[a].fill=inp_fill; ws_sm[a].border=box
+ws_sm.column_dimensions['L'].hidden=True
 head(ws_sm,4,1,'区分',14)
 for g in range(GROUPS): head(ws_sm,4,2+g,None,10); ws_sm.cell(4,2+g).value=f'=IF(M_設定!$A${2+g}="","",M_設定!$A${2+g})'
 head(ws_sm,4,2+GROUPS,'計',8)
 for i in range(5):
     r=5+i; ws_sm.cell(r,1,f'=M_設定!$I${2+i}')
     for g in range(GROUPS):
-        cl=L(2+g); ws_sm.cell(r,2+g,f'=IF({cl}$4="","",SUMIFS(入力!$O$2:$O${last},入力!$M$2:$M${last},$A{r},入力!$B$2:$B${last},$B$2,入力!$H$2:$H${last},{cl}$4))')
+        cl=L(2+g); ws_sm.cell(r,2+g,f'=IF({cl}$4="","",SUMIFS(入力!$O$2:$O${last},入力!$M$2:$M${last},$A{r},入力!$B$2:$B${last},">="&IF($B$2="",0,$B$2),入力!$B$2:$B${last},"<="&IF($B$2="",9999,$B$2),入力!$AB$2:$AB${last},">="&$L$2,入力!$AB$2:$AB${last},"<="&$L$3,入力!$H$2:$H${last},{cl}$4))')
     ws_sm.cell(r,2+GROUPS,f'=SUM(B{r}:{L(1+GROUPS)}{r})')
 ws_sm.cell(10,1,'合計').font=Font(name=FONT,bold=True)
 for g in range(GROUPS+1): cl=L(2+g); ws_sm.cell(10,2+g,f'=SUM({cl}5:{cl}9)').font=Font(name=FONT,bold=True)
@@ -306,6 +317,7 @@ log=[('提案','検出事項を「1問題点＝1件」で入力し、分類は�
 ('回答','良いと思います。なお、検出事項の分類についてはあまり項目数を増やしたくないと考えており、頻出のものだけを定型化し、それ以外は「その他」として、内容を別途記載する運用にしたいと考えています。'),
 ('方針の変更','Access での管理は取りやめ、Excel(Teams等で共有)で管理する。'),
 ('追加要望','①入力フォームに行番号(No.)を入力すると、その行を読み込んで修正できるようにする。\n②問題点入力表の4行目に「〇」を付けた項目で集計できるようにする。\n③所属を、所属一覧のように 部局→局→部→課 の順に選べるようにする(所属マスタは組織CD付きCSVから作成)。'),
+('追加要望(2)','集計を年月で行えるように、FROM～TO(実地監査年月日の年月)の期間指定を追加する。'),
 ('本ブックでの反映','①②③を実装。分類は「（その他）内容欄に記載」を設け、未記入だと内容欄が赤く表示される。件数は自動で1(1問題点＝1件)。')]
 head(ws_k,3,1,'区分',16); head(ws_k,3,2,'内容',110)
 for i,(a,b) in enumerate(log,4):
@@ -316,7 +328,7 @@ txt=['検出事項データベース(Excel版 v3)','','■ 目的','実地監査
 '・所属は 部局→局→部→課 の順、分類は 項目1→(2)→(3)→区分→問題点 の順に、ドロップダウンから選びます。',
 '・「1問題点＝1件」で入力します。当てはまらないものは「（その他）内容欄に記載」を選び、内容欄に具体的に書きます(未記入だと赤くなります)。','',
 '■ 修正のしかた','・入力フォームの「No.」に、入力シートA列の番号を入れて「読込」すると、その行を修正できます(「修正を保存」で上書き、「削除」でその行を空にします)。','',
-'■ 集計','・問題点入力表: 年度を入れると、問題点×グループの件数を集計します。4行目の「〇」で、集計する項目を切り替えます(例: 項目(2)に〇 → 項目(2)ごとの件数)。すべて空欄なら、すべての項目で細かく集計します。',
+'■ 集計','・期間: 問題点入力表・区分別集計・復命用一覧に、実地監査の年月の FROM～TO(例 2026/6)があります。年度と組み合わせて絞れます(どちらも空欄=制限なし)。','・問題点入力表: 年度を入れると、問題点×グループの件数を集計します。4行目の「〇」で、集計する項目を切り替えます(例: 項目(2)に〇 → 項目(2)ごとの件数)。すべて空欄なら、すべての項目で細かく集計します。',
 '・対象局課名は、空欄=全て、文字を入れると部分一致(スペース区切りで複数語、「東区役所」は「東区」)で絞り込みます。','・別紙(復命用): 復命用一覧の年度・局課名で絞り込んだ内容を、原本の様式で出力します。マクロ FitBesshiRows で行の高さを整えます。','',
 '■ 設置(マクロ)','1. このファイルを .xlsm で保存 → 2. KensyutsuMacros.bas をインポート → 3. InstallForm を1回実行(「VBAプロジェクト オブジェクト モデルへのアクセスを信頼する」を有効に) → 4. OpenInputForm で入力画面を開く。','',
 '■ 注意','・テストデータが入っている場合は、「(テスト)」「テストデータ」の行を本番前に削除してください。','・受託者名・金額等を含む場合は、アクセス権を最小限にしてください。']
