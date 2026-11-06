@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 外部送信防止: 接続先は同一オリジンとループバック(localhost/127.0.0.1)のみ許可 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; worker-src 'self' blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*; style-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'">
+<title>手元資料LLM処理（ローカル専用）</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>手元資料LLM処理 <small>ローカル専用</small></h1>
+  <p class="badge" id="privacyBadge">外部送信なし：接続先はこのPC内（localhost / 127.0.0.1）のみ。APIキーは扱いません。</p>
+</header>
+
+<main>
+<section id="secEndpoint">
+  <h2>1. エンドポイント設定</h2>
+  <div class="grid">
+    <label>ベースURL
+      <input id="baseUrl" type="text" spellcheck="false" autocomplete="off" placeholder="http://localhost:11434">
+      <span class="hint">Ollama: <code>http://localhost:11434</code>（自動で /v1 を補います）／ Foundry Local: <code>http://localhost:&lt;ポート&gt;/v1</code></span>
+    </label>
+    <label>モデル名
+      <input id="model" type="text" spellcheck="false" autocomplete="off" list="modelList">
+      <datalist id="modelList"></datalist>
+    </label>
+    <label>コンテキスト上限（トークン）
+      <input id="ctx" type="number" min="512" step="256">
+      <span class="hint">モデルに実際に設定した値以下に。チャンク分割の基準です。</span>
+    </label>
+    <label>最大出力（トークン）
+      <input id="maxOut" type="number" min="64" step="64">
+    </label>
+    <label>タイムアウト（秒）
+      <input id="timeout" type="number" min="10" step="10">
+    </label>
+  </div>
+  <div class="row">
+    <button id="btnTest" type="button">接続テスト</button>
+    <span id="effectiveUrl" class="muted"></span>
+  </div>
+  <div id="testResult" class="status" role="status" aria-live="polite"></div>
+  <div id="modelChips" class="chips"></div>
+</section>
+
+<section id="secFiles">
+  <h2>2. ファイル投入</h2>
+  <label class="drop" id="drop">
+    <input id="fileInput" type="file" accept=".txt,.md,.markdown,.pdf" multiple>
+    <span>.txt / .md / .pdf をドロップ、またはクリックして選択（複数可）。PDFはブラウザ内でテキスト抽出します。</span>
+  </label>
+  <ul id="fileList" class="files"></ul>
+  <div id="fileMsg" class="status" role="status" aria-live="polite"></div>
+</section>
+
+<section id="secTask">
+  <h2>3. 処理</h2>
+  <div class="grid">
+    <label>処理内容
+      <select id="task"></select>
+    </label>
+    <label class="check"><input id="mask" type="checkbox" checked> 個人情報らしいパターンをマスキングしてから送る</label>
+    <label class="check"><input id="unmask" type="checkbox"> 結果中のプレースホルダを手元で元に戻して表示する</label>
+  </div>
+  <label id="questionWrap" hidden>質問（全投入文書に対して回答します）
+    <textarea id="question" rows="3" placeholder="例: 契約の解約条件は何ですか？"></textarea>
+  </label>
+</section>
+
+<section id="secPreview">
+  <h2>4. 送信前プレビュー</h2>
+  <div class="row">
+    <button id="btnPreview" type="button">送信内容を確認する</button>
+    <span class="muted">確認後に「実行」できます。設定・ファイルを変えると再確認が必要です。</span>
+  </div>
+  <div id="previewMsg" class="status" role="status"></div>
+  <div id="piiBox" hidden></div>
+  <div id="previewSummary" class="muted"></div>
+  <div id="previewList"></div>
+</section>
+
+<section id="secRun">
+  <h2>5. 実行</h2>
+  <div class="row">
+    <button id="btnRun" type="button" disabled>確認した内容で送信して実行</button>
+    <button id="btnCancel" type="button" disabled>中止</button>
+    <progress id="progress" max="1" value="0" hidden></progress>
+    <span id="progressText" class="muted"></span>
+  </div>
+  <div id="runMsg" class="status" role="status" aria-live="polite"></div>
+</section>
+
+<section id="secResult">
+  <h2>6. 結果</h2>
+  <div class="row">
+    <button id="btnCopy" type="button" disabled>コピー</button>
+    <button id="btnDownload" type="button" disabled>.md をダウンロード</button>
+    <span id="copyMsg" class="muted"></span>
+  </div>
+  <pre id="result" tabindex="0"></pre>
+</section>
+</main>
+
+<footer class="muted">データはこのPC内のローカルLLMにのみ送られます。入力文書は保存されません（設定値のみブラウザに保存）。</footer>
+<script type="module" src="app.js"></script>
+</body>
+</html>
