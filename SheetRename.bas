@@ -1,7 +1,7 @@
 Attribute VB_Name = "SheetRename"
 Option Explicit
 
-' 「R?短期」の前のほうのシートのC1(令和N年度)から N を取り、4シートの名前を付け替える
+' 「R?短期」の前のほうのシートのC1(年度の数字 N)から N を取り、4シートの名前を付け替える
 '   短期系 : 前のシート → R(N)短期      後ろのシート → R(N+1)短期
 '   掛金系 : 前のシート → R(N)掛金（短期）後ろのシート → R(N+1)掛金（短期）
 ' 「前・後ろ」はタブの並び順で決める(今の番号は見ない)。
@@ -17,9 +17,13 @@ Public Sub RenameSheetsByC1()
         Exit Sub
     End If
 
-    n = Val(Mid$(CStr(s1.Range("C1").Value), 3))      ' 「令和8年度」→ 8
+    If Not IsNumeric(s1.Range("C1").Value) Or IsEmpty(s1.Range("C1").Value) Then
+        MsgBox "C1が数字ではありません(例: 8)。", vbExclamation
+        Exit Sub
+    End If
+    n = CLng(s1.Range("C1").Value)                    ' C1の数字(表示は「令和8年度」)
     If n < 2 Then
-        MsgBox "C1が「令和N年度」の形式ではありません: " & CStr(s1.Range("C1").Value), vbExclamation
+        MsgBox "C1の数字が小さすぎます: " & n, vbExclamation
         Exit Sub
     End If
 
