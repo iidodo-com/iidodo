@@ -6,7 +6,7 @@ Option Explicit
 '
 ' 対象シート(名前ではなく「タブの並び順」で決める)
 '   短期系 : 「R数字短期」の前のシート=s1、後ろのシート=s2
-'   掛金系 : 「R数字掛金（短期）」の後ろのシート=k2(紫タブ)
+'   掛金系 : 「R数字掛金（短期）」の前のシート=k1、後ろのシート=k2(紫タブ)
 '
 ' 内容
 '   1. s1のC1を数字にして、表示形式を「"令和"0"年度"」にする(「令和7年度」→ 7)
@@ -14,7 +14,7 @@ Option Explicit
 '   3. s2のZ5,Z6,Z11,Z12 = s1の同じセル(賞与支給率)
 '   4. s2のE20,H25,H27,H28,Q27,V28 を、C1の年度から文言を作る数式にする
 '   5. 「=C1」と参照している数式(s1,s2内)を ="令和"&C1&"年度" にする
-'   6. k2のP123 を A1(「R8年度」)の年度から作る日付にする
+'   6. k1,k2のA1(「R8年度」など)を s1のC1 から自動で出し、k2のP123 をその年度から作る日付にする
 Private Const FMT As String = """令和""0""年度"""
 
 Public Sub ApplyYearPatch()
@@ -32,7 +32,7 @@ Public Sub ApplyYearPatch()
     If MsgBox("次のシートにパッチを当てます。実行前にブックを別名保存しましたか？" & vbCrLf & vbCrLf & _
               "前のシート(年度の元): " & s1.Name & vbCrLf & _
               "後ろのシート(+1年): " & s2.Name & vbCrLf & _
-              "掛金(後ろ): " & IIf(k2 Is Nothing, "(なし)", k2.Name), _
+              "掛金(前/後ろ): " & IIf(k1 Is Nothing, "(なし)", k1.Name) & " / " & IIf(k2 Is Nothing, "(なし)", k2.Name), _
               vbOKCancel + vbQuestion, "年度パッチ") <> vbOK Then Exit Sub
 
     ' ---- 1. s1!C1 を数字にする
@@ -85,14 +85,15 @@ Public Sub ApplyYearPatch()
     nRef = FixC1Refs(s1, "C1") + FixC1Refs(s2, "C1")
     log = log & "5. 「=C1」を ""令和""&C1&""年度"" に変更: " & nRef & " セル" & vbCrLf
 
-    ' ---- 6. 紫タブの日付
+    ' ---- 6. 掛金シートの年度(A1)と、紫タブの日付
+    If Not k1 Is Nothing Then
+        k1.Range("A1").Formula = "=""R""&'" & s1.Name & "'!C1&""年度"""
+        log = log & "6. " & k1.Name & "!A1 = R(" & s1.Name & "のC1)年度" & vbCrLf
+    End If
     If Not k2 Is Nothing Then
-        If CStr(k2.Range("A1").Value) Like "R*年度" Then
-            k2.Range("P123").Formula = "=DATE(2018+VALUE(MID(A1,2,LEN(A1)-3)),6,30)"
-            log = log & "6. " & k2.Name & "!P123 を A1(" & k2.Range("A1").Value & ")から作る日付に変更" & vbCrLf
-        Else
-            log = log & "6. " & k2.Name & "!A1 が「R○年度」の形ではないため P123 は未変更" & vbCrLf
-        End If
+        k2.Range("A1").Formula = "=""R""&('" & s1.Name & "'!C1+1)&""年度"""
+        k2.Range("P123").Formula = "=DATE(2018+VALUE(MID(A1,2,LEN(A1)-3)),6,30)"
+        log = log & "   " & k2.Name & "!A1 = R(" & s1.Name & "のC1+1)年度、P123 をA1の年度から作る日付に変更" & vbCrLf
     End If
 
 Fail:
