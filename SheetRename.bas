@@ -1,70 +1,63 @@
 Attribute VB_Name = "SheetRename"
 Option Explicit
 
-' 最初の「R?短期」シートのC1(令和N年度)に合わせて、シート名を付け替える
-'   短期系  : R(N)短期 / R(N+1)短期
-'   掛金系  : R(N)掛金（短期） / R(N+1)掛金（短期）
-' 2系統を別々に処理するので、番号がずれていても動く。
+' 「R?短期」の前のほうのシートのC1(令和N年度)から N を取り、4シートの名前を付け替える
+'   短期系 : 前のシート → R(N)短期      後ろのシート → R(N+1)短期
+'   掛金系 : 前のシート → R(N)掛金（短期）後ろのシート → R(N+1)掛金（短期）
+' 「前・後ろ」はタブの並び順で決める(今の番号は見ない)。
 ' シート名を変えると、他シートの数式・印刷範囲は Excel が自動で追従する。
 Public Sub RenameSheetsByC1()
-    Dim base As Worksheet, a As Long, n As Long
-    Set base = FindLowest("短期", a)
-    If base Is Nothing Then
+    Dim s1 As Worksheet, s2 As Worksheet, k1 As Worksheet, k2 As Worksheet
+    Dim n As Long, ev As Boolean
+
+    GetPair "短期", s1, s2
+    GetPair "掛金（短期）", k1, k2
+    If s1 Is Nothing Then
         MsgBox "「R数字短期」という名前のシートが見つかりません。", vbExclamation
         Exit Sub
     End If
-    n = Val(Mid$(CStr(base.Range("C1").Value), 3))   ' 「令和9年度」→ 9
+
+    n = Val(Mid$(CStr(s1.Range("C1").Value), 3))      ' 「令和8年度」→ 8
     If n < 2 Then
-        MsgBox "C1が「令和N年度」の形式ではありません: " & CStr(base.Range("C1").Value), vbExclamation
+        MsgBox "C1が「令和N年度」の形式ではありません: " & CStr(s1.Range("C1").Value), vbExclamation
         Exit Sub
     End If
 
-    Dim ev As Boolean: ev = Application.EnableEvents
+    ev = Application.EnableEvents
     Application.EnableEvents = False
-    RenameFamily "短期", n
-    RenameFamily "掛金（短期）", n
+    On Error GoTo Fail
+    SetPair s1, s2, n, "短期"
+    SetPair k1, k2, n, "掛金（短期）"
     Application.EnableEvents = ev
+    Exit Sub
+Fail:
+    Application.EnableEvents = ev
+    MsgBox "シート名の変更に失敗しました: " & Err.Description & vbCrLf & _
+           "同じ名前の別シートが既にないか確認してください。", vbExclamation
 End Sub
 
-' 名前が「R数字＋suffix」のシートのうち、数字が最小のものを返す
-Private Function FindLowest(ByVal suffix As String, ByRef num As Long) As Worksheet
-    Dim ws As Worksheet, k As Long
+' 名前が「R数字＋suffix」のシートを、タブの並び順で最初の2枚だけ返す
+Private Sub GetPair(ByVal suffix As String, ByRef w1 As Worksheet, ByRef w2 As Worksheet)
+    Dim ws As Worksheet
+    Set w1 = Nothing: Set w2 = Nothing
     For Each ws In ThisWorkbook.Worksheets
         If ws.Name Like "R#*" & suffix Then
-            k = Val(Mid$(ws.Name, 2))
-            If ws.Name = "R" & k & suffix Then
-                If FindLowest Is Nothing Then
-                    Set FindLowest = ws: num = k
-                ElseIf k < num Then
-                    Set FindLowest = ws: num = k
+            If ws.Name = "R" & Val(Mid$(ws.Name, 2)) & suffix Then
+                If w1 Is Nothing Then
+                    Set w1 = ws
+                ElseIf w2 Is Nothing Then
+                    Set w2 = ws
                 End If
             End If
         End If
     Next ws
-End Function
+End Sub
 
-Private Sub RenameFamily(ByVal suffix As String, ByVal n As Long)
-    Dim w1 As Worksheet, w2 As Worksheet, a As Long
-    Set w1 = FindLowest(suffix, a)
-    If w1 Is Nothing Then
-        MsgBox "「R数字" & suffix & "」のシートが見つからないため、この系統は変更しません。", vbExclamation
-        Exit Sub
-    End If
-    If a = n Then Exit Sub
-    On Error Resume Next
-    Set w2 = ThisWorkbook.Worksheets("R" & (a + 1) & suffix)
-    On Error GoTo 0
-
-    On Error GoTo Fail
-    If n > a Then            ' 増やす時は後ろのシートから先(名前の重複を避ける)
-        If Not w2 Is Nothing Then w2.Name = "R" & (n + 1) & suffix
-        w1.Name = "R" & n & suffix
-    Else                     ' 減らす時は前のシートから先
-        w1.Name = "R" & n & suffix
-        If Not w2 Is Nothing Then w2.Name = "R" & (n + 1) & suffix
-    End If
-    Exit Sub
-Fail:
-    MsgBox "「" & suffix & "」系のシート名変更に失敗しました: " & Err.Description & vbCrLf & _
-           "同じ名前のシートが既にないか確認してください。", vbExclamation
+' 一度仮名にしてから付け替える(名前の重複を避けるため)
+Private Sub SetPair(ByVal w1 As Worksheet, ByVal w2 As Worksheet, ByVal n As Long, ByVal suffix As String)
+    If w1 Is Nothing Then Exit Sub
+    w1.Name = "tmp_a"
+    If Not w2 Is Nothing Then w2.Name = "tmp_b"
+    w1.Name = "R" & n & suffix
+    If Not w2 Is Nothing Then w2.Name = "R" & (n + 1) & suffix
 End Sub
