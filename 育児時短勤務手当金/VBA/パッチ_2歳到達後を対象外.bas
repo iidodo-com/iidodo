@@ -15,7 +15,10 @@ Option Explicit
 '   ・対象月の初日が、職員マスタF列の日付より後    → 「対象外」（新規）
 '   ・上記以外                                   → 従来どおり（不支給／要確認／未処理）
 '   ※対象月の途中で到達日（前々日）を迎える月は、請求期間があるので「対象外」にしません
-'   ※「対象外」は「不支給通知」の一覧・Word作成の対象になりません
+'   ※「対象外」は「不支給通知」の一覧には灰色の「対象外」として表示しますが、Word作成の対象にはなりません
+'  【あわせて書き換えるもの】
+'   ・「請求記録」の「不支給連番」列（一覧に「対象外」も載せるため）
+'   ・「不支給通知」シートのJ列（状況）の数式（「対象外」を表示）と、「対象外」の灰色表示
 ' ==================================================================
 
 Private Function 列記号(ByVal w As Worksheet, ByVal 見出し As String) As String
@@ -27,6 +30,7 @@ End Function
 Public Sub 二歳到達後を対象外にする()
     Dim w As Worksheet, m As Worksheet, st As String, hr As String, he As String, pm As String
     Dim fin As String, mr As String, bom As String, last As Long, f As String, n As Long, msg As String
+    Dim sq As String, g As String, h As String, nl As Worksheet, fc As Object, has As Boolean
 
     Set w = ThisWorkbook.Worksheets("請求記録")
     Set m = ThisWorkbook.Worksheets("職員マスタ")
@@ -61,9 +65,35 @@ Public Sub 二歳到達後を対象外にする()
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
     w.Range(st & "6:" & st & last).Formula = f
+    ' --- 不支給連番（対象外も数える） ---
+    sq = 列記号(w, "不支給連番")
+    If sq <> "" Then
+        g = "=IF(OR($@st@6='不支給',$@st@6='対象外'),COUNTIF($@st@$6:$@st@6,'不支給')+COUNTIF($@st@$6:$@st@6,'対象外'),'')"
+        g = Replace(Replace(g, "'", Chr(34)), "@st@", st)
+        w.Range(sq & "6:" & sq & last).Formula = g
+    End If
+    ' --- 不支給通知シートの状況（J列） ---
+    On Error Resume Next
+    Set nl = ThisWorkbook.Worksheets("不支給通知")
+    On Error GoTo 0
+    If Not nl Is Nothing Then
+        h = "=IF($L7='','',IF(INDEX(請求記録!$@st@$6:$@st@$3005,$L7)='対象外','対象外',IF($G7='','理由未選択',IF($H7='','通知日未入力',IF($I7='','出力待ち','出力済')))))"
+        h = Replace(Replace(h, "'", Chr(34)), "@st@", st)
+        nl.Range("J7:J306").Formula = h
+        has = False
+        On Error Resume Next
+        For Each fc In nl.Range("J7:J306").FormatConditions
+            If InStr(fc.Formula1, "対象外") > 0 Then has = True
+        Next fc
+        If Not has Then
+            Set fc = nl.Range("J7:J306").FormatConditions.Add(Type:=xlExpression, Formula1:="=$J7=" & Chr(34) & "対象外" & Chr(34))
+            fc.Interior.Color = RGB(217, 217, 217)
+        End If
+        On Error GoTo 0
+    End If
     Application.Calculation = xlCalculationAutomatic
     Application.Calculate
     Application.ScreenUpdating = True
     n = Application.WorksheetFunction.CountIf(w.Range(st & "6:" & st & last), "対象外")
-    MsgBox "パッチを適用しました。" & vbLf & "ステータスが「対象外」の請求：" & n & " 件" & vbLf & vbLf & "※「不支給通知」の一覧から、これらは外れます。", vbInformation
+    MsgBox "パッチを適用しました。" & vbLf & "ステータスが「対象外」の請求：" & n & " 件" & vbLf & vbLf & "※「不支給通知」の一覧には、状況「対象外」（灰色）で表示されます。", vbInformation
 End Sub

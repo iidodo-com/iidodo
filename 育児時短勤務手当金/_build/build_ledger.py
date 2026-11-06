@@ -226,7 +226,7 @@ for r in range(R0, RE + 1):
         rec[f"{c[k]}{r}"].fill = INP
     rec[f"{c['nar']}{r}"] = (f'=IF({ST}<>"不支給","",IF(${c["nr"]}{r}<>"",${c["nr"]}{r},IF({J}="×",設定!$J$3,'
                              f'IF(AND({J}<>"",N(${c["calc"]}{r})<=設定!$C$3),設定!$J$4,""))))')
-    rec[f"{c['nseq']}{r}"] = f'=IF({ST}="不支給",COUNTIF(${c["st"]}${R0}:{ST},"不支給"),"")'
+    rec[f"{c['nseq']}{r}"] = (f'=IF(OR({ST}="不支給",{ST}="対象外"),COUNTIF(${c["st"]}${R0}:{ST},"不支給")+COUNTIF(${c["st"]}${R0}:{ST},"対象外"),"")')
     for k in ("nm", "dept", "key", "std", "jd", "calc", "fin", "st", "hd", "chk", "hseq", "mrow", "bom", "ndo", "nar", "nseq"):
         rec[f"{c[k]}{r}"].fill = CAL
     for k in ("recv", "s", "e", "ps", "pe", "chb", "req", "hs", "he", "hn", "nd", "ndo"):
@@ -364,7 +364,7 @@ mat.freeze_panes = f"D{R0}"
 
 # ================= 不支給通知（一覧） =================
 nl = wb.create_sheet("不支給通知", 2)
-title(nl, "不支給通知", "不支給の請求の一覧です。理由と通知日は「請求記録」で入力し、通知書を作る行の「作成」欄に直接○を入力してボタンを押します。")
+title(nl, "不支給通知", "不支給（と、子が2歳に達した後で「対象外」）の請求の一覧です。理由と通知日は「請求記録」で入力し、通知書を作る行の「作成」欄に直接○を入力してボタンを押します。")
 nl["A3"] = "不支給の請求"; nl["C3"] = '=COUNTIF($J$7:$J$306,"?*")'
 for i_, (lab_, key_) in enumerate((("理由未選択", "理由未選択"), ("通知日未入力", "通知日未入力"), ("出力待ち", "出力待ち"), ("出力済", "出力済"))):
     nl.cell(3, 4 + i_ * 2, lab_)
@@ -379,7 +379,8 @@ for n_ in range(300):
     nl[f"B{r_}"] = f'=IF($L{r_}="","",$L{r_}+{R0 - 1})'
     for cl_, k_ in (("C", "no"), ("D", "nm"), ("E", "dept"), ("F", "key"), ("G", "nar"), ("H", "nd"), ("I", "ndo")):
         nl[f"{cl_}{r_}"] = f'=IF($L{r_}="","",IF(INDEX({rg(k_)},$L{r_})="","",INDEX({rg(k_)},$L{r_})))'
-    nl[f"J{r_}"] = f'=IF($L{r_}="","",IF($G{r_}="","理由未選択",IF($H{r_}="","通知日未入力",IF($I{r_}="","出力待ち","出力済"))))'
+    nl[f"J{r_}"] = (f'=IF($L{r_}="","",IF(INDEX({rg("st")},$L{r_})="対象外","対象外",IF($G{r_}="","理由未選択",'
+                    f'IF($H{r_}="","通知日未入力",IF($I{r_}="","出力待ち","出力済")))))')
     nl[f"H{r_}"].number_format = nl[f"I{r_}"].number_format = "yyyy/m/d"
     nl[f"K{r_}"].fill = INP
     nl[f"K{r_}"].alignment = Alignment(horizontal="center")
@@ -389,7 +390,7 @@ nl.column_dimensions["L"].hidden = True
 nl.freeze_panes = "A7"
 dk = DataValidation(type="list", formula1='"○"', allow_blank=True, showErrorMessage=False); dk.add("K7:K306"); nl.add_data_validation(dk)
 nl["K5"] = "○を付けて作成"; nl["K5"].font = Font(name=FN, size=8, color="595959")
-for txt_, colr_ in (("理由未選択", "FFC7CE"), ("通知日未入力", "FFE699"), ("出力待ち", "DDEBF7"), ("出力済", "E2EFDA")):
+for txt_, colr_ in (("理由未選択", "FFC7CE"), ("通知日未入力", "FFE699"), ("出力待ち", "DDEBF7"), ("出力済", "E2EFDA"), ("対象外", "D9D9D9")):
     nl.conditional_formatting.add("J7:J306", FormulaRule(formula=[f'$J7="{txt_}"'], fill=PatternFill("solid", bgColor=colr_, fgColor=colr_)))
 
 # ================= 使い方 =================
