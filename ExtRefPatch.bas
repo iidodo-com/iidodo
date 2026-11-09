@@ -11,7 +11,7 @@ Option Explicit
 Private Const TARGETS As String = "DB_設定,DB_集計"
 
 Public Sub PatchExternalRefsDB()
-    Dim reBook As Object, rePath As Object, reSheet As Object
+    Dim reBook As Object, rePath As Object, reUnq As Object, reSheet As Object
     Dim nm As Variant, ws As Worksheet, rng As Range, c As Range
     Dim f As String, g As String, books As String, missing As String, nm2 As String
     Dim ms As Object, m As Object
@@ -22,6 +22,8 @@ Public Sub PatchExternalRefsDB()
     reBook.Pattern = "\[[^\]]*\.xls[xm]?\]": reBook.Global = True: reBook.IgnoreCase = True
     Set rePath = CreateObject("VBScript.RegExp")                     ' 'C:\dir\[book.xlsx]Sheet'! の形
     rePath.Pattern = "'[^'\[\]]*\[[^\]]*\.xls[xm]?\]([^']*)'!": rePath.Global = True: rePath.IgnoreCase = True
+    Set reUnq = CreateObject("VBScript.RegExp")                      ' [book.xlsx]Sheet! の形(引用符なし)→ 'Sheet'! (R8長期 のように引用符が要る名前があるため、必ず付ける)
+    reUnq.Pattern = "\[[^\]]*\.xls[xm]?\]([^'\s()+\-*/,&=<>^!:;\[\]""]+)!": reUnq.Global = True: reUnq.IgnoreCase = True
     Set reSheet = CreateObject("VBScript.RegExp")                    ' 数式の中のシート名
     reSheet.Pattern = "(?:'([^']+)'|([^\s'()+\-*/,&=<>^!:;\[\]""]+))!": reSheet.Global = True
 
@@ -42,7 +44,7 @@ Public Sub PatchExternalRefsDB()
                         For Each m In ms
                             If InStr(books, m.Value) = 0 Then books = books & m.Value & vbCrLf
                         Next m
-                        g = Clean(f, rePath, reBook)
+                        g = Clean(f, rePath, reUnq, reBook)
                         Set ms = reSheet.Execute(g)
                         For Each m In ms
                             If Len(m.SubMatches(0) & "") > 0 Then nm2 = m.SubMatches(0) Else nm2 = m.SubMatches(1) & ""
@@ -89,7 +91,7 @@ Public Sub PatchExternalRefsDB()
                         If c.HasArray Then
                             nSkip = nSkip + 1                      ' 配列数式は手作業で確認
                         Else
-                            g = Clean(f, rePath, reBook)
+                            g = Clean(f, rePath, reUnq, reBook)
                             Err.Clear
                             On Error Resume Next                   ' 1セルの失敗で全体を止めず、失敗したセルを一覧にする
                             If c.NumberFormat = "@" Then c.NumberFormat = "General": nFmt = nFmt + 1   ' 文字列形式だと式が計算されないため
@@ -125,10 +127,11 @@ Fail:
     End If
 End Sub
 
-' パス付き 'C:\dir\[book.xlsx]Sheet'! → 'Sheet'! にし、残りの [book.xlsx] を取り除く
-Private Function Clean(ByVal f As String, ByVal rePath As Object, ByVal reBook As Object) As String
+' パス付き 'C:\dir\[book.xlsx]Sheet'! と引用符なし [book.xlsx]Sheet! を、どちらも 'Sheet'! にし、残りの [book.xlsx] を取り除く
+Private Function Clean(ByVal f As String, ByVal rePath As Object, ByVal reUnq As Object, ByVal reBook As Object) As String
     Dim t As String
     t = rePath.Replace(f, "'$1'!")
+    t = reUnq.Replace(t, "'$1'!")
     Clean = reBook.Replace(t, "")
 End Function
 
