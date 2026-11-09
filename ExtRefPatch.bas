@@ -15,7 +15,8 @@ Public Sub PatchExternalRefsDB()
     Dim nm As Variant, ws As Worksheet, rng As Range, c As Range
     Dim f As String, g As String, books As String, missing As String, nm2 As String
     Dim ms As Object, m As Object
-    Dim nHit As Long, nDone As Long, nSkip As Long, nFmt As Long, calcMode As Long
+    Dim nHit As Long, nDone As Long, nSkip As Long, nFmt As Long, nFail As Long, calcMode As Long
+    Dim failList As String
 
     Set reBook = CreateObject("VBScript.RegExp")
     reBook.Pattern = "\[[^\]]*\.xls[xm]?\]": reBook.Global = True: reBook.IgnoreCase = True
@@ -89,9 +90,19 @@ Public Sub PatchExternalRefsDB()
                             nSkip = nSkip + 1                      ' 配列数式は手作業で確認
                         Else
                             g = Clean(f, rePath, reBook)
+                            Err.Clear
+                            On Error Resume Next                   ' 1セルの失敗で全体を止めず、失敗したセルを一覧にする
                             If c.NumberFormat = "@" Then c.NumberFormat = "General": nFmt = nFmt + 1   ' 文字列形式だと式が計算されないため
                             c.Formula = g
-                            nDone = nDone + 1
+                            If Err.Number <> 0 Then
+                                nFail = nFail + 1
+                                If nFail <= 8 Then failList = failList & ws.Name & "!" & c.Address(False, False) & vbCrLf & _
+                                    "  元: " & Left$(f, 160) & vbCrLf & "  直し後: " & Left$(g, 160) & vbCrLf & "  理由: " & Err.Description & vbCrLf
+                                Err.Clear
+                            Else
+                                nDone = nDone + 1
+                            End If
+                            On Error GoTo Fail
                         End If
                     End If
                 Next c
@@ -102,12 +113,13 @@ Fail:
     Application.Calculation = calcMode
     Application.ScreenUpdating = True
     If Err.Number <> 0 Then
-        MsgBox "途中で失敗しました: " & Err.Description & vbCrLf & "セル: " & c.Parent.Name & "!" & c.Address(False, False), vbExclamation
+        MsgBox "途中で失敗しました: " & Err.Description, vbExclamation
     Else
         Application.Calculate
         MsgBox "変更したセル: " & nDone & vbCrLf & _
                "表示形式を「文字列」から「標準」に直したセル: " & nFmt & vbCrLf & _
-               "配列数式のため未変更: " & nSkip & vbCrLf & vbCrLf & _
+               "配列数式のため未変更: " & nSkip & vbCrLf & _
+               "書き換えに失敗したセル: " & nFail & vbCrLf & failList & vbCrLf & _
                "残っているリンク: " & RemainingLinks() & vbCrLf & _
                "(データ → リンクの編集 でも確認できます。残っていれば、他のシートや名前の定義にも同じ参照があります)", vbInformation, "外部参照パッチ"
     End If
