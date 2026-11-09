@@ -32,7 +32,7 @@ Public Sub ApplyYearPatch()
     If MsgBox("次のシートにパッチを当てます。実行前にブックを別名保存しましたか？" & vbCrLf & vbCrLf & _
               "前のシート(年度の元): " & s1.Name & vbCrLf & _
               "後ろのシート(+1年): " & s2.Name & vbCrLf & _
-              "掛金(前/後ろ): " & IIf(k1 Is Nothing, "(なし)", k1.Name) & " / " & IIf(k2 Is Nothing, "(なし)", k2.Name), _
+              "掛金(前/後ろ): " & NameOf(k1) & " / " & NameOf(k2), _
               vbOKCancel + vbQuestion, "年度パッチ") <> vbOK Then Exit Sub
 
     ' ---- 1. s1!C1 を数字にする
@@ -108,6 +108,10 @@ Fail:
 End Sub
 
 ' `(バッククォート)を " に直す(式を読みやすく書くため)
+Private Function NameOf(ByVal ws As Worksheet) As String
+    If ws Is Nothing Then NameOf = "(なし)" Else NameOf = ws.Name
+End Function
+
 Private Function Fm(ByVal s As String) As String
     Fm = Replace(s, "`", Chr(34))
 End Function
