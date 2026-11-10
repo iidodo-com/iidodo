@@ -478,10 +478,11 @@ Public Sub RefreshCameraPictures()
                 failed = failed & parts(0) & "（" & parts(1) & "番目の図）" & vbCrLf
             Else
                 pLeft = target.Left: pTop = target.Top: pWidth = target.Width: pHeight = target.Height
-                srcWs.Range(parts(3)).CopyPicture Appearance:=xlScreen, Format:=xlPicture
-                ws.Activate
-                ws.Paste
-                Set newPic = ws.Shapes(ws.Shapes.Count)
+                Set newPic = PasteRangePicture(srcWs.Range(parts(3)), ws)
+                If newPic Is Nothing Then
+                    failed = failed & parts(0) & "（" & parts(1) & "番目の図：貼り付けできませんでした）" & vbCrLf
+                    GoTo NextCam
+                End If
                 target.Delete
                 newPic.LockAspectRatio = msoFalse
                 newPic.Left = pLeft: newPic.Top = pTop: newPic.Width = pWidth: newPic.Height = pHeight
@@ -489,6 +490,7 @@ Public Sub RefreshCameraPictures()
                 newPic.Placement = xlMove
             End If
         End If
+NextCam:
     Next i
 
     Application.CutCopyMode = False
@@ -512,6 +514,33 @@ ErrHandler:
     On Error GoTo 0
     MsgBox "カメラ図の更新中にエラーが発生しました。" & vbCrLf & errMsg, vbExclamation, "カメラ図の更新"
 End Sub
+
+' 範囲を図としてコピーし、シートへ貼り付けて、その図を返す。
+' クリップボードの準備が間に合わず「データを貼り付けできません」になることがあるため、数回やり直す。
+Private Function PasteRangePicture(ByVal src As Range, ByVal ws As Worksheet) As Shape
+    Dim attempt As Long
+    Dim before As Long
+
+    ws.Activate
+    On Error Resume Next
+    ws.Range("A1").Select
+    For attempt = 1 To 8
+        Err.Clear
+        before = ws.Shapes.Count
+        Application.CutCopyMode = False
+        src.CopyPicture Appearance:=xlScreen, Format:=xlPicture
+        DoEvents
+        If attempt > 1 Then Application.Wait Now + TimeSerial(0, 0, 1)
+        ws.Paste
+        If Err.Number = 0 And ws.Shapes.Count = before + 1 Then
+            Set PasteRangePicture = ws.Shapes(ws.Shapes.Count)
+            Exit For
+        End If
+        DoEvents
+    Next attempt
+    Err.Clear
+    On Error GoTo 0
+End Function
 
 ' カメラ図の対応表： シート名|図の番号（シート内の図の順）|転記元シート|転記元の範囲
 Private Function CameraMap() As Variant
