@@ -1,10 +1,10 @@
-Attribute VB_Name = "mod概況転記"
+Attribute VB_Name = "mod標準報酬転記"
 Option Explicit
 
 ' ============================================================
-'  01 R8概況（総括）用  標準報酬等の自動転記マクロ
+'  予算書ブック（総括）用  標準報酬等の自動転記マクロ
 '   標準報酬等を転記 ... 標準報酬資料（短期・長期、当年度分と翌年度分）を選ぶと、
-'                         「2.3ｶﾒラ」「4ｶﾒラ」のF列（当年度末見込）・G列（翌年度末推計）へ転記します。
+'                         「総括_2.3ｶﾒラ」「総括_4ｶﾒラ」のF列（当年度末見込）・G列（翌年度末推計）へ転記します。
 '                         ブックは2～4個選べます（短期2＋長期2が基本。1種類だけでも可）。
 '  対象：組合員数・標準報酬月額（3月）・標準期末手当等
 '    短期資料 ... 短期組合員数、任意継続、短期の標準報酬（2.3ｶﾒラ 5・12・24・28・30・34・38・50行）、
@@ -16,13 +16,17 @@ Option Explicit
 '  ※転記の履歴（旧値・新値）はシート「転記ログ」に残します。
 ' ============================================================
 
-Private Const SH_K As String = "2.3ｶﾒラ"
-Private Const SH_M As String = "4ｶﾒラ"
+Private Const SH_K As String = "総括_2.3ｶﾒラ"
+Private Const SH_M As String = "総括_4ｶﾒラ"
 Private Const SH_LOG As String = "転記ログ"
 
 Private mLog As Worksheet
 Private mLogRow As Long
 Private mCount As Long
+
+Public Sub TransferStandardRemuneration()
+    Call 標準報酬等を転記
+End Sub
 
 Public Sub 標準報酬等を転記()
     Dim fd As FileDialog
@@ -109,7 +113,7 @@ Public Sub 標準報酬等を転記()
     If ReiwaYear(CStr(wsK.Range("F2").Value)) <> yF Or ReiwaYear(CStr(wsK.Range("G2").Value)) <> yG Then
         msg = msg & "【注意】概況シートの見出し（" & wsK.Range("F2").Value & "／" & wsK.Range("G2").Value & "）と年度が一致しません。" & vbCrLf & vbCrLf
     End If
-    msg = msg & "「2.3ｶﾒラ」「4ｶﾒラ」の該当セルを上書きします。よろしいですか？"
+    msg = msg & "「総括_2.3ｶﾒラ」「総括_4ｶﾒラ」の該当セルを上書きします。よろしいですか？"
     If MsgBox(msg, vbQuestion + vbYesNo + vbDefaultButton2, "標準報酬等の転記") <> vbYes Then GoTo Cleanup
 
     Call StartLog
