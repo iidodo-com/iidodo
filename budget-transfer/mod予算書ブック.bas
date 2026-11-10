@@ -7,7 +7,7 @@ Option Explicit
 ' PDF出力・印刷プレビュー用の一時コピー（出力後に削除）、カメラ図の更新のみ。
 ' （決算書ブックの補助マクロを、この予算書ブック向けに作り直したもの）
 
-' 手入力セルの黄色は条件付き書式で表示している。入力ガイドのこのセルが 1 のときだけ表示される。
+' 手入力セルの黄色はセルの塗りで表示し、マクロで付け外しする。入力ガイドのこのセルが 1 のとき表示。
 Private Const INPUT_COLOR_CELL As String = "E9"
 Public gInputColorSuspended As Boolean
 Public gInputColorBackup As Variant
@@ -205,46 +205,119 @@ End Sub
 
 ' ------------------------------------------------------------------------------------------
 ' 手入力セルの黄色表示 ON/OFF
-' 黄色は条件付き書式で出しており、セル本来の塗りは変更しない。画面表示用で、印刷には出さない。
+' 黄色はセルの塗り。元の塗りは入力セル一覧のH列に記録してあり、消すときに戻す。印刷には出さない。
 ' ------------------------------------------------------------------------------------------
 Public Sub ToggleInputHighlight()
     Dim ws As Worksheet
+    Dim turnOn As Boolean
+    Dim prevEvents As Boolean
 
     Set ws = GetSheet(SHEET_GUIDE)
     If ws Is Nothing Then Exit Sub
 
     On Error GoTo ErrHandler
     gInputColorSuspended = False
-    If ws.Range(INPUT_COLOR_CELL).Value = 1 Then
-        ws.Range(INPUT_COLOR_CELL).Value = 0
-        MsgBox "手入力セルの黄色表示を止めました。", vbInformation, "入力セルの黄色表示"
-    Else
-        ws.Range(INPUT_COLOR_CELL).Value = 1
+    turnOn = Not (ws.Range(INPUT_COLOR_CELL).Value = 1)
+    prevEvents = Application.EnableEvents
+    Application.EnableEvents = False
+    ws.Range(INPUT_COLOR_CELL).Value = IIf(turnOn, 1, 0)
+    Application.EnableEvents = prevEvents
+    Call ApplyInputColor(turnOn)
+    If turnOn Then
         MsgBox "手入力セルを黄色で表示します。" & vbCrLf & _
-               "黄色は画面表示用で、印刷・PDF出力・印刷プレビューには出ません。", _
+               "黄色は画面表示用で、印刷・PDF出力・印刷プレビューの前に自動で消えます。", _
                vbInformation, "入力セルの黄色表示"
+    Else
+        MsgBox "手入力セルの黄色表示を止めました。", vbInformation, "入力セルの黄色表示"
     End If
     Exit Sub
 
 ErrHandler:
+    Application.EnableEvents = True
     MsgBox "黄色表示を切り替えられませんでした。" & vbCrLf & _
            "「" & SHEET_GUIDE & "」シートが保護されている場合は保護を解除してください。", vbExclamation
+End Sub
+
+' 手入力セル（入力セル一覧に載っているセル）を黄色に塗る／元の塗りに戻す。
+' 元の塗りは入力セル一覧のH列（-1＝塗りなし、0以上＝色）に記録してある。数式が入ったセルは黄色にしない。
+Public Sub ApplyInputColor(ByVal turnOn As Boolean)
+    Dim wsList As Worksheet
+    Dim ws As Worksheet
+    Dim r As Long
+    Dim lastRow As Long
+    Dim curName As String
+    Dim sName As String
+    Dim addr As String
+    Dim c As Range
+    Dim orig As Variant
+    Dim prevScreen As Boolean
+    Dim prevEvents As Boolean
+
+    Set wsList = GetSheet(SHEET_LIST)
+    If wsList Is Nothing Then Exit Sub
+
+    prevScreen = Application.ScreenUpdating
+    prevEvents = Application.EnableEvents
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    On Error Resume Next
+    lastRow = ListLastRow()
+    For r = LIST_FIRST_ROW To lastRow
+        sName = CStr(wsList.Cells(r, 2).Value)
+        If sName <> curName Then
+            Set ws = Nothing
+            Set ws = GetSheet(sName)
+            curName = sName
+        End If
+        If Not ws Is Nothing Then
+            addr = ListAddr(wsList, r)
+            If Len(addr) > 0 Then
+                Set c = Nothing
+                Set c = ws.Range(addr)
+                If Not c Is Nothing Then
+                    If turnOn And Not c.HasFormula Then
+                        c.Interior.Color = vbYellow
+                    Else
+                        orig = wsList.Cells(r, 8).Value
+                        If IsNumeric(orig) And Not IsEmpty(orig) Then
+                            If CLng(orig) >= 0 Then
+                                c.Interior.Color = CLng(orig)
+                            Else
+                                c.Interior.ColorIndex = xlNone
+                            End If
+                        Else
+                            c.Interior.ColorIndex = xlNone
+                        End If
+                    End If
+                End If
+            End If
+        End If
+    Next r
+    Err.Clear
+    On Error GoTo 0
+    Application.EnableEvents = prevEvents
+    Application.ScreenUpdating = prevScreen
 End Sub
 
 ' 印刷・PDF出力の前に黄色表示を止める（止める前の値を覚えておく）
 Public Sub SuspendInputColor()
     Dim ws As Worksheet
+    Dim prevEvents As Boolean
 
     If gInputColorSuspended Then Exit Sub
     Set ws = GetSheet(SHEET_GUIDE)
     If ws Is Nothing Then Exit Sub
 
-    On Error Resume Next
     gInputColorBackup = ws.Range(INPUT_COLOR_CELL).Value
+    If Not (gInputColorBackup = 1) Then Exit Sub     ' もともと非表示なら何もしない
+    prevEvents = Application.EnableEvents
+    Application.EnableEvents = False
+    On Error Resume Next
     ws.Range(INPUT_COLOR_CELL).Value = 0
-    If Err.Number = 0 Then gInputColorSuspended = True
-    Err.Clear
     On Error GoTo 0
+    Application.EnableEvents = prevEvents
+    Call ApplyInputColor(False)
+    gInputColorSuspended = True
 End Sub
 
 ' 黄色表示を元に戻す
@@ -263,6 +336,7 @@ Public Sub ResumeInputColor()
     ws.Range(INPUT_COLOR_CELL).Value = gInputColorBackup
     On Error GoTo 0
     Application.EnableEvents = prevEvents
+    Call ApplyInputColor(True)
 End Sub
 
 ' ------------------------------------------------------------------------------------------
@@ -276,24 +350,30 @@ Private Function ListLastRow() As Long
     If ListLastRow < LIST_FIRST_ROW Then ListLastRow = LIST_FIRST_ROW
 End Function
 
-Private Function GetTargetCellFromListRow(ByVal wsList As Worksheet, ByVal rowNum As Long) As Range
-    Dim sName As String
+' 入力セル一覧の行のセル番地（C列のHYPERLINK式の「!」から次の「"」まで）
+Private Function ListAddr(ByVal wsList As Worksheet, ByVal rowNum As Long) As String
     Dim fText As String
-    Dim cAddr As String
     Dim p1 As Long
     Dim p2 As Long
 
     On Error Resume Next
-    sName = Trim$(CStr(wsList.Cells(rowNum, 2).Value))
     fText = wsList.Cells(rowNum, 3).Formula
+    On Error GoTo 0
     p1 = InStr(fText, "!")
     If p1 > 0 Then
         p2 = InStr(p1, fText, """")
-        If p2 > p1 Then
-            cAddr = Mid$(fText, p1 + 1, p2 - p1 - 1)
-            Set GetTargetCellFromListRow = ThisWorkbook.Worksheets(sName).Range(cAddr)
-        End If
+        If p2 > p1 Then ListAddr = Mid$(fText, p1 + 1, p2 - p1 - 1)
     End If
+End Function
+
+Private Function GetTargetCellFromListRow(ByVal wsList As Worksheet, ByVal rowNum As Long) As Range
+    Dim sName As String
+    Dim cAddr As String
+
+    On Error Resume Next
+    sName = Trim$(CStr(wsList.Cells(rowNum, 2).Value))
+    cAddr = ListAddr(wsList, rowNum)
+    If Len(cAddr) > 0 Then Set GetTargetCellFromListRow = ThisWorkbook.Worksheets(sName).Range(cAddr)
     On Error GoTo 0
 End Function
 
@@ -341,8 +421,8 @@ End Sub
 
 ' ------------------------------------------------------------------------------------------
 ' カメラ図の更新
-' 概況ページの表は、カメラ元表の範囲を図で表示している。リンクされた図（カメラ）は自動で更新されるが、
-' 図が静止画になっていた場合は、リンクされた図として作り直す。
+' 概況ページの表は、カメラ元表の範囲を撮った図（静止画）。元表から撮り直して差し替える。
+' （リンクした図のままだとExcelが応答しなくなるため、静止画にしている）
 ' ------------------------------------------------------------------------------------------
 Public Sub RefreshCameraPictures()
     Dim m As Variant
@@ -351,69 +431,86 @@ Public Sub RefreshCameraPictures()
     Dim ws As Worksheet
     Dim srcWs As Worksheet
     Dim shp As Shape
-    Dim cnt As Long
-    Dim k As Long
     Dim target As Shape
-    Dim L As Double, T As Double, W As Double, H As Double
-    Dim pic As Object
-    Dim fixedCount As Long
+    Dim newPic As Shape
+    Dim pLeft As Double, pTop As Double, pWidth As Double, pHeight As Double
+    Dim camName As String
     Dim failed As String
     Dim prevSheet As Object
-    Dim prevCalc As Boolean
+    Dim prevScreen As Boolean
+    Dim prevEvents As Boolean
+    Dim suspendedHere As Boolean
 
     m = CameraMap()
     Set prevSheet = ActiveSheet
-    prevCalc = Application.ScreenUpdating
+    prevScreen = Application.ScreenUpdating
+    prevEvents = Application.EnableEvents
     Application.ScreenUpdating = False
-    On Error GoTo ErrHandler
+    Application.EnableEvents = False
 
+    ' 図に黄色が写らないよう、撮る間だけ黄色表示を止める
+    If Not gInputColorSuspended Then
+        Call SuspendInputColor
+        suspendedHere = gInputColorSuspended
+    End If
+
+    On Error GoTo ErrHandler
     For i = LBound(m) To UBound(m)
         parts = Split(CStr(m(i)), "|")
         Set ws = GetSheet(parts(0))
         Set srcWs = GetSheet(parts(2))
         If Not ws Is Nothing And Not srcWs Is Nothing Then
-            k = 0
+            camName = "Cam_" & parts(1)
             Set target = Nothing
-            For Each shp In ws.Shapes
-                If shp.Type = msoLinkedPicture Or shp.Type = msoPicture Then
-                    k = k + 1
-                    If k = CLng(parts(1)) Then
+            On Error Resume Next
+            Set target = ws.Shapes(camName)
+            On Error GoTo ErrHandler
+            If target Is Nothing Then
+                ' 名前のない図は、まだ更新していない図のうち最初のものを使う
+                For Each shp In ws.Shapes
+                    If (shp.Type = msoPicture Or shp.Type = msoLinkedPicture) And Left$(shp.Name, 4) <> "Cam_" Then
                         Set target = shp
                         Exit For
                     End If
-                End If
-            Next shp
-            If Not target Is Nothing Then
-                If target.Type = msoLinkedPicture Then
-                    target.DrawingObject.Formula = "='" & parts(2) & "'!" & parts(3)
-                Else
-                    L = target.Left: T = target.Top: W = target.Width: H = target.Height
-                    srcWs.Range(parts(3)).Copy
-                    ws.Activate
-                    Set pic = ws.Pictures.Paste(True)
-                    pic.Left = L: pic.Top = T: pic.Width = W: pic.Height = H
-                    target.Delete
-                    Application.CutCopyMode = False
-                    fixedCount = fixedCount + 1
-                End If
-                cnt = cnt + 1
-            Else
+                Next shp
+            End If
+            If target Is Nothing Then
                 failed = failed & parts(0) & "（" & parts(1) & "番目の図）" & vbCrLf
+            Else
+                pLeft = target.Left: pTop = target.Top: pWidth = target.Width: pHeight = target.Height
+                srcWs.Range(parts(3)).CopyPicture Appearance:=xlScreen, Format:=xlPicture
+                ws.Activate
+                ws.Paste
+                Set newPic = ws.Shapes(ws.Shapes.Count)
+                target.Delete
+                newPic.LockAspectRatio = msoFalse
+                newPic.Left = pLeft: newPic.Top = pTop: newPic.Width = pWidth: newPic.Height = pHeight
+                newPic.Name = camName
+                newPic.Placement = xlMove
             End If
         End If
     Next i
 
+    Application.CutCopyMode = False
     prevSheet.Activate
-    Application.ScreenUpdating = prevCalc
+    If suspendedHere Then Call ResumeInputColor
+    Application.EnableEvents = prevEvents
+    Application.ScreenUpdating = prevScreen
     If Len(failed) > 0 Then
         MsgBox "更新できなかった図があります。" & vbCrLf & failed, vbExclamation, "カメラ図の更新"
     End If
     Exit Sub
 
 ErrHandler:
+    Dim errMsg As String
+    errMsg = Err.Description
+    On Error Resume Next
     Application.CutCopyMode = False
+    If suspendedHere Then Call ResumeInputColor
+    Application.EnableEvents = prevEvents
     Application.ScreenUpdating = True
-    MsgBox "カメラ図の更新中にエラーが発生しました。" & vbCrLf & Err.Description, vbExclamation, "カメラ図の更新"
+    On Error GoTo 0
+    MsgBox "カメラ図の更新中にエラーが発生しました。" & vbCrLf & errMsg, vbExclamation, "カメラ図の更新"
 End Sub
 
 ' カメラ図の対応表： シート名|図の番号（シート内の図の順）|転記元シート|転記元の範囲
@@ -720,12 +817,11 @@ End Sub
 
 ' ------------------------------------------------------------------------------------------
 ' シート保護 ON/OFF（手入力セル以外を編集不可にする。パスワードなし）
-' 数値の手入力セル＝黄色表示の条件付き書式の対象セル。文字だけの入力欄は保護中は編集できない。
+' 数値の手入力セル＝入力セル一覧に載っているセル。文字だけの入力欄は保護中は編集できない。
 ' ------------------------------------------------------------------------------------------
 Public Sub ToggleSheetProtection()
     Dim wsGuide As Worksheet
     Dim ws As Worksheet
-    Dim fc As Object
     Dim ans As VbMsgBoxResult
 
     Set wsGuide = GetSheet(SHEET_GUIDE)
@@ -767,15 +863,16 @@ Public Sub ToggleSheetProtection()
 
     wsGuide.Range(INPUT_COLOR_CELL).Locked = False
     wsGuide.Range(ENTER_JUMP_CELL).Locked = False
-    For Each ws In ThisWorkbook.Worksheets
-        If IsInputFormSheet(ws) Then
-            For Each fc In ws.Cells.FormatConditions
-                If fc.Type = xlExpression Then
-                    If InStr(fc.Formula1, "ISFORMULA") > 0 Then fc.AppliesTo.Locked = False
-                End If
-            Next fc
-        End If
-    Next ws
+    Dim wsList As Worksheet
+    Dim r As Long
+    Dim target As Range
+    Set wsList = GetSheet(SHEET_LIST)
+    If Not wsList Is Nothing Then
+        For r = LIST_FIRST_ROW To ListLastRow()
+            Set target = GetTargetCellFromListRow(wsList, r)
+            If Not target Is Nothing Then target.MergeArea.Locked = False
+        Next r
+    End If
 
     For Each ws In ThisWorkbook.Worksheets
         ws.Protect DrawingObjects:=False, Contents:=True, Scenarios:=True, _
@@ -866,7 +963,10 @@ End Sub
 
 ' 手入力セルの一覧を作る（タブの順に、各シートの黄色表示の対象セルを上から下・左から右の順に）
 Public Sub BuildInputOrder()
-    Dim ws As Worksheet
+    Dim wsList As Worksheet
+    Dim r As Long
+    Dim lastRow As Long
+    Dim addr As String
     Dim g As Variant
 
     mInCount = 0
@@ -879,70 +979,19 @@ Public Sub BuildInputOrder()
         Call AddInput(SHEET_GUIDE, CStr(g))
     Next g
 
-    ' 2. 帳票シート（タブの順）
-    For Each ws In ThisWorkbook.Worksheets
-        If IsInputFormSheet(ws) Then Call AddSheetInputs(ws)
-    Next ws
+    ' 2. 入力セル一覧の順（タブの順、各シートは上から下・左から右）
+    Set wsList = GetSheet(SHEET_LIST)
+    If wsList Is Nothing Then Exit Sub
+    lastRow = ListLastRow()
+    For r = LIST_FIRST_ROW To lastRow
+        addr = ListAddr(wsList, r)
+        If Len(addr) > 0 Then Call AddInput(CStr(wsList.Cells(r, 2).Value), addr)
+    Next r
 End Sub
 
-' 手入力セルを持つシートか（管理用シートは除く）
-Private Function IsInputFormSheet(ByVal ws As Worksheet) As Boolean
-    Select Case ws.Name
-        Case SHEET_GUIDE, SHEET_LIST, SHEET_CHECK
-            IsInputFormSheet = False
-        Case Else
-            IsInputFormSheet = (ws.Visible = xlSheetVisible)
-    End Select
-End Function
 
-' シートの「黄色表示」の条件付き書式（数式でないセルだけに適用）の対象セルを、並べて登録する
-Private Sub AddSheetInputs(ByVal ws As Worksheet)
-    Dim fc As Object
-    Dim c As Range
-    Dim keys() As Long
-    Dim n As Long
-    Dim i As Long
-    Dim j As Long
-    Dim tmp As Long
-    Dim dup As Boolean
 
-    ReDim keys(1 To 5000)
-    On Error Resume Next
-    For Each fc In ws.Cells.FormatConditions
-        If fc.Type = xlExpression Then
-            If InStr(fc.Formula1, "ISFORMULA") > 0 Then
-                For Each c In fc.AppliesTo.Cells
-                    If n < 5000 Then
-                        n = n + 1
-                        keys(n) = c.Row * 1000& + c.Column
-                    End If
-                Next c
-            End If
-        End If
-    Next fc
-    On Error GoTo 0
-    If n = 0 Then Exit Sub
 
-    ' 行→列の順に並べ替え（挿入ソート）
-    For i = 2 To n
-        tmp = keys(i)
-        j = i - 1
-        Do While j >= 1
-            If keys(j) <= tmp Then Exit Do
-            keys(j + 1) = keys(j)
-            j = j - 1
-        Loop
-        keys(j + 1) = tmp
-    Next i
-
-    For i = 1 To n
-        dup = False
-        If i > 1 Then dup = (keys(i) = keys(i - 1))
-        If Not dup Then
-            Call AddInput(ws.Name, ws.Cells(keys(i) \ 1000&, keys(i) Mod 1000&).Address(False, False))
-        End If
-    Next i
-End Sub
 
 Private Sub AddInput(ByVal sName As String, ByVal addr As String)
     If mInCount >= 20000 Then Exit Sub
@@ -1063,6 +1112,15 @@ End Sub
 ' Enter で確定した場合は、Excel が動かしたあとで次の手入力セルへ移動する。
 Public Sub OnInputCellChanged(ByVal Target As Range)
     Dim cell As Range
+
+    ' 入力ガイドの E9（黄色表示）・G9（Enter移動）を手で変えたとき
+    If Target.Worksheet.Name = SHEET_GUIDE Then
+        If Not Intersect(Target, Target.Worksheet.Range(INPUT_COLOR_CELL)) Is Nothing Then
+            gInputColorSuspended = False
+            Call ApplyInputColor(Target.Worksheet.Range(INPUT_COLOR_CELL).Value = 1)
+        End If
+        If Not Intersect(Target, Target.Worksheet.Range(ENTER_JUMP_CELL)) Is Nothing Then Call EnableEnterKey
+    End If
 
     If Not EnterJumpEnabled() Then Exit Sub
     Set cell = Target.Cells(1, 1)
