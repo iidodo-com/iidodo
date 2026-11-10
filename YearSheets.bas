@@ -5,6 +5,7 @@ Option Explicit
 '   最初の「R数字長期」(または「R数字短期」)シートのC1の数字 N を読み、
 '   前のシート=R(N)、後ろのシート=R(N+1) にする。掛金のシート(R数字長期掛金 / R数字掛金（短期）)も同じ。
 ' シート名を変えると、他シートの数式・印刷範囲は Excel が自動で追従する。
+' 実行時の確認・完了のポップアップは出さない(エラーのときだけ表示する)。
 Public Sub ChangeYearSheets()
     Dim s1 As Worksheet, s2 As Worksheet, k1 As Worksheet, k2 As Worksheet
     Dim sfx As String, ksfx As String, n As Long, plan As String
@@ -28,18 +29,12 @@ Public Sub ChangeYearSheets()
 
     plan = PlanLine(s1, "R" & n & sfx) & PlanLine(s2, "R" & (n + 1) & sfx) & _
            PlanLine(k1, "R" & n & ksfx) & PlanLine(k2, "R" & (n + 1) & ksfx)
-    If Len(plan) = 0 Then
-        MsgBox "すでに C1(令和" & n & "年度)と同じ名前です。変更はありません。", vbInformation
-        Exit Sub
-    End If
+    If Len(plan) = 0 Then Exit Sub                     ' すでに合っているときは何もしない
     If NameClash(s1, s2, k1, k2, n, sfx, ksfx) Then Exit Sub
-    If MsgBox("C1 = 令和" & n & "年度 に合わせて、シート名を次のように変更します。" & vbCrLf & vbCrLf & plan, _
-              vbOKCancel + vbQuestion, "年度を変更(シート名)") <> vbOK Then Exit Sub
 
     On Error GoTo Fail
     SetPair s1, s2, n, sfx
     SetPair k1, k2, n, ksfx
-    MsgBox "シート名を変更しました。" & vbCrLf & vbCrLf & plan, vbInformation, "年度を変更(シート名)"
     Exit Sub
 Fail:
     MsgBox "シート名の変更に失敗しました: " & Err.Description & vbCrLf & _
