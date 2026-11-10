@@ -3,12 +3,16 @@ Option Explicit
 
 ' ============================================================
 '  01 R8概況（総括）用  標準報酬等の自動転記マクロ
-'   標準報酬等を転記 ... 短期の標準報酬資料（Book5＝当年度、Book6＝翌年度）を
-'                         2つ選ぶと、「2.3ｶﾒラ」「4ｶﾒラ」のF列（当年度末見込）・
-'                         G列（翌年度末推計）へ転記します。
-'  対象：組合員数・標準報酬月額（3月）・標準期末手当等（短期）
-'  ※長期（一般組合員・継続長期など）、後期高齢者等短期、被扶養者数は資料にないため対象外です。
-'    短期組合員（5行・30行）は、同じ列の後期高齢者等短期組合員（8行・40行）の現在値を除いて転記します。
+'   標準報酬等を転記 ... 標準報酬資料（短期・長期、当年度分と翌年度分）を選ぶと、
+'                         「2.3ｶﾒラ」「4ｶﾒラ」のF列（当年度末見込）・G列（翌年度末推計）へ転記します。
+'                         ブックは2～4個選べます（短期2＋長期2が基本。1種類だけでも可）。
+'  対象：組合員数・標準報酬月額（3月）・標準期末手当等
+'    短期資料 ... 短期組合員数、任意継続、短期の標準報酬（2.3ｶﾒラ 5・12・24・28・30・34・38・50行）、
+'                 短期の標準期末手当等（4ｶﾒラ 4・8・10・14・18行）
+'    長期資料 ... 一般・特別職・市長・特定消防・継続長期の組合員数（2.3ｶﾒラ 3・4・6・7・9行）、
+'                 長期の標準報酬（2.3ｶﾒラ 22・26・32・36・42行）、長期の標準期末手当等（4ｶﾒラ 2・6・12・16・22行）
+'  ※後期高齢者等短期組合員（8・40行・4ｶﾒラ20行）と被扶養者数は資料にないため対象外です。
+'    短期組合員（5・30行・4ｶﾒラ10行）は、同じ列の後期高齢者等の現在値を除いて転記します。
 '  ※転記の履歴（旧値・新値）はシート「転記ログ」に残します。
 ' ============================================================
 
@@ -22,13 +26,15 @@ Private mCount As Long
 
 Public Sub 標準報酬等を転記()
     Dim fd As FileDialog
-    Dim fn1 As String, fn2 As String
-    Dim wb1 As Workbook, wb2 As Workbook
-    Dim open1 As Boolean, open2 As Boolean
-    Dim ws1 As Worksheet, ws2 As Worksheet, wsK As Worksheet, wsM As Worksheet
-    Dim y1 As Long, y2 As Long, yF As Long, yG As Long
-    Dim msg As String
-    Dim tmp As Worksheet
+    Dim n As Long, i As Long, j As Long
+    Dim wbs(1 To 4) As Workbook
+    Dim opened(1 To 4) As Boolean
+    Dim wss(1 To 4) As Worksheet
+    Dim kind(1 To 4) As String
+    Dim yr(1 To 4) As Long
+    Dim yF As Long, yG As Long
+    Dim wsK As Worksheet, wsM As Worksheet
+    Dim msg As String, col As String
 
     mCount = 0
     Set wsK = SheetOf(ThisWorkbook, SH_K)
@@ -40,67 +46,94 @@ Public Sub 標準報酬等を転記()
 
     Set fd = Application.FileDialog(msoFileDialogFilePicker)
     With fd
-        .Title = "短期の標準報酬資料を2つ選んでください（Ctrlキーを押しながらクリック：当年度分と翌年度分）"
+        .Title = "標準報酬資料を選んでください（Ctrlキーを押しながらクリック：短期・長期の当年度分と翌年度分）"
         .AllowMultiSelect = True
         .Filters.Clear
         .Filters.Add "Excelブック", "*.xlsx;*.xlsm;*.xls;*.xlsb"
         If .Show <> -1 Then Exit Sub
-        If .SelectedItems.Count <> 2 Then
-            MsgBox "ブックを2つ選んでください（当年度分と翌年度分）。", vbExclamation
+        n = .SelectedItems.Count
+        If n < 2 Or n > 4 Then
+            MsgBox "ブックを2～4個選んでください。", vbExclamation
             Exit Sub
         End If
-        fn1 = .SelectedItems(1)
-        fn2 = .SelectedItems(2)
+        On Error GoTo ErrHandler
+        Application.ScreenUpdating = False
+        For i = 1 To n
+            Set wbs(i) = OpenReadOnly(.SelectedItems(i), opened(i))
+        Next i
     End With
 
-    On Error GoTo ErrHandler
-    Application.ScreenUpdating = False
-    Set wb1 = OpenReadOnly(fn1, open1)
-    Set wb2 = OpenReadOnly(fn2, open2)
-    Set ws1 = wb1.Worksheets(1)
-    Set ws2 = wb2.Worksheets(1)
+    For i = 1 To n
+        Set wss(i) = wbs(i).Worksheets(1)
+        If IsTanki(wss(i)) Then
+            kind(i) = "短期"
+        ElseIf IsChoki(wss(i)) Then
+            kind(i) = "長期"
+        Else
+            MsgBox "標準報酬資料の形式ではありません：" & wbs(i).Name & vbCrLf & _
+                   "（E1に「短期人数」または「長期人数」、Y2／U2に「標準期末手当」がある形式）", vbExclamation
+            GoTo Cleanup
+        End If
+        yr(i) = CLng(Val(wss(i).Range("C1").Value))
+    Next i
 
-    If Not IsTanki(ws1) Or Not IsTanki(ws2) Then
-        MsgBox "短期の標準報酬資料（E1に「短期人数・標準報酬等」、Y2に「標準期末手当等総額」がある形式）を選んでください。", vbExclamation
+    ' 年度は2種類まで。小さい方を当年度（F列）、大きい方を翌年度（G列）
+    yF = yr(1): yG = yr(1)
+    For i = 2 To n
+        If yr(i) < yF Then yF = yr(i)
+        If yr(i) > yG Then yG = yr(i)
+    Next i
+    If yF = yG Or yF = 0 Then
+        MsgBox "年度（各ブックのC1）が1種類しかない、または数値ではありません。当年度分と翌年度分を選んでください。", vbExclamation
         GoTo Cleanup
     End If
-    y1 = CLng(Val(ws1.Range("C1").Value))
-    y2 = CLng(Val(ws2.Range("C1").Value))
-    If y1 = y2 Or y1 = 0 Or y2 = 0 Then
-        MsgBox "2つのブックのC1（年度）が同じ、または数値ではありません。（" & y1 & "／" & y2 & "）", vbExclamation
-        GoTo Cleanup
-    End If
-    ' 年度の小さい方を当年度（F列）、大きい方を翌年度（G列）とする
-    If y1 > y2 Then
-        Set tmp = ws1: Set ws1 = ws2: Set ws2 = tmp
-        yF = y2: yG = y1
-    Else
-        yF = y1: yG = y2
-    End If
+    For i = 1 To n
+        If yr(i) <> yF And yr(i) <> yG Then
+            MsgBox "年度が3種類以上あります（令和" & yr(i) & "年度：" & wbs(i).Name & "）。", vbExclamation
+            GoTo Cleanup
+        End If
+        For j = i + 1 To n
+            If kind(i) = kind(j) And yr(i) = yr(j) Then
+                MsgBox "同じ種類・同じ年度のブックが重複しています：" & wbs(i).Name & "／" & wbs(j).Name, vbExclamation
+                GoTo Cleanup
+            End If
+        Next j
+    Next i
 
-    msg = "F列（令和" & yF & "年度末見込）← " & ws1.Parent.Name & vbCrLf & _
-          "G列（令和" & yG & "年度末推計）← " & ws2.Parent.Name & vbCrLf & vbCrLf
+    msg = ""
+    For i = 1 To n
+        If yr(i) = yF Then col = "F" Else col = "G"
+        msg = msg & col & "列 ← " & kind(i) & "（令和" & yr(i) & "年度）" & wbs(i).Name & vbCrLf
+    Next i
+    msg = msg & vbCrLf
     If ReiwaYear(CStr(wsK.Range("F2").Value)) <> yF Or ReiwaYear(CStr(wsK.Range("G2").Value)) <> yG Then
         msg = msg & "【注意】概況シートの見出し（" & wsK.Range("F2").Value & "／" & wsK.Range("G2").Value & "）と年度が一致しません。" & vbCrLf & vbCrLf
     End If
-    msg = msg & "「2.3ｶﾒラ」「4ｶﾒラ」の短期の組合員数・標準報酬・標準期末手当等を上書きします。よろしいですか？"
+    msg = msg & "「2.3ｶﾒラ」「4ｶﾒラ」の該当セルを上書きします。よろしいですか？"
     If MsgBox(msg, vbQuestion + vbYesNo + vbDefaultButton2, "標準報酬等の転記") <> vbYes Then GoTo Cleanup
 
     Call StartLog
-    Call Apply(ws1, "F", wsK, wsM)
-    Call Apply(ws2, "G", wsK, wsM)
+    For i = 1 To n
+        If yr(i) = yF Then col = "F" Else col = "G"
+        If kind(i) = "短期" Then
+            Call ApplyTanki(wss(i), col, wsK, wsM)
+        Else
+            Call ApplyChoki(wss(i), col, wsK, wsM)
+        End If
+    Next i
     Application.Calculate
 
 Cleanup:
     On Error Resume Next
-    If open1 Then wb1.Close SaveChanges:=False
-    If open2 Then wb2.Close SaveChanges:=False
+    For i = 1 To 4
+        If opened(i) Then wbs(i).Close SaveChanges:=False
+    Next i
     Application.EnableEvents = True
     Application.ScreenUpdating = True
     On Error GoTo 0
     If mCount > 0 Then
         MsgBox "転記しました（" & mCount & "セル）。" & vbCrLf & _
-               "長期・後期高齢者等短期・被扶養者数は変更していません。" & vbCrLf & _
+               "後期高齢者等短期組合員・被扶養者数は変更していません。" & vbCrLf & _
                "履歴はシート「" & SH_LOG & "」に残しています。", vbInformation, "標準報酬等の転記"
         mCount = 0
     End If
@@ -111,37 +144,36 @@ ErrHandler:
     Resume Cleanup
 End Sub
 
-' 標準報酬資料1つ分を、概況シートの指定列（"F" または "G"）へ転記する
-Private Sub Apply(ByVal s As Worksheet, ByVal col As String, ByVal wsK As Worksheet, ByVal wsM As Worksheet)
-    Dim r3 As Long, r As Long, rr As Long
-    Dim gen As Double, tok As Double, tan As Double
-
-    ' 3月の行（B列が「3月」の最初の行）
+' 3月の行（B列が「3月」の最初の行）
+Private Function Row3gatsu(ByVal s As Worksheet) As Long
+    Dim r As Long
     For r = 5 To 30
         If Trim$(CStr(s.Cells(r, 2).Value)) = "3月" Then
-            r3 = r
-            Exit For
+            Row3gatsu = r
+            Exit Function
         End If
     Next r
-    If r3 = 0 Then Err.Raise vbObjectError + 1, , "標準報酬資料の3月の行が見つかりません（" & s.Parent.Name & "）"
+    Err.Raise vbObjectError + 1, , "標準報酬資料の3月の行が見つかりません（" & s.Parent.Name & "）"
+End Function
+
+' 短期の標準報酬資料1つ分を、概況シートの指定列（"F" または "G"）へ転記する
+Private Sub ApplyTanki(ByVal s As Worksheet, ByVal col As String, ByVal wsK As Worksheet, ByVal wsM As Worksheet)
+    Dim r3 As Long, r As Long, rr As Long
+    Dim nm As String
+    nm = s.Parent.Name
+    r3 = Row3gatsu(s)
 
     ' ---- 2.3ｶﾒラ  組合員数（3月末、人）
-    gen = Nv(s, r3, 5) + Nv(s, r3, 7) + Nv(s, r3, 9) + Nv(s, r3, 11) + Nv(s, r3, 13)
-    tok = Nv(s, r3, 11) + Nv(s, r3, 13)
-    Call PutVal(wsK, col & "3", gen, s.Parent.Name & " 3月 一般組合員（専従・病院・その他・特別職）")
-    Call PutVal(wsK, col & "4", tok, s.Parent.Name & " 3月 うち特別職")
-    Call PutVal(wsK, col & "5", Nv(s, r3, 17) + Nv(s, r3, 19) - NumOf(wsK.Range(col & "8").Value), s.Parent.Name & " 3月 短期組合員（病院＋病院以外）－後期高齢者等(" & col & "8)")
-    Call PutVal(wsK, col & "6", Nv(s, r3, 15), s.Parent.Name & " 3月 市長組合員")
-    Call PutVal(wsK, col & "7", Nv(s, r3, 21), s.Parent.Name & " 3月 特定消防組合員")
-    Call PutVal(wsK, col & "12", Nv(s, r3, 23), s.Parent.Name & " 3月 任意継続組合員")
+    Call PutVal(wsK, col & "5", Nv(s, r3, 17) + Nv(s, r3, 19) - NumOf(wsK.Range(col & "8").Value), nm & " 3月 短期組合員（病院＋病院以外）－後期高齢者等(" & col & "8)")
+    Call PutVal(wsK, col & "12", Nv(s, r3, 23), nm & " 3月 任意継続組合員")
 
     ' ---- 2.3ｶﾒラ  標準報酬月額総額（3月、千円）短期
-    Call PutVal(wsK, col & "24", Th(Nv(s, r3, 6) + Nv(s, r3, 8) + Nv(s, r3, 10) + Nv(s, r3, 12) + Nv(s, r3, 14)), s.Parent.Name & " 3月 一般組合員 標準報酬(短期)")
-    Call PutVal(wsK, col & "28", Th(Nv(s, r3, 12) + Nv(s, r3, 14)), s.Parent.Name & " 3月 うち特別職 標準報酬(短期)")
-    Call PutVal(wsK, col & "30", Th(Nv(s, r3, 18) + Nv(s, r3, 20)) - NumOf(wsK.Range(col & "40").Value), s.Parent.Name & " 3月 短期組合員 標準報酬－後期高齢者等(" & col & "40)")
-    Call PutVal(wsK, col & "34", Th(Nv(s, r3, 16)), s.Parent.Name & " 3月 市長組合員 標準報酬(短期)")
-    Call PutVal(wsK, col & "38", Th(Nv(s, r3, 22)), s.Parent.Name & " 3月 特定消防組合員 標準報酬(短期)")
-    Call PutVal(wsK, col & "50", Th(Nv(s, r3, 24)), s.Parent.Name & " 3月 任意継続組合員 標準報酬")
+    Call PutVal(wsK, col & "24", Th(Nv(s, r3, 6) + Nv(s, r3, 8) + Nv(s, r3, 10) + Nv(s, r3, 12) + Nv(s, r3, 14)), nm & " 3月 一般組合員 標準報酬(短期)")
+    Call PutVal(wsK, col & "28", Th(Nv(s, r3, 12) + Nv(s, r3, 14)), nm & " 3月 うち特別職 標準報酬(短期)")
+    Call PutVal(wsK, col & "30", Th(Nv(s, r3, 18) + Nv(s, r3, 20)) - NumOf(wsK.Range(col & "40").Value), nm & " 3月 短期組合員 標準報酬－後期高齢者等(" & col & "40)")
+    Call PutVal(wsK, col & "34", Th(Nv(s, r3, 16)), nm & " 3月 市長組合員 標準報酬(短期)")
+    Call PutVal(wsK, col & "38", Th(Nv(s, r3, 22)), nm & " 3月 特定消防組合員 標準報酬(短期)")
+    Call PutVal(wsK, col & "50", Th(Nv(s, r3, 24)), nm & " 3月 任意継続組合員 標準報酬")
 
     ' ---- 4ｶﾒラ  標準期末手当等の年間総額（千円）短期（資料の17行目）
     rr = 0
@@ -151,17 +183,53 @@ Private Sub Apply(ByVal s As Worksheet, ByVal col As String, ByVal wsK As Worksh
             Exit For
         End If
     Next r
-    If rr = 0 Then Err.Raise vbObjectError + 2, , "「予算書用一般」の行が見つかりません（" & s.Parent.Name & "）"
-    Call PutVal(wsM, col & "4", Th(Nv(s, rr, 30)), s.Parent.Name & " 予算書用一般（標準期末手当等 年間）")
-    Call PutVal(wsM, col & "8", Th(Nv(s, 17, 29) + Nv(s, 17, 30)), s.Parent.Name & " 特別職（病院理事長等＋病院以外）")
-    ' 短期組合員は後期高齢者等短期組合員（同じ列の20行目）を除いた額
-    Call PutVal(wsM, col & "10", Th(Nv(s, 17, 31)) - NumOf(wsM.Range(col & "20").Value), s.Parent.Name & " 短期組合員 － 後期高齢者等(" & col & "20)")
-    Call PutVal(wsM, col & "14", Th(Nv(s, 17, 32)), s.Parent.Name & " 市長組合員")
-    Call PutVal(wsM, col & "18", Th(Nv(s, 17, 33)), s.Parent.Name & " 特定消防組合員")
+    If rr = 0 Then Err.Raise vbObjectError + 2, , "「予算書用一般」の行が見つかりません（" & nm & "）"
+    Call PutVal(wsM, col & "4", Th(Nv(s, rr, 30)), nm & " 予算書用一般（標準期末手当等 年間）")
+    Call PutVal(wsM, col & "8", Th(Nv(s, 17, 29) + Nv(s, 17, 30)), nm & " 特別職（病院理事長等＋病院以外）")
+    Call PutVal(wsM, col & "10", Th(Nv(s, 17, 31)) - NumOf(wsM.Range(col & "20").Value), nm & " 短期組合員 － 後期高齢者等(" & col & "20)")
+    Call PutVal(wsM, col & "14", Th(Nv(s, 17, 32)), nm & " 市長組合員")
+    Call PutVal(wsM, col & "18", Th(Nv(s, 17, 33)), nm & " 特定消防組合員")
+End Sub
+
+' 長期の標準報酬資料1つ分を、概況シートの指定列（"F" または "G"）へ転記する
+Private Sub ApplyChoki(ByVal s As Worksheet, ByVal col As String, ByVal wsK As Worksheet, ByVal wsM As Worksheet)
+    Dim r3 As Long, cnt As Double
+    Dim nm As String, helper As String
+    nm = s.Parent.Name
+    r3 = Row3gatsu(s)
+
+    ' ---- 2.3ｶﾒラ  組合員数（3月末、人）
+    Call PutVal(wsK, col & "3", Nv(s, r3, 5) + Nv(s, r3, 7) + Nv(s, r3, 9) + Nv(s, r3, 11) + Nv(s, r3, 13), nm & " 3月 一般組合員（専従・病院・その他・特別職）")
+    Call PutVal(wsK, col & "4", Nv(s, r3, 11) + Nv(s, r3, 13), nm & " 3月 うち特別職")
+    Call PutVal(wsK, col & "6", Nv(s, r3, 15), nm & " 3月 市長組合員")
+    Call PutVal(wsK, col & "7", Nv(s, r3, 17), nm & " 3月 特定消防組合員")
+    ' 継続長期組合員：表示は「人数＋改行＋［人数］」。計算用セル（F→L9、G→M9）にも人数を入れる
+    cnt = Nv(s, r3, 19)
+    Call PutText(wsK, col & "9", CStr(cnt) & vbLf & "［" & CStr(cnt) & "］", nm & " 3月 継続長期（［ ］内は同数として転記。退職派遣者が異なる場合は修正）")
+    If col = "F" Then helper = "L9" Else helper = "M9"
+    Call PutVal(wsK, helper, cnt, nm & " 継続長期 計算用")
+
+    ' ---- 2.3ｶﾒラ  標準報酬月額総額（3月、千円）長期
+    Call PutVal(wsK, col & "22", Th(Nv(s, r3, 6) + Nv(s, r3, 8) + Nv(s, r3, 10) + Nv(s, r3, 12) + Nv(s, r3, 14)), nm & " 3月 一般組合員 標準報酬(長期)")
+    Call PutVal(wsK, col & "26", Th(Nv(s, r3, 12) + Nv(s, r3, 14)), nm & " 3月 うち特別職 標準報酬(長期)")
+    Call PutVal(wsK, col & "32", Th(Nv(s, r3, 16)), nm & " 3月 市長組合員 標準報酬(長期)")
+    Call PutVal(wsK, col & "36", Th(Nv(s, r3, 18)), nm & " 3月 特定消防組合員 標準報酬(長期)")
+    Call PutVal(wsK, col & "42", Th(Nv(s, r3, 20)), nm & " 3月 継続長期組合員 標準報酬")
+
+    ' ---- 4ｶﾒラ  標準期末手当等の年間総額（千円）長期（資料の17行目：V=一般職の各区分、Y=特別職、Z=市長、AA=特定消防、AB=継続長期）
+    Call PutVal(wsM, col & "2", Th(Nv(s, 17, 22) + Nv(s, 17, 23) + Nv(s, 17, 24) + Nv(s, 17, 25)), nm & " 一般組合員（一般職＋特別職）標準期末手当等")
+    Call PutVal(wsM, col & "6", Th(Nv(s, 17, 25)), nm & " うち特別職")
+    Call PutVal(wsM, col & "12", Th(Nv(s, 17, 26)), nm & " 市長組合員")
+    Call PutVal(wsM, col & "16", Th(Nv(s, 17, 27)), nm & " 特定消防組合員")
+    Call PutVal(wsM, col & "22", Th(Nv(s, 17, 28)), nm & " 継続長期組合員")
 End Sub
 
 Private Function IsTanki(ByVal s As Worksheet) As Boolean
     IsTanki = (InStr(CStr(s.Range("E1").Value), "短期人数") > 0) And (InStr(CStr(s.Range("Y2").Value), "標準期末手当") > 0)
+End Function
+
+Private Function IsChoki(ByVal s As Worksheet) As Boolean
+    IsChoki = (InStr(CStr(s.Range("E1").Value), "長期人数") > 0) And (InStr(CStr(s.Range("U2").Value), "標準期末手当") > 0)
 End Function
 
 Private Function Nv(ByVal s As Worksheet, ByVal r As Long, ByVal c As Long) As Double
@@ -251,6 +319,21 @@ Private Sub PutVal(ByVal ws As Worksheet, ByVal addr As String, ByVal v As Doubl
     mLog.Cells(mLogRow, 3).Value = addr
     mLog.Cells(mLogRow, 4).Value = oldV
     mLog.Cells(mLogRow, 5).Value = v
+    mLog.Cells(mLogRow, 6).Value = note
+    mLogRow = mLogRow + 1
+    mCount = mCount + 1
+End Sub
+
+Private Sub PutText(ByVal ws As Worksheet, ByVal addr As String, ByVal v As String, ByVal note As String)
+    Dim oldV As Variant
+    oldV = ws.Range(addr).Value
+    ws.Range(addr).Value = v
+    mLog.Cells(mLogRow, 1).Value = Now
+    mLog.Cells(mLogRow, 1).NumberFormat = "yyyy/mm/dd hh:mm"
+    mLog.Cells(mLogRow, 2).Value = ws.Name
+    mLog.Cells(mLogRow, 3).Value = addr
+    mLog.Cells(mLogRow, 4).Value = Replace(CStr(oldV), vbLf, " ")
+    mLog.Cells(mLogRow, 5).Value = Replace(v, vbLf, " ")
     mLog.Cells(mLogRow, 6).Value = note
     mLogRow = mLogRow + 1
     mCount = mCount + 1
