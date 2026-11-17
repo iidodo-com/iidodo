@@ -524,8 +524,11 @@ Public Sub RefreshCameraPictures()
                     GoTo NextCam
                 End If
                 If Not target Is Nothing Then target.Delete
-                newPic.LockAspectRatio = msoFalse
-                newPic.Left = pLeft: newPic.Top = pTop: newPic.Width = pWidth: newPic.Height = pHeight
+                ' c‰¡”ä‚ð•Û‚Á‚½‚Ü‚ÜAŒ³‚Ì}‚Ì˜g‚ÉŽû‚ß‚éi}‚ð‚ä‚ª‚ß‚È‚¢j
+                newPic.LockAspectRatio = msoTrue
+                newPic.Width = pWidth
+                If newPic.Height > pHeight Then newPic.Height = pHeight
+                newPic.Left = pLeft: newPic.Top = pTop
                 newPic.Name = camName
                 newPic.Placement = xlMove
             End If
