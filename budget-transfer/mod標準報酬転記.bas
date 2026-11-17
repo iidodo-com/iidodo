@@ -342,3 +342,60 @@ Private Sub PutText(ByVal ws As Worksheet, ByVal addr As String, ByVal v As Stri
     mLogRow = mLogRow + 1
     mCount = mCount + 1
 End Sub
+
+' ============================================================
+'  入力ガイドに「標準報酬等を転記」ボタンを置く
+'   SetupRemunerationButton を1回実行すると、入力ガイドのE20にボタンが配置される。
+'   （SetupGuideButtons で配置する Btn_ で始まるボタンとは別の名前なので、消されない）
+' ============================================================
+Public Sub SetupRemunerationButton()
+    Dim ws As Worksheet
+    Dim rng As Range
+    Dim shp As Shape
+    Dim i As Long
+
+    Set ws = SheetOf(ThisWorkbook, "入力ガイド")
+    If ws Is Nothing Then
+        MsgBox "「入力ガイド」シートが見つかりません。", vbExclamation
+        Exit Sub
+    End If
+
+    On Error GoTo ErrHandler
+    Application.ScreenUpdating = False
+
+    ' 以前のボタンを削除してから配置し直す
+    For i = ws.Shapes.Count To 1 Step -1
+        If ws.Shapes(i).Name = "Rem_Button" Then ws.Shapes(i).Delete
+    Next i
+
+    Set rng = ws.Range("E20")
+    If rng.RowHeight < 20 Then rng.RowHeight = 20
+    Set shp = ws.Shapes.AddShape(msoShapeRectangle, rng.Left + 2, rng.Top + 1, rng.Width - 4, rng.Height - 2)
+    With shp
+        .Name = "Rem_Button"
+        .Fill.ForeColor.RGB = RGB(242, 242, 242)
+        .Line.ForeColor.RGB = RGB(128, 128, 128)
+        .Line.Weight = 0.75
+        .Shadow.Visible = msoFalse
+        With .TextFrame2.TextRange
+            .Text = "標準報酬等を転記"
+            .Font.NameFarEast = "ＭＳ Ｐゴシック"
+            .Font.Name = "ＭＳ Ｐゴシック"
+            .Font.Size = 9
+            .Font.Bold = msoFalse
+            .Font.Fill.ForeColor.RGB = RGB(0, 0, 0)
+            .ParagraphFormat.Alignment = msoAlignCenter
+        End With
+        .TextFrame2.VerticalAnchor = msoAnchorMiddle
+        .OnAction = "TransferStandardRemuneration"
+        .Placement = xlMove
+    End With
+
+    Application.ScreenUpdating = True
+    MsgBox "「入力ガイド」のE20に「標準報酬等を転記」ボタンを配置しました。", vbInformation
+    Exit Sub
+
+ErrHandler:
+    Application.ScreenUpdating = True
+    MsgBox "ボタンの配置中にエラーが発生しました。" & vbCrLf & Err.Description, vbExclamation
+End Sub
