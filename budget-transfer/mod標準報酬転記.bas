@@ -16,8 +16,8 @@ Option Explicit
 '  ※転記の履歴（旧値・新値）はシート「転記ログ」に残します。
 ' ============================================================
 
-Private Const SH_K As String = "総括_2.3ｶﾒラ"
-Private Const SH_M As String = "総括_4ｶﾒラ"
+Private Const SH_K As String = "概況01総括_2.3ｶﾒラ"
+Private Const SH_M As String = "概況01総括_4ｶﾒラ"
 Private Const SH_LOG As String = "転記ログ"
 
 Private mLog As Worksheet
