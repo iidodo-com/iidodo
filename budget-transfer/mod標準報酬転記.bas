@@ -30,12 +30,15 @@ End Sub
 
 Public Sub 標準報酬等を転記()
     Dim fd As FileDialog
-    Dim n As Long, i As Long, j As Long
+    Dim nFiles As Long, f As Long, k As Long, i As Long, j As Long
     Dim wbs(1 To 4) As Workbook
     Dim opened(1 To 4) As Boolean
-    Dim wss(1 To 4) As Worksheet
-    Dim kind(1 To 4) As String
-    Dim yr(1 To 4) As Long
+    Dim ws As Worksheet
+    Dim cand(1 To 12) As Worksheet
+    Dim cWb(1 To 12) As String
+    Dim kind(1 To 12) As String
+    Dim yr(1 To 12) As Long
+    Dim nc As Long
     Dim yF As Long, yG As Long
     Dim wsK As Worksheet, wsM As Worksheet
     Dim msg As String, col As String
@@ -50,88 +53,113 @@ Public Sub 標準報酬等を転記()
 
     Set fd = Application.FileDialog(msoFileDialogFilePicker)
     With fd
-        .Title = "標準報酬資料を選んでください（Ctrlキーを押しながらクリック：短期・長期の当年度分と翌年度分）"
+        .Title = "標準報酬資料のブックを選んでください（Ctrlキーを押しながらクリックで複数選択。短期・長期の当年度分と翌年度分が入っていればよい）"
         .AllowMultiSelect = True
         .Filters.Clear
         .Filters.Add "Excelブック", "*.xlsx;*.xlsm;*.xls;*.xlsb"
         If .Show <> -1 Then Exit Sub
-        n = .SelectedItems.Count
-        If n < 2 Or n > 4 Then
-            MsgBox "ブックを2～4個選んでください。", vbExclamation
+        nFiles = .SelectedItems.Count
+        If nFiles < 1 Or nFiles > 4 Then
+            MsgBox "ブックを1～4個選んでください。", vbExclamation
             Exit Sub
         End If
         On Error GoTo ErrHandler
         Application.ScreenUpdating = False
-        For i = 1 To n
-            Set wbs(i) = OpenReadOnly(.SelectedItems(i), opened(i))
-        Next i
+        For f = 1 To nFiles
+            Set wbs(f) = OpenReadOnly(.SelectedItems(f), opened(f))
+        Next f
     End With
 
-    For i = 1 To n
-        Set wss(i) = wbs(i).Worksheets(1)
-        If IsTanki(wss(i)) Then
-            kind(i) = "短期"
-        ElseIf IsChoki(wss(i)) Then
-            kind(i) = "長期"
-        Else
-            MsgBox "標準報酬資料の形式ではありません：" & wbs(i).Name & vbCrLf & _
-                   "（E1に「短期人数」または「長期人数」、Y2／U2に「標準期末手当」がある形式）", vbExclamation
+    ' 選んだブックの全シートから、標準報酬資料の形式のシートを探す（シートの位置・名前は問わない）
+    For f = 1 To nFiles
+        For Each ws In wbs(f).Worksheets
+            If ws.Visible = xlSheetVisible Then
+                k = 0
+                If IsTanki(ws) Then
+                    k = 1
+                ElseIf IsChoki(ws) Then
+                    k = 2
+                End If
+                If k > 0 Then
+                    If nc >= 12 Then
+                        MsgBox "標準報酬資料のシートが多すぎます（12シートまで）。", vbExclamation
+                        GoTo Cleanup
+                    End If
+                    nc = nc + 1
+                    Set cand(nc) = ws
+                    cWb(nc) = wbs(f).Name
+                    kind(nc) = IIf(k = 1, "短期", "長期")
+                    yr(nc) = YearOfSheet(ws)
+                End If
+            End If
+        Next ws
+    Next f
+
+    If nc = 0 Then
+        MsgBox "標準報酬資料の形式のシートが見つかりません。" & vbCrLf & _
+               "（E1に「短期人数」または「長期人数」、Y2／U2に「標準期末手当」があるシート）", vbExclamation
+        GoTo Cleanup
+    End If
+    For i = 1 To nc
+        If yr(i) = 0 Then
+            MsgBox "年度を読み取れないシートがあります：" & cWb(i) & "「" & cand(i).Name & "」（C1）", vbExclamation
             GoTo Cleanup
         End If
-        yr(i) = CLng(Val(wss(i).Range("C1").Value))
     Next i
 
     ' 年度は2種類まで。小さい方を当年度（F列）、大きい方を翌年度（G列）
     yF = yr(1): yG = yr(1)
-    For i = 2 To n
+    For i = 2 To nc
         If yr(i) < yF Then yF = yr(i)
         If yr(i) > yG Then yG = yr(i)
     Next i
-    If yF = yG Or yF = 0 Then
-        MsgBox "年度（各ブックのC1）が1種類しかない、または数値ではありません。当年度分と翌年度分を選んでください。", vbExclamation
+    If yF = yG Then
+        MsgBox "年度が1種類しかありません。当年度分と翌年度分を選んでください。", vbExclamation
         GoTo Cleanup
     End If
-    For i = 1 To n
+    For i = 1 To nc
         If yr(i) <> yF And yr(i) <> yG Then
-            MsgBox "年度が3種類以上あります（令和" & yr(i) & "年度：" & wbs(i).Name & "）。", vbExclamation
+            MsgBox "年度が3種類以上あります（令和" & yr(i) & "年度：" & cWb(i) & "「" & cand(i).Name & "」）。" & vbCrLf & _
+                   "当年度と翌年度の2年度分だけを選んでください。", vbExclamation
             GoTo Cleanup
         End If
-        For j = i + 1 To n
+        For j = i + 1 To nc
             If kind(i) = kind(j) And yr(i) = yr(j) Then
-                MsgBox "同じ種類・同じ年度のブックが重複しています：" & wbs(i).Name & "／" & wbs(j).Name, vbExclamation
+                MsgBox "同じ種類・同じ年度のシートが重複しています：" & vbCrLf & _
+                       cWb(i) & "「" & cand(i).Name & "」／" & cWb(j) & "「" & cand(j).Name & "」", vbExclamation
                 GoTo Cleanup
             End If
         Next j
     Next i
 
     msg = ""
-    For i = 1 To n
+    For i = 1 To nc
         If yr(i) = yF Then col = "F" Else col = "G"
-        msg = msg & col & "列 ← " & kind(i) & "（令和" & yr(i) & "年度）" & wbs(i).Name & vbCrLf
+        msg = msg & col & "列 ← " & kind(i) & "（令和" & yr(i) & "年度）" & cWb(i) & "「" & cand(i).Name & "」" & vbCrLf
     Next i
     msg = msg & vbCrLf
     If ReiwaYear(CStr(wsK.Range("F2").Value)) <> yF Or ReiwaYear(CStr(wsK.Range("G2").Value)) <> yG Then
         msg = msg & "【注意】概況シートの見出し（" & wsK.Range("F2").Value & "／" & wsK.Range("G2").Value & "）と年度が一致しません。" & vbCrLf & vbCrLf
     End If
-    msg = msg & "「総括_2.3ｶﾒラ」「総括_4ｶﾒラ」の該当セルを上書きします。よろしいですか？"
+    msg = msg & "「" & SH_K & "」「" & SH_M & "」の該当セルを上書きします。よろしいですか？"
     If MsgBox(msg, vbQuestion + vbYesNo + vbDefaultButton2, "標準報酬等の転記") <> vbYes Then GoTo Cleanup
 
     Call StartLog
-    For i = 1 To n
+    For i = 1 To nc
         If yr(i) = yF Then col = "F" Else col = "G"
         If kind(i) = "短期" Then
-            Call ApplyTanki(wss(i), col, wsK, wsM)
+            Call ApplyTanki(cand(i), col, wsK, wsM)
         Else
-            Call ApplyChoki(wss(i), col, wsK, wsM)
+            Call ApplyChoki(cand(i), col, wsK, wsM)
         End If
     Next i
     Application.Calculate
 
 Cleanup:
     On Error Resume Next
-    For i = 1 To 4
-        If opened(i) Then wbs(i).Close SaveChanges:=False
-    Next i
+    For f = 1 To 4
+        If opened(f) Then wbs(f).Close SaveChanges:=False
+    Next f
     Application.EnableEvents = True
     Application.ScreenUpdating = True
     On Error GoTo 0
@@ -147,6 +175,18 @@ ErrHandler:
     MsgBox "転記中にエラーが発生しました。" & vbCrLf & Err.Number & "：" & Err.Description, vbCritical
     Resume Cleanup
 End Sub
+
+' シートの年度（C1）。数値（7）でも文字（令和7年度、令和７年度）でも読み取る
+Private Function YearOfSheet(ByVal s As Worksheet) As Long
+    Dim v As Variant
+    v = s.Range("C1").Value
+    If IsError(v) Then Exit Function
+    If VarType(v) = vbDouble Or VarType(v) = vbLong Or VarType(v) = vbInteger Then
+        YearOfSheet = CLng(v)
+    Else
+        YearOfSheet = ReiwaYear(CStr(v))
+    End If
+End Function
 
 ' 3月の行（B列が「3月」の最初の行）
 Private Function Row3gatsu(ByVal s As Worksheet) As Long
