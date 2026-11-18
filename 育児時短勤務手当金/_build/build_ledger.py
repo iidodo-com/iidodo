@@ -352,8 +352,17 @@ for i in range(NMAS):
     for j in range(24):
         cl = L(4 + j)
         mat[f"{cl}{r}"] = (f'=IF($A{r}="","",IF(COUNTIFS({rg("no")},$A{r},{rg("key")},{cl}$5,{rg("st")},"保留中")>0,"保留",'
-                           f'IF(COUNTIFS({rg("no")},$A{r},{rg("key")},{cl}$5)=0,"",SUMIFS({rg("fin")},{rg("no")},$A{r},{rg("key")},{cl}$5))))')
+                           f'IF(COUNTIFS({rg("no")},$A{r},{rg("key")},{cl}$5,{rg("st")},"支給済")>0,SUMIFS({rg("fin")},{rg("no")},$A{r},{rg("key")},{cl}$5),'
+                           f'IF(AND(ISNUMBER(職員マスタ!$F{r}),職員マスタ!$F{r}>0,{cl}$4>職員マスタ!$F{r}),"対象外",'
+                           f'IF(COUNTIFS({rg("no")},$A{r},{rg("key")},{cl}$5)=0,"",SUMIFS({rg("fin")},{rg("no")},$A{r},{rg("key")},{cl}$5))))))')
         mat[f"{cl}{r}"].number_format = "#,##0"
+for j in range(24):
+    y_, m_ = months[j][1:].split(".")
+    mat.cell(4, 4 + j, dt.datetime(2018 + int(y_), int(m_), 1)).number_format = "yyyy/m"
+    mat.cell(4, 4 + j).font = Font(name=FN, size=8, color="A6A6A6")
+mat["A3"] = "赤＝対象外（子の2歳到達日の前々日（職員マスタF列）が属する月の翌月以降）"
+mat["A3"].font = Font(name=FN, size=9, color="C00000")
+mat.conditional_formatting.add(f"D{R0}:AA{ME}", FormulaRule(formula=[f'D{R0}="対象外"'], fill=PatternFill("solid", bgColor="FF0000", fgColor="FF0000"), font=Font(bold=True, color="FFFFFF")))
 mat.conditional_formatting.add(f"D{R0}:AA{ME}", FormulaRule(formula=[f'D{R0}="保留"'], fill=PatternFill("solid", bgColor="F8CBAD", fgColor="F8CBAD"), font=Font(bold=True, color="C00000")))
 mat.conditional_formatting.add(f"AB{R0}:AB{ME}", FormulaRule(formula=[f'LEN(AB{R0})>0'], fill=PatternFill("solid", bgColor="F8CBAD", fgColor="F8CBAD")))
 mat.column_dimensions["A"].width = 11; mat.column_dimensions["B"].width = 14; mat.column_dimensions["C"].width = 26
