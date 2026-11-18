@@ -172,7 +172,7 @@ Private Sub CopyValues(ByVal src As Worksheet, ByVal dst As Worksheet, ByVal boo
     Dim v As Variant
     Dim r As Long, c As Long
     Dim r0 As Long, c0 As Long
-    Dim nWrite As Long, nSkip As Long
+    Dim nWrite As Long, nSkip As Long, nErr As Long
     Dim banner As String
 
     ' 取り込み前の内容を消す（数式は入っていない入力用シートなので、値だけを消す）
@@ -183,19 +183,24 @@ Private Sub CopyValues(ByVal src As Worksheet, ByVal dst As Worksheet, ByVal boo
     r0 = ur.Row - 1: c0 = ur.Column - 1
     v = ur.Value2
     If Not IsArray(v) Then
-        If Not IsEmpty(v) Then dst.Cells(ur.Row, ur.Column).Value2 = v
+        If Not IsEmpty(v) And Not IsError(v) Then dst.Cells(ur.Row, ur.Column).Value2 = v
         nWrite = 1
     Else
         On Error Resume Next
         For r = 1 To UBound(v, 1)
             For c = 1 To UBound(v, 2)
                 If Not IsEmpty(v(r, c)) Then
-                    Err.Clear
-                    dst.Cells(r0 + r, c0 + c).Value2 = v(r, c)
-                    If Err.Number <> 0 Then
-                        nSkip = nSkip + 1
+                    If IsError(v(r, c)) Then
+                        ' 資料側の計算エラー（#DIV/0! など）は取り込まず、空欄のままにする
+                        nErr = nErr + 1
                     Else
-                        nWrite = nWrite + 1
+                        Err.Clear
+                        dst.Cells(r0 + r, c0 + c).Value2 = v(r, c)
+                        If Err.Number <> 0 Then
+                            nSkip = nSkip + 1
+                        Else
+                            nWrite = nWrite + 1
+                        End If
                     End If
                 End If
             Next c
@@ -211,6 +216,7 @@ Private Sub CopyValues(ByVal src As Worksheet, ByVal dst As Worksheet, ByVal boo
     mLog.Cells(mLogRow, 4).Value = dst.Name
     mLog.Cells(mLogRow, 5).Value = nWrite
     mLog.Cells(mLogRow, 6).Value = nSkip
+    mLog.Cells(mLogRow, 7).Value = nErr
     mLogRow = mLogRow + 1
 End Sub
 
@@ -335,12 +341,12 @@ Private Sub StartLog()
     If mLog Is Nothing Then
         Set mLog = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
         mLog.Name = SH_LOG
-        mLog.Range("A1:F1").Value = Array("日時", "資料のブック", "資料のシート", "取り込み先のシート", "取り込んだセル数", "取り込めなかったセル数")
-        mLog.Range("A1:F1").Interior.Color = RGB(217, 217, 217)
-        mLog.Range("A1:F1").Font.Bold = True
+        mLog.Range("A1:G1").Value = Array("日時", "資料のブック", "資料のシート", "取り込み先のシート", "取り込んだセル数", "取り込めなかったセル数", "エラー値のため空欄にしたセル数")
+        mLog.Range("A1:G1").Interior.Color = RGB(217, 217, 217)
+        mLog.Range("A1:G1").Font.Bold = True
         mLog.Columns("A").ColumnWidth = 18
         mLog.Columns("B:D").ColumnWidth = 28
-        mLog.Columns("E:F").ColumnWidth = 16
+        mLog.Columns("E:G").ColumnWidth = 18
         mLog.Tab.Color = RGB(166, 166, 166)
     End If
     mLogRow = mLog.Cells(mLog.Rows.Count, 1).End(xlUp).Row + 1
