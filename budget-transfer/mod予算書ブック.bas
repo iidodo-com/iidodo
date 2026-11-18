@@ -436,14 +436,24 @@ Public Sub ColorSheetTabs()
     For r = LIST_FIRST_ROW To lastRow
         dict(CStr(wsList.Cells(r, 2).Value)) = 1
     Next r
+    ' 黄＝手入力が必要（印刷する）／橙＝手入力が必要（印刷しない入力用）／青＝マクロで取り込む（印刷しない）
+    ' 灰＝手入力が不要／緑＝管理用
     For Each ws In ThisWorkbook.Worksheets
-        If dict.Exists(ws.Name) Or ws.Name = SHEET_GUIDE Then
+        If ws.Name = SHEET_GUIDE Or ws.Name = SHEET_LIST Or ws.Name = SHEET_CHECK Then
+            ws.Tab.Color = RGB(112, 173, 71)
+        ElseIf Left$(ws.Name, 5) = "入力P32" Then
+            ws.Tab.Color = RGB(255, 192, 0)
+        ElseIf Left$(ws.Name, 6) = "入力標準報酬" Then
+            ws.Tab.Color = RGB(91, 155, 213)
+        ElseIf dict.Exists(ws.Name) Then
             ws.Tab.Color = RGB(255, 255, 0)
         Else
             ws.Tab.Color = RGB(166, 166, 166)
         End If
     Next ws
-    MsgBox "シートタブを色分けしました（黄色＝手入力が必要、灰色＝不要）。", vbInformation, "シートタブの色分け"
+    MsgBox "シートタブを色分けしました。" & vbCrLf & _
+           "黄＝手入力が必要、橙＝手入力が必要（印刷しない）、青＝マクロで取り込む（印刷しない）、" & vbCrLf & _
+           "灰＝手入力が不要、緑＝管理用", vbInformation, "シートタブの色分け"
 End Sub
 
 ' ------------------------------------------------------------------------------------------
