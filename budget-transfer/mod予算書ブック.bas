@@ -658,15 +658,20 @@ Public Sub ExportFormsToPDF()
     End If
 
     defaultFileName = "令和８年度_広島市職員共済組合_事業計画概況・予算書.pdf"
-    If ThisWorkbook.Path <> "" Then
-        pdfPath = ThisWorkbook.Path & Application.PathSeparator & defaultFileName
+    ' OneDrive/SharePoint上のブック（パスが http で始まる）は Dir が使えないため、保存先を選んでもらう
+    If ThisWorkbook.Path <> "" And LCase$(Left$(ThisWorkbook.Path, 4)) <> "http" Then
+        pdfPath = ThisWorkbook.Path & "\" & defaultFileName
     Else
         pdfPath = CStr(Application.GetSaveAsFilename(InitialFileName:=defaultFileName, _
                                                      FileFilter:="PDFファイル (*.pdf), *.pdf"))
         If pdfPath = "False" Or pdfPath = "" Then Exit Sub
     End If
 
-    If Dir(pdfPath) <> "" Then
+    Dim exists As Boolean
+    On Error Resume Next
+    exists = (Dir(pdfPath) <> "")
+    On Error GoTo 0
+    If exists Then
         If MsgBox("同名のファイルがあります。上書きしますか？" & vbCrLf & pdfPath, _
                   vbYesNo + vbQuestion, "PDF出力") <> vbYes Then Exit Sub
     End If
