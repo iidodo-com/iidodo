@@ -541,6 +541,13 @@ Public Sub RefreshCameraPictures()
                 newPic.Left = pLeft: newPic.Top = pTop
                 newPic.Name = camName
                 newPic.Placement = xlMove
+                ' 背景を白で塗り、下のセルの文字が透けて重ならないようにする
+                On Error Resume Next
+                newPic.Fill.Visible = msoTrue
+                newPic.Fill.Solid
+                newPic.Fill.ForeColor.RGB = RGB(255, 255, 255)
+                newPic.Fill.Transparency = 0
+                On Error GoTo ErrHandler
             End If
         End If
 NextCam:
@@ -566,6 +573,16 @@ ErrHandler:
     Application.ScreenUpdating = True
     On Error GoTo 0
     MsgBox "カメラ図の更新中にエラーが発生しました。" & vbCrLf & errMsg, vbExclamation, "カメラ図の更新"
+End Sub
+
+' 印刷・PDF出力の前に、カメラ図を更新するかを確認する（既定は「いいえ」＝現在の図のまま）
+Private Sub AskRefreshCameraPictures()
+    If MsgBox("カメラ図を、元表の最新の内容に更新しますか？" & vbCrLf & vbCrLf & _
+              "「いいえ」のときは、いま貼ってある図のまま出力します。" & vbCrLf & _
+              "元表の数値を変えたときだけ「はい」にしてください。", _
+              vbYesNo + vbQuestion + vbDefaultButton2, "カメラ図の更新") = vbYes Then
+        Call RefreshCameraPictures
+    End If
 End Sub
 
 ' 範囲を図としてコピーし、シートへ貼り付けて、その図を返す。
@@ -682,7 +699,7 @@ Public Sub ExportFormsToPDF()
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     ThisWorkbook.Activate
-    Call RefreshCameraPictures
+    Call AskRefreshCameraPictures
     cnt = PrepareSheetList(mode, sheetNames)
     If cnt = 0 Then
         Call DeleteTempSheets
@@ -740,7 +757,7 @@ Public Sub PrintFormsWizard()
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     ThisWorkbook.Activate
-    Call RefreshCameraPictures
+    Call AskRefreshCameraPictures
     cnt = PrepareSheetList("1", sheetNames)
     If cnt = 0 Then
         Call DeleteTempSheets
