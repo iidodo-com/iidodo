@@ -28,7 +28,7 @@ Private Const SHEET_LIST As String = "入力セル一覧"
 Private Const SHEET_CHECK As String = "チェック"
 Private Const COVER_SHEET As String = "表紙等"
 Private Const TOC_SHEET As String = "目次"
-Private Const TEMP_PREFIX As String = "_tmp表紙"
+Private Const TEMP_PREFIX As String = "_tmp"
 
 ' 入力セル一覧の明細は6行目から。最終行は実際のデータで求める
 Private Const LIST_FIRST_ROW As Long = 6
@@ -838,11 +838,15 @@ Private Function PrepareSheetList(ByVal mode As String, ByRef names() As String)
             If Not GetSheet(CStr(anchors(i)(2))) Is Nothing Then
                 wsCover.Copy Before:=GetSheet(CStr(anchors(i)(2)))
                 Set cp = ActiveSheet
-                cp.Name = TEMP_PREFIX & Format$(CLng(anchors(i)(0)), "00")
+                cp.Name = TEMP_PREFIX & "表紙" & Format$(CLng(anchors(i)(0)), "00")
                 cp.PageSetup.PrintArea = CStr(anchors(i)(1))
+                cp.PageSetup.CenterFooter = ""
             End If
         End If
     Next i
+
+    ' 目次のページ番号を下部中央に付け、各経理の頁数が目次に合うよう空白ページを足す
+    Call ApplyNumberingAndBlanks(mode)
 
     ' 並び順は、シートの順に一時コピーを差し込んだ順（＝目次の順）
     Dim ws As Worksheet
@@ -869,6 +873,101 @@ Private Function InList(ByVal arr As Variant, ByVal s As String) As Boolean
 End Function
 
 ' 出力対象か。管理用・カメラ元表・手持資料・非表示参考シートは対象外
+' 目次（T列）の頁番号どおりに、フッター中央へ頁番号を付ける。
+'   各経理の先頭シートに FirstPageNumber を設定し、頁数が次の経理の開始頁に足りないときは
+'   番号付きの空白ページ（一時シート）を経理の末尾に足す。表紙・目次・中扉には番号を付けない。
+Private Sub ApplyNumberingAndBlanks(ByVal mode As String)
+    Dim keys As Variant
+    Dim cells As Variant
+    Dim s As Long
+    Dim ws As Worksheet
+    Dim firstWs As Worksheet
+    Dim lastWs As Worksheet
+    Dim wsToc As Worksheet
+    Dim startNo As Long
+    Dim nextNo As Long
+    Dim used As Long
+    Dim pc As Long
+    Dim unknown As Boolean
+    Dim need As Long
+    Dim k As Long
+    Dim blank As Worksheet
+    Dim blankSeq As Long
+    Dim report As String
+
+    keys = Array("概況01", "概況02", "概況03", "概況04", "概況05", "概況06", "概況07", "概況08", "概況09", _
+                 "予算02", "予算03", "予算04", "予算05", "予算06", "予算07", "予算08", "予算09")
+    cells = Array("T9", "T11", "T13", "T15", "T17", "T19", "T21", "T23", "T25", _
+                  "T39", "T41", "T43", "T45", "T47", "T49", "T51", "T53")
+
+    Set wsToc = GetSheet(TOC_SHEET)
+    If wsToc Is Nothing Then Exit Sub
+    wsToc.PageSetup.CenterFooter = ""
+
+    For s = LBound(keys) To UBound(keys)
+        Set firstWs = Nothing
+        Set lastWs = Nothing
+        used = 0
+        unknown = False
+        startNo = TocPageNumber(wsToc.Range(CStr(cells(s))).Value)
+        nextNo = 0
+        If s < UBound(keys) Then nextNo = TocPageNumber(wsToc.Range(CStr(cells(s + 1))).Value)
+
+        For Each ws In ThisWorkbook.Worksheets
+            If ws.Visible = xlSheetVisible Then
+                If Left$(ws.Name, 5) = CStr(keys(s)) Then
+                    If IsOutputSheet(ws.Name, mode) Then
+                        If firstWs Is Nothing Then Set firstWs = ws
+                        Set lastWs = ws
+                        pc = 0
+                        On Error Resume Next
+                        ws.PageSetup.CenterFooter = "&9&P"
+                        ws.PageSetup.FirstPageNumber = IIf(ws Is firstWs And startNo > 0, startNo, xlAutomatic)
+                        pc = ws.PageSetup.Pages.Count
+                        On Error GoTo 0
+                        If pc <= 0 Then unknown = True Else used = used + pc
+                    End If
+                End If
+            End If
+        Next ws
+
+        If Not firstWs Is Nothing And startNo > 0 And nextNo > 0 Then
+            If unknown Then
+                report = report & CStr(keys(s)) & "：頁数を取得できないため空白ページ調整をしていません" & vbCrLf
+            ElseIf used < nextNo - startNo Then
+                need = nextNo - startNo - used
+                For k = 1 To need
+                    blankSeq = blankSeq + 1
+                    Set blank = ThisWorkbook.Worksheets.Add(After:=lastWs)
+                    blank.Name = TEMP_PREFIX & "空白" & Format$(blankSeq, "00")
+                    blank.Range("A1").Value = " "
+                    blank.PageSetup.PrintArea = "$A$1"
+                    On Error Resume Next
+                    blank.PageSetup.PaperSize = lastWs.PageSetup.PaperSize
+                    blank.PageSetup.Orientation = lastWs.PageSetup.Orientation
+                    On Error GoTo 0
+                    blank.PageSetup.CenterFooter = "&9&P"
+                    blank.PageSetup.FirstPageNumber = xlAutomatic
+                    Set lastWs = blank
+                Next k
+            ElseIf used > nextNo - startNo Then
+                report = report & CStr(keys(s)) & "：" & used & "頁（目次は " & (nextNo - startNo) & "頁分）。目次か改ページを確認してください" & vbCrLf
+            End If
+        End If
+    Next s
+
+    If report <> "" Then
+        MsgBox "頁数の確認が必要です。" & vbCrLf & vbCrLf & report, vbExclamation, "頁番号"
+    End If
+End Sub
+
+Private Function TocPageNumber(ByVal v As Variant) As Long
+    Dim t As String
+    t = Trim$(StrConv(CStr(v), vbNarrow))
+    If IsNumeric(t) Then TocPageNumber = CLng(Val(t))
+End Function
+
+
 Private Function IsOutputSheet(ByVal sName As String, ByVal mode As String) As Boolean
     If Left$(sName, Len(TEMP_PREFIX)) = TEMP_PREFIX Then
         IsOutputSheet = True
