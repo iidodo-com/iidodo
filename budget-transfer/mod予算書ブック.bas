@@ -834,12 +834,20 @@ Private Function PrepareSheetList(ByVal mode As String, ByRef names() As String)
     Dim wsCover As Worksheet
     Dim cp As Worksheet
     Dim cnt As Long
-    Dim v As Variant
     Dim anchors As Variant
     Dim i As Long
 
     Set wsCover = GetSheet(COVER_SHEET)
     If wsCover Is Nothing Then Err.Raise vbObjectError + 1, , "「" & COVER_SHEET & "」シートが見つかりません。"
+
+    ' 前回の出力が途中で止まったときの一時シートを先に消す
+    Call DeleteTempSheets
+    ' 保護中のシートがあると、ヘッダ・フッタ・印刷設定を変えられないため、先に知らせる
+    Dim prot As String
+    prot = ProtectedOutputSheets()
+    If Len(prot) > 0 Then
+        Err.Raise vbObjectError + 2, , "保護されているシートがあります。保護を解除してから出力してください。" & vbCrLf & prot
+    End If
 
     ' 区画の一時コピー（表紙等のA列～U列、行範囲）を、出力順に1枚ずつ作る
     '   順序, 区画の行範囲, 直前に置くシート, 出力する mode
@@ -862,7 +870,9 @@ Private Function PrepareSheetList(ByVal mode As String, ByRef names() As String)
                 Set cp = ActiveSheet
                 cp.Name = TEMP_PREFIX & "表紙" & Format$(CLng(anchors(i)(0)), "00")
                 cp.PageSetup.PrintArea = CStr(anchors(i)(1))
-                cp.PageSetup.CenterFooter = ""
+                Call ClearHeaderFooter(cp)
+                ' 原稿は、表紙・中扉の裏（両面印刷の裏面）が白紙のため、同じ位置に白紙を入れる
+                Call AddBlankSheet(cp, TEMP_PREFIX & "裏" & Format$(CLng(anchors(i)(0)), "00"), False)
             End If
         End If
     Next i
@@ -894,7 +904,6 @@ Private Function InList(ByVal arr As Variant, ByVal s As String) As Boolean
     Next v
 End Function
 
-' 出力対象か。管理用・カメラ元表・手持資料・非表示参考シートは対象外
 ' 目次（T列）の頁番号どおりに、フッター中央へ頁番号を付ける。
 '   各経理の先頭シートに FirstPageNumber を設定し、頁数が次の経理の開始頁に足りないときは
 '   番号付きの空白ページ（一時シート）を経理の末尾に足す。表紙・目次・中扉には番号を付けない。
@@ -916,6 +925,7 @@ Private Sub ApplyNumberingAndBlanks(ByVal mode As String)
     Dim blank As Worksheet
     Dim blankSeq As Long
     Dim report As String
+    Dim failSet As String
 
     keys = Array("概況01", "概況02", "概況03", "概況04", "概況05", "概況06", "概況07", "概況08", "概況09", _
                  "予算02", "予算03", "予算04", "予算05", "予算06", "予算07", "予算08", "予算09")
@@ -924,7 +934,7 @@ Private Sub ApplyNumberingAndBlanks(ByVal mode As String)
 
     Set wsToc = GetSheet(TOC_SHEET)
     If wsToc Is Nothing Then Exit Sub
-    wsToc.PageSetup.CenterFooter = ""
+    Call ClearHeaderFooter(wsToc)
 
     For s = LBound(keys) To UBound(keys)
         Set firstWs = Nothing
@@ -937,14 +947,24 @@ Private Sub ApplyNumberingAndBlanks(ByVal mode As String)
 
         For Each ws In ThisWorkbook.Worksheets
             If ws.Visible = xlSheetVisible Then
-                If Left$(ws.Name, 5) = CStr(keys(s)) Then
+                If Left$(ws.Name, Len(CStr(keys(s)))) = CStr(keys(s)) Then
                     If IsOutputSheet(ws.Name, mode) Then
                         If firstWs Is Nothing Then Set firstWs = ws
                         Set lastWs = ws
                         pc = 0
                         On Error Resume Next
+                        Call ClearHeaderFooter(ws)
                         ws.PageSetup.CenterFooter = "&9&P"
-                        ws.PageSetup.FirstPageNumber = IIf(ws Is firstWs And startNo > 0, startNo, xlAutomatic)
+                        If (ws Is firstWs) And (startNo > 0) Then
+                            ws.PageSetup.FirstPageNumber = startNo
+                        Else
+                            ws.PageSetup.FirstPageNumber = xlAutomatic
+                        End If
+                        ' 設定が実際に入ったか読み戻して確かめる（失敗を握りつぶさない）
+                        If ws.PageSetup.CenterFooter <> "&9&P" Then failSet = failSet & ws.Name & vbCrLf
+                        If (ws Is firstWs) And (startNo > 0) Then
+                            If ws.PageSetup.FirstPageNumber <> startNo Then failSet = failSet & ws.Name & "（開始頁）" & vbCrLf
+                        End If
                         pc = ws.PageSetup.Pages.Count
                         On Error GoTo 0
                         If pc <= 0 Then unknown = True Else used = used + pc
@@ -960,16 +980,7 @@ Private Sub ApplyNumberingAndBlanks(ByVal mode As String)
                 need = nextNo - startNo - used
                 For k = 1 To need
                     blankSeq = blankSeq + 1
-                    Set blank = ThisWorkbook.Worksheets.Add(After:=lastWs)
-                    blank.Name = TEMP_PREFIX & "空白" & Format$(blankSeq, "00")
-                    blank.Range("A1").Value = " "
-                    blank.PageSetup.PrintArea = "$A$1"
-                    On Error Resume Next
-                    blank.PageSetup.PaperSize = lastWs.PageSetup.PaperSize
-                    blank.PageSetup.Orientation = lastWs.PageSetup.Orientation
-                    On Error GoTo 0
-                    blank.PageSetup.CenterFooter = "&9&P"
-                    blank.PageSetup.FirstPageNumber = xlAutomatic
+                    Set blank = AddBlankSheet(lastWs, TEMP_PREFIX & "空白" & Format$(blankSeq, "00"), True)
                     Set lastWs = blank
                 Next k
             ElseIf used > nextNo - startNo Then
@@ -978,18 +989,84 @@ Private Sub ApplyNumberingAndBlanks(ByVal mode As String)
         End If
     Next s
 
+    If Len(failSet) > 0 Then
+        report = report & vbCrLf & "頁番号を設定できなかったシート：" & vbCrLf & failSet
+    End If
     If report <> "" Then
         MsgBox "頁数の確認が必要です。" & vbCrLf & vbCrLf & report, vbExclamation, "頁番号"
     End If
 End Sub
 
+' 帳票シート・表紙等・目次のうち、保護されているシート名（なければ空）
+Private Function ProtectedOutputSheets() As String
+    Dim ws As Worksheet
+    Dim r As String
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name = COVER_SHEET Or ws.Name = TOC_SHEET Or InList(GaikyoSheets(), ws.Name) Or InList(YosanSheets(), ws.Name) Then
+            If ws.ProtectContents Then r = r & ws.Name & vbCrLf
+        End If
+    Next ws
+    ProtectedOutputSheets = r
+End Function
+
+' 出力のために変えた印刷設定（頁番号・フッター）を、もとの状態へ戻す
+Private Sub RestorePrintSetup()
+    Dim ws As Worksheet
+    On Error Resume Next
+    For Each ws In ThisWorkbook.Worksheets
+        If InList(GaikyoSheets(), ws.Name) Or InList(YosanSheets(), ws.Name) Then
+            ws.PageSetup.FirstPageNumber = xlAutomatic
+            ws.PageSetup.CenterFooter = "&9&P"
+        End If
+    Next ws
+    On Error GoTo 0
+End Sub
+
+' 印刷される白紙のシートを、指定のシートの直後に足す（A1に空白を入れ、1頁だけ出す）
+Private Function AddBlankSheet(ByVal afterWs As Worksheet, ByVal nm As String, ByVal numbered As Boolean) As Worksheet
+    Dim b As Worksheet
+    Set b = ThisWorkbook.Worksheets.Add(After:=afterWs)
+    b.Name = nm
+    b.Range("A1").Value = " "
+    On Error Resume Next
+    b.PageSetup.PaperSize = afterWs.PageSetup.PaperSize
+    b.PageSetup.Orientation = afterWs.PageSetup.Orientation
+    b.PageSetup.Zoom = 100
+    b.PageSetup.LeftMargin = afterWs.PageSetup.LeftMargin
+    b.PageSetup.RightMargin = afterWs.PageSetup.RightMargin
+    b.PageSetup.TopMargin = afterWs.PageSetup.TopMargin
+    b.PageSetup.BottomMargin = afterWs.PageSetup.BottomMargin
+    b.PageSetup.FooterMargin = afterWs.PageSetup.FooterMargin
+    b.PageSetup.CenterHorizontally = afterWs.PageSetup.CenterHorizontally
+    On Error GoTo 0
+    b.PageSetup.PrintArea = "$A$1"
+    Call ClearHeaderFooter(b)
+    If numbered Then b.PageSetup.CenterFooter = "&9&P"
+    b.PageSetup.FirstPageNumber = xlAutomatic
+    Set AddBlankSheet = b
+End Function
+
+' ヘッダ・フッタを全部消す（元のファイル名などが残らないように）
+Private Sub ClearHeaderFooter(ByVal ws As Worksheet)
+    On Error Resume Next
+    With ws.PageSetup
+        .LeftHeader = "": .CenterHeader = "": .RightHeader = ""
+        .LeftFooter = "": .CenterFooter = "": .RightFooter = ""
+    End With
+    On Error GoTo 0
+End Sub
+
 Private Function TocPageNumber(ByVal v As Variant) As Long
     Dim t As String
+    If IsError(v) Then Exit Function
     t = Trim$(StrConv(CStr(v), vbNarrow))
-    If IsNumeric(t) Then TocPageNumber = CLng(Val(t))
+    If Len(t) = 0 Then Exit Function
+    If t Like "*[!0-9]*" Then Exit Function
+    TocPageNumber = CLng(t)
 End Function
 
 
+' 出力対象か。管理用・カメラ元表・手持資料・非表示参考シートは対象外
 Private Function IsOutputSheet(ByVal sName As String, ByVal mode As String) As Boolean
     If Left$(sName, Len(TEMP_PREFIX)) = TEMP_PREFIX Then
         IsOutputSheet = True
@@ -1010,12 +1087,17 @@ Private Sub DeleteTempSheets()
 
     prevAlerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
+    ' 複数シートを選んだままにしない（グループ解除）
+    On Error Resume Next
+    ThisWorkbook.Worksheets(SHEET_GUIDE).Select
+    On Error GoTo 0
     For i = ThisWorkbook.Worksheets.Count To 1 Step -1
         If Left$(ThisWorkbook.Worksheets(i).Name, Len(TEMP_PREFIX)) = TEMP_PREFIX Then
             ThisWorkbook.Worksheets(i).Delete
         End If
     Next i
     Application.DisplayAlerts = prevAlerts
+    Call RestorePrintSetup
 End Sub
 
 ' ------------------------------------------------------------------------------------------
