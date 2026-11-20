@@ -12,6 +12,10 @@ Private Const INPUT_COLOR_CELL As String = "E9"
 Public gInputColorSuspended As Boolean
 ' 複数頁のため頁ごとのコピーに置き換えた元シート名（出力から外す。「|名前|」を並べた文字列）
 Private gReplaced As String
+Private gCalcSaved As Boolean
+' 複数頁シートの改ページ情報（頁番号付けの前にまとめて調べる）。キー: シート名 / 値: 「頁数|先頭行,先頭行,…|印刷範囲の最初の行|最後の行|最初の列|最後の列」
+Private gBreakInfo As Collection
+Private gPrevCalc As Long
 Public gInputColorBackup As Variant
 
 ' Enterキーで次の手入力セルへ移動する機能のオン／オフ（入力ガイドのこのセルが 1 のとき有効）
@@ -871,6 +875,10 @@ Private Function PrepareSheetList(ByVal mode As String, ByRef names() As String)
 
     ' 前回の出力が途中で止まったときの一時シートを先に消す
     Call DeleteTempSheets
+    ' 出力の間は再計算を止める（一時コピーのたびに再計算されて遅くなるため）。DeleteTempSheets で戻す
+    gPrevCalc = Application.Calculation
+    gCalcSaved = True
+    Application.Calculation = xlCalculationManual
     ' 保護中のシートがあると、ヘッダ・フッタ・印刷設定を変えられないため、先に知らせる
     Dim prot As String
     prot = ProtectedOutputSheets()
@@ -899,7 +907,6 @@ Private Function PrepareSheetList(ByVal mode As String, ByRef names() As String)
                 Set cp = ActiveSheet
                 cp.Name = TEMP_PREFIX & "表紙" & Format$(CLng(anchors(i)(0)), "00")
                 cp.PageSetup.PrintArea = CStr(anchors(i)(1))
-                Call ClearHeaderFooter(cp)
                 ' 原稿は、表紙・中扉の裏（両面印刷の裏面）が白紙のため、同じ位置に白紙を入れる
                 Call AddBlankSheet(cp, TEMP_PREFIX & "裏" & Format$(CLng(anchors(i)(0)), "00"), False)
             End If
@@ -967,8 +974,11 @@ Private Sub ApplyNumberingAndBlanks(ByVal mode As String)
 
     Set wsToc = GetSheet(TOC_SHEET)
     If wsToc Is Nothing Then Exit Sub
-    Call ClearHeaderFooter(wsToc)
     gReplaced = ""
+    Call CacheBreakInfo(mode)
+    On Error Resume Next
+    Application.PrintCommunication = False     ' PageSetup の変更をまとめて反映する（1つずつだと非常に遅い）
+    On Error GoTo 0
 
     For s = LBound(keys) To UBound(keys)
         startNo = TocPageNumber(wsToc.Range(CStr(cells(s))).Value)
@@ -992,7 +1002,6 @@ Private Sub ApplyNumberingAndBlanks(ByVal mode As String)
         For Each nm In names
             Set ws = ThisWorkbook.Worksheets(CStr(nm))
             hasSheet = True
-            Call ClearHeaderFooter(ws)
             pc = SheetPageCount(ws)
             If pc <= 1 Then
                 If startNo > 0 Then ws.PageSetup.CenterFooter = FooterText(n)
@@ -1031,6 +1040,9 @@ Private Sub ApplyNumberingAndBlanks(ByVal mode As String)
         End If
     Next s
 
+    On Error Resume Next
+    Application.PrintCommunication = True
+    On Error GoTo 0
     If report <> "" Then
         MsgBox "頁数の確認が必要です。" & vbCrLf & vbCrLf & report, vbExclamation, "頁番号"
     End If
@@ -1041,26 +1053,62 @@ Private Function FooterText(ByVal n As Long) As String
     FooterText = "&9 " & CStr(n) & " "
 End Function
 
-' シートの頁数（Excelが数えた改ページの数から。取得できなければ 1）
+' シートの頁数。複数頁のシート（予算の予定損益・損益説明書など8枚）だけ、改ページの数から数える。
+' 改ページの問い合わせはExcelが頁を組み直すため遅い。ほかのシートは1頁（1頁に収める設定）として扱う。
 Private Function SheetPageCount(ByVal ws As Worksheet) As Long
+    Dim info As String
+    SheetPageCount = 1
+    On Error Resume Next
+    info = gBreakInfo(ws.Name)
+    If Err.Number = 0 Then SheetPageCount = CLng(Split(info, "|")(0))
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+' 複数頁のシートの改ページ位置などを、出力する分だけ先にまとめて調べる（調べるとExcelが頁を組み直すため遅い。1回だけにする）
+Private Sub CacheBreakInfo(ByVal mode As String)
+    Dim nm As Variant
+    Dim ws As Worksheet
+    Dim pa As Range
+    Dim i As Long
     Dim h As Long
     Dim v As Long
-    On Error Resume Next
-    ws.Activate
-    h = ws.HPageBreaks.Count
-    v = ws.VPageBreaks.Count
-    If Err.Number <> 0 Then
-        Err.Clear
-        SheetPageCount = 1
-    Else
-        SheetPageCount = (h + 1) * (v + 1)
-    End If
-    On Error GoTo 0
+    Dim rowsList As String
+    Set gBreakInfo = New Collection
+    For Each nm In MultiPageSheets()
+        Set ws = GetSheet(CStr(nm))
+        If Not ws Is Nothing Then
+            If IsOutputSheet(ws.Name, mode) Then
+                On Error Resume Next
+                Err.Clear
+                h = ws.HPageBreaks.Count
+                v = ws.VPageBreaks.Count
+                Set pa = ws.Range(ws.PageSetup.PrintArea)
+                If Err.Number = 0 Then
+                    rowsList = ""
+                    For i = 1 To h
+                        rowsList = rowsList & IIf(i > 1, ",", "") & CStr(ws.HPageBreaks(i).Location.Row)
+                    Next i
+                    gBreakInfo.Add ((h + 1) * (v + 1)) & "|" & rowsList & "|" & pa.Row & "|" & (pa.Row + pa.Rows.Count - 1) & "|" & pa.Column & "|" & (pa.Column + pa.Columns.Count - 1) & "|" & v, ws.Name
+                End If
+                Err.Clear
+                On Error GoTo 0
+            End If
+        End If
+    Next nm
+End Sub
+
+' 複数頁になるシート（改ページを手動で入れてあり、縮尺で1ブロック1頁に収めてある）
+Private Function MultiPageSheets() As Variant
+    MultiPageSheets = Array("予算02短期_予定損益", "予算02短期_損益説明書", "予算03厚年_損益説明書", _
+                            "予算07業務_予定損益", "予算07業務_損益説明書", "予算08保健_予定損益", _
+                            "予算08保健_損益説明書", "予算09貸付_損益説明書")
 End Function
 
 ' 複数頁のシートを、改ページごとの一時コピーに分ける。番号は firstNo から順に付ける。作った頁数を返す（失敗は0）
 Private Function SplitIntoPages(ByVal ws As Worksheet, ByVal firstNo As Long, ByRef copySeq As Long, ByRef report As String) As Long
-    Dim pa As Range
+    Dim parts() As String
+    Dim brk() As String
     Dim r1 As Long, r2 As Long, c1 As Long, c2 As Long
     Dim rowsFrom() As Long, rowsTo() As Long
     Dim cntB As Long
@@ -1069,22 +1117,27 @@ Private Function SplitIntoPages(ByVal ws As Worksheet, ByVal firstNo As Long, By
     Dim prev As Worksheet
     Dim cp As Worksheet
     Dim made As Long
+    Dim nBrk As Long
 
     On Error GoTo Fail
-    If ws.VPageBreaks.Count > 0 Then
+    parts = Split(gBreakInfo(ws.Name), "|")
+    If CLng(parts(6)) > 0 Then
         report = report & ws.Name & "：横にも改ページがあるため、番号を頁ごとに分けられません" & vbCrLf
         Exit Function
     End If
-    Set pa = ws.Range(ws.PageSetup.PrintArea)
-    r1 = pa.Row: r2 = pa.Row + pa.Rows.Count - 1
-    c1 = pa.Column: c2 = pa.Column + pa.Columns.Count - 1
+    r1 = CLng(parts(2)): r2 = CLng(parts(3)): c1 = CLng(parts(4)): c2 = CLng(parts(5))
+    nBrk = 0
+    If Len(parts(1)) > 0 Then
+        brk = Split(parts(1), ",")
+        nBrk = UBound(brk) + 1
+    End If
 
-    ReDim rowsFrom(0 To ws.HPageBreaks.Count)
-    ReDim rowsTo(0 To ws.HPageBreaks.Count)
+    ReDim rowsFrom(0 To nBrk)
+    ReDim rowsTo(0 To nBrk)
     cntB = 0
     rowsFrom(0) = r1
-    For i = 1 To ws.HPageBreaks.Count
-        br = ws.HPageBreaks(i).Location.Row          ' 次の頁の先頭行
+    For i = 1 To nBrk
+        br = CLng(brk(i - 1))                          ' 次の頁の先頭行
         If br > rowsFrom(cntB) And br <= r2 Then
             rowsTo(cntB) = br - 1
             cntB = cntB + 1
@@ -1101,11 +1154,7 @@ Private Function SplitIntoPages(ByVal ws As Worksheet, ByVal firstNo As Long, By
         cp.Name = TEMP_PREFIX & "頁" & Format$(copySeq, "000")
         cp.ResetAllPageBreaks
         cp.PageSetup.PrintArea = cp.Range(cp.Cells(rowsFrom(i), c1), cp.Cells(rowsTo(i), c2)).Address
-        Call ClearHeaderFooter(cp)
         cp.PageSetup.CenterFooter = FooterText(firstNo + i)
-        If cp.HPageBreaks.Count > 0 Then
-            report = report & ws.Name & "（" & (i + 1) & "頁目）：1頁に収まりません。縮尺を確認してください" & vbCrLf
-        End If
         Set prev = cp
         made = made + 1
     Next i
@@ -1150,19 +1199,12 @@ Private Function AddBlankSheet(ByVal afterWs As Worksheet, ByVal nm As String, B
     On Error Resume Next
     b.PageSetup.PaperSize = afterWs.PageSetup.PaperSize
     b.PageSetup.Orientation = afterWs.PageSetup.Orientation
-    b.PageSetup.Zoom = 100
-    b.PageSetup.LeftMargin = afterWs.PageSetup.LeftMargin
-    b.PageSetup.RightMargin = afterWs.PageSetup.RightMargin
-    b.PageSetup.TopMargin = afterWs.PageSetup.TopMargin
     b.PageSetup.BottomMargin = afterWs.PageSetup.BottomMargin
     b.PageSetup.FooterMargin = afterWs.PageSetup.FooterMargin
-    b.PageSetup.CenterHorizontally = afterWs.PageSetup.CenterHorizontally
     On Error GoTo 0
     ' 1つのセルだけの印刷範囲にすると確認メッセージが出るため、2セル（A1:B1）にする
     b.PageSetup.PrintArea = "$A$1:$B$1"
-    Call ClearHeaderFooter(b)
     If numbered Then b.PageSetup.CenterFooter = "&9&P"
-    b.PageSetup.FirstPageNumber = xlAutomatic
     Set AddBlankSheet = b
 End Function
 
@@ -1219,6 +1261,15 @@ Private Sub DeleteTempSheets()
     Next i
     Application.DisplayAlerts = prevAlerts
     gReplaced = ""
+    On Error Resume Next
+    Application.PrintCommunication = True      ' 途中で止まったときも、必ず戻す
+    On Error GoTo 0
+    If gCalcSaved Then
+        On Error Resume Next
+        Application.Calculation = gPrevCalc
+        On Error GoTo 0
+        gCalcSaved = False
+    End If
     Call RestorePrintSetup
 End Sub
 
