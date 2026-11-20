@@ -10,6 +10,8 @@ Option Explicit
 ' 手入力セルの黄色はセルの塗りで表示し、マクロで付け外しする。入力ガイドのこのセルが 1 のとき表示。
 Private Const INPUT_COLOR_CELL As String = "E9"
 Public gInputColorSuspended As Boolean
+' 複数頁のため頁ごとのコピーに置き換えた元シート名（出力から外す。「|名前|」を並べた文字列）
+Private gReplaced As String
 Public gInputColorBackup As Variant
 
 ' Enterキーで次の手入力セルへ移動する機能のオン／オフ（入力ガイドのこのセルが 1 のとき有効）
@@ -904,28 +906,32 @@ Private Function InList(ByVal arr As Variant, ByVal s As String) As Boolean
     Next v
 End Function
 
-' 目次（T列）の頁番号どおりに、フッター中央へ頁番号を付ける。
-'   各経理の先頭シートに FirstPageNumber を設定し、頁数が次の経理の開始頁に足りないときは
-'   番号付きの空白ページ（一時シート）を経理の末尾に足す。表紙・目次・中扉には番号を付けない。
+' 目次（T列）の頁番号どおりに、フッター中央へ「その頁の番号」をそのまま（固定の数字で）書く。
+'   Excelの複数シート出力では、&P（自動の頁番号）の続き方が環境によって変わるため使わない。
+'   ・1頁のシート … 元のシートのフッターに番号を書く（出力後に元へ戻す）
+'   ・複数頁のシート … 頁ごと（改ページごと）の一時コピーに分け、それぞれに番号を書く（元のシートは出力から外す）
+'   ・頁数が次の経理の開始頁に足りないとき … 番号付きの空白頁を経理の末尾に足す
+'   表紙・目次・中扉・裏の白紙には番号を付けない。
 Private Sub ApplyNumberingAndBlanks(ByVal mode As String)
     Dim keys As Variant
     Dim cells As Variant
     Dim s As Long
     Dim ws As Worksheet
-    Dim firstWs As Worksheet
     Dim lastWs As Worksheet
     Dim wsToc As Worksheet
     Dim startNo As Long
     Dim nextNo As Long
+    Dim n As Long
     Dim used As Long
     Dim pc As Long
-    Dim unknown As Boolean
-    Dim need As Long
     Dim k As Long
     Dim blank As Worksheet
     Dim blankSeq As Long
+    Dim copySeq As Long
     Dim report As String
-    Dim failSet As String
+    Dim names As Collection
+    Dim nm As Variant
+    Dim hasSheet As Boolean
 
     keys = Array("概況01", "概況02", "概況03", "概況04", "概況05", "概況06", "概況07", "概況08", "概況09", _
                  "予算02", "予算03", "予算04", "予算05", "予算06", "予算07", "予算08", "予算09")
@@ -935,52 +941,61 @@ Private Sub ApplyNumberingAndBlanks(ByVal mode As String)
     Set wsToc = GetSheet(TOC_SHEET)
     If wsToc Is Nothing Then Exit Sub
     Call ClearHeaderFooter(wsToc)
+    gReplaced = ""
 
     For s = LBound(keys) To UBound(keys)
-        Set firstWs = Nothing
-        Set lastWs = Nothing
-        used = 0
-        unknown = False
         startNo = TocPageNumber(wsToc.Range(CStr(cells(s))).Value)
         nextNo = 0
         If s < UBound(keys) Then nextNo = TocPageNumber(wsToc.Range(CStr(cells(s + 1))).Value)
+        n = startNo
+        used = 0
+        hasSheet = False
+        Set lastWs = Nothing
 
+        ' この経理の対象シート名を、シートの並び順に集める（途中でコピーを足すため、先に名前だけ控える）
+        Set names = New Collection
         For Each ws In ThisWorkbook.Worksheets
             If ws.Visible = xlSheetVisible Then
                 If Left$(ws.Name, Len(CStr(keys(s)))) = CStr(keys(s)) Then
-                    If IsOutputSheet(ws.Name, mode) Then
-                        If firstWs Is Nothing Then Set firstWs = ws
-                        Set lastWs = ws
-                        pc = 0
-                        On Error Resume Next
-                        Call ClearHeaderFooter(ws)
-                        ws.PageSetup.CenterFooter = "&9&P"
-                        If (ws Is firstWs) And (startNo > 0) Then
-                            ws.PageSetup.FirstPageNumber = startNo
-                        Else
-                            ws.PageSetup.FirstPageNumber = xlAutomatic
-                        End If
-                        ' 設定が実際に入ったか読み戻して確かめる（失敗を握りつぶさない）
-                        If ws.PageSetup.CenterFooter <> "&9&P" Then failSet = failSet & ws.Name & vbCrLf
-                        If (ws Is firstWs) And (startNo > 0) Then
-                            If ws.PageSetup.FirstPageNumber <> startNo Then failSet = failSet & ws.Name & "（開始頁）" & vbCrLf
-                        End If
-                        pc = ws.PageSetup.Pages.Count
-                        On Error GoTo 0
-                        If pc <= 0 Then unknown = True Else used = used + pc
-                    End If
+                    If IsOutputSheet(ws.Name, mode) Then names.Add ws.Name
                 End If
             End If
         Next ws
 
-        If Not firstWs Is Nothing And startNo > 0 And nextNo > 0 Then
-            If unknown Then
-                report = report & CStr(keys(s)) & "：頁数を取得できないため空白ページ調整をしていません" & vbCrLf
-            ElseIf used < nextNo - startNo Then
-                need = nextNo - startNo - used
-                For k = 1 To need
+        For Each nm In names
+            Set ws = ThisWorkbook.Worksheets(CStr(nm))
+            hasSheet = True
+            Call ClearHeaderFooter(ws)
+            pc = SheetPageCount(ws)
+            If pc <= 1 Then
+                If startNo > 0 Then ws.PageSetup.CenterFooter = FooterText(n)
+                n = n + 1
+                used = used + 1
+                Set lastWs = ws
+            Else
+                ' 複数頁: 頁ごとのコピーに分ける
+                Dim made As Long
+                made = SplitIntoPages(ws, n, copySeq, report)
+                If made > 0 Then
+                    gReplaced = gReplaced & "|" & ws.Name & "|"
+                    Set lastWs = ThisWorkbook.Worksheets(TEMP_PREFIX & "頁" & Format$(copySeq, "000"))
+                    n = n + made
+                    used = used + made
+                Else
+                    n = n + pc
+                    used = used + pc
+                    Set lastWs = ws
+                End If
+            End If
+        Next nm
+
+        If hasSheet And startNo > 0 And nextNo > 0 And Not lastWs Is Nothing Then
+            If used < nextNo - startNo Then
+                For k = 1 To nextNo - startNo - used
                     blankSeq = blankSeq + 1
                     Set blank = AddBlankSheet(lastWs, TEMP_PREFIX & "空白" & Format$(blankSeq, "00"), True)
+                    blank.PageSetup.CenterFooter = FooterText(n)
+                    n = n + 1
                     Set lastWs = blank
                 Next k
             ElseIf used > nextNo - startNo Then
@@ -989,13 +1004,90 @@ Private Sub ApplyNumberingAndBlanks(ByVal mode As String)
         End If
     Next s
 
-    If Len(failSet) > 0 Then
-        report = report & vbCrLf & "頁番号を設定できなかったシート：" & vbCrLf & failSet
-    End If
     If report <> "" Then
         MsgBox "頁数の確認が必要です。" & vbCrLf & vbCrLf & report, vbExclamation, "頁番号"
     End If
 End Sub
+
+' フッター中央に書く固定の頁番号（&9の直後に数字が続くと文字の大きさと読まれるため、前後に空白を入れる）
+Private Function FooterText(ByVal n As Long) As String
+    FooterText = "&9 " & CStr(n) & " "
+End Function
+
+' シートの頁数（Excelが数えた改ページの数から。取得できなければ 1）
+Private Function SheetPageCount(ByVal ws As Worksheet) As Long
+    Dim h As Long
+    Dim v As Long
+    On Error Resume Next
+    ws.Activate
+    h = ws.HPageBreaks.Count
+    v = ws.VPageBreaks.Count
+    If Err.Number <> 0 Then
+        Err.Clear
+        SheetPageCount = 1
+    Else
+        SheetPageCount = (h + 1) * (v + 1)
+    End If
+    On Error GoTo 0
+End Function
+
+' 複数頁のシートを、改ページごとの一時コピーに分ける。番号は firstNo から順に付ける。作った頁数を返す（失敗は0）
+Private Function SplitIntoPages(ByVal ws As Worksheet, ByVal firstNo As Long, ByRef copySeq As Long, ByRef report As String) As Long
+    Dim pa As Range
+    Dim r1 As Long, r2 As Long, c1 As Long, c2 As Long
+    Dim rowsFrom() As Long, rowsTo() As Long
+    Dim cntB As Long
+    Dim i As Long
+    Dim br As Long
+    Dim prev As Worksheet
+    Dim cp As Worksheet
+    Dim made As Long
+
+    On Error GoTo Fail
+    If ws.VPageBreaks.Count > 0 Then
+        report = report & ws.Name & "：横にも改ページがあるため、番号を頁ごとに分けられません" & vbCrLf
+        Exit Function
+    End If
+    Set pa = ws.Range(ws.PageSetup.PrintArea)
+    r1 = pa.Row: r2 = pa.Row + pa.Rows.Count - 1
+    c1 = pa.Column: c2 = pa.Column + pa.Columns.Count - 1
+
+    ReDim rowsFrom(0 To ws.HPageBreaks.Count)
+    ReDim rowsTo(0 To ws.HPageBreaks.Count)
+    cntB = 0
+    rowsFrom(0) = r1
+    For i = 1 To ws.HPageBreaks.Count
+        br = ws.HPageBreaks(i).Location.Row          ' 次の頁の先頭行
+        If br > rowsFrom(cntB) And br <= r2 Then
+            rowsTo(cntB) = br - 1
+            cntB = cntB + 1
+            rowsFrom(cntB) = br
+        End If
+    Next i
+    rowsTo(cntB) = r2
+
+    Set prev = ws
+    For i = 0 To cntB
+        ws.Copy After:=prev
+        Set cp = ActiveSheet
+        copySeq = copySeq + 1
+        cp.Name = TEMP_PREFIX & "頁" & Format$(copySeq, "000")
+        cp.ResetAllPageBreaks
+        cp.PageSetup.PrintArea = cp.Range(cp.Cells(rowsFrom(i), c1), cp.Cells(rowsTo(i), c2)).Address
+        Call ClearHeaderFooter(cp)
+        cp.PageSetup.CenterFooter = FooterText(firstNo + i)
+        If cp.HPageBreaks.Count > 0 Then
+            report = report & ws.Name & "（" & (i + 1) & "頁目）：1頁に収まりません。縮尺を確認してください" & vbCrLf
+        End If
+        Set prev = cp
+        made = made + 1
+    Next i
+    SplitIntoPages = made
+    Exit Function
+Fail:
+    report = report & ws.Name & "：頁ごとの分割に失敗しました（" & Err.Description & "）" & vbCrLf
+    SplitIntoPages = 0
+End Function
 
 ' 帳票シート・表紙等・目次のうち、保護されているシート名（なければ空）
 Private Function ProtectedOutputSheets() As String
@@ -1069,6 +1161,7 @@ End Function
 
 ' 出力対象か。管理用・カメラ元表・手持資料・非表示参考シートは対象外
 Private Function IsOutputSheet(ByVal sName As String, ByVal mode As String) As Boolean
+    If InStr(gReplaced, "|" & sName & "|") > 0 Then Exit Function
     If Left$(sName, Len(TEMP_PREFIX)) = TEMP_PREFIX Then
         IsOutputSheet = True
         Exit Function
@@ -1098,6 +1191,7 @@ Private Sub DeleteTempSheets()
         End If
     Next i
     Application.DisplayAlerts = prevAlerts
+    gReplaced = ""
     Call RestorePrintSetup
 End Sub
 
