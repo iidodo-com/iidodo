@@ -1039,7 +1039,8 @@ Private Function AddBlankSheet(ByVal afterWs As Worksheet, ByVal nm As String, B
     b.PageSetup.FooterMargin = afterWs.PageSetup.FooterMargin
     b.PageSetup.CenterHorizontally = afterWs.PageSetup.CenterHorizontally
     On Error GoTo 0
-    b.PageSetup.PrintArea = "$A$1"
+    ' 1つのセルだけの印刷範囲にすると確認メッセージが出るため、2セル（A1:B1）にする
+    b.PageSetup.PrintArea = "$A$1:$B$1"
     Call ClearHeaderFooter(b)
     If numbered Then b.PageSetup.CenterFooter = "&9&P"
     b.PageSetup.FirstPageNumber = xlAutomatic
